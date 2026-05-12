@@ -63,14 +63,14 @@ bun run test
 
 ## Development Flow
 
-Development happens on Codeberg. GitHub is kept as a release mirror for npm trusted publishing.
+Development happens on Forgejo at `jojo.build`. Codeberg is configured as a push mirror, and GitHub is kept for npm trusted publishing only.
 
-See [docs/development-flow.md](docs/development-flow.md) for remotes, key setup, Forgejo CLI setup, and the release procedure.
+See [docs/development-flow.md](docs/development-flow.md) for remotes, key setup, Forgejo CLI setup, mirroring, and the release procedure.
 
 ## Publishing
 
-The public development home for this monorepo is `codeberg.org/peezy-tech/codex-flows`.
-The GitHub mirror at `peezy-tech/codex-flows` exists for npm trusted publishing.
+The canonical development home for this monorepo is `jojo.build/peezy-tech/codex-flows`.
+Codeberg mirrors `peezy-tech/codex-flows`; the GitHub repository at `peezy-tech/codex-flows` exists for npm trusted publishing.
 
 `@peezy.tech/codex-flows` is published from `packages/codex-client`.
 

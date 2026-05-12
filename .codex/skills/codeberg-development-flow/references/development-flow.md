@@ -1,14 +1,15 @@
-# Codeberg Development Flow Reference
+# Forgejo Development Flow Reference
 
 ## Remotes
 
 ```bash
 git remote -v
-# origin  git@codeberg.org:peezy-tech/codex-flows.git
-# github  https://github.com/peezy-tech/codex-flows.git
+# origin    git@jojo.build:peezy-tech/codex-flows.git
+# codeberg  git@codeberg.org:peezy-tech/codex-flows.git
+# github    https://github.com/peezy-tech/codex-flows.git
 ```
 
-`main` should track Codeberg:
+`main` should track Forgejo:
 
 ```bash
 git branch --set-upstream-to=origin/main main
@@ -16,11 +17,12 @@ git status --short --branch
 # ## main...origin/main
 ```
 
-Use Codeberg for day-to-day work:
+Use Forgejo for day-to-day work. Forgejo should push-mirror to Codeberg:
 
 ```bash
 git pull
 git push
+git ls-remote codeberg refs/heads/main
 ```
 
 Use GitHub only to run npm trusted publishing:
@@ -35,13 +37,13 @@ gh workflow run publish-codex-flows.yml --repo peezy-tech/codex-flows --ref main
 SSH public key:
 
 ```text
-~/.ssh/id_ed25519_codeberg.pub
+~/.ssh/id_ed25519_jojo_build.pub
 ```
 
 GPG public key:
 
 ```text
-~/.config/codeberg-keys/matamune-codeberg-gpg.asc
+~/.config/forgejo-keys/matamune-jojo-build-gpg.asc
 ```
 
 Git signing is expected:
@@ -55,23 +57,23 @@ git config --global user.signingkey E3B0D5FB2E5CF11FAFB2EA113BB8E7D3B968A324
 
 `forgejo-cli` is installed as `fj`.
 
-The configured Codeberg login should be visible as `matamune@codeberg.org`:
+The configured Forgejo login should be visible for `jojo.build`:
 
 ```bash
-fj --host codeberg.org auth list
+fj --host jojo.build auth list
 ```
 
 If authentication needs to be recreated:
 
 ```bash
-fj --host codeberg.org auth add-key matamune <token>
-fj --host codeberg.org auth use-ssh true
+fj --host jojo.build auth add-key matamune <token>
+fj --host jojo.build auth use-ssh true
 ```
 
 Create the organization repo when missing:
 
 ```bash
-fj --host codeberg.org org repo create peezy-tech codex-flows \
+fj --host jojo.build org repo create peezy-tech codex-flows \
   -d "Public monorepo for @peezy.tech/codex-flows" \
   -S true
 ```
@@ -79,7 +81,7 @@ fj --host codeberg.org org repo create peezy-tech codex-flows \
 Verify the repository:
 
 ```bash
-fj --host codeberg.org repo view peezy-tech/codex-flows
+fj --host jojo.build repo view peezy-tech/codex-flows
 git ls-remote origin HEAD refs/heads/main
 ```
 
@@ -101,7 +103,7 @@ npm view @peezy.tech/codex-flows version repository --json
 
 ## Current Constructed State
 
-- Codeberg repo: `https://codeberg.org/peezy-tech/codex-flows`
-- GitHub mirror: `https://github.com/peezy-tech/codex-flows`
-- `origin/main` and `github/main` should be kept aligned for release commits.
-- Latest setup commit: `cebe948fbc44a027d905d26a972ab243f6a5d9c6`.
+- Forgejo repo: `https://jojo.build/peezy-tech/codex-flows`
+- Codeberg mirror: `https://codeberg.org/peezy-tech/codex-flows`
+- GitHub publishing repo: `https://github.com/peezy-tech/codex-flows`
+- `origin/main`, `codeberg/main`, and `github/main` should be kept aligned for release commits.
