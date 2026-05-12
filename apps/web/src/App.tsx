@@ -2,7 +2,10 @@ import { Button } from "@workspace/ui/components/button";
 import {
 	AlertCircle,
 	Copy,
+	ExternalLink,
+	KeyRound,
 	Loader2,
+	LogOut,
 	Plug,
 	RefreshCw,
 	Send,
@@ -23,6 +26,9 @@ import {
 import {
 	CodexAppServerClient,
 	JsonRpcError,
+	createCodexAuthClient,
+	type CodexAuthClient,
+	type CodexAuthState,
 	type JsonRpcNotification,
 	type JsonRpcRequest,
 	type v2,
@@ -53,6 +59,7 @@ export function App() {
 
 function BareCodexApp() {
 	const clientRef = useRef<CodexAppServerClient | null>(null);
+	const authRef = useRef<CodexAuthClient | null>(null);
 	const [wsUrl, setWsUrl] = useState(initialWsUrl);
 	const [connectedUrl, setConnectedUrl] = useState<string>();
 	const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -60,7 +67,7 @@ function BareCodexApp() {
 	const [threads, setThreads] = useState<v2.Thread[]>([]);
 	const [selectedThreadId, setSelectedThreadId] = useState<string>();
 	const [selectedThread, setSelectedThread] = useState<v2.Thread>();
-	const [account, setAccount] = useState<v2.GetAccountResponse>();
+	const [authState, setAuthState] = useState<CodexAuthState>();
 	const [prompt, setPrompt] = useState("");
 	const [cwd, setCwd] = useState("");
 	const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
@@ -116,14 +123,14 @@ function BareCodexApp() {
 		[readThread, selectedThreadId],
 	);
 
-	const refreshAccount = useCallback(async (client = clientRef.current) => {
-		if (!client) {
+	const refreshAuthState = useCallback(async (auth = authRef.current) => {
+		if (!auth) {
 			return;
 		}
 		try {
-			setAccount(await client.getAccount({ refreshToken: false }));
+			setAuthState(await auth.getState());
 		} catch {
-			setAccount(undefined);
+			setAuthState(undefined);
 		}
 	}, []);
 
@@ -136,7 +143,7 @@ function BareCodexApp() {
 		try {
 			await Promise.all([
 				refreshThreads(client),
-				refreshAccount(client),
+				refreshAuthState(),
 				selectedThreadId ? readThread(selectedThreadId, client) : undefined,
 			]);
 		} catch (refreshError) {
@@ -144,15 +151,23 @@ function BareCodexApp() {
 		} finally {
 			setBusyAction(undefined);
 		}
-	}, [readThread, refreshAccount, refreshThreads, selectedThreadId]);
+	}, [readThread, refreshAuthState, refreshThreads, selectedThreadId]);
 
 	const handleNotification = useCallback(
 		(message: JsonRpcNotification) => {
 			appendEvent({
 				kind: "notification",
 				title: message.method,
-				body: previewJson(message.params, 900),
+				body: previewNotificationParams(message),
 			});
+			if (
+				message.method === "account/updated" ||
+				message.method === "account/login/completed"
+			) {
+				void refreshAuthState().catch((refreshError) =>
+					setError(errorMessage(refreshError)),
+				);
+			}
 			const threadId = notificationThreadId(message);
 			if (threadId) {
 				if (!selectedThreadId || selectedThreadId === threadId) {
@@ -166,7 +181,13 @@ function BareCodexApp() {
 				);
 			}
 		},
-		[appendEvent, readThread, refreshThreads, selectedThreadId],
+		[
+			appendEvent,
+			readThread,
+			refreshAuthState,
+			refreshThreads,
+			selectedThreadId,
+		],
 	);
 
 	const connect = useCallback(async () => {
@@ -185,6 +206,8 @@ function BareCodexApp() {
 			clientVersion: "0.1.0",
 		});
 		clientRef.current = client;
+		const auth = createCodexAuthClient(client);
+		authRef.current = auth;
 		client.on("notification", handleNotification);
 		client.on("request", (message: JsonRpcRequest) => {
 			appendEvent({
@@ -222,7 +245,7 @@ function BareCodexApp() {
 			setConnectedUrl(url);
 			setStatus("connected");
 			appendEvent({ kind: "control", title: "connected", body: url });
-			await Promise.all([refreshThreads(client), refreshAccount(client)]);
+			await Promise.all([refreshThreads(client), refreshAuthState(auth)]);
 		} catch (connectError) {
 			if (clientRef.current === client) {
 				clientRef.current = null;
@@ -235,7 +258,7 @@ function BareCodexApp() {
 	}, [
 		appendEvent,
 		handleNotification,
-		refreshAccount,
+		refreshAuthState,
 		refreshThreads,
 		wsUrl,
 	]);
@@ -243,8 +266,10 @@ function BareCodexApp() {
 	const disconnect = useCallback(() => {
 		clientRef.current?.close();
 		clientRef.current = null;
+		authRef.current = null;
 		setConnectedUrl(undefined);
 		setStatus("disconnected");
+		setAuthState(undefined);
 		appendEvent({ kind: "control", title: "disconnected" });
 	}, [appendEvent]);
 
@@ -319,6 +344,134 @@ function BareCodexApp() {
 	const copyThreadId = async () => {
 		if (selectedThreadId && navigator.clipboard) {
 			await navigator.clipboard.writeText(selectedThreadId);
+		}
+	};
+
+	const startChatGptLogin = async () => {
+		const auth = authRef.current;
+		if (!auth) {
+			return;
+		}
+		setBusyAction("auth");
+		setError(undefined);
+		try {
+			const login = await auth.startChatGptLogin();
+			window.open(login.authUrl, "_blank", "noopener,noreferrer");
+			setAuthState({
+				status: "loginPending",
+				method: "chatgpt",
+				loginId: login.loginId,
+				authMode: null,
+				planType: null,
+				usage: null,
+			});
+			appendEvent({
+				kind: "control",
+				title: "chatgpt login started",
+				body: login.loginId,
+			});
+		} catch (authError) {
+			setError(errorMessage(authError));
+		} finally {
+			setBusyAction(undefined);
+		}
+	};
+
+	const startDeviceCodeLogin = async () => {
+		const auth = authRef.current;
+		if (!auth) {
+			return;
+		}
+		setBusyAction("auth");
+		setError(undefined);
+		try {
+			const login = await auth.startDeviceCodeLogin();
+			if (navigator.clipboard) {
+				await navigator.clipboard.writeText(login.userCode);
+			}
+			window.open(login.verificationUrl, "_blank", "noopener,noreferrer");
+			setAuthState({
+				status: "loginPending",
+				method: "chatgptDeviceCode",
+				loginId: login.loginId,
+				authMode: null,
+				planType: null,
+				usage: null,
+			});
+			appendEvent({
+				kind: "control",
+				title: "device login started",
+				body: `${login.userCode} / ${login.loginId}`,
+			});
+		} catch (authError) {
+			setError(errorMessage(authError));
+		} finally {
+			setBusyAction(undefined);
+		}
+	};
+
+	const loginWithApiKey = async () => {
+		const auth = authRef.current;
+		const apiKey = window.prompt("OpenAI API key");
+		if (!auth || !apiKey?.trim()) {
+			return;
+		}
+		setBusyAction("auth");
+		setError(undefined);
+		try {
+			await auth.loginWithApiKey(apiKey.trim());
+			await refreshAuthState(auth);
+			appendEvent({ kind: "control", title: "api key login completed" });
+		} catch (authError) {
+			setError(errorMessage(authError));
+		} finally {
+			setBusyAction(undefined);
+		}
+	};
+
+	const loginWithChatGptTokens = async () => {
+		const auth = authRef.current;
+		const accessToken = window.prompt("ChatGPT access token");
+		if (!auth || !accessToken?.trim()) {
+			return;
+		}
+		const chatgptAccountId = window.prompt("ChatGPT account/workspace id");
+		if (!chatgptAccountId?.trim()) {
+			return;
+		}
+		const chatgptPlanType = window.prompt("Plan type (optional)")?.trim() || null;
+		setBusyAction("auth");
+		setError(undefined);
+		try {
+			await auth.loginWithChatGptTokens({
+				accessToken: accessToken.trim(),
+				chatgptAccountId: chatgptAccountId.trim(),
+				chatgptPlanType,
+			});
+			await refreshAuthState(auth);
+			appendEvent({ kind: "control", title: "token login completed" });
+		} catch (authError) {
+			setError(errorMessage(authError));
+		} finally {
+			setBusyAction(undefined);
+		}
+	};
+
+	const logout = async () => {
+		const auth = authRef.current;
+		if (!auth) {
+			return;
+		}
+		setBusyAction("auth");
+		setError(undefined);
+		try {
+			await auth.logout();
+			await refreshAuthState(auth);
+			appendEvent({ kind: "control", title: "logged out" });
+		} catch (authError) {
+			setError(errorMessage(authError));
+		} finally {
+			setBusyAction(undefined);
 		}
 	};
 
@@ -456,17 +609,69 @@ function BareCodexApp() {
 					</Panel>
 
 					<Panel title="Account">
-						<dl className="grid gap-2 text-sm">
-							<Meta label="Status" value={statusLabel(status)} />
-							<Meta
-								label="Mode"
-								value={accountMode(account) ?? (connected ? "unknown" : "offline")}
-							/>
-							<Meta
-								label="Plan"
-								value={accountPlan(account) ?? "unknown"}
-							/>
-						</dl>
+						<div className="space-y-3">
+							<dl className="grid gap-2 text-sm">
+								<Meta label="Connection" value={statusLabel(status)} />
+								<Meta label="Auth" value={authStatusLabel(authState, connected)} />
+								<Meta label="Mode" value={authState?.authMode ?? "none"} />
+								<Meta label="Plan" value={authState?.planType ?? "unknown"} />
+								<Meta label="Usage" value={usageLabel(authState)} />
+							</dl>
+							<div className="grid gap-2">
+								<Button
+									className="w-full"
+									disabled={!connected || busyAction === "auth"}
+									onClick={() => void startChatGptLogin()}
+									size="sm"
+									type="button"
+								>
+									<ExternalLink className="size-4" />
+									ChatGPT Login
+								</Button>
+								<div className="grid grid-cols-3 gap-2">
+									<Button
+										disabled={!connected || busyAction === "auth"}
+										onClick={() => void startDeviceCodeLogin()}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										<KeyRound className="size-4" />
+										Device
+									</Button>
+									<Button
+										disabled={!connected || busyAction === "auth"}
+										onClick={() => void loginWithApiKey()}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										<KeyRound className="size-4" />
+										API Key
+									</Button>
+									<Button
+										disabled={!connected || busyAction === "auth"}
+										onClick={() => void loginWithChatGptTokens()}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										<KeyRound className="size-4" />
+										Tokens
+									</Button>
+								</div>
+								<Button
+									disabled={!connected || busyAction === "auth"}
+									onClick={() => void logout()}
+									size="sm"
+									type="button"
+									variant="ghost"
+								>
+									<LogOut className="size-4" />
+									Sign Out
+								</Button>
+							</div>
+						</div>
 					</Panel>
 				</aside>
 
@@ -799,25 +1004,64 @@ function notificationThreadId(message: JsonRpcNotification) {
 	return stringValue(thread.id);
 }
 
-function accountMode(account: v2.GetAccountResponse | undefined) {
-	const value = account as unknown;
-	const item = record(value);
-	return (
-		stringValue(item.authMode) ??
-		stringValue(record(item.account).type) ??
-		stringValue(record(item.account).authMode)
-	);
-}
-
-function accountPlan(account: v2.GetAccountResponse | undefined) {
-	const value = account as unknown;
-	const item = record(value);
-	return stringValue(item.planType) ?? stringValue(record(item.account).planType);
+function previewNotificationParams(message: JsonRpcNotification) {
+	if (message.method === "account/login/completed") {
+		const params = record(message.params);
+		return previewJson(
+			{
+				loginId: stringValue(params.loginId),
+				success: params.success === true,
+				error: stringValue(params.error),
+			},
+			900,
+		);
+	}
+	if (message.method === "account/updated") {
+		return previewJson({ account: "updated" }, 900);
+	}
+	return previewJson(message.params, 900);
 }
 
 function optionalText(value: string) {
 	const trimmed = value.trim();
 	return trimmed ? trimmed : null;
+}
+
+function authStatusLabel(
+	authState: CodexAuthState | undefined,
+	connected: boolean,
+) {
+	if (!connected) {
+		return "offline";
+	}
+	if (!authState) {
+		return "unknown";
+	}
+	if (authState.status === "loginPending") {
+		return `pending ${authState.method}`;
+	}
+	if (authState.status === "authenticated") {
+		return "signed in";
+	}
+	if (authState.status === "unauthenticated") {
+		return authState.requiresOpenaiAuth ? "sign in required" : "signed out";
+	}
+	return "error";
+}
+
+function usageLabel(authState: CodexAuthState | undefined) {
+	if (authState?.status !== "authenticated") {
+		return "unknown";
+	}
+	const primary = authState.usage?.primary;
+	if (!primary) {
+		return "unknown";
+	}
+	const percent = Math.round(primary.usedPercent);
+	const reset = primary.resetsAt
+		? ` / resets ${formatTime(new Date(primary.resetsAt * 1000).toISOString())}`
+		: "";
+	return `${percent}%${reset}`;
 }
 
 function compactPath(path: string | undefined) {

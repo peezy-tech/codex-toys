@@ -37,6 +37,10 @@
 			"types": "./dist/app-server/flows.d.ts",
 			"import": "./dist/app-server/flows.js"
 		},
+		"./auth": {
+			"types": "./dist/auth.d.ts",
+			"import": "./dist/auth.js"
+		},
 		"./rpc": {
 			"types": "./dist/app-server/rpc.d.ts",
 			"import": "./dist/app-server/rpc.js"

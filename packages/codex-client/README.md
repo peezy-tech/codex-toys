@@ -19,6 +19,10 @@ This package owns the low-level JSON-RPC client, transports, framework-agnostic 
   - `CodexFlowClient`
   - `createCodexFlowClient`
   - prompt/input normalization and optional turn completion waiting
+- `@peezy.tech/codex-flows/auth`
+  - `CodexAuthClient`
+  - `createCodexAuthClient`
+  - privacy-preserving Codex account login, status, and usage helpers
 - `@peezy.tech/codex-flows/rpc`
 	- JSON-RPC message types and parsing helpers
 - `@peezy.tech/codex-flows/generated`
@@ -73,6 +77,31 @@ const result = await codex.startFlow({
 
 console.log(result.threadId, result.turnId);
 ```
+
+Auth helpers:
+
+```ts
+import {
+	CodexAppServerClient,
+	createCodexAuthClient,
+} from "@peezy.tech/codex-flows";
+
+const client = new CodexAppServerClient();
+await client.connect();
+
+const auth = createCodexAuthClient(client);
+const state = await auth.getState();
+
+if (state.status !== "authenticated") {
+	const login = await auth.startChatGptLogin();
+	console.log(login.authUrl);
+}
+```
+
+The high-level auth state intentionally omits email addresses and stable account
+identifiers. It exposes anonymous auth mode, plan, and usage data by default.
+Call the lower-level app-server client directly only when an application has an
+explicit reason to handle raw account details.
 
 ## Scripts
 

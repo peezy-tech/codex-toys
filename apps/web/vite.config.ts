@@ -16,6 +16,27 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
+			"@peezy.tech/codex-flows/browser": path.resolve(
+				__dirname,
+				"../../packages/codex-client/src/browser.ts",
+			),
+			"@peezy.tech/codex-flows": path.resolve(
+				__dirname,
+				"../../packages/codex-client/src/index.ts",
+			),
+			"@workspace/ui/globals.css": path.resolve(
+				__dirname,
+				"../../packages/ui/src/styles/globals.css",
+			),
+			"@workspace/ui/components": path.resolve(
+				__dirname,
+				"../../packages/ui/src/components",
+			),
+			"@workspace/ui/lib": path.resolve(
+				__dirname,
+				"../../packages/ui/src/lib",
+			),
+			"@workspace/ui": path.resolve(__dirname, "../../packages/ui/src"),
 		},
 	},
 	server: {
