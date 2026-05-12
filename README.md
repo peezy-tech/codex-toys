@@ -76,7 +76,9 @@ bun run --filter @peezy-tech/codex-flows release:check
 ```
 
 Because the npm package does not exist yet, bootstrap the first version with a
-human npm session or short-lived npm token from the public repo checkout:
+human npm session or short-lived npm token from the public repo checkout. The
+`peezy-tech` npm organization/scope must exist first, and the publishing account
+or token must have write access to that scope:
 
 ```bash
 cd packages/codex-client

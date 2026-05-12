@@ -110,7 +110,7 @@ bun run --filter @peezy-tech/codex-flows release:check
 
 The release check runs package tests, type checking, a clean `dist` build, and `npm pack --dry-run`. Review the pack output before publishing so only `dist`, `README.md`, and package metadata are included.
 
-For the first publish, use a human npm session or short-lived npm token from the public `peezy-tech/codex-flows` repo checkout:
+For the first publish, use a human npm session or short-lived npm token from the public `peezy-tech/codex-flows` repo checkout. The `peezy-tech` npm organization/scope must exist first, and the publishing account or token must have write access to that scope:
 
 ```bash
 cd packages/codex-client
