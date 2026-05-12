@@ -1,8 +1,8 @@
 import os from "node:os";
 import path from "node:path";
 
-import type { JsonRpcNotification, JsonRpcRequest } from "@peezy-tech/codex-flows/rpc";
-import type { v2 } from "@peezy-tech/codex-flows/generated";
+import type { JsonRpcNotification, JsonRpcRequest } from "@peezy.tech/codex-flows/rpc";
+import type { v2 } from "@peezy.tech/codex-flows/generated";
 
 import type { DiscordConsoleOutput } from "./console-output.ts";
 import { DiscordThreadRunner, MessageDeduplicator } from "./runner.ts";

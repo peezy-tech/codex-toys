@@ -12,7 +12,7 @@
 	},
 	"dependencies": {
 		"@workspace/ui": "workspace:*",
-		"@peezy-tech/codex-flows": "workspace:*",
+		"@peezy.tech/codex-flows": "workspace:*",
 		"lucide-react": "catalog:",
 		"react": "catalog:",
 		"react-dom": "catalog:"

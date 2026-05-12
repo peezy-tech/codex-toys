@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { CodexAppServerClient } from "@peezy-tech/codex-flows";
+import { CodexAppServerClient } from "@peezy.tech/codex-flows";
 
 import { APP_SERVER_ACTIONS } from "./actions.ts";
 import { DEFAULT_WS_URL, parseArgs } from "./args.ts";

@@ -2,8 +2,8 @@ import type {
 	ReasoningEffort,
 	ReasoningSummary,
 	v2,
-} from "@peezy-tech/codex-flows/generated";
-import type { JsonRpcNotification, JsonRpcRequest } from "@peezy-tech/codex-flows/rpc";
+} from "@peezy.tech/codex-flows/generated";
+import type { JsonRpcNotification, JsonRpcRequest } from "@peezy.tech/codex-flows/rpc";
 import type { DiscordBridgeLogLevelSetting } from "./logger.ts";
 
 export type DiscordBridgeConfig = {

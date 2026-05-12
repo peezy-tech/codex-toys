@@ -40,7 +40,7 @@ export class CodexAppServerClient extends CodexEventEmitter {
 		super();
 		this.transport =
 			options.transport ?? defaultTransport(options);
-		this.#clientName = options.clientName ?? "@peezy-tech/codex-flows";
+		this.#clientName = options.clientName ?? "@peezy.tech/codex-flows";
 		this.#clientTitle = options.clientTitle ?? "Codex Client";
 		this.#clientVersion = options.clientVersion ?? "0.1.0";
 

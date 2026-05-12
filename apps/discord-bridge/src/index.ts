@@ -2,7 +2,7 @@
 import {
 	CodexAppServerClient,
 	CodexStdioTransport,
-} from "@peezy-tech/codex-flows";
+} from "@peezy.tech/codex-flows";
 
 import { DiscordCodexBridge } from "./bridge.ts";
 import { createDiscordConsoleOutput } from "./console-output.ts";

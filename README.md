@@ -59,7 +59,7 @@ bun run build
 bun run test
 ```
 
-`bun run test` currently runs the `@peezy-tech/codex-flows` transport tests.
+`bun run test` currently runs the `@peezy.tech/codex-flows` transport tests.
 
 ## Publishing
 
@@ -67,17 +67,17 @@ The public home for this monorepo is `peezy-tech/codex-flows`. When seeding that
 repo, copy this working tree without `.git`, initialize a fresh git history, and
 push it to the new public GitHub repo.
 
-`@peezy-tech/codex-flows` is published from `packages/codex-client`.
+`@peezy.tech/codex-flows` is published from `packages/codex-client`.
 
 Before the first publish:
 
 ```bash
-bun run --filter @peezy-tech/codex-flows release:check
+bun run --filter @peezy.tech/codex-flows release:check
 ```
 
 Because the npm package does not exist yet, bootstrap the first version with a
 human npm session or short-lived npm token from the public repo checkout. The
-`peezy-tech` npm organization/scope must exist first, and the publishing account
+`peezy.tech` npm organization/scope must exist first, and the publishing account
 or token must have write access to that scope:
 
 ```bash
@@ -87,7 +87,7 @@ npm publish --access public
 
 After the package exists, configure npm trusted publishing for:
 
-- Package: `@peezy-tech/codex-flows`
+- Package: `@peezy.tech/codex-flows`
 - Repository: `peezy-tech/codex-flows`
 - Workflow: `.github/workflows/publish-codex-flows.yml`
 - Environment: `npm-publish`
@@ -97,19 +97,19 @@ an npm token.
 
 ## Packages
 
-### `@peezy-tech/codex-flows`
+### `@peezy.tech/codex-flows`
 
 The low-level app-server client package. It exports:
 
-- `@peezy-tech/codex-flows`: Node/Bun entry with stdio and WebSocket transports.
-- `@peezy-tech/codex-flows/browser`: browser entry with WebSocket transport only.
-- `@peezy-tech/codex-flows/flows`: framework-agnostic helpers for app servers that want to start Codex-backed workflows.
-- `@peezy-tech/codex-flows/rpc`: JSON-RPC helpers and types.
-- `@peezy-tech/codex-flows/generated`: generated Codex app-server protocol types.
+- `@peezy.tech/codex-flows`: Node/Bun entry with stdio and WebSocket transports.
+- `@peezy.tech/codex-flows/browser`: browser entry with WebSocket transport only.
+- `@peezy.tech/codex-flows/flows`: framework-agnostic helpers for app servers that want to start Codex-backed workflows.
+- `@peezy.tech/codex-flows/rpc`: JSON-RPC helpers and types.
+- `@peezy.tech/codex-flows/generated`: generated Codex app-server protocol types.
 
 ### `web`
 
-The browser app imports `@peezy-tech/codex-flows/browser`, opens a direct WebSocket
+The browser app imports `@peezy.tech/codex-flows/browser`, opens a direct WebSocket
 connection, lists threads, starts turns, interrupts running turns, and renders
 thread items and live app-server events.
 

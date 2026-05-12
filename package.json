@@ -42,6 +42,6 @@
 		"dev:web": "bun run --filter web dev",
 		"start": "bun run --filter web preview",
 		"start:discord:debug:commentary": "bun run --filter codex-discord-bridge start:debug:commentary",
-		"test": "bun run --filter @peezy-tech/codex-flows test && bun run --filter codex-app-cli test && bun run --filter codex-discord-bridge test"
+		"test": "bun run --filter @peezy.tech/codex-flows test && bun run --filter codex-app-cli test && bun run --filter codex-discord-bridge test"
 	}
 }

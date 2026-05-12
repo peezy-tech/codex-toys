@@ -5,7 +5,7 @@ import type {
 	ReasoningEffort,
 	ReasoningSummary,
 	v2,
-} from "@peezy-tech/codex-flows/generated";
+} from "@peezy.tech/codex-flows/generated";
 
 import type {
 	DiscordBridgeConfig,

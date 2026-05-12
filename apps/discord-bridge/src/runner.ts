@@ -1,5 +1,5 @@
-import type { JsonRpcNotification } from "@peezy-tech/codex-flows/rpc";
-import type { v2 } from "@peezy-tech/codex-flows/generated";
+import type { JsonRpcNotification } from "@peezy.tech/codex-flows/rpc";
+import type { v2 } from "@peezy.tech/codex-flows/generated";
 
 import type {
 	DiscordConsoleMessageKind,

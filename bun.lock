@@ -12,7 +12,7 @@
         "codex-app": "./src/index.ts",
       },
       "dependencies": {
-        "@peezy-tech/codex-flows": "workspace:*",
+        "@peezy.tech/codex-flows": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -27,7 +27,7 @@
         "codex-discord-bridge": "./src/index.ts",
       },
       "dependencies": {
-        "@peezy-tech/codex-flows": "workspace:*",
+        "@peezy.tech/codex-flows": "workspace:*",
         "discord.js": "catalog:",
       },
       "devDependencies": {
@@ -40,7 +40,7 @@
       "name": "web",
       "version": "0.0.1",
       "dependencies": {
-        "@peezy-tech/codex-flows": "workspace:*",
+        "@peezy.tech/codex-flows": "workspace:*",
         "@workspace/ui": "workspace:*",
         "lucide-react": "catalog:",
         "react": "catalog:",
@@ -57,7 +57,7 @@
       },
     },
     "packages/codex-client": {
-      "name": "@peezy-tech/codex-flows",
+      "name": "@peezy.tech/codex-flows",
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "^1.3.13",
@@ -295,7 +295,7 @@
 
     "@open-draft/until": ["@open-draft/until@2.1.0", "", {}, "sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg=="],
 
-    "@peezy-tech/codex-flows": ["@peezy-tech/codex-flows@workspace:packages/codex-client"],
+    "@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@workspace:packages/codex-client"],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.3", "", {}, "sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q=="],
 

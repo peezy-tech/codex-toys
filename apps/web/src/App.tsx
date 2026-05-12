@@ -26,7 +26,7 @@ import {
 	type JsonRpcNotification,
 	type JsonRpcRequest,
 	type v2,
-} from "@peezy-tech/codex-flows/browser";
+} from "@peezy.tech/codex-flows/browser";
 
 import { ThemeProvider } from "./components/theme-provider.tsx";
 

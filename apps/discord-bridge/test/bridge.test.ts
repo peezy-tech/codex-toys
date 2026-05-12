@@ -1,8 +1,8 @@
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import type { JsonRpcNotification, JsonRpcRequest } from "@peezy-tech/codex-flows/rpc";
-import type { v2 } from "@peezy-tech/codex-flows/generated";
+import type { JsonRpcNotification, JsonRpcRequest } from "@peezy.tech/codex-flows/rpc";
+import type { v2 } from "@peezy.tech/codex-flows/generated";
 
 import { DiscordCodexBridge, parseThreadStartIntent } from "../src/bridge.ts";
 import type {

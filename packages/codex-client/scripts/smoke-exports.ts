@@ -1,9 +1,9 @@
 const checks = [
-	["@peezy-tech/codex-flows", ["CodexAppServerClient"]],
-	["@peezy-tech/codex-flows/browser", ["CodexAppServerClient"]],
-	["@peezy-tech/codex-flows/flows", ["CodexFlowClient", "createCodexFlowClient"]],
-	["@peezy-tech/codex-flows/rpc", ["JsonRpcError"]],
-	["@peezy-tech/codex-flows/generated", ["v2"]],
+	["@peezy.tech/codex-flows", ["CodexAppServerClient"]],
+	["@peezy.tech/codex-flows/browser", ["CodexAppServerClient"]],
+	["@peezy.tech/codex-flows/flows", ["CodexFlowClient", "createCodexFlowClient"]],
+	["@peezy.tech/codex-flows/rpc", ["JsonRpcError"]],
+	["@peezy.tech/codex-flows/generated", ["v2"]],
 ] as const;
 
 for (const [specifier, expectedExports] of checks) {

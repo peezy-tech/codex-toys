@@ -17,8 +17,8 @@
 		"types": ["node", "bun"],
 		"baseUrl": ".",
 		"paths": {
-			"@peezy-tech/codex-flows": ["../../packages/codex-client/src/index.ts"],
-			"@peezy-tech/codex-flows/*": ["../../packages/codex-client/src/*"]
+			"@peezy.tech/codex-flows": ["../../packages/codex-client/src/index.ts"],
+			"@peezy.tech/codex-flows/*": ["../../packages/codex-client/src/*"]
 		}
 	},
 	"include": ["src", "test"]

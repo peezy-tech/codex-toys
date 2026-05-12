@@ -1,5 +1,5 @@
 {
-	"name": "@peezy-tech/codex-flows",
+	"name": "@peezy.tech/codex-flows",
 	"version": "0.1.0",
 	"description": "Codex app-server JSON-RPC client, flow helpers, and generated protocol types.",
 	"type": "module",

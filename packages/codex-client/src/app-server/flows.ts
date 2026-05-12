@@ -391,7 +391,7 @@ function clientIdentityOptions(
 	"clientName" | "clientTitle" | "clientVersion"
 > {
 	return compactUndefined({
-		clientName: options.clientName ?? "peezy-tech-codex-flows",
+		clientName: options.clientName ?? "peezy.tech-codex-flows",
 		clientTitle: options.clientTitle ?? "Codex Flows SDK",
 		clientVersion: options.clientVersion ?? "0.1.0",
 	});
