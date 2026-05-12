@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jojo Development Flow"
+  short_description: "jojo.build development, Codeberg mirroring, and GitHub publishing flow."
+  default_prompt: "Use the jojo-first development flow for remotes, branch tracking, jojo.build operations, signed commits, Codeberg mirroring, GitHub publishing, and npm trusted publishing."

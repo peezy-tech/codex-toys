@@ -1,4 +1,0 @@
-interface:
-  display_name: "Forgejo Development Flow"
-  short_description: "Forgejo-first development, Codeberg mirroring, and GitHub publishing flow."
-  default_prompt: "Use the Forgejo-first development flow for remotes, branch tracking, Forgejo CLI, signed commits, Codeberg mirroring, GitHub publishing, and npm trusted publishing."

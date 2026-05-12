@@ -1,10 +1,10 @@
 # Development Flow
 
-This monorepo is developed on Forgejo at `jojo.build`. Codeberg is a push mirror, and GitHub is used only when npm trusted publishing needs its workflow.
+This monorepo is developed on jojo at `jojo.build`. Codeberg is a push mirror, and GitHub is used only when npm trusted publishing needs its workflow.
 
 ## Remotes
 
-Use Forgejo as the normal development remote:
+Use jojo as the normal development remote:
 
 ```bash
 git remote -v
@@ -13,13 +13,13 @@ git remote -v
 # github    https://github.com/peezy-tech/codex-flows.git
 ```
 
-Push ordinary development to Forgejo:
+Push ordinary development to jojo:
 
 ```bash
 git push origin main
 ```
 
-Forgejo should push-mirror `main` to Codeberg. The local `codeberg` remote is kept for diagnostics and manual recovery.
+`jojo.build` push-mirrors `main` to Codeberg. The local `codeberg` remote is kept for diagnostics and manual recovery.
 
 Push to GitHub only when a release needs the trusted publishing workflow:
 
@@ -27,40 +27,54 @@ Push to GitHub only when a release needs the trusted publishing workflow:
 git push github main
 ```
 
+## Accounts
+
+- `peezy` is the human site admin account and has 2FA enabled.
+- `matamune` is an active development worker account for this host and is not a site admin.
+- Both accounts are Owners in `peezy-tech`.
+
 ## Machine Keys
 
-This machine uses dedicated Forgejo and Codeberg SSH keys:
+This host uses a dedicated jojo SSH key and GPG key:
 
 ```text
-~/.ssh/id_ed25519_jojo_build.pub
-~/.ssh/id_ed25519_codeberg.pub
-```
-
-The public GPG key for commit verification is exported here:
-
-```text
+~/.config/forgejo-keys/matamune-jojo-build-ssh.pub
 ~/.config/forgejo-keys/matamune-jojo-build-gpg.asc
 ```
 
-Upload the Forgejo SSH and GPG public keys to the `jojo.build` account before pushing over SSH or expecting verified commits. Keep the Codeberg SSH key available for mirror diagnostics.
+The Codeberg key remains available for mirror diagnostics:
 
-## Forgejo CLI
+```text
+~/.ssh/id_ed25519_codeberg.pub
+```
 
-`forgejo-cli` is installed as `fj`.
+## Jojo CLI
 
-Authenticate with `jojo.build` after creating an application token:
+`fj` can talk to `jojo.build` after creating an application token:
 
 ```bash
-fj --host jojo.build auth add-key <forgejo-username> <token>
+fj --host jojo.build auth add-key <username> <token>
 fj --host jojo.build auth use-ssh true
 fj --host jojo.build auth list
 ```
 
-If browser login is available, this may also work:
+## CI And Branch Protection
+
+`main` is protected on `jojo.build`.
+
+- Owners can push and merge.
+- Required status context: `ci / check (push)`.
+- The workflow lives at `.forgejo/workflows/ci.yml`.
+- Protection applies to admins.
+- Signed commits are not required yet.
+
+The CI workflow runs:
 
 ```bash
-fj auth login
-fj auth use-ssh true
+bun install --frozen-lockfile
+bun run check:types
+bun run test
+bun run --filter @peezy.tech/codex-flows release:check
 ```
 
 ## Releases
@@ -79,7 +93,7 @@ git diff --check
 To publish through GitHub trusted publishing:
 
 1. Bump `packages/codex-client/package.json`.
-2. Commit and push to Forgejo.
+2. Commit and push to jojo.
 3. Confirm the Codeberg mirror has received the commit.
 4. Push the same commit to GitHub.
 5. Run `.github/workflows/publish-codex-flows.yml` on GitHub with confirmation input `@peezy.tech/codex-flows`.

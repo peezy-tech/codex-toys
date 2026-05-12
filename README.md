@@ -63,9 +63,9 @@ bun run test
 
 ## Development Flow
 
-Development happens on Forgejo at `jojo.build`. Codeberg is configured as a push mirror, and GitHub is kept for npm trusted publishing only.
+Development happens on jojo at `jojo.build`. Codeberg is configured as a push mirror, and GitHub is kept for npm trusted publishing only.
 
-See [docs/development-flow.md](docs/development-flow.md) for remotes, key setup, Forgejo CLI setup, mirroring, and the release procedure.
+See [docs/development-flow.md](docs/development-flow.md) for remotes, key setup, jojo CLI setup, mirroring, and the release procedure.
 
 ## Publishing
 
