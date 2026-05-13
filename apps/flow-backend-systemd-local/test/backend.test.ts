@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { dispatchFlowEvent } from "../src/backend.ts";
-import { readConfig } from "../src/config.ts";
+import { dispatchFlowEvent, replayFlowEvent } from "../src/backend.ts";
+import { parseCli, readConfig } from "../src/config.ts";
 import { flowCommand } from "../src/executor.ts";
 import { signBody, verifyBodySignature } from "../src/signature.ts";
 import { FlowBackendStore } from "../src/store.ts";
@@ -53,12 +53,60 @@ test("dispatches matching flow steps and records runs", async () => {
 				status: "completed",
 			});
 			expect(runs[0]?.stdout).toContain("hello Ada");
+			expect(store.listEvents()).toHaveLength(1);
+			expect(store.getEvent("event-1")).toMatchObject({
+				id: "event-1",
+				type: "demo.event",
+				payload: { name: "Ada" },
+			});
+
+			const replay = await replayFlowEvent({
+				config,
+				store,
+				eventId: "event-1",
+				wait: true,
+				env: {},
+			});
+
+			expect(replay).toMatchObject({ status: "accepted", eventId: "event-1", matched: 1 });
+			const replayRuns = store.listRuns({ eventId: "event-1" });
+			expect(replayRuns).toHaveLength(2);
+			expect(replayRuns.map((run) => run.status).sort()).toEqual(["completed", "completed"]);
+			expect(replayRuns.some((run) => run.id.endsWith("_replay"))).toBe(true);
+			const replayRun = replayRuns.find((run) => run.id.endsWith("_replay"));
+			expect(replayRun ? store.getRun(replayRun.id)?.stdout : "").toContain("hello Ada");
 		} finally {
 			store.close();
 		}
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}
+});
+
+test("parses inspection and replay commands", () => {
+	expect(parseCli(["list-events", "--type", "demo.event", "--limit", "10"], {})).toMatchObject({
+		kind: "list-events",
+		type: "demo.event",
+		limit: 10,
+	});
+	expect(parseCli(["show-event", "event-1"], {})).toMatchObject({
+		kind: "show-event",
+		eventId: "event-1",
+	});
+	expect(parseCli(["replay-event", "event-1", "--wait"], {})).toMatchObject({
+		kind: "replay-event",
+		eventId: "event-1",
+		wait: true,
+	});
+	expect(parseCli(["list-runs", "--event-id", "event-1", "--status", "failed"], {})).toMatchObject({
+		kind: "list-runs",
+		eventId: "event-1",
+		status: "failed",
+	});
+	expect(parseCli(["show-run", "run_123"], {})).toMatchObject({
+		kind: "show-run",
+		runId: "run_123",
+	});
 });
 
 test("builds systemd-run commands without executing them", () => {

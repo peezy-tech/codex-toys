@@ -74,6 +74,8 @@ the Codex release flows.
 ```bash
 bun run flow list
 bun run flow:backend serve --cwd "$(pwd)"
+bun run flow:backend list-events --limit 20
+bun run flow:backend list-runs --status failed
 ```
 
 Code Mode flow steps are present on `main` behind one mode flag:
@@ -85,6 +87,11 @@ CODEX_FLOWS_MODE=code-mode
 That mode enables `runner = "code-mode"` steps and makes stdio app-server
 launches default to `bunx @peezy.tech/codex`. `CODEX_APP_SERVER_CODEX_COMMAND`
 still wins when a specific local binary should be used.
+
+For release readiness, inspect and replay stored events with
+`bun run flow:backend show-event`, `show-run`, and `replay-event`. Do not run a
+fabricated full `openai/codex` release lifecycle; the first full lifecycle test
+should happen on the next real upstream release.
 
 ## Development Flow
 

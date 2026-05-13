@@ -134,8 +134,49 @@ still suitable when the backend service itself is managed by systemd.
 Endpoints:
 
 - `POST /events` or `POST /flow-events`: accept one `FlowEvent`
-- `GET /runs?eventId=<id>`: inspect recorded runs for an event
+- `GET /events?limit=<n>`: list stored events
+- `GET /events/<event-id>`: inspect a stored event and its runs
+- `POST /events/<event-id>/replay`: start a new run attempt for a stored event
+- `GET /runs?eventId=<id>&status=<status>&limit=<n>`: inspect recorded runs
+- `GET /runs/<run-id>`: inspect one recorded run
 - `GET /healthz`: health check
+
+The CLI exposes the same operational surface:
+
+```bash
+bun run flow:backend list-events --limit 20
+bun run flow:backend show-event 'patchbay:source:entry:upstream.release'
+bun run flow:backend list-runs --status failed --limit 20
+bun run flow:backend show-run run_abc123
+bun run flow:backend replay-event 'patchbay:source:entry:upstream.release' --wait
+```
+
+Normal dispatch is idempotent by `event.id`: a duplicate `POST /events` returns
+the existing run ids and does not start another attempt. `replay-event` and
+`POST /events/<event-id>/replay` intentionally create a new run attempt for the
+stored event, which is the recovery path for accepted events whose flow step
+failed or blocked.
+
+The live backend state is a SQLite database under
+`CODEX_FLOW_BACKEND_DATA_DIR` plus per-event JSON files under
+`CODEX_FLOW_BACKEND_DATA_DIR/events`. Back up both by copying the whole data
+directory while the service is stopped, or by using SQLite online backup plus a
+copy of the `events/` directory. For the current host deployment the intended
+values are:
+
+```text
+CODEX_FLOW_BACKEND_CWD=/home/peezy/codex-flows-public
+CODEX_FLOW_BACKEND_DATA_DIR=/home/peezy/.local/state/codex-flow-systemd-local
+CODEX_FLOWS_MODE=code-mode
+CODEX_FLOW_PUSH=1
+CODEX_FLOW_PUBLISH=1
+PEEZY_CODEX_REPO=/home/peezy/codex-flow-worktrees/codex
+PEEZY_CODEX_TARGET_BRANCH=code-mode-exec-hooks
+```
+
+Do not fabricate an upstream Codex release lifecycle test. Until the next real
+`openai/codex` release, use health checks, non-release smoke events, and stored
+event inspection/replay tooling only.
 
 ## Convex Backend Direction
 

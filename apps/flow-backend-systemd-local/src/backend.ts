@@ -18,6 +18,7 @@ export type DispatchFlowEventOptions = {
 	event: FlowEvent;
 	wait?: boolean;
 	env?: Record<string, string | undefined>;
+	replay?: boolean;
 };
 
 export type DispatchFlowEventResult = {
@@ -28,8 +29,8 @@ export type DispatchFlowEventResult = {
 };
 
 export async function dispatchFlowEvent(options: DispatchFlowEventOptions): Promise<DispatchFlowEventResult> {
-	const inserted = options.store.insertEvent(options.event);
-	if (!inserted) {
+	const inserted = options.replay ? false : options.store.insertEvent(options.event);
+	if (!inserted && !options.replay) {
 		return {
 			status: "duplicate",
 			eventId: options.event.id,
@@ -38,12 +39,13 @@ export async function dispatchFlowEvent(options: DispatchFlowEventOptions): Prom
 		};
 	}
 
-	const eventPath = await writeEventFile(options.config.dataDir, options.event);
+	const eventPath = await writeEventFile(options.config.dataDir, options.event, options.replay ? "replay" : undefined);
 	const flows = await discoverFlows({ cwd: options.config.cwd });
 	const matches = await matchingSteps(flows, options.event);
 	const promises: Array<Promise<void>> = [];
+	const replayNonce = options.replay ? `${Date.now()}:${Math.random()}` : undefined;
 	for (const match of matches) {
-		const run = createRunRecord(options.config, options.event, match.flow, match.step, eventPath);
+		const run = createRunRecord(options.config, options.event, match.flow, match.step, eventPath, replayNonce);
 		options.store.createRun(run);
 		const promise = executeAndRecord({
 			config: options.config,
@@ -70,9 +72,23 @@ export async function dispatchFlowEvent(options: DispatchFlowEventOptions): Prom
 	return {
 		status: "accepted",
 		eventId: options.event.id,
-		runIds: matches.map((match) => runId(options.event.id, match.flow.manifest.name, match.step.name)),
+		runIds: matches.map((match) => runId(options.event.id, match.flow.manifest.name, match.step.name, replayNonce)),
 		matched: matches.length,
 	};
+}
+
+export async function replayFlowEvent(options: Omit<DispatchFlowEventOptions, "event" | "replay"> & {
+	eventId: string;
+}): Promise<DispatchFlowEventResult> {
+	const event = options.store.getEvent(options.eventId);
+	if (!event) {
+		throw new Error(`Unknown event: ${options.eventId}`);
+	}
+	return dispatchFlowEvent({
+		...options,
+		event: event.raw,
+		replay: true,
+	});
 }
 
 export async function readFlowEvent(pathValue: string): Promise<FlowEvent> {
@@ -133,9 +149,10 @@ function createRunRecord(
 	flow: LoadedFlow,
 	step: FlowStep,
 	eventPath: string,
+	replayNonce?: string,
 ): FlowRunRecord {
 	return {
-		id: runId(event.id, flow.manifest.name, step.name),
+		id: runId(event.id, flow.manifest.name, step.name, replayNonce),
 		eventId: event.id,
 		flowName: flow.manifest.name,
 		stepName: step.name,
@@ -147,18 +164,18 @@ function createRunRecord(
 	};
 }
 
-function runId(eventId: string, flowName: string, stepName: string): string {
+function runId(eventId: string, flowName: string, stepName: string, replayNonce?: string): string {
 	const hash = createHash("sha256")
-		.update(`${eventId}\0${flowName}\0${stepName}`)
+		.update(`${eventId}\0${flowName}\0${stepName}${replayNonce ? `\0${replayNonce}` : ""}`)
 		.digest("hex")
 		.slice(0, 12);
-	return `run_${hash}`;
+	return replayNonce ? `run_${hash}_replay` : `run_${hash}`;
 }
 
-async function writeEventFile(dataDir: string, event: FlowEvent): Promise<string> {
+async function writeEventFile(dataDir: string, event: FlowEvent, suffix?: string): Promise<string> {
 	const directory = path.join(dataDir, "events");
 	await mkdir(directory, { recursive: true });
-	const filePath = path.join(directory, `${safeFileName(event.id)}.json`);
+	const filePath = path.join(directory, `${safeFileName(suffix ? `${event.id}:${suffix}:${Date.now()}` : event.id)}.json`);
 	await Bun.write(filePath, JSON.stringify(event, null, 2));
 	return filePath;
 }

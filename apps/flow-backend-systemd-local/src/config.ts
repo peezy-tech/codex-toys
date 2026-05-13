@@ -17,7 +17,12 @@ export type FlowBackendConfig = {
 export type FlowBackendCli =
 	| { kind: "help" }
 	| { kind: "serve"; config: FlowBackendConfig }
-	| { kind: "dispatch"; config: FlowBackendConfig; eventPath: string; wait: boolean };
+	| { kind: "dispatch"; config: FlowBackendConfig; eventPath: string; wait: boolean }
+	| { kind: "list-events"; config: FlowBackendConfig; limit?: number; type?: string }
+	| { kind: "show-event"; config: FlowBackendConfig; eventId: string }
+	| { kind: "replay-event"; config: FlowBackendConfig; eventId: string; wait: boolean }
+	| { kind: "list-runs"; config: FlowBackendConfig; eventId?: string; status?: string; limit?: number }
+	| { kind: "show-run"; config: FlowBackendConfig; runId: string };
 
 export function readConfig(
 	env: Record<string, string | undefined> = process.env,
@@ -58,6 +63,11 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 	let flowRunnerPath: string | undefined;
 	let wait = false;
 	let eventPath: string | undefined;
+	let eventId: string | undefined;
+	let runId: string | undefined;
+	let status: string | undefined;
+	let limit: number | undefined;
+	let type: string | undefined;
 	const rest = argv.slice(1);
 	for (let index = 0; index < rest.length; index += 1) {
 		const arg = rest[index];
@@ -104,6 +114,54 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 			wait = true;
 			continue;
 		}
+		if (arg === "--event-id") {
+			eventId = required(rest, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--event-id=")) {
+			eventId = arg.slice("--event-id=".length);
+			continue;
+		}
+		if (arg === "--run-id") {
+			runId = required(rest, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--run-id=")) {
+			runId = arg.slice("--run-id=".length);
+			continue;
+		}
+		if (arg === "--status") {
+			status = required(rest, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--status=")) {
+			status = arg.slice("--status=".length);
+			continue;
+		}
+		if (arg === "--limit") {
+			limit = Number(required(rest, ++index, arg));
+			continue;
+		}
+		if (arg.startsWith("--limit=")) {
+			limit = Number(arg.slice("--limit=".length));
+			continue;
+		}
+		if (arg === "--type") {
+			type = required(rest, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--type=")) {
+			type = arg.slice("--type=".length);
+			continue;
+		}
+		if (!arg.startsWith("-") && !eventId && (command === "show-event" || command === "replay-event")) {
+			eventId = arg;
+			continue;
+		}
+		if (!arg.startsWith("-") && !runId && command === "show-run") {
+			runId = arg;
+			continue;
+		}
 		throw new Error(`Unknown option: ${arg}`);
 	}
 
@@ -126,6 +184,21 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 		}
 		return { kind: "dispatch", config, eventPath, wait };
 	}
+	if (command === "list-events" || command === "events") {
+		return { kind: "list-events", config, limit, type };
+	}
+	if (command === "show-event" || command === "event") {
+		return { kind: "show-event", config, eventId: requireValue(eventId, "show-event requires <event-id>") };
+	}
+	if (command === "replay-event" || command === "replay") {
+		return { kind: "replay-event", config, eventId: requireValue(eventId, "replay-event requires <event-id>"), wait };
+	}
+	if (command === "list-runs" || command === "runs") {
+		return { kind: "list-runs", config, eventId, status, limit };
+	}
+	if (command === "show-run" || command === "run") {
+		return { kind: "show-run", config, runId: requireValue(runId, "show-run requires <run-id>") };
+	}
 	throw new Error(`Unknown command: ${command}`);
 }
 
@@ -138,6 +211,11 @@ export function helpText(): string {
 		"Usage:",
 		"  codex-flow-systemd-local serve [--cwd <dir>] [--data-dir <dir>] [--host <host>] [--port <port>]",
 		"  codex-flow-systemd-local dispatch --event <event.json> [--cwd <dir>] [--data-dir <dir>] [--wait]",
+		"  codex-flow-systemd-local list-events [--type <type>] [--limit <n>]",
+		"  codex-flow-systemd-local show-event <event-id>",
+		"  codex-flow-systemd-local replay-event <event-id> [--wait]",
+		"  codex-flow-systemd-local list-runs [--event-id <event-id>] [--status <status>] [--limit <n>]",
+		"  codex-flow-systemd-local show-run <run-id>",
 		"",
 		"Environment:",
 		"  CODEX_FLOW_BACKEND_SECRET       Optional HMAC secret for HTTP dispatches",
@@ -199,6 +277,13 @@ function required(args: string[], index: number, flag: string): string {
 	const value = args[index];
 	if (!value) {
 		throw new Error(`${flag} requires a value`);
+	}
+	return value;
+}
+
+function requireValue<T>(value: T | undefined, message: string): T {
+	if (value === undefined) {
+		throw new Error(message);
 	}
 	return value;
 }

@@ -25,6 +25,28 @@ export type FlowRunRecord = {
 	completedAt?: string;
 };
 
+export type FlowEventRecord = {
+	id: string;
+	type: string;
+	source?: string;
+	occurredAt?: string;
+	receivedAt: string;
+	payload: Record<string, unknown>;
+	raw: FlowEvent;
+	createdAt: string;
+};
+
+export type ListRunsOptions = {
+	eventId?: string;
+	status?: FlowRunStatus;
+	limit?: number;
+};
+
+export type ListEventsOptions = {
+	type?: string;
+	limit?: number;
+};
+
 export class FlowBackendStore {
 	readonly dbPath: string;
 	#db: Database;
@@ -64,6 +86,8 @@ export class FlowBackendStore {
 				completed_at text
 			);
 			create index if not exists flow_runs_event_id_idx on flow_runs(event_id);
+			create index if not exists flow_runs_status_idx on flow_runs(status);
+			create index if not exists flow_events_type_idx on flow_events(type);
 		`);
 	}
 
@@ -135,15 +159,65 @@ export class FlowBackendStore {
 	}
 
 	listRunsByEvent(eventId: string): FlowRunRecord[] {
+		return this.listRuns({ eventId, limit: 1_000 });
+	}
+
+	listRuns(options: ListRunsOptions = {}): FlowRunRecord[] {
+		const clauses: string[] = [];
+		const params: Record<string, string | number> = {
+			$limit: clampLimit(options.limit),
+		};
+		if (options.eventId) {
+			clauses.push("event_id = $eventId");
+			params.$eventId = options.eventId;
+		}
+		if (options.status) {
+			clauses.push("status = $status");
+			params.$status = options.status;
+		}
+		const where = clauses.length > 0 ? `where ${clauses.join(" and ")}` : "";
 		return this.#db
-			.query("select * from flow_runs where event_id = $eventId order by created_at, id")
-			.all({ $eventId: eventId })
+			.query(`select * from flow_runs ${where} order by created_at desc, id desc limit $limit`)
+			.all(params)
 			.map(rowToRunRecord);
+	}
+
+	getRun(id: string): FlowRunRecord | undefined {
+		const row = this.#db.query("select * from flow_runs where id = $id").get({ $id: id });
+		return row ? rowToRunRecord(row) : undefined;
+	}
+
+	listEvents(options: ListEventsOptions = {}): FlowEventRecord[] {
+		const clauses: string[] = [];
+		const params: Record<string, string | number> = {
+			$limit: clampLimit(options.limit),
+		};
+		if (options.type) {
+			clauses.push("type = $type");
+			params.$type = options.type;
+		}
+		const where = clauses.length > 0 ? `where ${clauses.join(" and ")}` : "";
+		return this.#db
+			.query(`select * from flow_events ${where} order by created_at desc, id desc limit $limit`)
+			.all(params)
+			.map(rowToEventRecord);
+	}
+
+	getEvent(id: string): FlowEventRecord | undefined {
+		const row = this.#db.query("select * from flow_events where id = $id").get({ $id: id });
+		return row ? rowToEventRecord(row) : undefined;
 	}
 
 	close(): void {
 		this.#db.close();
 	}
+}
+
+function clampLimit(value: number | undefined): number {
+	if (!value || !Number.isFinite(value)) {
+		return 50;
+	}
+	return Math.max(1, Math.min(500, Math.trunc(value)));
 }
 
 function runParams(record: FlowRunRecord): Record<string, string | null> {
@@ -190,6 +264,27 @@ function rowToRunRecord(row: unknown): FlowRunRecord {
 		createdAt: String(row.created_at),
 		...(typeof row.started_at === "string" ? { startedAt: row.started_at } : {}),
 		...(typeof row.completed_at === "string" ? { completedAt: row.completed_at } : {}),
+	};
+}
+
+function rowToEventRecord(row: unknown): FlowEventRecord {
+	if (!isRecord(row)) {
+		throw new Error("invalid event row");
+	}
+	const payload = JSON.parse(String(row.payload_json)) as unknown;
+	const raw = JSON.parse(String(row.raw_json)) as unknown;
+	if (!isRecord(payload) || !isRecord(raw)) {
+		throw new Error("invalid event json");
+	}
+	return {
+		id: String(row.id),
+		type: String(row.type),
+		...(typeof row.source === "string" ? { source: row.source } : {}),
+		...(typeof row.occurred_at === "string" ? { occurredAt: row.occurred_at } : {}),
+		receivedAt: String(row.received_at),
+		payload,
+		raw: raw as FlowEvent,
+		createdAt: String(row.created_at),
 	};
 }
 
