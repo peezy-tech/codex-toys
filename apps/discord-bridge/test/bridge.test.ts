@@ -1769,6 +1769,147 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
+	test("clear webhooks deletes webhook messages in the command channel", async () => {
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const replies: string[] = [];
+		transport.messages.push(
+			{
+				channelId: "parent-channel",
+				id: "message-webhook-1",
+				text: "bridged output",
+				webhookId: "webhook-1",
+			},
+			{
+				channelId: "parent-channel",
+				id: "message-user-1",
+				text: "human message",
+			},
+			{
+				channelId: "other-channel",
+				id: "message-webhook-2",
+				text: "other output",
+				webhookId: "webhook-1",
+			},
+		);
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(emptyState()),
+			config: testConfig(),
+			now: () => new Date("2026-05-11T00:00:00.000Z"),
+		});
+
+		await bridge.start();
+		transport.emit({
+			kind: "clearWebhooks",
+			channelId: "parent-channel",
+			author: { id: "user-1", name: "Ada", isBot: false },
+			createdAt: "2026-05-11T00:00:00.000Z",
+			reply: async (text) => {
+				replies.push(text);
+			},
+		});
+		await waitFor(() => replies.length === 1);
+
+		expect(transport.deletedMessages.map(({ channelId, messageId }) => ({
+			channelId,
+			messageId,
+		}))).toEqual([{ channelId: "parent-channel", messageId: "message-webhook-1" }]);
+		expect(transport.messages.map((message) => message.id)).toEqual([
+			"message-user-1",
+			"message-webhook-2",
+		]);
+		expect(replies[0]).toBe("Deleted 1 webhook message.");
+		await bridge.stop();
+	});
+
+	test("clear webhooks can filter by webhook url", async () => {
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const replies: string[] = [];
+		transport.messages.push(
+			{
+				channelId: "parent-channel",
+				id: "message-webhook-1",
+				text: "first output",
+				webhookId: "1234567890",
+			},
+			{
+				channelId: "parent-channel",
+				id: "message-webhook-2",
+				text: "second output",
+				webhookId: "9876543210",
+			},
+		);
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(emptyState()),
+			config: testConfig(),
+			now: () => new Date("2026-05-11T00:00:00.000Z"),
+		});
+
+		await bridge.start();
+		transport.emit({
+			kind: "clearWebhooks",
+			channelId: "parent-channel",
+			author: { id: "user-1", name: "Ada", isBot: false },
+			webhookUrl: "https://discord.com/api/webhooks/9876543210/token",
+			createdAt: "2026-05-11T00:00:00.000Z",
+			reply: async (text) => {
+				replies.push(text);
+			},
+		});
+		await waitFor(() => replies.length === 1);
+
+		expect(transport.deletedMessages.map(({ messageId }) => messageId)).toEqual([
+			"message-webhook-2",
+		]);
+		expect(transport.messages.map((message) => message.id)).toEqual([
+			"message-webhook-1",
+		]);
+		expect(replies[0]).toBe("Deleted 1 webhook message.");
+		await bridge.stop();
+	});
+
+	test("clear webhooks is restricted to global allowed users", async () => {
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const replies: string[] = [];
+		transport.messages.push({
+			channelId: "parent-channel",
+			id: "message-webhook-1",
+			text: "bridged output",
+			webhookId: "webhook-1",
+		});
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(emptyState()),
+			config: testConfig(),
+			now: () => new Date("2026-05-11T00:00:00.000Z"),
+		});
+
+		await bridge.start();
+		transport.emit({
+			kind: "clearWebhooks",
+			channelId: "parent-channel",
+			author: { id: "user-2", name: "Grace", isBot: false },
+			createdAt: "2026-05-11T00:00:00.000Z",
+			reply: async (text) => {
+				replies.push(text);
+			},
+		});
+		await waitFor(() => replies.length === 1);
+
+		expect(transport.deletedMessages).toEqual([]);
+		expect(replies[0]).toBe(
+			"Only globally allowed Discord users can clear webhook messages.",
+		);
+		await bridge.stop();
+	});
+
 	test("continues existing managed Discord threads and dedupes messages", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -2218,7 +2359,12 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 		name: string;
 		sourceMessageId?: string;
 	}> = [];
-	messages: Array<{ channelId: string; id: string; text: string }> = [];
+	messages: Array<{
+		channelId: string;
+		id: string;
+		text: string;
+		webhookId?: string;
+	}> = [];
 	updatedMessages: Array<{
 		channelId: string;
 		messageId: string;
@@ -2277,6 +2423,27 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 				(candidate) => candidate.id !== messageId,
 			);
 		}
+	}
+
+	async deleteWebhookMessages(
+		channelId: string,
+		options: { webhookUrl?: string } = {},
+	): Promise<{ deleted: number; failed: number }> {
+		const webhookId = options.webhookUrl
+			? options.webhookUrl.match(/\/webhooks\/([^/]+)/)?.[1]
+			: undefined;
+		let deleted = 0;
+		for (const message of [...this.messages]) {
+			if (message.channelId !== channelId || !message.webhookId) {
+				continue;
+			}
+			if (webhookId && message.webhookId !== webhookId) {
+				continue;
+			}
+			await this.deleteMessage(channelId, message.id);
+			deleted += 1;
+		}
+		return { deleted, failed: 0 };
 	}
 
 	async deleteThread(channelId: string): Promise<void> {

@@ -78,6 +78,18 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 				name: "clear",
 				description: "Delete inactive Codex bridge threads",
 			},
+			{
+				name: "clear-webhooks",
+				description: "Delete webhook-authored messages in this channel",
+				options: [
+					{
+						name: "webhook_url",
+						description: "Optional webhook URL to target a single webhook",
+						type: 3,
+						required: false,
+					},
+				],
+			},
 		]);
 	}
 
@@ -168,6 +180,54 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 		}
 		const message = await messages.fetch(messageId);
 		await message.delete();
+	}
+
+	async deleteWebhookMessages(
+		channelId: string,
+		options: { webhookUrl?: string } = {},
+	): Promise<{ deleted: number; failed: number }> {
+		const channel = await this.#sendableChannel(channelId);
+		const messages = getMessagesManager(channel);
+		if (!messages) {
+			throw new Error(`Discord channel cannot fetch messages: ${channelId}`);
+		}
+		const webhookId = options.webhookUrl
+			? webhookIdFromUrl(options.webhookUrl)
+			: undefined;
+		let before: string | undefined;
+		let deleted = 0;
+		let failed = 0;
+		for (;;) {
+			const batch = await messages.fetch({ limit: 100, before });
+			const fetched = [...batch.values()];
+			if (fetched.length === 0) {
+				break;
+			}
+			for (const message of fetched) {
+				if (!message.webhookId) {
+					continue;
+				}
+				if (webhookId && message.webhookId !== webhookId) {
+					continue;
+				}
+				try {
+					await message.delete();
+					deleted += 1;
+				} catch (error) {
+					failed += 1;
+					this.#logger.debug("discord.webhookMessage.deleteFailed", {
+						channelId,
+						messageId: message.id,
+						error: errorMessage(error),
+					});
+				}
+			}
+			before = fetched[fetched.length - 1]?.id;
+			if (fetched.length < 100 || !before) {
+				break;
+			}
+		}
+		return { deleted, failed };
 	}
 
 	async deleteThread(channelId: string): Promise<void> {
@@ -264,10 +324,47 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 	}
 
 	async #handleInteraction(interaction: Interaction): Promise<void> {
-		if (!interaction.isChatInputCommand() || interaction.commandName !== "clear") {
+		if (!interaction.isChatInputCommand()) {
+			return;
+		}
+		if (
+			interaction.commandName !== "clear" &&
+			interaction.commandName !== "clear-webhooks"
+		) {
 			return;
 		}
 		const channelId = interaction.channelId;
+		const reply = async (text: string) => {
+			await interaction.reply({
+				content: text,
+				ephemeral: true,
+				allowedMentions: {
+					parse: [],
+					users: [],
+					roles: [],
+					repliedUser: false,
+				},
+			});
+		};
+		if (interaction.commandName === "clear-webhooks") {
+			const webhookUrl = interaction.options.getString("webhook_url") ?? undefined;
+			this.#handlers?.onInbound({
+				kind: "clearWebhooks",
+				channelId,
+				guildId: interaction.guildId ?? undefined,
+				author: {
+					id: interaction.user.id,
+					name: interaction.member && "displayName" in interaction.member
+						? String(interaction.member.displayName)
+						: interaction.user.globalName || interaction.user.username,
+					isBot: interaction.user.bot,
+				},
+				webhookUrl,
+				createdAt: new Date().toISOString(),
+				reply,
+			});
+			return;
+		}
 		this.#handlers?.onInbound({
 			kind: "clear",
 			channelId,
@@ -280,18 +377,7 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 				isBot: interaction.user.bot,
 			},
 			createdAt: new Date().toISOString(),
-			reply: async (text) => {
-				await interaction.reply({
-					content: text,
-					ephemeral: true,
-					allowedMentions: {
-						parse: [],
-						users: [],
-						roles: [],
-						repliedUser: false,
-					},
-				});
-			},
+			reply,
 		});
 	}
 
@@ -325,14 +411,22 @@ type SendableChannel = {
 		add(userId: string): Promise<unknown>;
 	};
 	messages?: {
-		fetch(messageId: string): Promise<{
+		fetch(messageId: string): Promise<DiscordFetchedMessage>;
+		fetch(options: {
+			limit: number;
+			before?: string;
+		}): Promise<{ values(): IterableIterator<DiscordFetchedMessage> }>;
+	};
+};
+
+type DiscordFetchedMessage = {
+	id: string;
+	webhookId?: string | null;
 			delete(): Promise<unknown>;
 			edit(options: Record<string, unknown>): Promise<unknown>;
 			pinned?: boolean;
 			pin?(): Promise<unknown>;
 			startThread?(options: ThreadCreateOptions): Promise<{ id?: string }>;
-		}>;
-	};
 };
 
 function getThreadsManager(
@@ -369,6 +463,15 @@ function stripUserMentions(content: string, userIds: string[]): string {
 		stripped = stripped.replace(new RegExp(`<@!?${escapeRegExp(userId)}>`, "g"), "");
 	}
 	return stripped.trim();
+}
+
+function webhookIdFromUrl(webhookUrl: string): string {
+	const parsed = new URL(webhookUrl);
+	const match = parsed.pathname.match(/\/webhooks\/(\d+)(?:\/|$)/);
+	if (!match?.[1]) {
+		throw new Error("Discord webhook URL does not include a webhook id");
+	}
+	return match[1];
 }
 
 function escapeRegExp(value: string): string {

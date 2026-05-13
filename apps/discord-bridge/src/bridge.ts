@@ -18,6 +18,7 @@ import type {
 	DiscordBridgeStateStore,
 	DiscordBridgeTransport,
 	DiscordClearInbound,
+	DiscordClearWebhooksInbound,
 	DiscordInbound,
 	DiscordMessageInbound,
 	DiscordThreadStartInbound,
@@ -178,6 +179,10 @@ export class DiscordCodexBridge {
 			await this.#handleClear(inbound);
 			return;
 		}
+		if (inbound.kind === "clearWebhooks") {
+			await this.#handleClearWebhooks(inbound);
+			return;
+		}
 
 		if (inbound.kind === "threadStart") {
 			if (!this.config.allowedUserIds.has(inbound.author.id)) {
@@ -274,6 +279,49 @@ export class DiscordCodexBridge {
 			running: runningCount,
 			failed: failed.length,
 		}));
+	}
+
+	async #handleClearWebhooks(command: DiscordClearWebhooksInbound): Promise<void> {
+		if (!this.config.allowedUserIds.has(command.author.id)) {
+			this.#debug("clearWebhooks.ignored.user", {
+				channelId: command.channelId,
+				authorId: command.author.id,
+			});
+			await command.reply?.(
+				"Only globally allowed Discord users can clear webhook messages.",
+			);
+			return;
+		}
+		if (!this.transport.deleteWebhookMessages) {
+			this.#debug("clearWebhooks.unsupported", { channelId: command.channelId });
+			await command.reply?.("This Discord transport cannot delete webhook messages.");
+			return;
+		}
+		this.#debug("clearWebhooks.start", {
+			channelId: command.channelId,
+			guildId: command.guildId,
+			filtered: Boolean(command.webhookUrl),
+		});
+		let result: { deleted: number; failed: number };
+		try {
+			result = await this.transport.deleteWebhookMessages(command.channelId, {
+				webhookUrl: command.webhookUrl,
+			});
+		} catch (error) {
+			const message = errorMessage(error);
+			this.#debug("clearWebhooks.failed", {
+				channelId: command.channelId,
+				error: message,
+			});
+			await command.reply?.(`Failed to clear webhook messages: ${message}`);
+			return;
+		}
+		this.#debug("clearWebhooks.complete", {
+			channelId: command.channelId,
+			deleted: result.deleted,
+			failed: result.failed,
+		});
+		await command.reply?.(clearWebhooksSummary(result));
 	}
 
 	async #handleThreadStart(start: DiscordThreadStartInbound): Promise<void> {
@@ -952,6 +1000,18 @@ function clearSummary(input: {
 	}
 	if (input.failed > 0) {
 		parts.push(`Failed to delete ${input.failed} thread${input.failed === 1 ? "" : "s"}.`);
+	}
+	return parts.join(" ");
+}
+
+function clearWebhooksSummary(input: { deleted: number; failed: number }): string {
+	const parts = [
+		`Deleted ${input.deleted} webhook message${input.deleted === 1 ? "" : "s"}.`,
+	];
+	if (input.failed > 0) {
+		parts.push(
+			`Failed to delete ${input.failed} webhook message${input.failed === 1 ? "" : "s"}.`,
+		);
 	}
 	return parts.join(" ");
 }

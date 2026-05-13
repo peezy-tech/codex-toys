@@ -68,10 +68,21 @@ export type DiscordClearInbound = {
 	reply?: (text: string) => Promise<void>;
 };
 
+export type DiscordClearWebhooksInbound = {
+	kind: "clearWebhooks";
+	channelId: string;
+	guildId?: string;
+	author: DiscordAuthor;
+	webhookUrl?: string;
+	createdAt: string;
+	reply?: (text: string) => Promise<void>;
+};
+
 export type DiscordInbound =
 	| DiscordMessageInbound
 	| DiscordThreadStartInbound
-	| DiscordClearInbound;
+	| DiscordClearInbound
+	| DiscordClearWebhooksInbound;
 
 export type DiscordBridgeTransportHandlers = {
 	onInbound(inbound: DiscordInbound): void;
@@ -89,6 +100,10 @@ export type DiscordBridgeTransport = {
 	sendMessage(channelId: string, text: string): Promise<string[]>;
 	updateMessage?(channelId: string, messageId: string, text: string): Promise<void>;
 	deleteMessage(channelId: string, messageId: string): Promise<void>;
+	deleteWebhookMessages?(
+		channelId: string,
+		options?: { webhookUrl?: string },
+	): Promise<{ deleted: number; failed: number }>;
 	deleteThread?(channelId: string): Promise<void>;
 	addThreadMembers?(channelId: string, userIds: string[]): Promise<void>;
 	pinMessage?(channelId: string, messageId: string): Promise<void>;
