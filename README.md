@@ -128,6 +128,12 @@ for package in packages/codex-client packages/flow-runtime packages/flow-backend
 done
 ```
 
+If first-publishing through GitHub Actions, add a short-lived `NPM_TOKEN` secret
+to the `npm-publish` environment before dispatching the workflow. The workflow
+uses that token when present and otherwise falls back to npm trusted publishing.
+After the first publish succeeds and package-level trusted publishing is
+configured, remove the bootstrap token.
+
 After the packages exist, configure npm trusted publishing for each public
 package:
 

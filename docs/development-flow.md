@@ -100,8 +100,9 @@ To publish through GitHub trusted publishing:
 2. Commit and push to jojo.
 3. Confirm the Codeberg mirror has received the commit.
 4. Push the same commit to GitHub.
-5. Run `.github/workflows/publish-codex-flows.yml` on GitHub with confirmation input `publish-codex-flow-packages`.
-6. Verify npm:
+5. For a package name that has never existed on npm, either publish once with a human npm session or add a short-lived `NPM_TOKEN` secret to the `npm-publish` GitHub environment. Package-level trusted publishing can take over after the package exists.
+6. Run `.github/workflows/publish-codex-flows.yml` on GitHub with confirmation input `publish-codex-flow-packages`.
+7. Verify npm:
 
 ```bash
 npm dist-tag ls @peezy.tech/codex-flows
