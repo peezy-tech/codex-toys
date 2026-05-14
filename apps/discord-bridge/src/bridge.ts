@@ -702,21 +702,39 @@ export class DiscordCodexBridge {
 		}
 		const state = this.#requireState();
 		const existing = this.#gatewaySession();
+		const explicitMainThread = Boolean(gatewayConfig.mainThreadId);
+		let forceCreateGatewayThread = false;
 		const shouldReuseExisting =
-			Boolean(gatewayConfig.mainThreadId) ||
+			explicitMainThread ||
 			state.gateway?.toolsVersion === gatewayToolsVersion;
 		if (existing && shouldReuseExisting) {
-			state.gateway = {
-				homeChannelId: gatewayConfig.homeChannelId,
-				mainThreadId: existing.codexThreadId,
-				statusMessageId: existing.statusMessageId,
-				createdAt: existing.createdAt,
-				toolsVersion: state.gateway?.toolsVersion,
-				delegations: state.gateway?.delegations ?? [],
-			};
-			this.#registerRunner(existing);
-			await this.#persist();
-			return;
+			try {
+				const resumed = await this.client.resumeThread(this.#threadResumeParams(
+					existing.codexThreadId,
+					existing.cwd ?? this.config.cwd,
+				));
+				existing.cwd = resumeResponseCwd(resumed) ?? existing.cwd ?? this.config.cwd;
+				state.gateway = {
+					homeChannelId: gatewayConfig.homeChannelId,
+					mainThreadId: existing.codexThreadId,
+					statusMessageId: existing.statusMessageId,
+					createdAt: existing.createdAt,
+					toolsVersion: state.gateway?.toolsVersion,
+					delegations: state.gateway?.delegations ?? [],
+				};
+				this.#registerRunner(existing);
+				await this.#persist();
+				return;
+			} catch (error) {
+				if (explicitMainThread) {
+					throw error;
+				}
+				forceCreateGatewayThread = true;
+				this.#debug("gateway.session.recreateAfterResumeFailure", {
+					codexThreadId: existing.codexThreadId,
+					error: errorMessage(error),
+				});
+			}
 		}
 		if (existing) {
 			state.sessions = state.sessions.filter((session) => session !== existing);
@@ -725,10 +743,12 @@ export class DiscordCodexBridge {
 		}
 
 		const configuredThreadId =
-			gatewayConfig.mainThreadId ??
-			(state.gateway?.toolsVersion === gatewayToolsVersion
-				? state.gateway.mainThreadId
-				: undefined);
+			forceCreateGatewayThread
+				? undefined
+				: gatewayConfig.mainThreadId ??
+					(state.gateway?.toolsVersion === gatewayToolsVersion
+						? state.gateway.mainThreadId
+						: undefined);
 		const title = "Codex Gateway";
 		const started = configuredThreadId
 			? await this.client.resumeThread(this.#threadResumeParams(

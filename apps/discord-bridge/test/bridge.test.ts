@@ -352,6 +352,68 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
+	test("recreates a tool-enabled gateway session when resume reports thread not found", async () => {
+		const client = new FakeCodexClient();
+		client.failedResumeThreadIds.add("missing-codex-thread");
+		const transport = new FakeDiscordTransport();
+		const store = new MemoryStateStore({
+			...emptyState(),
+			gateway: {
+				homeChannelId: "home-channel",
+				mainThreadId: "missing-codex-thread",
+				createdAt: "2026-05-13T00:00:00.000Z",
+				toolsVersion: 1,
+				delegations: [],
+			},
+			sessions: [
+				{
+					discordThreadId: "home-channel",
+					parentChannelId: "home-channel",
+					codexThreadId: "missing-codex-thread",
+					title: "Codex Gateway",
+					createdAt: "2026-05-13T00:00:00.000Z",
+					cwd: "/workspace",
+					mode: "gateway",
+				},
+			],
+		});
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store,
+			config: testConfig({
+				gateway: { homeChannelId: "home-channel" },
+			}),
+		});
+
+		await bridge.start();
+		await waitFor(() => bridge.stateForTest().gateway?.mainThreadId === "codex-thread-1");
+
+		expect(client.resumeThreadCalls[0]).toEqual(
+			expect.objectContaining({ threadId: "missing-codex-thread" }),
+		);
+		expect(client.startThreadCalls).toHaveLength(1);
+		expect(client.startThreadCalls[0]?.dynamicTools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ namespace: "codex_gateway" }),
+			]),
+		);
+		expect(bridge.stateForTest().gateway).toEqual(
+			expect.objectContaining({
+				mainThreadId: "codex-thread-1",
+				toolsVersion: 1,
+			}),
+		);
+		expect(bridge.stateForTest().sessions.filter((session) =>
+			session.mode === "gateway"
+		)).toEqual([
+			expect.objectContaining({
+				codexThreadId: "codex-thread-1",
+			}),
+		]);
+		await bridge.stop();
+	});
+
 	test("routes bot mentions in the home channel to the gateway instead of creating threads", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -2600,6 +2662,7 @@ class FakeCodexClient implements CodexBridgeClient {
 	threadTurns = new Map<string, v2.Turn[]>();
 	threadCwds = new Map<string, string>();
 	threadGoals = new Map<string, v2.ThreadGoal | null>();
+	failedResumeThreadIds = new Set<string>();
 	blockStartTurn = false;
 	#startTurnResolvers: Array<() => void> = [];
 	#notificationListeners: Array<(message: JsonRpcNotification) => void> = [];
@@ -2641,6 +2704,9 @@ class FakeCodexClient implements CodexBridgeClient {
 
 	async resumeThread(params: v2.ThreadResumeParams): Promise<v2.ThreadResumeResponse> {
 		this.resumeThreadCalls.push(params);
+		if (this.failedResumeThreadIds.has(params.threadId)) {
+			throw new Error(`thread not found: ${params.threadId}`);
+		}
 		const cwd = params.cwd ?? this.threadCwds.get(params.threadId) ?? "/workspace";
 		return {
 			cwd,
