@@ -28,6 +28,7 @@ import type {
 } from "./types.ts";
 
 const maxDiscordMessageLength = 2000;
+const gatewayToolsVersion = 1;
 
 type ThreadSnapshot = {
 	terminalTurnIds: string[];
@@ -572,7 +573,7 @@ export class DiscordCodexBridge {
 			`Delegations: ${delegations.length} tracked, ${activeDelegations.length} active`,
 			"",
 			"**Delegation Backend**",
-			`Status: ${session ? "privileged gateway tools available to the main Codex operator thread" : "waiting for main Codex operator thread"}.`,
+			`Status: ${state.gateway?.toolsVersion === gatewayToolsVersion ? "privileged gateway tools available to the main Codex operator thread" : "waiting for a tool-enabled main Codex operator thread"}.`,
 			`Flow backend: \`${this.config.flowBackendUrl ?? "not configured"}\``,
 			"",
 			"**Detail Threads**",
@@ -701,22 +702,33 @@ export class DiscordCodexBridge {
 		}
 		const state = this.#requireState();
 		const existing = this.#gatewaySession();
-		if (existing) {
+		const shouldReuseExisting =
+			Boolean(gatewayConfig.mainThreadId) ||
+			state.gateway?.toolsVersion === gatewayToolsVersion;
+		if (existing && shouldReuseExisting) {
 			state.gateway = {
 				homeChannelId: gatewayConfig.homeChannelId,
 				mainThreadId: existing.codexThreadId,
 				statusMessageId: existing.statusMessageId,
 				createdAt: existing.createdAt,
+				toolsVersion: state.gateway?.toolsVersion,
 				delegations: state.gateway?.delegations ?? [],
 			};
 			this.#registerRunner(existing);
 			await this.#persist();
 			return;
 		}
+		if (existing) {
+			state.sessions = state.sessions.filter((session) => session !== existing);
+			this.#runnersByDiscordThread.delete(existing.discordThreadId);
+			this.#runnersByCodexThread.delete(existing.codexThreadId);
+		}
 
 		const configuredThreadId =
-			state.gateway?.mainThreadId ??
-			gatewayConfig.mainThreadId;
+			gatewayConfig.mainThreadId ??
+			(state.gateway?.toolsVersion === gatewayToolsVersion
+				? state.gateway.mainThreadId
+				: undefined);
 		const title = "Codex Gateway";
 		const started = configuredThreadId
 			? await this.client.resumeThread(this.#threadResumeParams(
@@ -747,6 +759,9 @@ export class DiscordCodexBridge {
 			homeChannelId: gatewayConfig.homeChannelId,
 			mainThreadId: codexThreadId,
 			createdAt: session.createdAt,
+			toolsVersion: configuredThreadId
+				? state.gateway?.toolsVersion
+				: gatewayToolsVersion,
 			delegations: state.gateway?.delegations ?? [],
 		};
 		state.sessions.push(session);

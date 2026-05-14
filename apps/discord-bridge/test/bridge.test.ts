@@ -72,6 +72,7 @@ describe("DiscordCodexBridge", () => {
 			expect.objectContaining({
 				homeChannelId: "home-channel",
 				mainThreadId: "codex-thread-1",
+				toolsVersion: 1,
 			}),
 		);
 		expect(bridge.stateForTest().sessions[0]).toEqual(
@@ -288,6 +289,64 @@ describe("DiscordCodexBridge", () => {
 				codexThreadId: "codex-main-thread",
 				cwd: "/workspace",
 				mode: "gateway",
+			}),
+		);
+		await bridge.stop();
+	});
+
+	test("replaces stale persisted gateway sessions when no main thread is configured", async () => {
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const store = new MemoryStateStore({
+			...emptyState(),
+			gateway: {
+				homeChannelId: "home-channel",
+				mainThreadId: "old-codex-thread",
+				createdAt: "2026-05-13T00:00:00.000Z",
+				delegations: [],
+			},
+			sessions: [
+				{
+					discordThreadId: "home-channel",
+					parentChannelId: "home-channel",
+					codexThreadId: "old-codex-thread",
+					title: "Codex Gateway",
+					createdAt: "2026-05-13T00:00:00.000Z",
+					cwd: "/workspace",
+					mode: "gateway",
+				},
+			],
+		});
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store,
+			config: testConfig({
+				gateway: { homeChannelId: "home-channel" },
+			}),
+		});
+
+		await bridge.start();
+		await waitFor(() => bridge.stateForTest().gateway?.mainThreadId === "codex-thread-1");
+
+		expect(client.resumeThreadCalls).toEqual([]);
+		expect(client.startThreadCalls).toHaveLength(1);
+		expect(client.startThreadCalls[0]?.dynamicTools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ namespace: "codex_gateway" }),
+			]),
+		);
+		expect(bridge.stateForTest().sessions.filter((session) =>
+			session.mode === "gateway"
+		)).toEqual([
+			expect.objectContaining({
+				codexThreadId: "codex-thread-1",
+			}),
+		]);
+		expect(bridge.stateForTest().gateway).toEqual(
+			expect.objectContaining({
+				mainThreadId: "codex-thread-1",
+				toolsVersion: 1,
 			}),
 		);
 		await bridge.stop();

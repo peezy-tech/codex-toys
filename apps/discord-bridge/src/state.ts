@@ -113,6 +113,7 @@ function parseGateway(value: unknown): DiscordGatewayState | undefined {
 		mainThreadId: optionalString(value.mainThreadId),
 		statusMessageId: optionalString(value.statusMessageId),
 		createdAt: optionalString(value.createdAt),
+		toolsVersion: optionalNumber(value.toolsVersion),
 		delegations: Array.isArray(value.delegations)
 			? value.delegations.map(parseGatewayDelegation)
 			: [],

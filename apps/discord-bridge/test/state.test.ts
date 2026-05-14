@@ -19,6 +19,7 @@ describe("JsonFileStateStore", () => {
 						mainThreadId: "codex-gateway-thread",
 						statusMessageId: "message-gateway-status",
 						createdAt: "2026-05-11T00:00:00.000Z",
+						toolsVersion: 1,
 						delegations: [
 							{
 								id: "delegation-1",
@@ -86,6 +87,7 @@ describe("JsonFileStateStore", () => {
 				mainThreadId: "codex-gateway-thread",
 				statusMessageId: "message-gateway-status",
 				createdAt: "2026-05-11T00:00:00.000Z",
+				toolsVersion: 1,
 				delegations: [
 					{
 						id: "delegation-1",

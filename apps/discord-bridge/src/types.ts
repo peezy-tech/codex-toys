@@ -149,6 +149,7 @@ export type DiscordGatewayState = {
 	mainThreadId?: string;
 	statusMessageId?: string;
 	createdAt?: string;
+	toolsVersion?: number;
 	delegations: DiscordGatewayDelegation[];
 };
 
