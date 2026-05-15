@@ -6,8 +6,11 @@ The current source is:
 
 - `apps/web`: React/Vite UI that connects directly to a Codex app-server WebSocket.
 - `apps/cli`: Bun CLI that sends JSON-RPC actions to a listening Codex app-server.
+- `apps/discord-bridge`: Discord sidecar that connects Discord threads to
+  Codex app-server threads and gateway delegation.
 - `apps/flow-runner`: CLI for discovering and firing packaged flows.
 - `apps/flow-backend-systemd-local`: local HTTP backend for executing flows from dispatch events.
+- `docs`: Tome documentation site for codex-flow.
 - `packages/codex-client`: JSON-RPC client, app-server transports, flow helpers, and generated protocol types.
 - `packages/flow-runtime`: flow manifest loading, event matching, and runner primitives.
 - `packages/ui`: small shared UI primitives and styling.
@@ -67,9 +70,9 @@ Discord bridge tests.
 ## Flow Automation
 
 Flow packages live under `flows/*` and installed copies can live under
-`.codex/flows/*`. See [docs/flows.md](docs/flows.md) for `flow.toml`, generic
-`FlowEvent` dispatch, Bun and Code Mode runners, the systemd-local backend, and
-the Codex release flows.
+`.codex/flows/*`. The publishable Tome docs live in [docs](docs) and cover
+`flow.toml`, generic `FlowEvent` dispatch, Bun and Code Mode runners, local
+clients, systemd-local, and Convex backends.
 
 ```bash
 bun run flow list
@@ -97,7 +100,21 @@ should happen on the next real upstream release.
 
 Development happens on jojo at `jojo.build`. Codeberg is configured as a push mirror, and GitHub is kept for npm trusted publishing only.
 
-See [docs/development-flow.md](docs/development-flow.md) for remotes, key setup, jojo CLI setup, mirroring, and the release procedure.
+See [DEVELOP.md](DEVELOP.md) for remotes, key setup, jojo CLI setup, mirroring, and the release procedure.
+
+## Documentation
+
+The codex-flow documentation site is a Tome project in `docs/`:
+
+```bash
+bun run docs:dev
+bun run docs:build
+```
+
+The source pages are organized with the Diataxis framework under
+`docs/pages/tutorials`, `docs/pages/guides`, `docs/pages/reference`, and
+`docs/pages/concepts`. `bun run docs:build` writes the static site and
+machine-readable files to `docs/out`.
 
 ## Publishing
 

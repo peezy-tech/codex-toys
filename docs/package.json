@@ -1,0 +1,18 @@
+{
+	"name": "@peezy.tech/codex-flow-docs",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"check:types": "node --check tome.config.js",
+		"dev": "tome dev --host 127.0.0.1",
+		"build": "tome build",
+		"deploy": "tome deploy"
+	},
+	"devDependencies": {
+		"@tomehq/cli": "^0.8.1",
+		"@tomehq/theme": "^0.8.1",
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	}
+}

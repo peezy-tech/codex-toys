@@ -68,5 +68,5 @@ The self-test starts a fake OpenCode Go upstream and verifies plain messages, fu
 
 ## Development
 
-See `docs/development-flow.md`. This package is private and is not included in
+See `DEVELOP.md`. This package is private and is not included in
 the public npm publish workflow.
