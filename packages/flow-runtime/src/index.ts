@@ -5,6 +5,33 @@ export { runBunStep } from "./runners/bun.ts";
 export { runCodeModeStep } from "./runners/code-mode.ts";
 export { readJsonSchema, validateJsonSchema } from "./schema.ts";
 export { matchingSteps, stepMatchesEvent } from "./triggers.ts";
+export { createFlowClient } from "./client.ts";
+export { createLocalFlowClient, LocalFlowClient } from "./local-client.ts";
+export type {
+	FlowAttemptView,
+	FlowCancelResult,
+	FlowClient,
+	FlowDispatchOptions,
+	FlowDispatchResult,
+	FlowEffectiveStatus,
+	FlowEventList,
+	FlowEventView,
+	FlowListEventsOptions,
+	FlowListRunsOptions,
+	FlowOutputView,
+	FlowProcessStatus,
+	FlowReplayOptions,
+	FlowReplayResult,
+	FlowRunList,
+	FlowRunView,
+} from "./client-types.ts";
+export type {
+	FlowClientOptions,
+} from "./client.ts";
+export type {
+	LocalFlowClientOptions,
+	LocalFlowCodexOptions,
+} from "./local-client.ts";
 export type {
 	FlowEvent,
 	FlowManifest,

@@ -46,7 +46,7 @@
 		"replay:thread": "bun scripts/run-code-mode-in-new-thread.ts",
 		"start": "bun run --filter web preview",
 		"start:discord:debug:commentary": "bun run --filter codex-discord-bridge start:debug:commentary",
-		"test": "bun run --filter @peezy.tech/codex-flows test && bun run --filter @peezy.tech/flow-runtime test && bun run --filter @peezy.tech/flow-backend-convex test && bun run --filter @peezy.tech/codex-opencode-go-router test && bun run --filter codex-flow-systemd-local test && bun run --filter codex-app-cli test && bun run --filter codex-discord-bridge test",
+		"test": "bun run --filter @peezy.tech/codex-flows test && bun run --filter @peezy.tech/flow-runtime test && bun run --filter @peezy.tech/flow-backend-convex test && bun run --filter @peezy.tech/codex-opencode-go-router test && bun run --filter codex-flow-systemd-local test && bun run --filter codex-flow-runner test && bun run --filter codex-app-cli test && bun run --filter codex-discord-bridge test",
 		"release:check": "bun run --filter @peezy.tech/codex-flows release:check && bun run --filter @peezy.tech/flow-runtime release:check && bun run --filter @peezy.tech/flow-backend-convex release:check"
 	}
 }

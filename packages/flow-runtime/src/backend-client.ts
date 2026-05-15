@@ -1,36 +1,30 @@
 import { createHmac } from "node:crypto";
+import type {
+	FlowAttemptView,
+	FlowCancelResult,
+	FlowClient,
+	FlowDispatchOptions,
+	FlowDispatchResult,
+	FlowEffectiveStatus,
+	FlowEventList,
+	FlowEventView,
+	FlowListEventsOptions,
+	FlowListRunsOptions,
+	FlowOutputView,
+	FlowProcessStatus,
+	FlowReplayOptions,
+	FlowReplayResult,
+	FlowRunList,
+	FlowRunView,
+} from "./client-types.ts";
 import type { FlowEvent, FlowResultStatus } from "./types.ts";
 
-export type FlowBackendProcessStatus =
-	| "queued"
-	| "running"
-	| "completed"
-	| "failed"
-	| "canceled"
-	| string;
-
-export type FlowBackendEffectiveStatus =
-	| FlowBackendProcessStatus
-	| FlowResultStatus;
-
-export type FlowBackendListRunsOptions = {
-	eventId?: string;
-	status?: string;
-	limit?: number;
-};
-
-export type FlowBackendListEventsOptions = {
-	type?: string;
-	limit?: number;
-};
-
-export type FlowBackendDispatchOptions = {
-	wait?: boolean;
-};
-
-export type FlowBackendReplayOptions = {
-	wait?: boolean;
-};
+export type FlowBackendProcessStatus = FlowProcessStatus;
+export type FlowBackendEffectiveStatus = FlowEffectiveStatus;
+export type FlowBackendListRunsOptions = FlowListRunsOptions;
+export type FlowBackendListEventsOptions = FlowListEventsOptions;
+export type FlowBackendDispatchOptions = FlowDispatchOptions;
+export type FlowBackendReplayOptions = FlowReplayOptions;
 
 export type FlowBackendHttpHeaders =
 	| Headers
@@ -42,102 +36,16 @@ export type FlowBackendFetch = (
 	init?: RequestInit,
 ) => Promise<Response>;
 
-export type FlowBackendOutputView = {
-	kind: string;
-	text: string;
-	createdAt?: string;
-	raw: unknown;
-};
-
-export type FlowBackendAttemptView = {
-	id: string;
-	status?: string;
-	attemptNumber?: number;
-	workerId?: string;
-	leaseExpiresAt?: number;
-	startedAt?: string;
-	completedAt?: string;
-	error?: string;
-	raw: unknown;
-};
-
-export type FlowBackendRunView = {
-	id: string;
-	eventId?: string;
-	flowName?: string;
-	flowVersion?: number;
-	stepName?: string;
-	runner?: string;
-	backend?: string;
-	processStatus?: FlowBackendProcessStatus;
-	resultStatus?: FlowResultStatus;
-	status: FlowBackendEffectiveStatus;
-	effectiveStatus: FlowBackendEffectiveStatus;
-	needsAttention: boolean;
-	attemptCount: number;
-	attempts: FlowBackendAttemptView[];
-	output: FlowBackendOutputView[];
-	latestOutput?: FlowBackendOutputView;
-	resultPayload?: unknown;
-	error?: string;
-	createdAt?: string;
-	startedAt?: string;
-	completedAt?: string;
-	updatedAt?: string;
-	raw: unknown;
-};
-
-export type FlowBackendEventView = {
-	id: string;
-	type?: string;
-	source?: string;
-	occurredAt?: string;
-	receivedAt?: string;
-	payload?: unknown;
-	runIds: string[];
-	runs: FlowBackendRunView[];
-	createdAt?: string;
-	raw: unknown;
-};
-
-export type FlowBackendRunList = {
-	runs: FlowBackendRunView[];
-	eventId?: string;
-	raw: unknown;
-};
-
-export type FlowBackendEventList = {
-	events: FlowBackendEventView[];
-	raw: unknown;
-};
-
-export type FlowBackendDispatchResult = {
-	status?: string;
-	eventId?: string;
-	runIds: string[];
-	matched?: number;
-	idempotent?: boolean;
-	event?: FlowBackendEventView;
-	runs: FlowBackendRunView[];
-	raw: unknown;
-};
-
-export type FlowBackendReplayResult = FlowBackendDispatchResult;
-
-export type FlowBackendCancelResult = {
-	run: FlowBackendRunView;
-	raw: unknown;
-};
-
-export type FlowBackendClient = {
-	listRuns(options?: FlowBackendListRunsOptions): Promise<FlowBackendRunList>;
-	getRun(runId: string): Promise<FlowBackendRunView>;
-	listEvents(options?: FlowBackendListEventsOptions): Promise<FlowBackendEventList>;
-	getEvent(eventId: string): Promise<FlowBackendEventView>;
-	dispatchEvent(event: FlowEvent, options?: FlowBackendDispatchOptions): Promise<FlowBackendDispatchResult>;
-	replayEvent(eventId: string, options?: FlowBackendReplayOptions): Promise<FlowBackendReplayResult>;
-	cancelRun(runId: string): Promise<FlowBackendCancelResult>;
-};
+export type FlowBackendOutputView = FlowOutputView;
+export type FlowBackendAttemptView = FlowAttemptView;
+export type FlowBackendRunView = FlowRunView;
+export type FlowBackendEventView = FlowEventView;
+export type FlowBackendRunList = FlowRunList;
+export type FlowBackendEventList = FlowEventList;
+export type FlowBackendDispatchResult = FlowDispatchResult;
+export type FlowBackendReplayResult = FlowReplayResult;
+export type FlowBackendCancelResult = FlowCancelResult;
+export type FlowBackendClient = FlowClient;
 
 export type FlowBackendHttpClientOptions = {
 	baseUrl: string;

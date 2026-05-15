@@ -2,7 +2,7 @@
 import path from "node:path";
 import {
 	discoverFlows,
-	matchingSteps,
+	createLocalFlowClient,
 	runFlowStep,
 	type FlowEvent,
 	type LoadedFlow,
@@ -35,11 +35,26 @@ async function main(): Promise<void> {
 	}
 	const event = await readEvent(cli.eventPath);
 	if (cli.kind === "fire") {
-		const matches = await matchingSteps(flows, event);
-		const results = [];
-		for (const match of matches) {
-			results.push(await runAndReport(match.flow, match.step, event));
-		}
+		const client = createLocalFlowClient({
+			cwd: cli.cwd,
+			env: process.env,
+			codex: {
+				command: process.env.CODEX_APP_SERVER_CODEX_COMMAND,
+				codexHome: process.env.CODEX_HOME,
+				stream: true,
+			},
+		});
+		const dispatch = await client.dispatchEvent(event);
+		const results = dispatch.runs.map((run) => {
+			if (!run.resultPayload && run.error) {
+				throw new Error(run.error);
+			}
+			return {
+				flow: run.flowName,
+				step: run.stepName,
+				result: run.resultPayload,
+			};
+		});
 		process.stdout.write(`${JSON.stringify({ eventId: event.id, results }, null, 2)}\n`);
 		return;
 	}

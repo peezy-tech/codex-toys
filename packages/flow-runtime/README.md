@@ -10,6 +10,46 @@ Code Mode runners.
 import { discoverFlows, matchingSteps, runFlowStep } from "@peezy.tech/flow-runtime";
 ```
 
+## Flow Client
+
+`@peezy.tech/flow-runtime/client` exposes a small flow-native client factory for
+product code that should not care whether flows run locally or through an HTTP
+backend:
+
+```ts
+import { createFlowClient } from "@peezy.tech/flow-runtime/client";
+
+const flows = createFlowClient({
+	mode: "local",
+	cwd: process.cwd(),
+});
+
+await flows.dispatchEvent({
+	id: "patch:upstream.release:openai/codex:rust-v1.2.3",
+	type: "upstream.release",
+	source: "patch",
+	receivedAt: new Date().toISOString(),
+	payload: { repo: "openai/codex", tag: "rust-v1.2.3" },
+});
+```
+
+Use `mode: "http"` to wrap the existing backend HTTP client:
+
+```ts
+const flows = createFlowClient({
+	mode: "http",
+	baseUrl: "http://127.0.0.1:7345",
+	hmacSecret: process.env.PATCH_FLOW_DISPATCH_SECRET,
+});
+```
+
+`@peezy.tech/flow-runtime/local-client` runs matching steps synchronously in the
+selected workspace and keeps in-memory run/event state by default. Set
+`state: { kind: "file" }` to persist local run/event state under
+`.codex/flow-client`. It preserves the generic `FlowEvent` and `FLOW_RESULT`
+contracts; callers still provide deterministic event ids when idempotency
+matters.
+
 ## Backend Client
 
 `@peezy.tech/flow-runtime/backend-client` exposes backend-native inspection and

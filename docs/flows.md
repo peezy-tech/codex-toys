@@ -206,6 +206,34 @@ completion logic stays outside generic backends. For example, a pet-game worker
 may upload generated assets, update payment state, and mint before completing a
 generic flow run.
 
+## Flow Client
+
+Reusable product code can use `@peezy.tech/flow-runtime/client` when it should
+dispatch, inspect, or replay generic flow events without hard-coding whether
+execution is local or delegated to an HTTP backend.
+
+```ts
+import { createFlowClient } from "@peezy.tech/flow-runtime/client";
+
+const flows = createFlowClient({
+	mode: "local",
+	cwd: process.cwd(),
+});
+```
+
+`mode: "local"` wraps `@peezy.tech/flow-runtime/local-client` and runs matching
+steps synchronously in the selected workspace with in-memory run/event state by
+default. Set `state: { kind: "file" }` to persist local state under
+`.codex/flow-client`. `mode: "http"` wraps the existing backend HTTP client and
+inherits the backend's durable idempotency, replay, and cancellation semantics.
+
+Both modes preserve the same `FlowEvent` and `FLOW_RESULT` contracts. The client
+hides dispatch ceremony, not event semantics: products still provide stable
+event ids when duplicate suppression matters, and product-specific completion
+logic stays outside the generic client. See
+`docs/2026-05-15-flow-client-design.md` for the design rationale, Patch
+integration path, local state model, and remaining open decisions.
+
 ## Convex Backend Direction
 
 Convex should be a durable orchestration backend, not the place where long
