@@ -35,6 +35,7 @@ import type {
 	DiscordBridgeTransport,
 	DiscordClearInbound,
 	DiscordClearWebhooksInbound,
+	DiscordGoalsInbound,
 	DiscordInbound,
 	DiscordMessageInbound,
 	DiscordReactionInbound,
@@ -84,6 +85,25 @@ type WorkspaceThreadPicker = {
 	entries: WorkspaceThreadSummary[];
 };
 
+type WorkspaceGoalSummary = WorkspaceThreadSummary & {
+	goal?: v2.ThreadGoal | null;
+	goalError?: string;
+};
+
+type WorkspaceGoalPicker = {
+	channelId: string;
+	authorId: string;
+	workspace: DiscordGatewayWorkspaceSurface;
+	entries: WorkspaceGoalSummary[];
+};
+
+type WorkspaceGoalActionPicker = {
+	channelId: string;
+	authorId: string;
+	workspace: DiscordGatewayWorkspaceSurface;
+	entry: WorkspaceGoalSummary;
+};
+
 export class DiscordCodexBridge {
 	readonly client: CodexBridgeClient;
 	readonly transport: DiscordBridgeTransport;
@@ -103,6 +123,8 @@ export class DiscordCodexBridge {
 	#transportStarted = false;
 	#threadPickersByMessage = new Map<string, WorkspaceThreadPicker>();
 	#threadPickersById = new Map<string, WorkspaceThreadPicker>();
+	#goalPickersById = new Map<string, WorkspaceGoalPicker>();
+	#goalActionPickersById = new Map<string, WorkspaceGoalActionPicker>();
 
 	constructor(options: {
 		client: CodexBridgeClient;
@@ -263,6 +285,10 @@ export class DiscordCodexBridge {
 		}
 		if (inbound.kind === "threads") {
 			await this.#handleThreadsCommand(inbound);
+			return;
+		}
+		if (inbound.kind === "goals") {
+			await this.#handleGoalsCommand(inbound);
 			return;
 		}
 		if (inbound.kind === "threadPicker") {
@@ -526,6 +552,119 @@ export class DiscordCodexBridge {
 		}
 	}
 
+	async #handleGoalsCommand(command: DiscordGoalsInbound): Promise<void> {
+		if (!this.config.allowedUserIds.has(command.author.id)) {
+			this.#debug("goals.ignored.user", {
+				channelId: command.channelId,
+				authorId: command.author.id,
+			});
+			await command.reply?.("Only globally allowed Discord users can manage goals.");
+			return;
+		}
+		if (!this.#isAllowedChannel(command.channelId)) {
+			this.#debug("goals.ignored.channel", { channelId: command.channelId });
+			await command.reply?.("This Discord channel is not allowed for the bridge.");
+			return;
+		}
+		const session = this.#sessionForDiscordThread(command.channelId);
+		if (session) {
+			await this.#handleThreadGoalsCommand(command, session);
+			return;
+		}
+		const workspace = this.#workspaceForumForChannel(command.channelId);
+		if (!workspace) {
+			await command.reply?.(
+				"Run `/goals` in a workspace forum post or opened Codex thread.",
+			);
+			return;
+		}
+		if (!command.replyPicker) {
+			await command.reply?.(
+				"This Discord transport cannot send ephemeral goal pickers.",
+			);
+			return;
+		}
+		const entries = await this.#listWorkspaceGoalSummaries(workspace);
+		if (entries.length === 0) {
+			await command.reply?.(`No Codex threads found for ${workspace.title}.`);
+			return;
+		}
+		const pickerEntries = entries.slice(0, threadPickerReactions.length);
+		const pickerId = `goals-${randomUUID()}`;
+		this.#goalPickersById.set(pickerId, {
+			channelId: command.channelId,
+			authorId: command.author.id,
+			workspace,
+			entries: pickerEntries,
+		});
+		try {
+			await command.replyPicker({
+				pickerId,
+				text: goalPickerText(workspace, pickerEntries, entries.length),
+				options: pickerEntries.map((_, index) => ({
+					id: String(index),
+					label: String(index + 1),
+				})),
+			});
+		} catch (error) {
+			this.#goalPickersById.delete(pickerId);
+			await command.reply?.(
+				`Failed to send the goal picker: ${errorMessage(error)}`,
+			);
+		}
+	}
+
+	async #handleThreadGoalsCommand(
+		command: DiscordGoalsInbound,
+		session: DiscordBridgeSession,
+	): Promise<void> {
+		const hasMutation = hasGoalMutation(command);
+		if (command.clear && hasMutation) {
+			await command.reply?.("Use either `clear` or goal updates, not both.");
+			return;
+		}
+		const workspace = this.#workspaceForGoalSession(session);
+		const picker = {
+			channelId: command.channelId,
+			authorId: command.author.id,
+			workspace,
+		};
+		if (command.clear) {
+			try {
+				await this.client.clearThreadGoal({ threadId: session.codexThreadId });
+				await command.reply?.(`Cleared goal for ${session.title}.`);
+			} catch (error) {
+				await command.reply?.(
+					`Failed to clear goal for ${session.title}: ${errorMessage(error)}`,
+				);
+			}
+			return;
+		}
+		if (hasMutation) {
+			try {
+				const response = await this.client.setThreadGoal({
+					threadId: session.codexThreadId,
+					objective: command.objective,
+					status: command.goalStatus,
+					tokenBudget: command.tokenBudget,
+				});
+				await this.#showGoalActionPicker(
+					command,
+					picker,
+					this.#goalSummaryFromSession(session, { goal: response.goal }),
+					{ prefix: command.objective ? "Saved goal." : "Updated goal." },
+				);
+			} catch (error) {
+				await command.reply?.(
+					`Failed to update goal for ${session.title}: ${errorMessage(error)}`,
+				);
+			}
+			return;
+		}
+		const entry = await this.#goalSummaryForSession(session);
+		await this.#showGoalActionPicker(command, picker, entry);
+	}
+
 	async #handleThreadPickerSelection(
 		selection: DiscordThreadPickerInbound,
 	): Promise<void> {
@@ -533,12 +672,29 @@ export class DiscordCodexBridge {
 			return;
 		}
 		const picker = this.#threadPickersById.get(selection.pickerId);
-		if (!picker) {
-			await selection.update?.("This thread picker is no longer active.");
+		if (picker) {
+			await this.#handleWorkspaceThreadPickerSelection(selection, picker);
 			return;
 		}
+		const goalPicker = this.#goalPickersById.get(selection.pickerId);
+		if (goalPicker) {
+			await this.#handleGoalPickerSelection(selection, goalPicker);
+			return;
+		}
+		const goalActionPicker = this.#goalActionPickersById.get(selection.pickerId);
+		if (goalActionPicker) {
+			await this.#handleGoalActionSelection(selection, goalActionPicker);
+			return;
+		}
+		await selection.update?.("This picker is no longer active.");
+	}
+
+	async #handleWorkspaceThreadPickerSelection(
+		selection: DiscordThreadPickerInbound,
+		picker: WorkspaceThreadPicker,
+	): Promise<void> {
 		if (selection.author.id !== picker.authorId) {
-			await selection.reply?.("Only the user who ran `/threads` can use this picker.");
+			await selection.reply?.("Only the user who ran the command can use this picker.");
 			return;
 		}
 		const index = Number.parseInt(selection.optionId, 10);
@@ -568,6 +724,130 @@ export class DiscordCodexBridge {
 				`Failed to open ${entry.title}: ${errorMessage(error)}`,
 			);
 		}
+	}
+
+	async #handleGoalPickerSelection(
+		selection: DiscordThreadPickerInbound,
+		picker: WorkspaceGoalPicker,
+	): Promise<void> {
+		if (selection.author.id !== picker.authorId) {
+			await selection.reply?.("Only the user who ran `/goals` can use this picker.");
+			return;
+		}
+		const index = Number.parseInt(selection.optionId, 10);
+		const entry = Number.isInteger(index) ? picker.entries[index] : undefined;
+		if (!entry) {
+			await selection.update?.("That goal choice is no longer available.");
+			return;
+		}
+		this.#goalPickersById.delete(selection.pickerId);
+		await this.#showGoalActionPicker(selection, picker, entry);
+	}
+
+	async #handleGoalActionSelection(
+		selection: DiscordThreadPickerInbound,
+		picker: WorkspaceGoalActionPicker,
+	): Promise<void> {
+		if (selection.author.id !== picker.authorId) {
+			await selection.reply?.("Only the user who ran `/goals` can use this picker.");
+			return;
+		}
+		const action = selection.optionId;
+		this.#goalActionPickersById.delete(selection.pickerId);
+		if (action === "open") {
+			try {
+				const session = await this.#materializeWorkspaceThread(picker.entry.id, {
+					author: selection.author,
+				});
+				const updatedEntry = {
+					...picker.entry,
+					discordThreadId: session.discordThreadId,
+				};
+				await this.#showGoalActionPicker(selection, picker, updatedEntry, {
+					prefix: `Opened ${session.title}: <#${session.discordThreadId}>`,
+				});
+			} catch (error) {
+				await updateOrReply(
+					selection,
+					`Failed to open ${picker.entry.title}: ${errorMessage(error)}`,
+				);
+			}
+			return;
+		}
+		if (action === "clear") {
+			try {
+				await this.client.clearThreadGoal({ threadId: picker.entry.id });
+				await updateOrReply(
+					selection,
+					`Cleared goal for ${picker.entry.title}.`,
+				);
+			} catch (error) {
+				await updateOrReply(
+					selection,
+					`Failed to clear goal for ${picker.entry.title}: ${errorMessage(error)}`,
+				);
+			}
+			return;
+		}
+		const status = action.startsWith("status:")
+			? action.slice("status:".length)
+			: "";
+		if (
+			status === "active" ||
+			status === "paused" ||
+			status === "budgetLimited" ||
+			status === "complete"
+		) {
+			try {
+				const response = await this.client.setThreadGoal({
+					threadId: picker.entry.id,
+					status,
+				});
+				await this.#showGoalActionPicker(
+					selection,
+					picker,
+					{ ...picker.entry, goal: response.goal },
+					{ prefix: `Set goal status to ${status}.` },
+				);
+			} catch (error) {
+				await updateOrReply(
+					selection,
+					`Failed to update goal for ${picker.entry.title}: ${errorMessage(error)}`,
+				);
+			}
+			return;
+		}
+		await selection.update?.("That goal action is no longer available.");
+	}
+
+	async #showGoalActionPicker(
+		selection: Pick<
+			DiscordThreadPickerInbound,
+			"update" | "updatePicker" | "reply"
+		> & Pick<DiscordGoalsInbound, "replyPicker">,
+		picker: Pick<WorkspaceGoalPicker, "channelId" | "authorId" | "workspace">,
+		entry: WorkspaceGoalSummary,
+		options: { prefix?: string } = {},
+	): Promise<void> {
+		const actions = goalActionOptions(entry);
+		const text = goalActionText(picker.workspace, entry, options);
+		const sendPicker = selection.updatePicker ?? selection.replyPicker;
+		if (actions.length === 0 || !sendPicker) {
+			await updateOrReply(selection, text);
+			return;
+		}
+		const pickerId = `goal-actions-${randomUUID()}`;
+		this.#goalActionPickersById.set(pickerId, {
+			channelId: picker.channelId,
+			authorId: picker.authorId,
+			workspace: picker.workspace,
+			entry,
+		});
+		await sendPicker({
+			pickerId,
+			text,
+			options: actions,
+		});
 	}
 
 	async #handleThreadPickerReaction(reaction: DiscordReactionInbound): Promise<void> {
@@ -1861,6 +2141,59 @@ export class DiscordCodexBridge {
 		return [...byId.values()].sort((left, right) => right.updatedAt - left.updatedAt);
 	}
 
+	async #listWorkspaceGoalSummaries(
+		workspace: DiscordGatewayWorkspaceSurface,
+	): Promise<WorkspaceGoalSummary[]> {
+		const threads = (await this.#listWorkspaceThreads(workspace)).slice(
+			0,
+			threadPickerReactions.length,
+		);
+		return await Promise.all(
+			threads.map(async (thread) => {
+				try {
+					const response = await this.client.getThreadGoal({
+						threadId: thread.id,
+					});
+					return { ...thread, goal: response.goal };
+				} catch (error) {
+					return { ...thread, goalError: errorMessage(error) };
+				}
+			}),
+		);
+	}
+
+	async #goalSummaryForSession(
+		session: DiscordBridgeSession,
+	): Promise<WorkspaceGoalSummary> {
+		try {
+			const response = await this.client.getThreadGoal({
+				threadId: session.codexThreadId,
+			});
+			return this.#goalSummaryFromSession(session, { goal: response.goal });
+		} catch (error) {
+			return this.#goalSummaryFromSession(session, {
+				goalError: errorMessage(error),
+			});
+		}
+	}
+
+	#goalSummaryFromSession(
+		session: DiscordBridgeSession,
+		options: Pick<WorkspaceGoalSummary, "goal" | "goalError"> = {},
+	): WorkspaceGoalSummary {
+		return {
+			id: session.codexThreadId,
+			title: session.title,
+			cwd: session.cwd ?? this.config.cwd ?? process.cwd(),
+			status: this.#isSessionRunning(session, this.#requireState())
+				? "active"
+				: "open",
+			updatedAt: Date.parse(session.createdAt) / 1000,
+			discordThreadId: session.discordThreadId,
+			...options,
+		};
+	}
+
 	async #listActiveCodexThreadSummaries(): Promise<WorkspaceThreadSummary[]> {
 		const byId = new Map<string, WorkspaceThreadSummary>();
 		const put = (summary: WorkspaceThreadSummary) => {
@@ -2042,6 +2375,47 @@ export class DiscordCodexBridge {
 		}
 		const key = workspaceKey(workspaceCwdForPath(session.cwd, this.config.cwd));
 		return workspaces.find((workspace) => workspace.key === key);
+	}
+
+	#sessionForDiscordThread(channelId: string): DiscordBridgeSession | undefined {
+		const session = this.#requireState().sessions.find((candidate) =>
+			candidate.discordThreadId === channelId
+		);
+		if (
+			!session ||
+			session.mode === "gateway" ||
+			session.discordThreadId === session.parentChannelId
+		) {
+			return undefined;
+		}
+		return session;
+	}
+
+	#workspaceForGoalSession(
+		session: DiscordBridgeSession,
+	): DiscordGatewayWorkspaceSurface {
+		const existing = this.#workspaceForChannel(session.discordThreadId);
+		if (existing) {
+			return existing;
+		}
+		const cwd = workspaceCwdForPath(session.cwd, this.config.cwd);
+		return {
+			key: workspaceKey(cwd),
+			cwd,
+			title: workspaceTitle(cwd),
+			discordThreadId: session.parentChannelId,
+			delegationIds: [],
+			createdAt: session.createdAt,
+			updatedAt: session.createdAt,
+		};
+	}
+
+	#workspaceForumForChannel(
+		channelId: string,
+	): DiscordGatewayWorkspaceSurface | undefined {
+		return this.#requireState().gateway?.workspaces?.find((workspace) =>
+			workspace.discordThreadId === channelId
+		);
 	}
 
 	async #mirrorDelegationResultToTaskThread(
@@ -3239,6 +3613,100 @@ function activeThreadStatusLines(
 		const title = truncateDiscordThreadName(thread.title);
 		return `${marker} ${link} ${title} (${thread.status})`;
 	});
+}
+
+function goalPickerText(
+	workspace: DiscordGatewayWorkspaceSurface,
+	entries: WorkspaceGoalSummary[],
+	total: number,
+): string {
+	return [
+		`**Goals: ${workspace.title}**`,
+		`Dir: \`${workspace.cwd}\``,
+		"",
+		...entries.map((entry, index) => {
+			const link = entry.discordThreadId ? `<#${entry.discordThreadId}>` : "`not opened`";
+			const title = truncateDiscordThreadName(entry.title);
+			return `${threadPickerReactions[index]} ${link} ${title} - ${goalSummaryText(entry)}`;
+		}),
+		total > entries.length ? `Showing newest ${entries.length} of ${total}.` : undefined,
+		"",
+		"Choose a number to manage that thread's goal.",
+	].filter((line): line is string => line !== undefined).join("\n");
+}
+
+function goalActionText(
+	workspace: DiscordGatewayWorkspaceSurface,
+	entry: WorkspaceGoalSummary,
+	options: { prefix?: string } = {},
+): string {
+	const link = entry.discordThreadId ? `<#${entry.discordThreadId}>` : "`not opened`";
+	const goal = entry.goal;
+	return [
+		options.prefix,
+		`**Goal: ${truncateDiscordThreadName(entry.title)}**`,
+		`Workspace: ${workspace.title}`,
+		`Thread: ${link} \`${entry.id}\``,
+		`Dir: \`${entry.cwd}\``,
+		"",
+		entry.goalError
+			? `Goal: unavailable (${entry.goalError})`
+			: goal
+			? [
+					`Goal: \`${goal.status}\` ${previewText(firstLine(goal.objective) ?? goal.objective, 180)}`,
+					`Usage: ${goal.tokensUsed} tokens, ${Math.round(goal.timeUsedSeconds)}s${
+						goal.tokenBudget ? ` of ${goal.tokenBudget} tokens` : ""
+					}`,
+				].join("\n")
+			: "Goal: none",
+		"",
+		goalActionOptions(entry).length > 0
+			? "Choose an action."
+			: entry.goal
+			? "No goal actions are available for this thread."
+			: "Use `/goals objective:<objective>` in an opened Discord thread to create one.",
+	].filter((line): line is string => line !== undefined).join("\n");
+}
+
+function hasGoalMutation(command: DiscordGoalsInbound): boolean {
+	return command.objective !== undefined ||
+		command.goalStatus !== undefined ||
+		command.tokenBudget !== undefined;
+}
+
+function goalActionOptions(
+	entry: WorkspaceGoalSummary,
+): Array<{ id: string; label: string }> {
+	const options: Array<{ id: string; label: string }> = [];
+	if (!entry.discordThreadId) {
+		options.push({ id: "open", label: "Open" });
+	}
+	if (entry.goal && !entry.goalError) {
+		if (entry.goal.status !== "active") {
+			options.push({ id: "status:active", label: "Active" });
+		}
+		if (entry.goal.status !== "paused") {
+			options.push({ id: "status:paused", label: "Pause" });
+		}
+		if (entry.goal.status !== "complete") {
+			options.push({ id: "status:complete", label: "Complete" });
+		}
+		options.push({ id: "clear", label: "Clear" });
+	}
+	return options;
+}
+
+function goalSummaryText(entry: WorkspaceGoalSummary): string {
+	if (entry.goalError) {
+		return `goal unavailable (${entry.goalError})`;
+	}
+	if (!entry.goal) {
+		return "no goal";
+	}
+	return `\`${entry.goal.status}\` ${previewText(
+		firstLine(entry.goal.objective) ?? entry.goal.objective,
+		120,
+	)}`;
 }
 
 function threadPickerText(

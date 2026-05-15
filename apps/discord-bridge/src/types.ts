@@ -108,6 +108,20 @@ export type DiscordThreadsInbound = {
 	replyPicker?: (picker: DiscordEphemeralPicker) => Promise<void>;
 };
 
+export type DiscordGoalsInbound = {
+	kind: "goals";
+	channelId: string;
+	guildId?: string;
+	author: DiscordAuthor;
+	createdAt: string;
+	objective?: string;
+	goalStatus?: v2.ThreadGoalStatus;
+	tokenBudget?: number;
+	clear?: boolean;
+	reply?: (text: string) => Promise<void>;
+	replyPicker?: (picker: DiscordEphemeralPicker) => Promise<void>;
+};
+
 export type DiscordThreadPickerInbound = {
 	kind: "threadPicker";
 	channelId: string;
@@ -118,6 +132,7 @@ export type DiscordThreadPickerInbound = {
 	createdAt: string;
 	reply?: (text: string) => Promise<void>;
 	update?: (text: string) => Promise<void>;
+	updatePicker?: (picker: DiscordEphemeralPicker) => Promise<void>;
 };
 
 export type DiscordReactionInbound = {
@@ -137,6 +152,7 @@ export type DiscordInbound =
 	| DiscordClearWebhooksInbound
 	| DiscordStatusInbound
 	| DiscordThreadsInbound
+	| DiscordGoalsInbound
 	| DiscordThreadPickerInbound
 	| DiscordReactionInbound;
 
@@ -204,7 +220,9 @@ export type CodexBridgeClient = {
 	readThread(params: v2.ThreadReadParams): Promise<v2.ThreadReadResponse>;
 	injectThreadItems(params: v2.ThreadInjectItemsParams): Promise<v2.ThreadInjectItemsResponse>;
 	listThreads(params: v2.ThreadListParams): Promise<v2.ThreadListResponse>;
+	setThreadGoal(params: v2.ThreadGoalSetParams): Promise<v2.ThreadGoalSetResponse>;
 	getThreadGoal(params: v2.ThreadGoalGetParams): Promise<v2.ThreadGoalGetResponse>;
+	clearThreadGoal(params: v2.ThreadGoalClearParams): Promise<v2.ThreadGoalClearResponse>;
 	respond(id: string | number, result: unknown): void;
 	respondError(id: string | number, code: number, message: string, data?: unknown): void;
 };

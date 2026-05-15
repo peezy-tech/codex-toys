@@ -1387,6 +1387,237 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
+	test("goals command manages thread goals from workspace forum posts", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "discord-goals-"));
+		await mkdir(path.join(root, "alpha", "project"), { recursive: true });
+		const client = new FakeCodexClient();
+		client.threads = [
+			testThread({
+				id: "codex-goal",
+				cwd: path.join(root, "alpha", "project"),
+				name: "Goal thread",
+				updatedAt: 30,
+			}),
+		];
+		client.threadGoals.set("codex-goal", {
+			threadId: "codex-goal",
+			objective: "Ship goal management",
+			status: "active",
+			tokenBudget: null,
+			tokensUsed: 42,
+			timeUsedSeconds: 9,
+			createdAt: 1,
+			updatedAt: 2,
+		});
+		const transport = new FakeDiscordTransport();
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(),
+			config: testConfig({
+				cwd: root,
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+			}),
+		});
+
+		try {
+			await bridge.start();
+			expect(transport.createdForumPosts.map((post) => post.name)).toEqual([
+				"alpha",
+			]);
+
+			const replies: string[] = [];
+			transport.emit({
+				kind: "goals",
+				channelId: "task-channel",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-15T00:00:00.000Z",
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => replies.length === 1);
+			expect(replies[0]).toBe(
+				"Run `/goals` in a workspace forum post or opened Codex thread.",
+			);
+
+			transport.emit({
+				kind: "goals",
+				channelId: "forum-post-1",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-15T00:00:01.000Z",
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 1);
+			const picker = transport.ephemeralPickers[0];
+			expect(picker?.text).toContain("**Goals: alpha**");
+			expect(picker?.text).toContain("1️⃣ `not opened` Goal thread - `active` Ship goal management");
+			expect(picker?.options).toEqual([{ id: "0", label: "1" }]);
+
+			transport.emitThreadPicker({
+				pickerId: picker?.pickerId ?? "",
+				optionId: "0",
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 2);
+			const actionPicker = transport.ephemeralPickers[1];
+			expect(actionPicker?.text).toContain("**Goal: Goal thread**");
+			expect(actionPicker?.text).toContain("Goal: `active` Ship goal management");
+			expect(actionPicker?.options).toEqual([
+				{ id: "open", label: "Open" },
+				{ id: "status:paused", label: "Pause" },
+				{ id: "status:complete", label: "Complete" },
+				{ id: "clear", label: "Clear" },
+			]);
+
+			transport.emitThreadPicker({
+				pickerId: actionPicker?.pickerId ?? "",
+				optionId: "status:complete",
+			});
+			await waitFor(() => client.setThreadGoalCalls.length === 1);
+			expect(client.setThreadGoalCalls[0]).toEqual({
+				threadId: "codex-goal",
+				status: "complete",
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 3);
+			expect(transport.ephemeralPickers[2]?.text).toContain(
+				"Set goal status to complete.",
+			);
+			expect(transport.ephemeralPickers[2]?.text).toContain(
+				"Goal: `complete` Ship goal management",
+			);
+		} finally {
+			await bridge.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("goals command manages the current Discord thread goal", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "discord-thread-goals-"));
+		const cwd = path.join(root, "alpha", "project");
+		await mkdir(cwd, { recursive: true });
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore({
+				...emptyState(),
+				sessions: [
+					{
+						discordThreadId: "task-goal",
+						parentChannelId: "task-channel",
+						codexThreadId: "codex-thread-goal",
+						title: "Goal task",
+						createdAt: "2026-05-14T11:00:00.000Z",
+						cwd,
+						mode: "workspace",
+					},
+				],
+			}),
+			config: testConfig({
+				cwd: root,
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+			}),
+		});
+
+		try {
+			await bridge.start();
+
+			const replies: string[] = [];
+			transport.emit({
+				kind: "goals",
+				channelId: "task-goal",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-15T00:00:00.000Z",
+				objective: "Improve delegation CRUD",
+				goalStatus: "active",
+				tokenBudget: 1234,
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => client.setThreadGoalCalls.length === 1);
+			expect(client.setThreadGoalCalls[0]).toEqual({
+				threadId: "codex-thread-goal",
+				objective: "Improve delegation CRUD",
+				status: "active",
+				tokenBudget: 1234,
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 1);
+			expect(transport.ephemeralPickers[0]?.text).toContain("Saved goal.");
+			expect(transport.ephemeralPickers[0]?.text).toContain(
+				"Goal: `active` Improve delegation CRUD",
+			);
+
+			transport.emit({
+				kind: "goals",
+				channelId: "task-goal",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-15T00:00:01.000Z",
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 2);
+			const picker = transport.ephemeralPickers[1];
+			expect(picker?.text).toContain("**Goal: Goal task**");
+			expect(picker?.text).toContain("Thread: <#task-goal> `codex-thread-goal`");
+			expect(picker?.options).toEqual([
+				{ id: "status:paused", label: "Pause" },
+				{ id: "status:complete", label: "Complete" },
+				{ id: "clear", label: "Clear" },
+			]);
+
+			transport.emitThreadPicker({
+				pickerId: picker?.pickerId ?? "",
+				optionId: "status:complete",
+			});
+			await waitFor(() => client.setThreadGoalCalls.length === 2);
+			expect(client.setThreadGoalCalls[1]).toEqual({
+				threadId: "codex-thread-goal",
+				status: "complete",
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 3);
+			expect(transport.ephemeralPickers[2]?.text).toContain(
+				"Set goal status to complete.",
+			);
+
+			transport.emit({
+				kind: "goals",
+				channelId: "task-goal",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-15T00:00:02.000Z",
+				clear: true,
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => client.clearThreadGoalCalls.length === 1);
+			expect(client.clearThreadGoalCalls[0]).toEqual({
+				threadId: "codex-thread-goal",
+			});
+			await waitFor(() => replies.includes("Cleared goal for Goal task."));
+		} finally {
+			await bridge.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("resumes a configured gateway main thread without creating Discord threads", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -3876,6 +4107,8 @@ class FakeCodexClient implements CodexBridgeClient {
 	injectThreadItemsCalls: v2.ThreadInjectItemsParams[] = [];
 	listThreadsCalls: v2.ThreadListParams[] = [];
 	getThreadGoalCalls: v2.ThreadGoalGetParams[] = [];
+	setThreadGoalCalls: v2.ThreadGoalSetParams[] = [];
+	clearThreadGoalCalls: v2.ThreadGoalClearParams[] = [];
 	responses: Array<{ id: string | number; result: unknown }> = [];
 	responseErrors: Array<{
 		id: string | number;
@@ -4008,6 +4241,33 @@ class FakeCodexClient implements CodexBridgeClient {
 		return {
 			goal: this.threadGoals.get(params.threadId) ?? null,
 		};
+	}
+
+	async setThreadGoal(
+		params: v2.ThreadGoalSetParams,
+	): Promise<v2.ThreadGoalSetResponse> {
+		this.setThreadGoalCalls.push(params);
+		const existing = this.threadGoals.get(params.threadId);
+		const goal: v2.ThreadGoal = {
+			threadId: params.threadId,
+			objective: params.objective ?? existing?.objective ?? "Goal",
+			status: params.status ?? existing?.status ?? "active",
+			tokenBudget: params.tokenBudget ?? existing?.tokenBudget ?? null,
+			tokensUsed: existing?.tokensUsed ?? 0,
+			timeUsedSeconds: existing?.timeUsedSeconds ?? 0,
+			createdAt: existing?.createdAt ?? 1,
+			updatedAt: (existing?.updatedAt ?? 1) + 1,
+		};
+		this.threadGoals.set(params.threadId, goal);
+		return { goal };
+	}
+
+	async clearThreadGoal(
+		params: v2.ThreadGoalClearParams,
+	): Promise<v2.ThreadGoalClearResponse> {
+		this.clearThreadGoalCalls.push(params);
+		const cleared = this.threadGoals.delete(params.threadId);
+		return { cleared };
 	}
 
 	respond(id: string | number, result: unknown): void {
@@ -4231,6 +4491,13 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 			},
 			reply: async (text) => {
 				this.ephemeralUpdates.push({ pickerId: input.pickerId, text });
+			},
+			updatePicker: async (picker) => {
+				this.ephemeralUpdates.push({
+					pickerId: input.pickerId,
+					text: picker.text,
+				});
+				this.ephemeralPickers.push(picker);
 			},
 		});
 	}

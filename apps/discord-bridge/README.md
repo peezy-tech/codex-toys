@@ -35,6 +35,10 @@ In the home channel:
 - `/status` replies directly with gateway state instead of starting a Codex turn
 - `/status` also lists active Codex threads, linking any opened Discord thread
   and offering private buttons to open active threads that are not yet in Discord
+- `/goals` is available from workspace forum posts and opens an ephemeral goal
+  management picker for that workspace
+- `/goals` inside an opened Codex Discord thread manages that specific thread's
+  goal; use the slash options to set the objective/status/token budget or clear it
 
 The prompt sent to the main thread uses `[discord-gateway]` framing so the model
 knows it is operating as the gateway over the codex-flows backend, not as a
@@ -108,6 +112,12 @@ When the workbench is enabled:
   Discord task thread in the task thread channel
 - `/status` shows all active Codex threads across workspaces and uses the same
   ephemeral button flow to open active threads without Discord task threads
+- `/goals` in workspace forum posts lists recent workspace thread goals and lets
+  the command sender mark existing goals active, paused, or complete, clear
+  them, or open the thread into Discord
+- `/goals` in an opened Discord task thread scopes CRUD to that Codex thread:
+  no options reads the current goal, `objective`/`status`/`token_budget` create
+  or update it, and `clear` removes it
 - repeated delegations in the same cwd reuse the same workspace post and update
   the workspace thread list
 - Stop lifecycle events update the workspace dashboard and any already-opened

@@ -16,6 +16,7 @@ import {
 } from "discord.js";
 
 import { splitDiscordMessage } from "./bridge.ts";
+import type { v2 } from "@peezy.tech/codex-flows/generated";
 import {
 	createDiscordBridgeLogger,
 	type DiscordBridgeLogger,
@@ -459,6 +460,13 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 					allowedMentions: emptyAllowedMentions(),
 				});
 			};
+			const updatePicker = async (picker: DiscordEphemeralPicker) => {
+				await interaction.editReply({
+					content: picker.text,
+					components: threadPickerComponents(picker),
+					allowedMentions: emptyAllowedMentions(),
+				});
+			};
 			this.#handlers?.onInbound({
 				kind: "threadPicker",
 				channelId: interaction.channelId,
@@ -475,6 +483,7 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 				createdAt: new Date().toISOString(),
 				reply,
 				update,
+				updatePicker,
 			});
 			return;
 		}
@@ -485,12 +494,17 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 			interaction.commandName !== "clear" &&
 			interaction.commandName !== "clear-webhooks" &&
 			interaction.commandName !== "status" &&
-			interaction.commandName !== "threads"
+			interaction.commandName !== "threads" &&
+			interaction.commandName !== "goals"
 		) {
 			return;
 		}
 		const channelId = interaction.channelId;
-		if (interaction.commandName === "status" || interaction.commandName === "threads") {
+		if (
+			interaction.commandName === "status" ||
+			interaction.commandName === "threads" ||
+			interaction.commandName === "goals"
+		) {
 			await interaction.deferReply({ ephemeral: true });
 		}
 		const reply = async (text: string) => {
@@ -583,6 +597,48 @@ export class DiscordJsBridgeTransport implements DiscordBridgeTransport {
 					isBot: interaction.user.bot,
 				},
 				createdAt: new Date().toISOString(),
+				reply,
+				replyPicker,
+			});
+			return;
+		}
+		if (interaction.commandName === "goals") {
+			const goalStatus = goalStatusFromString(
+				interaction.options.getString("status"),
+			);
+			const objective = interaction.options.getString("objective")?.trim() ||
+				undefined;
+			const tokenBudget = interaction.options.getInteger("token_budget") ??
+				undefined;
+			const clear = interaction.options.getBoolean("clear") ?? undefined;
+			const replyPicker = async (picker: DiscordEphemeralPicker) => {
+				const payload = {
+					content: picker.text,
+					components: threadPickerComponents(picker),
+					allowedMentions: emptyAllowedMentions(),
+				};
+				if (interaction.deferred || interaction.replied) {
+					await interaction.editReply(payload);
+					return;
+				}
+				await interaction.reply({ ...payload, ephemeral: true });
+			};
+			this.#handlers?.onInbound({
+				kind: "goals",
+				channelId,
+				guildId: interaction.guildId ?? undefined,
+				author: {
+					id: interaction.user.id,
+					name: interaction.member && "displayName" in interaction.member
+						? String(interaction.member.displayName)
+						: interaction.user.globalName || interaction.user.username,
+					isBot: interaction.user.bot,
+				},
+				createdAt: new Date().toISOString(),
+				objective,
+				goalStatus,
+				tokenBudget,
+				clear,
 				reply,
 				replyPicker,
 			});
@@ -682,6 +738,42 @@ function discordBridgeCommands(): ApplicationCommandDataResolvable[] {
 			name: "threads",
 			description: "List Codex threads for this workspace",
 		},
+		{
+			name: "goals",
+			description: "Manage Codex goals for this workspace or thread",
+			options: [
+				{
+					name: "objective",
+					description: "Create or update this thread's goal objective",
+					type: 3,
+					required: false,
+				},
+				{
+					name: "status",
+					description: "Set this thread's goal status",
+					type: 3,
+					required: false,
+					choices: [
+						{ name: "active", value: "active" },
+						{ name: "paused", value: "paused" },
+						{ name: "budget limited", value: "budgetLimited" },
+						{ name: "complete", value: "complete" },
+					],
+				},
+				{
+					name: "token_budget",
+					description: "Optional token budget for this thread's goal",
+					type: 4,
+					required: false,
+				},
+				{
+					name: "clear",
+					description: "Clear this thread's goal",
+					type: 5,
+					required: false,
+				},
+			],
+		},
 	];
 }
 
@@ -689,6 +781,18 @@ function commandName(command: ApplicationCommandDataResolvable): string {
 	return typeof command === "object" && command !== null && "name" in command
 		? String(command.name)
 		: "unknown";
+}
+
+function goalStatusFromString(value: string | null): v2.ThreadGoalStatus | undefined {
+	if (
+		value === "active" ||
+		value === "paused" ||
+		value === "budgetLimited" ||
+		value === "complete"
+	) {
+		return value;
+	}
+	return undefined;
 }
 
 function threadPickerComponents(
