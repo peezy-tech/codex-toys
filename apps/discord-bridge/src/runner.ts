@@ -1,5 +1,6 @@
 import type { JsonRpcNotification } from "@peezy.tech/codex-flows/rpc";
 import type { v2 } from "@peezy.tech/codex-flows/generated";
+import type { CodexGatewayPresenter } from "./gateway-backend.ts";
 
 import type {
 	DiscordConsoleMessageKind,
@@ -13,7 +14,6 @@ import type {
 	DiscordBridgeQueueItem,
 	DiscordBridgeSession,
 	DiscordBridgeState,
-	DiscordBridgeTransport,
 	DiscordMessageInbound,
 } from "./types.ts";
 
@@ -25,7 +25,7 @@ const runningCommandStatusDelayMs = 5_000;
 
 export type ThreadRunnerContext = {
 	client: CodexBridgeClient;
-	transport: DiscordBridgeTransport;
+	presenter: CodexGatewayPresenter;
 	config: DiscordBridgeConfig;
 	getState(): DiscordBridgeState;
 	persist(): Promise<void>;
@@ -860,7 +860,7 @@ export class DiscordThreadRunner {
 	): Promise<void> {
 		const active = this.#activeTurnForTurn(turnId) ??
 			this.#upsertActiveTurn({ turnId, origin: "external" });
-		const outboundMessageIds = await this.#context.transport.sendMessage(
+		const outboundMessageIds = await this.#context.presenter.sendMessage(
 			active.discordThreadId,
 			text,
 		);
@@ -919,7 +919,7 @@ export class DiscordThreadRunner {
 			});
 			return;
 		}
-		const outboundMessageIds = await this.#context.transport.sendMessage(
+		const outboundMessageIds = await this.#context.presenter.sendMessage(
 			active.discordThreadId,
 			text,
 		);
@@ -1070,7 +1070,7 @@ export class DiscordThreadRunner {
 				finalTextFromTurn(completedTurn).trim() ||
 				(await this.#readFinalTurnText(turnId)).trim();
 			if (finalText && !this.#hasDelivery(turnId, "final")) {
-				const outboundMessageIds = await this.#context.transport.sendMessage(
+				const outboundMessageIds = await this.#context.presenter.sendMessage(
 					active.discordThreadId,
 					finalText,
 				);
@@ -1232,7 +1232,7 @@ export class DiscordThreadRunner {
 	): Promise<void> {
 		const active = isActiveTurn(target) ? target : undefined;
 		const item = active ? undefined : target as DiscordBridgeQueueItem;
-		const outboundMessageIds = await this.#context.transport.sendMessage(
+		const outboundMessageIds = await this.#context.presenter.sendMessage(
 			target.discordThreadId,
 			`Codex turn failed: ${message}`,
 		);
@@ -1293,7 +1293,7 @@ export class DiscordThreadRunner {
 		const deletedMessageIds = new Set<string>();
 		for (const messageId of messageIds) {
 			try {
-				await this.#context.transport.deleteMessage(
+				await this.#context.presenter.deleteMessage(
 					active.discordThreadId,
 					messageId,
 				);
@@ -1327,7 +1327,7 @@ export class DiscordThreadRunner {
 	async #startTypingHeartbeat(active: DiscordBridgeActiveTurn): Promise<void> {
 		this.#stopTypingHeartbeat();
 		this.#typingTurnKey = turnKey(active.codexThreadId, active.turnId);
-		await this.#context.transport.sendTyping(active.discordThreadId);
+		await this.#context.presenter.sendTyping(active.discordThreadId);
 		const intervalMs =
 			this.#context.config.typingIntervalMs ?? defaultTypingIntervalMs;
 		this.#debug("typing.start", {
@@ -1338,7 +1338,7 @@ export class DiscordThreadRunner {
 		});
 		const timer = setInterval(() => {
 			void this.#enqueue("typing.tick", async () => {
-				await this.#context.transport.sendTyping(active.discordThreadId);
+				await this.#context.presenter.sendTyping(active.discordThreadId);
 				this.#debug("typing.tick", {
 					turnId: active.turnId,
 				});
@@ -1422,7 +1422,7 @@ export class DiscordThreadRunner {
 			await this.#pinStatusMessage(this.session.statusMessageId);
 			return;
 		}
-		const [messageId] = await this.#context.transport.sendMessage(
+		const [messageId] = await this.#context.presenter.sendMessage(
 			this.session.discordThreadId,
 			text,
 		);
@@ -1444,12 +1444,12 @@ export class DiscordThreadRunner {
 			await this.#ensureStatusMessage();
 			return;
 		}
-		if (!this.#context.transport.updateMessage) {
+		if (!this.#context.presenter.updateMessage) {
 			return;
 		}
 		try {
 			const text = this.#renderStatusMessage();
-			await this.#context.transport.updateMessage(
+			await this.#context.presenter.updateMessage(
 				this.session.discordThreadId,
 				messageId,
 				text,
@@ -1470,14 +1470,14 @@ export class DiscordThreadRunner {
 	}
 
 	async #pinStatusMessage(messageId: string): Promise<void> {
-		if (!this.#context.transport.pinMessage) {
+		if (!this.#context.presenter.pinMessage) {
 			return;
 		}
 		if (this.#pinnedStatusMessageId === messageId) {
 			return;
 		}
 		try {
-			await this.#context.transport.pinMessage(
+			await this.#context.presenter.pinMessage(
 				this.session.discordThreadId,
 				messageId,
 			);

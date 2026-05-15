@@ -7,13 +7,21 @@ import type { JsonRpcNotification, JsonRpcRequest } from "@peezy.tech/codex-flow
 import type { v2 } from "@peezy.tech/codex-flows/generated";
 import type { FlowBackendClient } from "@peezy.tech/flow-runtime/backend-client";
 
-import { DiscordCodexBridge, parseThreadStartIntent } from "../src/bridge.ts";
+import {
+	DiscordCodexBridge,
+	LocalCodexGatewayBackend,
+	parseThreadStartIntent,
+} from "../src/bridge.ts";
 import type {
 	DiscordConsoleMessage,
 	DiscordConsoleOutput,
 } from "../src/console-output.ts";
 import { MemoryStateStore, emptyState } from "../src/state.ts";
 import { writeStopHookSpoolEvent } from "../src/stop-hook-spool.ts";
+import type {
+	CodexGatewayBackend,
+	CodexGatewayPresenter,
+} from "../src/gateway-backend.ts";
 import type {
 	CodexBridgeClient,
 	DiscordBridgeConfig,
@@ -40,6 +48,118 @@ describe("DiscordCodexBridge", () => {
 			kind: "invalid",
 			message: "Usage: @codex resume <codex-thread-id> [--dir path]",
 		});
+	});
+
+	test("can run Discord as a transport over a gateway backend", async () => {
+		const transport = new FakeDiscordTransport();
+		const calls: string[] = [];
+		const inboundEvents: DiscordInbound[] = [];
+		const backend: CodexGatewayBackend = {
+			async start() {
+				calls.push("backend.start");
+			},
+			async startTransportDependentWork() {
+				calls.push("backend.transportWork");
+			},
+			async startBackgroundWork() {
+				calls.push("backend.backgroundWork");
+			},
+			async stop() {
+				calls.push("backend.stop");
+			},
+			async handleInbound(inbound) {
+				inboundEvents.push(inbound);
+			},
+			commandRegistration() {
+				return { channelIds: ["home-channel"] };
+			},
+			stateForTest() {
+				return emptyState();
+			},
+		};
+		const bridge = new DiscordCodexBridge({
+			backend,
+			transport,
+		});
+
+		await bridge.start();
+		expect(calls).toEqual([
+			"backend.start",
+			"backend.transportWork",
+			"backend.backgroundWork",
+		]);
+		expect(transport.registeredCommands).toEqual([
+			{ channelIds: ["home-channel"] },
+		]);
+
+		transport.emit({
+			kind: "message",
+			channelId: "home-channel",
+			messageId: "message-1",
+			author: { id: "user-1", name: "Peezy", isBot: false },
+			content: "status",
+			createdAt: "2026-05-15T00:00:00.000Z",
+		});
+		await waitFor(() => inboundEvents.length === 1);
+		expect(inboundEvents[0]?.kind).toBe("message");
+
+		await bridge.stop();
+		expect(calls).toContain("backend.stop");
+	});
+
+	test("local gateway backend runs against a presenter without Discord transport lifecycle", async () => {
+		const client = new FakeCodexClient();
+		const sentMessages: Array<{ locationId: string; text: string }> = [];
+		const typingLocations: string[] = [];
+		const presenter: CodexGatewayPresenter = {
+			async createThread(locationId, title, sourceMessageId) {
+				expect(locationId).toBe("parent-channel");
+				expect(title).toBe("Existing thread");
+				expect(sourceMessageId).toBe("source-message-1");
+				return "presenter-thread-1";
+			},
+			async sendMessage(locationId, text) {
+				sentMessages.push({ locationId, text });
+				return [`presenter-message-${sentMessages.length}`];
+			},
+			async deleteMessage() {},
+			async sendTyping(locationId) {
+				typingLocations.push(locationId);
+			},
+		};
+		const backend = new LocalCodexGatewayBackend({
+			client,
+			presenter,
+			store: new MemoryStateStore(),
+			config: testConfig({
+				gateway: { homeChannelId: "home-channel" },
+				allowedChannelIds: new Set(["parent-channel"]),
+			}),
+		});
+
+		await backend.start();
+		expect(client.startThreadCalls).toHaveLength(1);
+		expect(backend.commandRegistration()).toEqual({
+			channelIds: ["parent-channel", "home-channel"],
+		});
+
+		await backend.startTransportDependentWork();
+		await backend.startBackgroundWork();
+		await backend.handleInbound({
+			kind: "message",
+			channelId: "home-channel",
+			messageId: "home-message-1",
+			author: { id: "user-1", name: "Peezy", isBot: false },
+			content: "status across the workspaces",
+			createdAt: "2026-05-15T00:00:00.000Z",
+		});
+		await waitFor(() => client.startTurnCalls.length === 1);
+		expect(inputText(client.startTurnCalls[0]?.input[0])).toContain(
+			"status across the workspaces",
+		);
+		expect(typingLocations).toContain("home-channel");
+
+		await backend.stop();
 	});
 
 	test("starts a gateway main thread and routes home channel messages to it", async () => {
