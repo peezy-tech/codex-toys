@@ -14,5 +14,5 @@ export function verifyBodySignature(secret: string, body: string, signature: str
 }
 
 export function requestSignature(headers: Headers): string | null {
-	return headers.get("x-flow-signature-256") ?? headers.get("x-patchbay-flow-signature-256");
+	return headers.get("x-flow-signature-256") ?? headers.get("x-patch-flow-signature-256") ?? headers.get("x-patchbay-flow-signature-256");
 }

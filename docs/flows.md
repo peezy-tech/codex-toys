@@ -107,7 +107,7 @@ bun run flow run openai-codex-bindings regenerate-bindings --event event.json
 
 ## Systemd-Local Backend
 
-`codex-flow-systemd-local` is the first execution backend. Patchbay posts
+`codex-flow-systemd-local` is the first execution backend. Patch posts
 generic `FlowEvent` JSON to this service; the service persists events and runs
 to SQLite, discovers matching flow steps, and starts each step locally.
 
@@ -141,14 +141,19 @@ Endpoints:
 - `GET /runs/<run-id>`: inspect one recorded run
 - `GET /healthz`: health check
 
+When `CODEX_FLOW_BACKEND_SECRET` is configured, HTTP dispatches must include an
+HMAC SHA-256 body signature. The preferred header is `x-flow-signature-256`;
+`x-patch-flow-signature-256` and the legacy `x-patchbay-flow-signature-256`
+are accepted during the Patch migration.
+
 The CLI exposes the same operational surface:
 
 ```bash
 bun run flow:backend list-events --limit 20
-bun run flow:backend show-event 'patchbay:source:entry:upstream.release'
+bun run flow:backend show-event 'patch:source:entry:upstream.release'
 bun run flow:backend list-runs --status failed --limit 20
 bun run flow:backend show-run run_abc123
-bun run flow:backend replay-event 'patchbay:source:entry:upstream.release' --wait
+bun run flow:backend replay-event 'patch:source:entry:upstream.release' --wait
 ```
 
 Normal dispatch is idempotent by `event.id`: a duplicate `POST /events` returns
@@ -190,7 +195,7 @@ running Codex or shell work executes. A future Convex backend should:
 - receive heartbeats and final `FLOW_RESULT` records from that worker
 - expose programmatic fire/retry/cancel APIs
 
-This keeps Patchbay dispatch-only, keeps Convex durable, and keeps process-heavy
+This keeps Patch dispatch-only, keeps Convex durable, and keeps process-heavy
 work on infrastructure that can run Codex, Bun, Git, Cargo, and system tools.
 
 The reusable component package now lives at
