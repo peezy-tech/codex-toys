@@ -143,8 +143,7 @@ Endpoints:
 
 When `CODEX_FLOW_BACKEND_SECRET` is configured, HTTP dispatches must include an
 HMAC SHA-256 body signature. The preferred header is `x-flow-signature-256`;
-`x-patch-flow-signature-256` and the legacy `x-patchbay-flow-signature-256`
-are accepted during the Patch migration.
+`x-patch-flow-signature-256` is also accepted for Patch dispatches.
 
 The CLI exposes the same operational surface:
 

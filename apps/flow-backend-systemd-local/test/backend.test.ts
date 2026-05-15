@@ -16,10 +16,9 @@ test("signs and verifies dispatch bodies", () => {
 	expect(verifyBodySignature("secret", `${body}\n`, signature)).toBe(false);
 });
 
-test("reads generic, Patch, and legacy Patchbay dispatch signatures", () => {
+test("reads generic and Patch dispatch signatures", () => {
 	expect(requestSignature(new Headers({ "x-flow-signature-256": "sha256=generic" }))).toBe("sha256=generic");
 	expect(requestSignature(new Headers({ "x-patch-flow-signature-256": "sha256=patch" }))).toBe("sha256=patch");
-	expect(requestSignature(new Headers({ "x-patchbay-flow-signature-256": "sha256=legacy" }))).toBe("sha256=legacy");
 });
 
 test("dispatches matching flow steps and records runs", async () => {
