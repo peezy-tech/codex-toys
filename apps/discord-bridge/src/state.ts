@@ -10,12 +10,17 @@ import type {
 	DiscordBridgeState,
 	DiscordBridgeStateStore,
 	DiscordGatewayDelegation,
+	DiscordGatewayHookEventName,
+	DiscordGatewayObservedThread,
+	DiscordGatewayWorkspaceSurface,
 	DiscordGatewayState,
 } from "./types.ts";
 
 const maxProcessedMessageIds = 1000;
 const maxDeliveries = 500;
 const maxProcessedStopHookEventIds = 2000;
+const maxProcessedHookEventIds = 5000;
+const maxObservedThreads = 1000;
 
 export class JsonFileStateStore implements DiscordBridgeStateStore {
 	readonly path: string;
@@ -81,6 +86,17 @@ export function trimState(state: DiscordBridgeState): void {
 				-maxProcessedStopHookEventIds,
 			);
 	}
+	if (state.gateway?.processedHookEventIds) {
+		state.gateway.processedHookEventIds =
+			state.gateway.processedHookEventIds.slice(-maxProcessedHookEventIds);
+	}
+	if (state.gateway?.observedThreads) {
+		state.gateway.observedThreads = [...state.gateway.observedThreads]
+			.sort((left, right) =>
+				Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt)
+			)
+			.slice(0, maxObservedThreads);
+	}
 }
 
 function parseState(value: unknown): DiscordBridgeState {
@@ -124,9 +140,23 @@ function parseGateway(value: unknown): DiscordGatewayState | undefined {
 		delegations: Array.isArray(value.delegations)
 			? value.delegations.map(parseGatewayDelegation)
 			: [],
+		workspaces: Array.isArray(value.workspaces)
+			? value.workspaces.map(parseGatewayWorkspace)
+			: [],
+		observedThreads: Array.isArray(value.observedThreads)
+			? value.observedThreads.map(parseGatewayObservedThread)
+			: [],
 		pendingWakes: Array.isArray(value.pendingWakes)
 			? value.pendingWakes.map(parseGatewayPendingWake)
 			: [],
+		processedHookEventIds: uniqueStrings([
+			...(Array.isArray(value.processedHookEventIds)
+				? value.processedHookEventIds
+				: []),
+			...(Array.isArray(value.processedStopHookEventIds)
+				? value.processedStopHookEventIds
+				: []),
+		]),
 		processedStopHookEventIds: Array.isArray(value.processedStopHookEventIds)
 			? uniqueStrings(value.processedStopHookEventIds)
 			: [],
@@ -156,9 +186,12 @@ function parseGatewayDelegation(value: unknown): DiscordGatewayDelegation {
 		title: requiredString(value.title, "gateway.delegations.title"),
 		status,
 		cwd: optionalString(value.cwd),
+		workspaceKey: optionalString(value.workspaceKey),
 		groupId: optionalString(value.groupId),
 		returnMode: parseReturnMode(value.returnMode),
 		discordDetailThreadId: optionalString(value.discordDetailThreadId),
+		discordTaskThreadId: optionalString(value.discordTaskThreadId),
+		discordWorkspaceThreadId: optionalString(value.discordWorkspaceThreadId),
 		parentDiscordMessageId: optionalString(value.parentDiscordMessageId),
 		lastTurnId: optionalString(value.lastTurnId),
 		lastStatus: optionalString(value.lastStatus),
@@ -166,9 +199,31 @@ function parseGatewayDelegation(value: unknown): DiscordGatewayDelegation {
 		completedAt: optionalString(value.completedAt),
 		injectedAt: optionalString(value.injectedAt),
 		mirroredAt: optionalString(value.mirroredAt),
+		taskMirroredAt: optionalString(value.taskMirroredAt),
 		reportedAt: optionalString(value.reportedAt),
 		createdAt: requiredString(value.createdAt, "gateway.delegations.createdAt"),
 		updatedAt: requiredString(value.updatedAt, "gateway.delegations.updatedAt"),
+	};
+}
+
+function parseGatewayWorkspace(value: unknown): DiscordGatewayWorkspaceSurface {
+	if (!isRecord(value)) {
+		throw new Error("Invalid Discord bridge gateway workspace");
+	}
+	return {
+		key: requiredString(value.key, "gateway.workspaces.key"),
+		cwd: requiredString(value.cwd, "gateway.workspaces.cwd"),
+		title: requiredString(value.title, "gateway.workspaces.title"),
+		discordThreadId: requiredString(
+			value.discordThreadId,
+			"gateway.workspaces.discordThreadId",
+		),
+		statusMessageId: optionalString(value.statusMessageId),
+		delegationIds: Array.isArray(value.delegationIds)
+			? uniqueStrings(value.delegationIds)
+			: [],
+		createdAt: requiredString(value.createdAt, "gateway.workspaces.createdAt"),
+		updatedAt: requiredString(value.updatedAt, "gateway.workspaces.updatedAt"),
 	};
 }
 
@@ -195,6 +250,57 @@ function parseGatewayPendingWake(
 		createdAt: requiredString(value.createdAt, "gateway.pendingWakes.createdAt"),
 		startedAt: optionalString(value.startedAt),
 	};
+}
+
+function parseGatewayObservedThread(value: unknown): DiscordGatewayObservedThread {
+	if (!isRecord(value)) {
+		throw new Error("Invalid Discord bridge gateway observed thread");
+	}
+	return {
+		threadId: requiredString(value.threadId, "gateway.observedThreads.threadId"),
+		title: optionalString(value.title),
+		status: parseObservedThreadStatus(value.status),
+		cwd: optionalString(value.cwd),
+		workspaceKey: optionalString(value.workspaceKey),
+		model: optionalString(value.model),
+		transcriptPath: optionalString(value.transcriptPath),
+		lastTurnId: optionalString(value.lastTurnId),
+		lastHookEventName: parseHookEventName(value.lastHookEventName),
+		source: optionalString(value.source),
+		promptPreview: optionalString(value.promptPreview),
+		assistantPreview: optionalString(value.assistantPreview),
+		toolName: optionalString(value.toolName),
+		toolUseId: optionalString(value.toolUseId),
+		toolInputPreview: optionalString(value.toolInputPreview),
+		toolResponsePreview: optionalString(value.toolResponsePreview),
+		permissionDescription: optionalString(value.permissionDescription),
+		firstSeenAt: requiredString(value.firstSeenAt, "gateway.observedThreads.firstSeenAt"),
+		lastSeenAt: requiredString(value.lastSeenAt, "gateway.observedThreads.lastSeenAt"),
+		updatedAt: requiredString(value.updatedAt, "gateway.observedThreads.updatedAt"),
+	};
+}
+
+function parseObservedThreadStatus(
+	value: unknown,
+): DiscordGatewayObservedThread["status"] {
+	return value === "starting" ||
+			value === "active" ||
+			value === "tool" ||
+			value === "waiting" ||
+			value === "idle"
+		? value
+		: "idle";
+}
+
+function parseHookEventName(value: unknown): DiscordGatewayHookEventName | undefined {
+	return value === "SessionStart" ||
+			value === "UserPromptSubmit" ||
+			value === "PreToolUse" ||
+			value === "PermissionRequest" ||
+			value === "PostToolUse" ||
+			value === "Stop"
+		? value
+		: undefined;
 }
 
 function parseReturnMode(value: unknown): DiscordGatewayDelegation["returnMode"] {
@@ -318,7 +424,11 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 function parseSessionMode(value: unknown): DiscordBridgeSession["mode"] {
-	return value === "new" || value === "resumed" || value === "gateway"
+	return value === "new" ||
+			value === "resumed" ||
+			value === "gateway" ||
+			value === "delegated" ||
+			value === "workspace"
 		? value
 		: undefined;
 }

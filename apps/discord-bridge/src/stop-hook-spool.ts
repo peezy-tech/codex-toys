@@ -10,21 +10,26 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import type { DiscordGatewayStopHookEvent } from "./types.ts";
+import type {
+	DiscordGatewayHookEvent,
+	DiscordGatewayHookEventName,
+} from "./types.ts";
 
-export type StopHookSpoolDisposition = "processed" | "ignored" | "failed";
+export type HookEventSpoolDisposition = "processed" | "ignored" | "failed";
+export type StopHookSpoolDisposition = HookEventSpoolDisposition;
 
-export type PendingStopHookSpoolFile =
+export type PendingHookEventSpoolFile =
 	| {
 			filePath: string;
 			fileName: string;
-			event: DiscordGatewayStopHookEvent;
+			event: DiscordGatewayHookEvent;
 	  }
 	| {
 			filePath: string;
 			fileName: string;
 			error: Error;
 	  };
+export type PendingStopHookSpoolFile = PendingHookEventSpoolFile;
 
 export function defaultStopHookSpoolDir(): string {
 	return path.join(os.homedir(), ".codex", "discord-bridge", "stop-hooks");
@@ -37,7 +42,7 @@ export function stopHookSpoolDirFromEnv(
 }
 
 export function stopHookSpoolPaths(spoolDir: string): Record<
-	"pending" | StopHookSpoolDisposition,
+	"pending" | HookEventSpoolDisposition,
 	string
 > {
 	const root = path.resolve(spoolDir);
@@ -60,9 +65,19 @@ export async function writeStopHookSpoolEvent(
 		spoolDir?: string;
 		now?: () => Date;
 	} = {},
-): Promise<DiscordGatewayStopHookEvent> {
+): Promise<DiscordGatewayHookEvent> {
+	return await writeHookSpoolEvent(input, options);
+}
+
+export async function writeHookSpoolEvent(
+	input: unknown,
+	options: {
+		spoolDir?: string;
+		now?: () => Date;
+	} = {},
+): Promise<DiscordGatewayHookEvent> {
 	const spoolDir = options.spoolDir ?? stopHookSpoolDirFromEnv();
-	const event = stopHookEventFromInput(input, options.now ?? (() => new Date()));
+	const event = hookEventFromInput(input, options.now ?? (() => new Date()));
 	const paths = stopHookSpoolPaths(spoolDir);
 	await mkdir(paths.pending, { recursive: true });
 	const fileName = `${event.id}.json`;
@@ -78,13 +93,13 @@ export async function writeStopHookSpoolEvent(
 
 export async function readPendingStopHookSpoolFiles(
 	spoolDir: string,
-): Promise<PendingStopHookSpoolFile[]> {
+): Promise<PendingHookEventSpoolFile[]> {
 	const paths = stopHookSpoolPaths(spoolDir);
 	await ensureStopHookSpool(spoolDir);
 	const fileNames = (await readdir(paths.pending))
 		.filter((fileName) => fileName.endsWith(".json"))
 		.sort();
-	const files: PendingStopHookSpoolFile[] = [];
+	const files: PendingHookEventSpoolFile[] = [];
 	for (const fileName of fileNames) {
 		const filePath = path.join(paths.pending, fileName);
 		try {
@@ -92,7 +107,7 @@ export async function readPendingStopHookSpoolFiles(
 			files.push({
 				filePath,
 				fileName,
-				event: parseStopHookSpoolEvent(parsed),
+				event: parseHookSpoolEvent(parsed),
 			});
 		} catch (error) {
 			files.push({
@@ -106,9 +121,9 @@ export async function readPendingStopHookSpoolFiles(
 }
 
 export async function archiveStopHookSpoolFile(
-	file: Pick<PendingStopHookSpoolFile, "filePath" | "fileName">,
+	file: Pick<PendingHookEventSpoolFile, "filePath" | "fileName">,
 	spoolDir: string,
-	disposition: StopHookSpoolDisposition,
+	disposition: HookEventSpoolDisposition,
 ): Promise<void> {
 	const paths = stopHookSpoolPaths(spoolDir);
 	await mkdir(paths[disposition], { recursive: true });
@@ -133,23 +148,29 @@ export async function removeStopHookSpool(spoolDir: string): Promise<void> {
 	await rm(path.resolve(spoolDir), { recursive: true, force: true });
 }
 
-function stopHookEventFromInput(
+function hookEventFromInput(
 	input: unknown,
 	now: () => Date,
-): DiscordGatewayStopHookEvent {
+): DiscordGatewayHookEvent {
 	const parsed = record(input);
 	const eventName = stringValue(parsed.hook_event_name) ?? stringValue(parsed.eventName);
-	if (eventName && eventName !== "Stop") {
+	if (!isHookEventName(eventName)) {
 		throw new Error(`Unsupported hook event: ${eventName}`);
 	}
 	const sessionId = stringValue(parsed.session_id) ?? stringValue(parsed.sessionId);
 	if (!sessionId) {
-		throw new Error("Stop hook input is missing session_id");
+		throw new Error("Hook input is missing session_id");
 	}
 	const turnId = stringValue(parsed.turn_id) ?? stringValue(parsed.turnId);
 	const transcriptPath =
 		stringValue(parsed.transcript_path) ?? stringValue(parsed.transcriptPath);
 	const cwd = stringValue(parsed.cwd);
+	const model = stringValue(parsed.model);
+	const source = stringValue(parsed.source);
+	const toolName = stringValue(parsed.tool_name) ?? stringValue(parsed.toolName);
+	const toolUseId = stringValue(parsed.tool_use_id) ?? stringValue(parsed.toolUseId);
+	const toolInput = parsed.tool_input ?? parsed.toolInput;
+	const toolResponse = parsed.tool_response ?? parsed.toolResponse;
 	const lastAssistantMessage =
 		nullableString(parsed.last_assistant_message) ??
 		nullableString(parsed.lastAssistantMessage);
@@ -159,37 +180,49 @@ function stopHookEventFromInput(
 			: typeof parsed.stopHookActive === "boolean"
 			? parsed.stopHookActive
 			: undefined;
-	const id = stopHookEventId({
+	const id = hookEventId({
+		eventName,
 		sessionId,
 		turnId,
 		transcriptPath,
 		cwd,
+		toolName,
+		toolUseId,
+		source,
 	});
 	return {
 		version: 1,
 		id,
-		eventName: "Stop",
+		eventName,
 		sessionId,
 		turnId,
 		cwd,
 		transcriptPath,
-		lastAssistantMessage,
-		stopHookActive,
+		model,
+		source,
+		promptPreview: previewString(parsed.prompt),
+		toolName,
+		toolUseId,
+		toolInputPreview: previewJson(toolInput),
+		toolResponsePreview: previewJson(toolResponse),
+		permissionDescription: nullableString(record(toolInput).description),
+		lastAssistantMessage: eventName === "Stop" ? lastAssistantMessage : undefined,
+		stopHookActive: eventName === "Stop" ? stopHookActive : undefined,
 		createdAt: now().toISOString(),
 	};
 }
 
-function parseStopHookSpoolEvent(input: unknown): DiscordGatewayStopHookEvent {
+function parseHookSpoolEvent(input: unknown): DiscordGatewayHookEvent {
 	const parsed = record(input);
 	if (parsed.version !== 1) {
-		throw new Error("Invalid stop hook event version");
+		throw new Error("Invalid hook event version");
 	}
 	const eventName = stringValue(parsed.eventName);
 	const id = stringValue(parsed.id);
 	const sessionId = stringValue(parsed.sessionId);
 	const createdAt = stringValue(parsed.createdAt);
-	if (eventName !== "Stop" || !id || !sessionId || !createdAt) {
-		throw new Error("Invalid stop hook event");
+	if (!isHookEventName(eventName) || !id || !sessionId || !createdAt) {
+		throw new Error("Invalid hook event");
 	}
 	return {
 		version: 1,
@@ -199,6 +232,14 @@ function parseStopHookSpoolEvent(input: unknown): DiscordGatewayStopHookEvent {
 		turnId: stringValue(parsed.turnId),
 		cwd: stringValue(parsed.cwd),
 		transcriptPath: stringValue(parsed.transcriptPath),
+		model: stringValue(parsed.model),
+		source: stringValue(parsed.source),
+		promptPreview: stringValue(parsed.promptPreview),
+		toolName: stringValue(parsed.toolName),
+		toolUseId: stringValue(parsed.toolUseId),
+		toolInputPreview: stringValue(parsed.toolInputPreview),
+		toolResponsePreview: stringValue(parsed.toolResponsePreview),
+		permissionDescription: stringValue(parsed.permissionDescription),
 		lastAssistantMessage: nullableString(parsed.lastAssistantMessage),
 		stopHookActive: typeof parsed.stopHookActive === "boolean"
 			? parsed.stopHookActive
@@ -207,21 +248,58 @@ function parseStopHookSpoolEvent(input: unknown): DiscordGatewayStopHookEvent {
 	};
 }
 
-function stopHookEventId(input: {
+function hookEventId(input: {
+	eventName: DiscordGatewayHookEventName;
 	sessionId: string;
 	turnId?: string;
 	transcriptPath?: string;
 	cwd?: string;
+	toolName?: string;
+	toolUseId?: string;
+	source?: string;
 }): string {
 	const identity = input.turnId
-		? { eventName: "Stop", sessionId: input.sessionId, turnId: input.turnId }
-		: {
-				eventName: "Stop",
+		? {
+				eventName: input.eventName,
 				sessionId: input.sessionId,
+				turnId: input.turnId,
+				toolName: input.toolName,
+				toolUseId: input.toolUseId,
+			}
+		: {
+				eventName: input.eventName,
+				sessionId: input.sessionId,
+				source: input.source,
 				transcriptPath: input.transcriptPath,
 				cwd: input.cwd,
 			};
-	return `stop-${createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 24)}`;
+	const prefix = input.eventName === "Stop" ? "stop" : "hook";
+	return `${prefix}-${createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 24)}`;
+}
+
+function isHookEventName(value: unknown): value is DiscordGatewayHookEventName {
+	return value === "SessionStart" ||
+		value === "UserPromptSubmit" ||
+		value === "PreToolUse" ||
+		value === "PermissionRequest" ||
+		value === "PostToolUse" ||
+		value === "Stop";
+}
+
+function previewString(value: unknown, maxLength = 500): string | undefined {
+	const parsed = nullableString(value);
+	if (!parsed) {
+		return undefined;
+	}
+	return parsed.length <= maxLength ? parsed : `${parsed.slice(0, maxLength - 3)}...`;
+}
+
+function previewJson(value: unknown, maxLength = 500): string | undefined {
+	if (value === undefined || value === null) {
+		return undefined;
+	}
+	const text = typeof value === "string" ? value : JSON.stringify(value);
+	return previewString(text, maxLength);
 }
 
 function record(value: unknown): Record<string, unknown> {

@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -15,8 +16,10 @@ import { writeStopHookSpoolEvent } from "../src/stop-hook-spool.ts";
 import type {
 	CodexBridgeClient,
 	DiscordBridgeConfig,
+	DiscordBridgeCommandRegistration,
 	DiscordBridgeTransport,
 	DiscordBridgeTransportHandlers,
+	DiscordEphemeralPicker,
 	DiscordInbound,
 } from "../src/types.ts";
 
@@ -53,6 +56,9 @@ describe("DiscordCodexBridge", () => {
 
 		await bridge.start();
 		await waitFor(() => bridge.stateForTest().sessions.length === 1);
+		expect(transport.registeredCommands).toEqual([
+			{ channelIds: ["parent-channel", "home-channel"] },
+		]);
 		expect(client.startThreadCalls).toHaveLength(1);
 		expect(client.startThreadCalls[0]?.dynamicTools).toEqual(
 			expect.arrayContaining([
@@ -184,6 +190,556 @@ describe("DiscordCodexBridge", () => {
 				delegation: expect.objectContaining({
 					codexThreadId: "codex-thread-2",
 				}),
+			}),
+		);
+		await bridge.stop();
+	});
+
+	test("gateway workbench opens delegation task threads lazily from workspace posts", async () => {
+		const hookSpoolDir = await testHookSpoolDir();
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(),
+			config: testConfig({
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+				allowedChannelIds: new Set(["home-channel"]),
+				hookSpoolDir,
+			}),
+			now: () => new Date("2026-05-14T12:00:00.000Z"),
+		});
+
+		try {
+			await bridge.start();
+			await waitFor(() => bridge.stateForTest().sessions.length === 1);
+			client.emitRequest({
+				id: "tool-1",
+				method: "item/tool/call",
+				params: {
+					threadId: "codex-thread-1",
+					namespace: "codex_gateway",
+					tool: "start_delegation",
+					arguments: {
+						cwd: "/workspace/codex-flows",
+						title: "Hook packaging",
+						prompt: "Package the hook command.",
+						returnMode: "record_only",
+					},
+				},
+			});
+
+			await waitFor(() => client.responses.length === 1);
+			expect(transport.createdForumPosts).toEqual([
+				expect.objectContaining({
+					channelId: "workspace-forum",
+					name: "codex-flows",
+					threadId: "forum-post-1",
+				}),
+			]);
+			expect(transport.createdThreads).toEqual([]);
+			const state = bridge.stateForTest();
+			expect(state.gateway?.workspaces).toEqual([
+				expect.objectContaining({
+					cwd: "/workspace/codex-flows",
+					title: "codex-flows",
+					discordThreadId: "forum-post-1",
+					statusMessageId: "forum-post-1",
+					delegationIds: [state.gateway?.delegations[0]?.id],
+				}),
+			]);
+			expect(state.gateway?.delegations[0]).toEqual(
+				expect.objectContaining({
+					codexThreadId: "codex-thread-2",
+					workspaceKey: state.gateway?.workspaces?.[0]?.key,
+					discordWorkspaceThreadId: "forum-post-1",
+				}),
+			);
+			expect(state.gateway?.delegations[0]?.discordTaskThreadId).toBeUndefined();
+			const workspaceUpdate = transport.updatedMessages.find((message) =>
+				message.channelId === "forum-post-1" &&
+				message.messageId === "forum-post-1"
+			);
+			expect(workspaceUpdate?.text).toContain("**Open Threads**\nNone");
+			expect(workspaceUpdate?.text).not.toContain("Hook packaging");
+
+			const replies: string[] = [];
+			transport.emit({
+				kind: "threads",
+				channelId: "forum-post-1",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-14T12:00:30.000Z",
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 1);
+			expect(replies).toEqual([]);
+			expect(transport.messages.some((message) =>
+				message.channelId === "forum-post-1" &&
+				message.text.includes("Hook packaging")
+			)).toBe(false);
+			const picker = transport.ephemeralPickers[0];
+			expect(picker?.text).toContain("1️⃣ `not opened` Hook packaging");
+			expect(picker?.text).toContain(
+				"Choose a number to open or resume that thread in Discord.",
+			);
+			expect(picker?.options).toEqual([{ id: "0", label: "1" }]);
+
+			transport.emitThreadPicker({
+				pickerId: picker?.pickerId ?? "",
+				optionId: "0",
+			});
+			await waitFor(() => transport.createdThreads.length === 1);
+			expect(transport.ephemeralUpdates.some((update) =>
+				update.pickerId === picker?.pickerId &&
+				update.text === "Opened Hook packaging: <#discord-thread-1>"
+			)).toBe(true);
+			expect(transport.createdThreads).toEqual([
+				{
+					channelId: "task-channel",
+					name: "codex-flows: Hook packaging",
+					sourceMessageId: undefined,
+				},
+			]);
+			expect(bridge.stateForTest().sessions).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						discordThreadId: "discord-thread-1",
+						parentChannelId: "task-channel",
+						codexThreadId: "codex-thread-2",
+						cwd: "/workspace/codex-flows",
+						mode: "workspace",
+					}),
+				]),
+			);
+
+			await emitStopHook(hookSpoolDir, {
+				sessionId: "codex-thread-2",
+				turnId: "turn-1",
+				lastAssistantMessage: "Workbench result.",
+				cwd: "/workspace/codex-flows",
+			});
+			await waitFor(() => client.injectThreadItemsCalls.length === 1);
+			expect(transport.messages.some((message) =>
+				message.channelId === "discord-thread-1" &&
+				message.text.includes("Workbench result.")
+			)).toBe(true);
+			const homeResult = transport.messages.find((message) =>
+				message.channelId === "home-channel" &&
+				message.text.includes("[discord-gateway delegation result]") &&
+				message.text.includes("Hook packaging")
+			)?.text ?? "";
+			expect(homeResult).toContain("<#forum-post-1>");
+			expect(homeResult).toContain("<#discord-thread-1>");
+			expect(homeResult).not.toContain("Workbench result.");
+			expect(transport.updatedMessages.some((message) =>
+				message.channelId === "forum-post-1" &&
+				message.text.includes("<#discord-thread-1> Hook packaging")
+			)).toBe(true);
+
+			transport.emit({
+				kind: "message",
+				channelId: "discord-thread-1",
+				messageId: "task-follow-up",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				content: "Continue in this delegated thread.",
+				createdAt: "2026-05-14T12:01:00.000Z",
+			});
+			await waitFor(() => client.startTurnCalls.length === 2);
+			expect(client.startTurnCalls[1]).toEqual(
+				expect.objectContaining({
+					threadId: "codex-thread-2",
+					cwd: "/workspace/codex-flows",
+				}),
+			);
+			expect(inputText(client.startTurnCalls[1]?.input[0])).toContain(
+				"Continue in this delegated thread.",
+			);
+		} finally {
+			await bridge.stop();
+			await rm(hookSpoolDir, { recursive: true, force: true });
+		}
+	});
+
+	test("gateway workbench reuses one workspace post per normalized cwd", async () => {
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(),
+			config: testConfig({
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+			}),
+			now: () => new Date("2026-05-14T12:00:00.000Z"),
+		});
+
+		await bridge.start();
+		await waitFor(() => bridge.stateForTest().sessions.length === 1);
+		for (const [index, title] of ["First task", "Second task"].entries()) {
+			client.emitRequest({
+				id: `tool-${index}`,
+				method: "item/tool/call",
+				params: {
+					threadId: "codex-thread-1",
+					namespace: "codex_gateway",
+					tool: "start_delegation",
+					arguments: {
+						cwd: index === 0
+							? "/workspace/codex-flows/."
+							: "/workspace/codex-flows",
+						title,
+					},
+				},
+			});
+			await waitFor(() => client.responses.length === index + 1);
+		}
+
+		expect(transport.createdForumPosts).toHaveLength(1);
+		expect(transport.createdThreads).toHaveLength(0);
+		const workspaces = bridge.stateForTest().gateway?.workspaces ?? [];
+		const delegations = bridge.stateForTest().gateway?.delegations ?? [];
+		expect(workspaces).toEqual([
+			expect.objectContaining({
+				cwd: "/workspace/codex-flows",
+				delegationIds: delegations.map((delegation) => delegation.id),
+			}),
+		]);
+		expect(new Set(delegations.map((delegation) => delegation.workspaceKey)).size)
+			.toBe(1);
+		await bridge.stop();
+	});
+
+	test("gateway workbench discovers top-level folders under the main workspace", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "discord-workspaces-"));
+		await mkdir(path.join(root, "alpha", "nested"), { recursive: true });
+		await mkdir(path.join(root, "beta"), { recursive: true });
+		await mkdir(path.join(root, ".cache"), { recursive: true });
+		const client = new FakeCodexClient();
+		client.threads = [
+			testThread({
+				id: "codex-alpha-existing",
+				cwd: path.join(root, "alpha", "nested"),
+				name: "Alpha existing",
+				updatedAt: 3,
+			}),
+			testThread({
+				id: "codex-beta-existing",
+				cwd: path.join(root, "beta"),
+				name: "Beta existing",
+				updatedAt: 2,
+			}),
+		];
+		const transport = new FakeDiscordTransport();
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(),
+			config: testConfig({
+				cwd: root,
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+			}),
+			now: () => new Date("2026-05-14T12:00:00.000Z"),
+		});
+
+		try {
+			await bridge.start();
+			expect(transport.createdForumPosts.map((post) => post.name)).toEqual([
+				"alpha",
+				"beta",
+			]);
+			expect(bridge.stateForTest().gateway?.workspaces?.map((workspace) =>
+				workspace.cwd
+			)).toEqual([
+				path.join(root, "alpha"),
+				path.join(root, "beta"),
+			]);
+			expect(transport.updatedMessages.some((message) =>
+				message.channelId === "forum-post-1" &&
+				message.text.includes("**Open Threads**\nNone")
+			)).toBe(true);
+			expect(transport.updatedMessages.some((message) =>
+				message.channelId === "forum-post-2" &&
+				message.text.includes("**Open Threads**\nNone")
+			)).toBe(true);
+			const replies: string[] = [];
+			transport.emit({
+				kind: "threads",
+				channelId: "forum-post-1",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-14T12:00:30.000Z",
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 1);
+			expect(replies).toEqual([]);
+			expect(transport.messages.some((message) =>
+				message.channelId === "forum-post-1" &&
+				message.text.includes("Alpha existing")
+			)).toBe(false);
+			const picker = transport.ephemeralPickers[0];
+			expect(picker?.text).toContain("1️⃣ `not opened` Alpha existing");
+			transport.emitThreadPicker({
+				pickerId: picker?.pickerId ?? "",
+				optionId: "0",
+			});
+			await waitFor(() => transport.createdThreads.length === 1);
+			expect(client.resumeThreadCalls.some((call) =>
+				call.threadId === "codex-alpha-existing"
+			)).toBe(true);
+			expect(transport.createdThreads[0]).toEqual({
+				channelId: "task-channel",
+				name: "alpha: Alpha existing",
+				sourceMessageId: undefined,
+			});
+
+			client.emitRequest({
+				id: "tool-nested",
+				method: "item/tool/call",
+				params: {
+					threadId: "codex-thread-1",
+					namespace: "codex_gateway",
+					tool: "start_delegation",
+					arguments: {
+						cwd: path.join(root, "alpha", "nested", "project"),
+						title: "Nested task",
+					},
+				},
+			});
+			await waitFor(() => client.responses.length === 1);
+			expect(transport.createdForumPosts).toHaveLength(2);
+			expect(transport.createdThreads).toHaveLength(1);
+			const state = bridge.stateForTest();
+			const alpha = state.gateway?.workspaces?.find((workspace) =>
+				workspace.cwd === path.join(root, "alpha")
+			);
+			const delegation = state.gateway?.delegations[0];
+			expect(delegation).toBeDefined();
+			expect(alpha?.delegationIds).toEqual([delegation!.id]);
+			expect(delegation).toEqual(
+				expect.objectContaining({
+					workspaceKey: alpha?.key,
+					discordWorkspaceThreadId: alpha?.discordThreadId,
+				}),
+			);
+		} finally {
+			await bridge.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("gateway workbench surfaces hook-observed non-gateway threads", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "discord-observed-"));
+		const hookSpoolDir = await testHookSpoolDir();
+		await mkdir(path.join(root, "alpha", "project"), { recursive: true });
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore(),
+			config: testConfig({
+				cwd: root,
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+				hookSpoolDir,
+			}),
+			now: () => new Date("2026-05-14T12:00:00.000Z"),
+		});
+
+		try {
+			await bridge.start();
+			expect(transport.createdForumPosts.map((post) => post.name)).toEqual([
+				"alpha",
+			]);
+			await emitHookEvent(hookSpoolDir, {
+				eventName: "UserPromptSubmit",
+				sessionId: "codex-observed",
+				turnId: "turn-observed",
+				cwd: path.join(root, "alpha", "project"),
+				prompt: "Inspect observed runtime activity.",
+			});
+			await waitFor(() =>
+				bridge.stateForTest().gateway?.observedThreads?.[0]?.status === "active"
+			);
+			await emitHookEvent(hookSpoolDir, {
+				eventName: "PermissionRequest",
+				sessionId: "codex-observed",
+				turnId: "turn-observed",
+				cwd: path.join(root, "alpha", "project"),
+				toolName: "Bash",
+				toolInput: { description: "Needs network" },
+			});
+			await waitFor(() =>
+				bridge.stateForTest().gateway?.observedThreads?.[0]?.status === "waiting"
+			);
+			expect(bridge.stateForTest().gateway?.observedThreads?.[0]).toEqual(
+				expect.objectContaining({
+					threadId: "codex-observed",
+					title: "Inspect observed runtime activity.",
+					cwd: path.join(root, "alpha", "project"),
+					promptPreview: "Inspect observed runtime activity.",
+					permissionDescription: "Needs network",
+				}),
+			);
+
+			const replies: string[] = [];
+			transport.emit({
+				kind: "threads",
+				channelId: "forum-post-1",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-14T12:00:30.000Z",
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+			await waitFor(() => transport.ephemeralPickers.length === 1);
+			expect(replies).toEqual([]);
+			expect(transport.messages.some((message) =>
+				message.channelId === "forum-post-1" &&
+				message.text.includes("Inspect observed runtime activity")
+			)).toBe(false);
+			const picker = transport.ephemeralPickers[0];
+			expect(picker?.text).toContain(
+				"1️⃣ `not opened` Inspect observed runtime activity. (waiting: Needs network)",
+			);
+
+			transport.emitThreadPicker({
+				pickerId: picker?.pickerId ?? "",
+				optionId: "0",
+			});
+			await waitFor(() => transport.createdThreads.length === 1);
+			expect(client.resumeThreadCalls.some((call) =>
+				call.threadId === "codex-observed" &&
+				call.cwd === path.join(root, "alpha", "project")
+			)).toBe(true);
+			expect(transport.createdThreads[0]).toEqual({
+				channelId: "task-channel",
+				name: "alpha: Inspect observed runtime activity.",
+				sourceMessageId: undefined,
+			});
+		} finally {
+			await bridge.stop();
+			await rm(hookSpoolDir, { recursive: true, force: true });
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("gateway workbench resumes persisted task thread sessions after restart", async () => {
+		const client = new FakeCodexClient();
+		const transport = new FakeDiscordTransport();
+		const existingWorkspaceKey = testWorkspaceKey("/workspace/codex-flows");
+		const store = new MemoryStateStore({
+			...emptyState(),
+			gateway: {
+				homeChannelId: "home-channel",
+				mainThreadId: "codex-main",
+				toolsVersion: 1,
+				delegations: [
+					{
+						id: "delegation-existing",
+						codexThreadId: "codex-delegated",
+						title: "Existing task",
+						status: "idle",
+						cwd: "/workspace/codex-flows",
+						workspaceKey: existingWorkspaceKey,
+						discordTaskThreadId: "task-thread-existing",
+						discordWorkspaceThreadId: "workspace-post-existing",
+						createdAt: "2026-05-14T11:00:00.000Z",
+						updatedAt: "2026-05-14T11:00:00.000Z",
+					},
+				],
+				workspaces: [
+					{
+						key: existingWorkspaceKey,
+						cwd: "/workspace/codex-flows",
+						title: "codex-flows",
+						discordThreadId: "workspace-post-existing",
+						statusMessageId: "workspace-status-existing",
+						delegationIds: ["delegation-existing"],
+						createdAt: "2026-05-14T11:00:00.000Z",
+						updatedAt: "2026-05-14T11:00:00.000Z",
+					},
+				],
+			},
+			sessions: [
+				{
+					discordThreadId: "home-channel",
+					parentChannelId: "home-channel",
+					codexThreadId: "codex-main",
+					title: "Codex Gateway",
+					createdAt: "2026-05-14T11:00:00.000Z",
+					cwd: "/workspace",
+					mode: "gateway",
+				},
+				{
+					discordThreadId: "task-thread-existing",
+					parentChannelId: "task-channel",
+					codexThreadId: "codex-delegated",
+					title: "Existing task",
+					createdAt: "2026-05-14T11:00:00.000Z",
+					cwd: "/workspace/codex-flows",
+					mode: "delegated",
+				},
+			],
+			queue: [],
+			activeTurns: [],
+			processedMessageIds: [],
+			deliveries: [],
+		});
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store,
+			config: testConfig({
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+				allowedChannelIds: new Set(["home-channel"]),
+			}),
+		});
+
+		await bridge.start();
+		await waitFor(() => bridge.stateForTest().sessions.length === 2);
+		expect(transport.createdForumPosts).toEqual([]);
+		expect(transport.createdThreads).toEqual([]);
+
+		transport.emit({
+			kind: "message",
+			channelId: "task-thread-existing",
+			messageId: "message-existing-task",
+			author: { id: "user-1", name: "Peezy", isBot: false },
+			content: "Continue the restarted delegated task.",
+			createdAt: "2026-05-14T12:00:00.000Z",
+		});
+		await waitFor(() => client.startTurnCalls.length === 1);
+		expect(client.startTurnCalls[0]).toEqual(
+			expect.objectContaining({
+				threadId: "codex-delegated",
+				cwd: "/workspace/codex-flows",
 			}),
 		);
 		await bridge.stop();
@@ -687,18 +1243,21 @@ describe("DiscordCodexBridge", () => {
 
 			await waitFor(() => client.injectThreadItemsCalls.length === 1);
 			expect(client.startTurnCalls).toHaveLength(1);
-			expect(transport.messages.some((message) =>
-				message.text.includes("Manual result.")
-			)).toBe(true);
+			await waitFor(() =>
+				transport.messages.some((message) =>
+					message.text.includes("Manual result.")
+				)
+			);
 		} finally {
 			await bridge.stop();
 			await rm(hookSpoolDir, { recursive: true, force: true });
 		}
 	});
 
-	test("answers gateway status in the home channel without starting a turn", async () => {
+	test("answers gateway status command without starting a turn", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
+		const replies: string[] = [];
 		const bridge = new DiscordCodexBridge({
 			client,
 			transport,
@@ -711,25 +1270,121 @@ describe("DiscordCodexBridge", () => {
 		await bridge.start();
 		await waitFor(() => bridge.stateForTest().sessions.length === 1);
 		transport.emit({
-			kind: "message",
+			kind: "status",
 			channelId: "home-channel",
-			messageId: "status-message-1",
 			author: { id: "user-1", name: "Peezy", isBot: false },
-			content: "status",
 			createdAt: "2026-05-14T00:00:00.000Z",
+			reply: async (text) => {
+				replies.push(text);
+			},
 		});
 
-		await waitFor(() =>
-			transport.messages.some((message) =>
-				message.channelId === "home-channel" &&
-				message.text.includes("**Codex Gateway**")
-			)
-		);
+		await waitFor(() => replies.length === 1);
+		expect(replies[0]).toContain("**Codex Gateway**");
 		expect(client.startTurnCalls).toHaveLength(0);
-		expect(bridge.stateForTest().processedMessageIds).toContain(
-			"status-message-1",
-		);
 		await bridge.stop();
+	});
+
+	test("status lists active Codex threads and opens unlinked threads", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "discord-status-"));
+		await mkdir(path.join(root, "alpha", "project"), { recursive: true });
+		await mkdir(path.join(root, "beta", "project"), { recursive: true });
+		const client = new FakeCodexClient();
+		client.threads = [
+			testThread({
+				id: "codex-active-linked",
+				cwd: path.join(root, "alpha", "project"),
+				name: "Linked active",
+				status: { type: "active" } as v2.ThreadStatus,
+				updatedAt: 30,
+			}),
+			testThread({
+				id: "codex-active-missing",
+				cwd: path.join(root, "beta", "project"),
+				name: "Missing active",
+				status: { type: "active" } as v2.ThreadStatus,
+				updatedAt: 40,
+			}),
+			testThread({
+				id: "codex-idle",
+				cwd: path.join(root, "beta", "project"),
+				name: "Idle thread",
+				status: { type: "idle" } as v2.ThreadStatus,
+				updatedAt: 50,
+			}),
+		];
+		const transport = new FakeDiscordTransport();
+		const bridge = new DiscordCodexBridge({
+			client,
+			transport,
+			store: new MemoryStateStore({
+				...emptyState(),
+				sessions: [
+					{
+						discordThreadId: "task-linked",
+						parentChannelId: "task-channel",
+						codexThreadId: "codex-active-linked",
+						title: "Linked active",
+						createdAt: "2026-05-14T11:00:00.000Z",
+						cwd: path.join(root, "alpha", "project"),
+						mode: "workspace",
+					},
+				],
+			}),
+			config: testConfig({
+				cwd: root,
+				gateway: {
+					homeChannelId: "home-channel",
+					workspaceForumChannelId: "workspace-forum",
+					taskThreadsChannelId: "task-channel",
+				},
+			}),
+		});
+
+		try {
+			await bridge.start();
+			const replies: string[] = [];
+			transport.emit({
+				kind: "status",
+				channelId: "home-channel",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				createdAt: "2026-05-14T12:00:00.000Z",
+				reply: async (text) => {
+					replies.push(text);
+				},
+				replyPicker: transport.threadsReplyPicker(),
+			});
+
+			await waitFor(() => transport.ephemeralPickers.length === 1);
+			expect(replies).toEqual([]);
+			const picker = transport.ephemeralPickers[0];
+			expect(picker?.text).toContain("**Active Codex Threads**");
+			expect(picker?.text).toContain("<#task-linked> Linked active (active)");
+			expect(picker?.text).toContain("1️⃣ `not opened` Missing active (active)");
+			expect(picker?.text).not.toContain("Idle thread");
+			expect(picker?.options).toEqual([{ id: "0", label: "1" }]);
+
+			transport.emitThreadPicker({
+				pickerId: picker?.pickerId ?? "",
+				optionId: "0",
+			});
+			await waitFor(() => transport.createdThreads.length === 1);
+			expect(client.resumeThreadCalls.some((call) =>
+				call.threadId === "codex-active-missing"
+			)).toBe(true);
+			expect(transport.createdThreads[0]).toEqual({
+				channelId: "task-channel",
+				name: "beta: Missing active",
+				sourceMessageId: undefined,
+			});
+			expect(transport.ephemeralUpdates.some((update) =>
+				update.pickerId === picker?.pickerId &&
+				update.text === "Opened Missing active: <#discord-thread-1>"
+			)).toBe(true);
+		} finally {
+			await bridge.stop();
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test("resumes a configured gateway main thread without creating Discord threads", async () => {
@@ -3104,6 +3759,38 @@ async function testHookSpoolDir(): Promise<string> {
 	return await mkdtemp(path.join(os.tmpdir(), "discord-bridge-hooks-"));
 }
 
+async function emitHookEvent(
+	spoolDir: string,
+	input: {
+		eventName: string;
+		sessionId: string;
+		turnId?: string;
+		cwd?: string;
+		prompt?: string;
+		toolName?: string;
+		toolInput?: unknown;
+		lastAssistantMessage?: string;
+	},
+): Promise<void> {
+	await writeStopHookSpoolEvent(
+		{
+			hook_event_name: input.eventName,
+			session_id: input.sessionId,
+			turn_id: input.turnId,
+			cwd: input.cwd ?? "/workspace",
+			transcript_path: `/tmp/${input.sessionId}.jsonl`,
+			prompt: input.prompt,
+			tool_name: input.toolName,
+			tool_input: input.toolInput,
+			last_assistant_message: input.lastAssistantMessage ?? null,
+		},
+		{
+			spoolDir,
+			now: () => new Date("2026-05-14T12:00:00.000Z"),
+		},
+	);
+}
+
 async function emitStopHook(
 	spoolDir: string,
 	input: {
@@ -3144,6 +3831,41 @@ function testConfig(
 	};
 }
 
+function testWorkspaceKey(cwd: string): string {
+	return `workspace-${createHash("sha256").update(cwd).digest("hex").slice(0, 12)}`;
+}
+
+function testThread(input: {
+	id: string;
+	cwd: string;
+	name?: string;
+	preview?: string;
+	updatedAt?: number;
+	status?: v2.ThreadStatus;
+}): v2.Thread {
+	return {
+		id: input.id,
+		sessionId: input.id,
+		forkedFromId: null,
+		preview: input.preview ?? input.name ?? input.id,
+		ephemeral: false,
+		modelProvider: "openai",
+		createdAt: input.updatedAt ?? 1,
+		updatedAt: input.updatedAt ?? 1,
+		status: input.status ?? { type: "idle" },
+		path: null,
+		cwd: input.cwd,
+		cliVersion: "test",
+		source: "cli",
+		threadSource: null,
+		agentNickname: null,
+		agentRole: null,
+		gitInfo: null,
+		name: input.name ?? null,
+		turns: [],
+	} as v2.Thread;
+}
+
 class FakeCodexClient implements CodexBridgeClient {
 	startThreadCalls: v2.ThreadStartParams[] = [];
 	resumeThreadCalls: v2.ThreadResumeParams[] = [];
@@ -3164,6 +3886,7 @@ class FakeCodexClient implements CodexBridgeClient {
 	threadTurns = new Map<string, v2.Turn[]>();
 	threadCwds = new Map<string, string>();
 	threadGoals = new Map<string, v2.ThreadGoal | null>();
+	threads: v2.Thread[] = [];
 	failedResumeThreadIds = new Set<string>();
 	blockStartTurn = false;
 	#startTurnResolvers: Array<() => void> = [];
@@ -3209,10 +3932,12 @@ class FakeCodexClient implements CodexBridgeClient {
 		if (this.failedResumeThreadIds.has(params.threadId)) {
 			throw new Error(`thread not found: ${params.threadId}`);
 		}
-		const cwd = params.cwd ?? this.threadCwds.get(params.threadId) ?? "/workspace";
+		const listedThread = this.threads.find((thread) => thread.id === params.threadId);
+		const cwd = params.cwd ?? this.threadCwds.get(params.threadId) ??
+			listedThread?.cwd ?? "/workspace";
 		return {
 			cwd,
-			thread: {
+			thread: listedThread ?? {
 				id: params.threadId,
 				cwd,
 				turns: this.threadTurns.get(params.threadId) ?? [],
@@ -3261,8 +3986,16 @@ class FakeCodexClient implements CodexBridgeClient {
 
 	async listThreads(params: v2.ThreadListParams): Promise<v2.ThreadListResponse> {
 		this.listThreadsCalls.push(params);
+		const cwdFilter = Array.isArray(params.cwd)
+			? new Set(params.cwd)
+			: params.cwd
+			? new Set([params.cwd])
+			: undefined;
+		const filtered = this.threads.filter((thread) =>
+			!cwdFilter || cwdFilter.has(thread.cwd)
+		);
 		return {
-			data: [],
+			data: filtered.slice(0, params.limit ?? filtered.length),
 			nextCursor: null,
 			backwardsCursor: null,
 		};
@@ -3316,11 +4049,23 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 		name: string;
 		sourceMessageId?: string;
 	}> = [];
+	createdForumPosts: Array<{
+		channelId: string;
+		name: string;
+		message: string;
+		threadId: string;
+		messageId: string;
+	}> = [];
 	messages: Array<{
 		channelId: string;
 		id: string;
 		text: string;
 		webhookId?: string;
+	}> = [];
+	ephemeralPickers: DiscordEphemeralPicker[] = [];
+	ephemeralUpdates: Array<{
+		pickerId: string;
+		text: string;
 	}> = [];
 	updatedMessages: Array<{
 		channelId: string;
@@ -3334,6 +4079,12 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 	}> = [];
 	deletedThreads: string[] = [];
 	addedThreadMembers: Array<{ channelId: string; userIds: string[] }> = [];
+	addedReactions: Array<{
+		channelId: string;
+		messageId: string;
+		reactions: string[];
+	}> = [];
+	registeredCommands: DiscordBridgeCommandRegistration[] = [];
 	pinnedMessages: Array<{ channelId: string; messageId: string }> = [];
 	typingCount = 0;
 
@@ -3343,7 +4094,11 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 
 	async stop(): Promise<void> {}
 
-	async registerCommands(): Promise<void> {}
+	async registerCommands(
+		options: DiscordBridgeCommandRegistration = {},
+	): Promise<void> {
+		this.registeredCommands.push(options);
+	}
 
 	async createThread(
 		channelId: string,
@@ -3352,6 +4107,24 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 	): Promise<string> {
 		this.createdThreads.push({ channelId, name, sourceMessageId });
 		return `discord-thread-${this.createdThreads.length}`;
+	}
+
+	async createForumPost(
+		channelId: string,
+		name: string,
+		message: string,
+	): Promise<{ threadId: string; messageId?: string }> {
+		const threadId = `forum-post-${this.createdForumPosts.length + 1}`;
+		const messageId = threadId;
+		this.createdForumPosts.push({
+			channelId,
+			name,
+			message,
+			threadId,
+			messageId,
+		});
+		this.messages.push({ channelId: threadId, id: messageId, text: message });
+		return { threadId, messageId };
 	}
 
 	async sendMessage(channelId: string, text: string): Promise<string[]> {
@@ -3411,6 +4184,14 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 		this.addedThreadMembers.push({ channelId, userIds });
 	}
 
+	async addReactions(
+		channelId: string,
+		messageId: string,
+		reactions: string[],
+	): Promise<void> {
+		this.addedReactions.push({ channelId, messageId, reactions });
+	}
+
 	async pinMessage(channelId: string, messageId: string): Promise<void> {
 		this.pinnedMessages.push({ channelId, messageId });
 	}
@@ -3421,6 +4202,57 @@ class FakeDiscordTransport implements DiscordBridgeTransport {
 
 	emit(inbound: DiscordInbound): void {
 		this.handlers?.onInbound(inbound);
+	}
+
+	threadsReplyPicker(): (picker: DiscordEphemeralPicker) => Promise<void> {
+		return async (picker) => {
+			this.ephemeralPickers.push(picker);
+		};
+	}
+
+	emitThreadPicker(input: {
+		pickerId: string;
+		optionId: string;
+		authorId?: string;
+	}): void {
+		this.emit({
+			kind: "threadPicker",
+			channelId: "ephemeral-command",
+			pickerId: input.pickerId,
+			optionId: input.optionId,
+			author: {
+				id: input.authorId ?? "user-1",
+				name: "Peezy",
+				isBot: false,
+			},
+			createdAt: "2026-05-14T12:00:00.000Z",
+			update: async (text) => {
+				this.ephemeralUpdates.push({ pickerId: input.pickerId, text });
+			},
+			reply: async (text) => {
+				this.ephemeralUpdates.push({ pickerId: input.pickerId, text });
+			},
+		});
+	}
+
+	emitReaction(input: {
+		channelId: string;
+		messageId: string;
+		emoji: string;
+		authorId?: string;
+	}): void {
+		this.emit({
+			kind: "reaction",
+			channelId: input.channelId,
+			messageId: input.messageId,
+			emoji: input.emoji,
+			author: {
+				id: input.authorId ?? "user-1",
+				name: "Peezy",
+				isBot: false,
+			},
+			createdAt: "2026-05-14T12:00:00.000Z",
+		});
 	}
 }
 

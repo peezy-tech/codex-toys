@@ -290,15 +290,46 @@ function gatewayConfig(
 		stringFlag(flags, "gateway-main-thread-id") ??
 		env.CODEX_DISCORD_MAIN_THREAD_ID ??
 		env.CODEX_DISCORD_GATEWAY_MAIN_THREAD_ID;
+	const workspaceForumChannelId =
+		stringFlag(flags, "workspace-forum-channel-id") ??
+		stringFlag(flags, "gateway-workspace-forum-channel-id") ??
+		env.CODEX_DISCORD_WORKSPACE_FORUM_CHANNEL_ID ??
+		env.CODEX_DISCORD_GATEWAY_WORKSPACE_FORUM_CHANNEL_ID;
+	const taskThreadsChannelId =
+		stringFlag(flags, "task-threads-channel-id") ??
+		stringFlag(flags, "gateway-task-threads-channel-id") ??
+		env.CODEX_DISCORD_TASK_THREADS_CHANNEL_ID ??
+		env.CODEX_DISCORD_GATEWAY_TASK_THREADS_CHANNEL_ID;
 	if (!homeChannelId) {
 		if (mainThreadId) {
 			throw new Error("Cannot set a gateway main thread without a gateway home channel.");
 		}
+		if (workspaceForumChannelId || taskThreadsChannelId) {
+			throw new Error("Cannot set Discord workbench channels without a gateway home channel.");
+		}
 		return undefined;
+	}
+	if (Boolean(workspaceForumChannelId) !== Boolean(taskThreadsChannelId)) {
+		throw new Error(
+			"Discord workbench requires both workspace forum and task threads channels.",
+		);
+	}
+	if (
+		workspaceForumChannelId &&
+		taskThreadsChannelId &&
+		(workspaceForumChannelId === homeChannelId ||
+			taskThreadsChannelId === homeChannelId ||
+			workspaceForumChannelId === taskThreadsChannelId)
+	) {
+		throw new Error(
+			"Discord workbench channels must be separate from the gateway home channel and each other.",
+		);
 	}
 	return {
 		homeChannelId,
 		mainThreadId,
+		workspaceForumChannelId,
+		taskThreadsChannelId,
 	};
 }
 
@@ -369,8 +400,11 @@ Options:
   --allowed-channel-ids <ids>     Comma-separated parent channel ids
   --home-channel-id <id>          Enable gateway mode for one Discord home channel
   --main-thread-id <id>           Resume an existing Codex operator thread for gateway mode
+  --workspace-forum-channel-id <id>
+                                  Optional workbench forum channel for workspace posts
+  --task-threads-channel-id <id>  Optional workbench text channel for task threads
   --flow-backend-url <url>        Optional codex-flow-systemd-local backend URL
-  --hook-spool-dir <path>         Directory drained for Codex Stop hook events
+  --hook-spool-dir <path>         Directory drained for Codex hook events
   [dir]                           Optional Codex thread directory, resolved from home
   --dir <path>                    Codex thread directory, resolved from home
   --cwd <path>                    Alias for --dir

@@ -1,7 +1,8 @@
-import { watch, type FSWatcher } from "node:fs";
+import { watch, type Dirent, type FSWatcher } from "node:fs";
+import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { JsonRpcNotification, JsonRpcRequest } from "@peezy.tech/codex-flows/rpc";
 import type { JsonValue } from "@peezy.tech/codex-flows/generated/serde_json/JsonValue";
@@ -24,8 +25,10 @@ import type {
 	DiscordBridgeConfig,
 	DiscordGatewayDelegation,
 	DiscordGatewayDelegationReturnMode,
+	DiscordGatewayHookEvent,
+	DiscordGatewayObservedThread,
 	DiscordGatewayPendingWake,
-	DiscordGatewayStopHookEvent,
+	DiscordGatewayWorkspaceSurface,
 	DiscordBridgeSession,
 	DiscordBridgeState,
 	DiscordBridgeStateStore,
@@ -34,6 +37,10 @@ import type {
 	DiscordClearWebhooksInbound,
 	DiscordInbound,
 	DiscordMessageInbound,
+	DiscordReactionInbound,
+	DiscordStatusInbound,
+	DiscordThreadPickerInbound,
+	DiscordThreadsInbound,
 	DiscordThreadStartInbound,
 } from "./types.ts";
 
@@ -41,6 +48,18 @@ const maxDiscordMessageLength = 2000;
 const gatewayToolsVersion = 1;
 const stopHookDrainDebounceMs = 100;
 const stopHookRetryMs = 1_000;
+const threadPickerReactions = [
+	"1️⃣",
+	"2️⃣",
+	"3️⃣",
+	"4️⃣",
+	"5️⃣",
+	"6️⃣",
+	"7️⃣",
+	"8️⃣",
+	"9️⃣",
+	"🔟",
+];
 
 type ThreadSnapshot = {
 	terminalTurnIds: string[];
@@ -48,6 +67,21 @@ type ThreadSnapshot = {
 		turnId: string;
 		text: string;
 	};
+};
+
+type WorkspaceThreadSummary = {
+	id: string;
+	title: string;
+	cwd: string;
+	status: string;
+	updatedAt: number;
+	discordThreadId?: string;
+};
+
+type WorkspaceThreadPicker = {
+	channelId: string;
+	authorId: string;
+	entries: WorkspaceThreadSummary[];
 };
 
 export class DiscordCodexBridge {
@@ -66,6 +100,9 @@ export class DiscordCodexBridge {
 	#gatewayStopHookWatcher: FSWatcher | undefined;
 	#gatewayStopHookDrainTimer: Timer | undefined;
 	#gatewayStopHookDrainChain: Promise<void> = Promise.resolve();
+	#transportStarted = false;
+	#threadPickersByMessage = new Map<string, WorkspaceThreadPicker>();
+	#threadPickersById = new Map<string, WorkspaceThreadPicker>();
 
 	constructor(options: {
 		client: CodexBridgeClient;
@@ -137,11 +174,17 @@ export class DiscordCodexBridge {
 				});
 			},
 		});
+		this.#transportStarted = true;
 		this.#debug("transport.started");
-		await this.transport.registerCommands();
+		await this.#reconcileGatewayWorkbench();
+		await this.transport.registerCommands({
+			channelIds: this.#commandRegistrationChannelIds(),
+		});
 		this.#debug("commands.registered");
 		for (const runner of this.#runnersByDiscordThread.values()) {
-			runner.start();
+			if (this.#shouldAutoStartRunner(runner.session)) {
+				runner.start();
+			}
 		}
 		await this.#startGatewayStopHookSpool();
 	}
@@ -164,6 +207,7 @@ export class DiscordCodexBridge {
 		await this.#gatewayStopHookDrainChain.catch(() => undefined);
 		await this.#persistChain.catch(() => undefined);
 		await this.transport.stop();
+		this.#transportStarted = false;
 		this.client.close();
 	}
 
@@ -211,6 +255,22 @@ export class DiscordCodexBridge {
 		}
 		if (inbound.kind === "clearWebhooks") {
 			await this.#handleClearWebhooks(inbound);
+			return;
+		}
+		if (inbound.kind === "status") {
+			await this.#handleStatusCommand(inbound);
+			return;
+		}
+		if (inbound.kind === "threads") {
+			await this.#handleThreadsCommand(inbound);
+			return;
+		}
+		if (inbound.kind === "threadPicker") {
+			await this.#handleThreadPickerSelection(inbound);
+			return;
+		}
+		if (inbound.kind === "reaction") {
+			await this.#handleThreadPickerReaction(inbound);
 			return;
 		}
 
@@ -356,6 +416,198 @@ export class DiscordCodexBridge {
 			failed: result.failed,
 		});
 		await command.reply?.(clearWebhooksSummary(result));
+	}
+
+	async #handleStatusCommand(command: DiscordStatusInbound): Promise<void> {
+		if (!this.config.allowedUserIds.has(command.author.id)) {
+			this.#debug("status.ignored.user", {
+				channelId: command.channelId,
+				authorId: command.author.id,
+			});
+			await command.reply?.("Only globally allowed Discord users can read gateway status.");
+			return;
+		}
+		if (!this.#isAllowedChannel(command.channelId)) {
+			this.#debug("status.ignored.channel", { channelId: command.channelId });
+			await command.reply?.("This Discord channel is not allowed for the bridge.");
+			return;
+		}
+		const activeThreads = await this.#listActiveCodexThreadSummaries();
+		const openableThreads = activeThreads.filter((thread) =>
+			!thread.discordThreadId &&
+			!this.#isGatewayMainThread(thread.id) &&
+			Boolean(this.#gatewayWorkbenchConfig())
+		).slice(0, threadPickerReactions.length);
+		const statusText = this.#gatewayStatusMessage({
+			activeThreads,
+			openableThreads,
+		});
+		if (openableThreads.length === 0 || !command.replyPicker) {
+			await command.reply?.(statusText);
+			return;
+		}
+		const pickerId = `status-${randomUUID()}`;
+		this.#threadPickersById.set(pickerId, {
+			channelId: command.channelId,
+			authorId: command.author.id,
+			entries: openableThreads,
+		});
+		try {
+			await command.replyPicker({
+				pickerId,
+				text: statusText,
+				options: openableThreads.map((_, index) => ({
+					id: String(index),
+					label: String(index + 1),
+				})),
+			});
+		} catch (error) {
+			this.#threadPickersById.delete(pickerId);
+			await command.reply?.(
+				`Failed to send active-thread picker: ${errorMessage(error)}`,
+			);
+		}
+	}
+
+	async #handleThreadsCommand(command: DiscordThreadsInbound): Promise<void> {
+		if (!this.config.allowedUserIds.has(command.author.id)) {
+			this.#debug("threads.ignored.user", {
+				channelId: command.channelId,
+				authorId: command.author.id,
+			});
+			await command.reply?.("Only globally allowed Discord users can list workspace threads.");
+			return;
+		}
+		if (!this.#isAllowedChannel(command.channelId)) {
+			this.#debug("threads.ignored.channel", { channelId: command.channelId });
+			await command.reply?.("This Discord channel is not allowed for the bridge.");
+			return;
+		}
+		const workspace = this.#workspaceForChannel(command.channelId);
+		if (!workspace) {
+			await command.reply?.("Run `/threads` in a workspace forum post or opened workspace thread.");
+			return;
+		}
+		const threads = await this.#listWorkspaceThreads(workspace);
+		if (threads.length === 0) {
+			await command.reply?.(`No Codex threads found for ${workspace.title}.`);
+			return;
+		}
+		if (!command.replyPicker) {
+			await command.reply?.(
+				"This Discord transport cannot send ephemeral thread pickers.",
+			);
+			return;
+		}
+		const entries = threads.slice(0, threadPickerReactions.length);
+		const pickerId = `threads-${randomUUID()}`;
+		this.#threadPickersById.set(pickerId, {
+			channelId: command.channelId,
+			authorId: command.author.id,
+			entries,
+		});
+		try {
+			await command.replyPicker({
+				pickerId,
+				text: threadPickerText(workspace, entries, threads.length, {
+					action: "Choose a number to open or resume that thread in Discord.",
+				}),
+				options: entries.map((_, index) => ({
+					id: String(index),
+					label: String(index + 1),
+				})),
+			});
+		} catch (error) {
+			this.#threadPickersById.delete(pickerId);
+			await command.reply?.(
+				`Failed to send the ephemeral thread picker: ${errorMessage(error)}`,
+			);
+			return;
+		}
+	}
+
+	async #handleThreadPickerSelection(
+		selection: DiscordThreadPickerInbound,
+	): Promise<void> {
+		if (!this.config.allowedUserIds.has(selection.author.id)) {
+			return;
+		}
+		const picker = this.#threadPickersById.get(selection.pickerId);
+		if (!picker) {
+			await selection.update?.("This thread picker is no longer active.");
+			return;
+		}
+		if (selection.author.id !== picker.authorId) {
+			await selection.reply?.("Only the user who ran `/threads` can use this picker.");
+			return;
+		}
+		const index = Number.parseInt(selection.optionId, 10);
+		const entry = Number.isInteger(index) ? picker.entries[index] : undefined;
+		if (!entry) {
+			await selection.update?.("That thread choice is no longer available.");
+			return;
+		}
+		this.#threadPickersById.delete(selection.pickerId);
+		try {
+			const session = await this.#materializeWorkspaceThread(entry.id, {
+				author: selection.author,
+			});
+			await updateOrReply(
+				selection,
+				`Opened ${session.title}: <#${session.discordThreadId}>`,
+			);
+		} catch (error) {
+			this.#error("threads.picker.openFailed", {
+				channelId: selection.channelId,
+				pickerId: selection.pickerId,
+				threadId: entry.id,
+				error: errorMessage(error),
+			});
+			await updateOrReply(
+				selection,
+				`Failed to open ${entry.title}: ${errorMessage(error)}`,
+			);
+		}
+	}
+
+	async #handleThreadPickerReaction(reaction: DiscordReactionInbound): Promise<void> {
+		if (!this.config.allowedUserIds.has(reaction.author.id)) {
+			return;
+		}
+		const pickerKey = threadPickerKey(reaction.channelId, reaction.messageId);
+		const picker = this.#threadPickersByMessage.get(pickerKey);
+		if (!picker) {
+			return;
+		}
+		if (reaction.author.id !== picker.authorId) {
+			return;
+		}
+		const index = threadPickerReactionIndex(reaction.emoji);
+		const entry = index === undefined ? undefined : picker.entries[index];
+		if (!entry) {
+			return;
+		}
+		this.#threadPickersByMessage.delete(pickerKey);
+		try {
+			const session = await this.#materializeWorkspaceThread(entry.id, {
+				author: reaction.author,
+			});
+			await this.transport.sendMessage(
+				picker.channelId,
+				`Opened ${session.title}: <#${session.discordThreadId}>`,
+			);
+		} catch (error) {
+			this.#error("threads.reaction.openFailed", {
+				channelId: reaction.channelId,
+				messageId: reaction.messageId,
+				threadId: entry.id,
+				error: errorMessage(error),
+			});
+			await this.transport.sendMessage(
+				picker.channelId,
+				`Failed to open ${entry.title}: ${errorMessage(error)}`,
+			);
+		}
 	}
 
 	async #handleThreadStart(start: DiscordThreadStartInbound): Promise<void> {
@@ -560,16 +812,6 @@ export class DiscordCodexBridge {
 			});
 			return;
 		}
-		const command = parseGatewayCommand(message.content);
-		if (command === "status") {
-			await this.transport.sendMessage(
-				message.channelId,
-				this.#gatewayStatusMessage(),
-			);
-			addProcessedMessageId(this.#requireState(), message.messageId);
-			await this.#persist();
-			return;
-		}
 		const runner = this.#gatewayRunner();
 		if (!runner) {
 			this.#debug("gateway.message.ignored.noSession", {
@@ -581,14 +823,23 @@ export class DiscordCodexBridge {
 		await runner.enqueueMessage(message);
 	}
 
-	#gatewayStatusMessage(): string {
+	#gatewayStatusMessage(
+		options: {
+			activeThreads?: WorkspaceThreadSummary[];
+			openableThreads?: WorkspaceThreadSummary[];
+		} = {},
+	): string {
 		const state = this.#requireState();
 		const gateway = state.gateway;
 		const session = this.#gatewaySession();
 		const delegations = gateway?.delegations ?? [];
+		const workspaces = gateway?.workspaces ?? [];
 		const activeDelegations = delegations.filter((delegation) =>
 			delegation.status === "active"
 		);
+		const workbench = this.#gatewayWorkbenchConfig();
+		const activeThreads = options.activeThreads ?? [];
+		const openableThreads = options.openableThreads ?? [];
 		return [
 			"**Codex Gateway**",
 			`Home channel: \`${this.config.gateway?.homeChannelId ?? "disabled"}\``,
@@ -601,12 +852,29 @@ export class DiscordCodexBridge {
 			`Status: ${state.gateway?.toolsVersion === gatewayToolsVersion ? "privileged gateway tools available to the main Codex operator thread" : "waiting for a tool-enabled main Codex operator thread"}.`,
 			`Flow backend: \`${this.config.flowBackendUrl ?? "not configured"}\``,
 			"",
-			"**Detail Threads**",
-			"Status: optional detail-thread records are supported in state; automatic detail thread mirroring is not enabled yet.",
-		].join("\n");
+			"**Workbench**",
+			workbench
+				? `Status: enabled; workspace forum <#${workbench.workspaceForumChannelId}>, task threads <#${workbench.taskThreadsChannelId}>`
+				: "Status: disabled",
+			`Workspaces: ${workspaces.length} tracked`,
+			"",
+			"**Active Codex Threads**",
+			activeThreads.length > 0
+				? activeThreadStatusLines(activeThreads, openableThreads).join("\n")
+				: "None",
+			openableThreads.length > 0
+				? "Choose a number to create or reuse a Discord task thread."
+				: undefined,
+		].filter((line): line is string => line !== undefined).join("\n");
 	}
 
 	async #handleNotification(message: JsonRpcNotification): Promise<void> {
+		if (!this.#transportStarted) {
+			this.#debug("notification.ignored.transportNotStarted", {
+				method: message.method,
+			});
+			return;
+		}
 		const params = record(message.params);
 		const threadId = stringValue(params.threadId);
 		if (!threadId) {
@@ -749,11 +1017,12 @@ export class DiscordCodexBridge {
 			state.gateway?.toolsVersion === gatewayToolsVersion;
 		if (existing && shouldReuseExisting) {
 			try {
+				const gatewayCwd = this.config.cwd ?? existing.cwd;
 				const resumed = await this.client.resumeThread(this.#threadResumeParams(
 					existing.codexThreadId,
-					existing.cwd ?? this.config.cwd,
+					gatewayCwd,
 				));
-				existing.cwd = resumeResponseCwd(resumed) ?? existing.cwd ?? this.config.cwd;
+				existing.cwd = gatewayCwd ?? resumeResponseCwd(resumed) ?? existing.cwd;
 				state.gateway = {
 					homeChannelId: gatewayConfig.homeChannelId,
 					mainThreadId: existing.codexThreadId,
@@ -761,7 +1030,10 @@ export class DiscordCodexBridge {
 					createdAt: existing.createdAt,
 					toolsVersion: state.gateway?.toolsVersion,
 					delegations: state.gateway?.delegations ?? [],
+					workspaces: state.gateway?.workspaces ?? [],
+					observedThreads: state.gateway?.observedThreads ?? [],
 					pendingWakes: state.gateway?.pendingWakes ?? [],
+					processedHookEventIds: state.gateway?.processedHookEventIds ?? [],
 					processedStopHookEventIds: state.gateway?.processedStopHookEventIds ?? [],
 				};
 				this.#registerRunner(existing);
@@ -825,7 +1097,10 @@ export class DiscordCodexBridge {
 				? state.gateway?.toolsVersion
 				: gatewayToolsVersion,
 			delegations: state.gateway?.delegations ?? [],
+			workspaces: state.gateway?.workspaces ?? [],
+			observedThreads: state.gateway?.observedThreads ?? [],
 			pendingWakes: state.gateway?.pendingWakes ?? [],
+			processedHookEventIds: state.gateway?.processedHookEventIds ?? [],
 			processedStopHookEventIds: state.gateway?.processedStopHookEventIds ?? [],
 		};
 		state.sessions.push(session);
@@ -856,12 +1131,30 @@ export class DiscordCodexBridge {
 			: undefined;
 	}
 
+	#shouldAutoStartRunner(session: DiscordBridgeSession): boolean {
+		const workbench = this.#gatewayWorkbenchConfig();
+		return session.parentChannelId !== workbench?.taskThreadsChannelId;
+	}
+
 	#isGatewayMainThread(threadId: string): boolean {
 		const session = this.#gatewaySession();
 		return Boolean(
 			(session && session.codexThreadId === threadId) ||
 				this.#requireState().gateway?.mainThreadId === threadId,
 		);
+	}
+
+	#gatewayWorkbenchConfig():
+		| { workspaceForumChannelId: string; taskThreadsChannelId: string }
+		| undefined {
+		const gateway = this.config.gateway;
+		if (!gateway?.workspaceForumChannelId || !gateway.taskThreadsChannelId) {
+			return undefined;
+		}
+		return {
+			workspaceForumChannelId: gateway.workspaceForumChannelId,
+			taskThreadsChannelId: gateway.taskThreadsChannelId,
+		};
 	}
 
 	#gatewayStopHookSpoolDir(): string {
@@ -876,12 +1169,33 @@ export class DiscordCodexBridge {
 				homeChannelId: this.config.gateway?.homeChannelId ?? "",
 				mainThreadId: this.#gatewaySession()?.codexThreadId,
 				delegations: [],
+				workspaces: [],
+				observedThreads: [],
 				pendingWakes: [],
+				processedHookEventIds: [],
 				processedStopHookEventIds: [],
 			};
 		}
 		state.gateway.delegations ??= [];
 		return state.gateway.delegations;
+	}
+
+	#gatewayWorkspaces(): DiscordGatewayWorkspaceSurface[] {
+		const state = this.#requireState();
+		if (!state.gateway) {
+			state.gateway = {
+				homeChannelId: this.config.gateway?.homeChannelId ?? "",
+				mainThreadId: this.#gatewaySession()?.codexThreadId,
+				delegations: [],
+				workspaces: [],
+				observedThreads: [],
+				pendingWakes: [],
+				processedHookEventIds: [],
+				processedStopHookEventIds: [],
+			};
+		}
+		state.gateway.workspaces ??= [];
+		return state.gateway.workspaces;
 	}
 
 	#gatewayPendingWakes(): DiscordGatewayPendingWake[] {
@@ -891,7 +1205,10 @@ export class DiscordCodexBridge {
 				homeChannelId: this.config.gateway?.homeChannelId ?? "",
 				mainThreadId: this.#gatewaySession()?.codexThreadId,
 				delegations: [],
+				workspaces: [],
+				observedThreads: [],
 				pendingWakes: [],
+				processedHookEventIds: [],
 				processedStopHookEventIds: [],
 			};
 		}
@@ -899,19 +1216,42 @@ export class DiscordCodexBridge {
 		return state.gateway.pendingWakes;
 	}
 
-	#gatewayProcessedStopHookEventIds(): string[] {
+	#gatewayObservedThreads(): DiscordGatewayObservedThread[] {
 		const state = this.#requireState();
 		if (!state.gateway) {
 			state.gateway = {
 				homeChannelId: this.config.gateway?.homeChannelId ?? "",
 				mainThreadId: this.#gatewaySession()?.codexThreadId,
 				delegations: [],
+				workspaces: [],
+				observedThreads: [],
 				pendingWakes: [],
+				processedHookEventIds: [],
 				processedStopHookEventIds: [],
 			};
 		}
-		state.gateway.processedStopHookEventIds ??= [];
-		return state.gateway.processedStopHookEventIds;
+		state.gateway.observedThreads ??= [];
+		return state.gateway.observedThreads;
+	}
+
+	#gatewayProcessedHookEventIds(): string[] {
+		const state = this.#requireState();
+		if (!state.gateway) {
+			state.gateway = {
+				homeChannelId: this.config.gateway?.homeChannelId ?? "",
+				mainThreadId: this.#gatewaySession()?.codexThreadId,
+				delegations: [],
+				workspaces: [],
+				observedThreads: [],
+				pendingWakes: [],
+				processedHookEventIds: [],
+				processedStopHookEventIds: [],
+			};
+		}
+		state.gateway.processedHookEventIds ??= [
+			...(state.gateway.processedStopHookEventIds ?? []),
+		];
+		return state.gateway.processedHookEventIds;
 	}
 
 	async #startDelegation(args: Record<string, unknown>): Promise<unknown> {
@@ -944,6 +1284,7 @@ export class DiscordCodexBridge {
 			createdAt: now,
 			updatedAt: now,
 		});
+		const workbench = await this.#ensureDelegationWorkbench(delegation);
 		let turnId: string | undefined;
 		if (prompt) {
 			const turn = await this.client.startTurn({
@@ -962,7 +1303,7 @@ export class DiscordCodexBridge {
 			delegation.lastTurnId = turnId;
 		}
 		await this.#persist();
-		return { delegation, turnId };
+		return { delegation, turnId, workbench };
 	}
 
 	async #resumeDelegation(args: Record<string, unknown>): Promise<unknown> {
@@ -984,8 +1325,9 @@ export class DiscordCodexBridge {
 			createdAt: this.#delegationForThread(codexThreadId)?.createdAt ?? now,
 			updatedAt: now,
 		});
+		const workbench = await this.#ensureDelegationWorkbench(delegation);
 		await this.#persist();
-		return { delegation };
+		return { delegation, workbench };
 	}
 
 	async #sendDelegation(args: Record<string, unknown>): Promise<unknown> {
@@ -1018,10 +1360,14 @@ export class DiscordCodexBridge {
 		delegation.completedAt = undefined;
 		delegation.injectedAt = undefined;
 		delegation.mirroredAt = undefined;
+		delegation.taskMirroredAt = undefined;
 		delegation.reportedAt = undefined;
 		delegation.updatedAt = this.#now().toISOString();
+		const workbench = await this.#syncDelegationWorkbench(delegation, {
+			includeTaskResult: false,
+		});
 		await this.#persist();
-		return { delegation, turnId: turn.turn.id };
+		return { delegation, turnId: turn.turn.id, workbench };
 	}
 
 	async #readDelegation(args: Record<string, unknown>): Promise<unknown> {
@@ -1137,6 +1483,608 @@ export class DiscordCodexBridge {
 		}));
 	}
 
+	async #ensureDelegationWorkbench(
+		delegation: DiscordGatewayDelegation,
+	): Promise<unknown> {
+		return await this.#syncDelegationWorkbench(delegation, {
+			includeTaskResult: false,
+		});
+	}
+
+	async #syncDelegationWorkbench(
+		delegation: DiscordGatewayDelegation,
+		options: { includeTaskResult: boolean },
+	): Promise<unknown> {
+		const config = this.#gatewayWorkbenchConfig();
+		if (!config) {
+			return { enabled: false };
+		}
+		try {
+			const workspace = await this.#ensureWorkspaceSurface(delegation, config);
+			if (delegation.discordTaskThreadId) {
+				await this.#ensureDelegationTaskThread(delegation, workspace, config);
+			}
+			if (options.includeTaskResult) {
+				await this.#mirrorDelegationResultToTaskThread(delegation);
+			}
+			await this.#updateWorkspaceSurface(workspace);
+			return {
+				enabled: true,
+				workspace: {
+					key: workspace.key,
+					cwd: workspace.cwd,
+					threadId: workspace.discordThreadId,
+				},
+				taskThreadId: delegation.discordTaskThreadId,
+			};
+		} catch (error) {
+			const message = errorMessage(error);
+			this.#debug("gateway.workbench.sync.failed", {
+				delegationId: delegation.id,
+				codexThreadId: delegation.codexThreadId,
+				error: message,
+			});
+			return { enabled: true, error: message };
+		}
+	}
+
+	async #materializeWorkspaceThread(
+		codexThreadId: string,
+		input: { author: { id: string } },
+	): Promise<DiscordBridgeSession> {
+		const config = this.#gatewayWorkbenchConfig();
+		if (!config) {
+			throw new Error("Gateway workbench is not enabled.");
+		}
+		const existing = this.#requireState().sessions.find((session) =>
+			session.codexThreadId === codexThreadId &&
+			session.parentChannelId === config.taskThreadsChannelId
+		);
+		if (existing) {
+			this.#registerRunner(existing).start();
+			return existing;
+		}
+
+		const delegation = this.#delegationForThread(codexThreadId);
+		const observed = this.#observedThreadForThread(codexThreadId);
+		const resumed = await this.client.resumeThread(
+			this.#threadResumeParams(codexThreadId, delegation?.cwd ?? observed?.cwd),
+		);
+		const thread = threadFromResponse(resumed);
+		const cwd = resumeResponseCwd(resumed) ?? thread?.cwd ?? delegation?.cwd ??
+			observed?.cwd ??
+			this.config.cwd;
+		const title = delegation?.title ?? observed?.title ?? (thread
+			? codexThreadTitle(thread)
+			: `Codex ${compactId(codexThreadId)}`);
+		const workspace = await this.#ensureWorkspaceSurfaceForCwd(
+			workspaceCwdForPath(cwd, this.config.cwd),
+			config,
+		);
+		const discordThreadId = await this.transport.createThread(
+			config.taskThreadsChannelId,
+			truncateDiscordThreadName(`${workspace.title}: ${title}`),
+		);
+		const session: DiscordBridgeSession = {
+			discordThreadId,
+			parentChannelId: config.taskThreadsChannelId,
+			codexThreadId,
+			title,
+			createdAt: this.#now().toISOString(),
+			ownerUserId: input.author.id,
+			cwd,
+			mode: "workspace",
+		};
+		this.#requireState().sessions.push(session);
+		this.#registerRunner(session).start();
+
+		if (delegation) {
+			delegation.workspaceKey = workspace.key;
+			delegation.discordWorkspaceThreadId = workspace.discordThreadId;
+			delegation.discordTaskThreadId = discordThreadId;
+			delegation.discordDetailThreadId ??= discordThreadId;
+			delegation.updatedAt = this.#now().toISOString();
+			await this.#mirrorDelegationResultToTaskThread(delegation);
+		}
+		await this.#updateWorkspaceSurface(workspace);
+		await this.#persist();
+		this.#debug("gateway.workbench.thread.opened", {
+			codexThreadId,
+			discordThreadId,
+			workspaceKey: workspace.key,
+		});
+		return session;
+	}
+
+	async #reconcileGatewayWorkbench(): Promise<void> {
+		const config = this.#gatewayWorkbenchConfig();
+		if (!config) {
+			return;
+		}
+		for (const cwd of await this.#discoverGatewayWorkspaceCwds()) {
+			try {
+				const workspace = await this.#ensureWorkspaceSurfaceForCwd(cwd, config);
+				await this.#updateWorkspaceSurface(workspace);
+			} catch (error) {
+				this.#error("gateway.workbench.workspaceDiscovery.failed", {
+					cwd,
+					error: errorMessage(error),
+				});
+			}
+		}
+		for (const delegation of this.#gatewayDelegations()) {
+			await this.#syncDelegationWorkbench(delegation, {
+				includeTaskResult: false,
+			});
+		}
+		await this.#persist();
+	}
+
+	async #discoverGatewayWorkspaceCwds(): Promise<string[]> {
+		const root = normalizeWorkspaceCwd(this.config.cwd);
+		let entries: Dirent[];
+		try {
+			entries = await readdir(root, { withFileTypes: true });
+		} catch (error) {
+			this.#debug("gateway.workbench.workspaceDiscovery.skipped", {
+				root,
+				error: errorMessage(error),
+			});
+			return [];
+		}
+		const cwds: string[] = [];
+		for (const entry of entries) {
+			if (!isDiscoverableWorkspaceEntry(entry.name)) {
+				continue;
+			}
+			const fullPath = path.join(root, entry.name);
+			if (entry.isDirectory()) {
+				cwds.push(fullPath);
+				continue;
+			}
+			if (!entry.isSymbolicLink()) {
+				continue;
+			}
+			try {
+				if ((await stat(fullPath)).isDirectory()) {
+					cwds.push(fullPath);
+				}
+			} catch {
+				continue;
+			}
+		}
+		return uniqueStringList(cwds.map((cwd) => normalizeWorkspaceCwd(cwd))).sort(
+			(left, right) =>
+				workspaceTitle(left).localeCompare(workspaceTitle(right)) ||
+				left.localeCompare(right),
+		);
+	}
+
+	async #ensureWorkspaceSurface(
+		delegation: DiscordGatewayDelegation,
+		config: { workspaceForumChannelId: string; taskThreadsChannelId: string },
+	): Promise<DiscordGatewayWorkspaceSurface> {
+		const workspace = await this.#ensureWorkspaceSurfaceForCwd(
+			workspaceCwdForPath(delegation.cwd ?? this.config.cwd, this.config.cwd),
+			config,
+			[delegation],
+		);
+		delegation.workspaceKey = workspace.key;
+		delegation.discordWorkspaceThreadId = workspace.discordThreadId;
+		return workspace;
+	}
+
+	async #ensureWorkspaceSurfaceForCwd(
+		cwd: string,
+		config: { workspaceForumChannelId: string; taskThreadsChannelId: string },
+		delegations: DiscordGatewayDelegation[] = [],
+	): Promise<DiscordGatewayWorkspaceSurface> {
+		if (!this.transport.createForumPost) {
+			throw new Error("Discord transport cannot create workspace forum posts.");
+		}
+		const normalizedCwd = normalizeWorkspaceCwd(cwd);
+		const key = workspaceKey(normalizedCwd);
+		const now = this.#now().toISOString();
+		const delegationIds = delegations.map((delegation) => delegation.id);
+		let workspace = this.#gatewayWorkspaces().find((candidate) =>
+			candidate.key === key
+		);
+		if (!workspace) {
+			const title = workspaceTitle(normalizedCwd);
+			const created = await this.transport.createForumPost(
+				config.workspaceForumChannelId,
+				truncateDiscordThreadName(title),
+				workspaceDashboardText({
+					key,
+					cwd: normalizedCwd,
+					title,
+					discordThreadId: "pending",
+					statusMessageId: undefined,
+					delegationIds,
+					createdAt: now,
+					updatedAt: now,
+				}, { delegations }),
+			);
+			workspace = {
+				key,
+				cwd: normalizedCwd,
+				title,
+				discordThreadId: created.threadId,
+				statusMessageId: created.messageId,
+				delegationIds,
+				createdAt: now,
+				updatedAt: now,
+			};
+			this.#gatewayWorkspaces().push(workspace);
+			this.#debug("gateway.workbench.workspace.created", {
+				key,
+				cwd: normalizedCwd,
+				discordThreadId: workspace.discordThreadId,
+			});
+			if (workspace.statusMessageId) {
+				await this.#pinMessage(workspace.discordThreadId, workspace.statusMessageId);
+			}
+		}
+		workspace.delegationIds = uniqueStringList([
+			...workspace.delegationIds,
+			...delegationIds,
+		]);
+		workspace.updatedAt = now;
+		return workspace;
+	}
+
+	async #ensureDelegationTaskThread(
+		delegation: DiscordGatewayDelegation,
+		workspace: DiscordGatewayWorkspaceSurface,
+		config: { workspaceForumChannelId: string; taskThreadsChannelId: string },
+	): Promise<void> {
+		if (!delegation.discordTaskThreadId) {
+			delegation.discordWorkspaceThreadId = workspace.discordThreadId;
+			return;
+		}
+		const existingSession = delegation.discordTaskThreadId
+			? this.#requireState().sessions.find((session) =>
+					session.discordThreadId === delegation.discordTaskThreadId &&
+					session.codexThreadId === delegation.codexThreadId
+				)
+			: undefined;
+		if (existingSession) {
+			delegation.discordDetailThreadId ??= delegation.discordTaskThreadId;
+			delegation.discordWorkspaceThreadId = workspace.discordThreadId;
+			this.#registerRunner(existingSession);
+			return;
+		}
+		if (delegation.discordTaskThreadId) {
+			const recovered: DiscordBridgeSession = {
+				discordThreadId: delegation.discordTaskThreadId,
+				parentChannelId: config.taskThreadsChannelId,
+				codexThreadId: delegation.codexThreadId,
+				title: delegation.title,
+				createdAt: delegation.createdAt,
+				cwd: delegation.cwd,
+				mode: "delegated",
+			};
+			delegation.discordDetailThreadId ??= delegation.discordTaskThreadId;
+			delegation.discordWorkspaceThreadId = workspace.discordThreadId;
+			this.#requireState().sessions.push(recovered);
+			this.#registerRunner(recovered);
+			return;
+		}
+	}
+
+	async #updateWorkspaceSurface(
+		workspace: DiscordGatewayWorkspaceSurface,
+	): Promise<void> {
+		if (!this.transport.updateMessage) {
+			return;
+		}
+		if (!workspace.statusMessageId) {
+			return;
+		}
+		const delegations = this.#gatewayDelegations().filter((delegation) =>
+			workspace.delegationIds.includes(delegation.id)
+		);
+		const threads = this.#listOpenWorkspaceThreads(workspace);
+		await this.transport.updateMessage(
+			workspace.discordThreadId,
+			workspace.statusMessageId,
+			workspaceDashboardText(workspace, {
+				delegations,
+				threads,
+			}),
+		);
+		if (workspace.statusMessageId) {
+			await this.#pinMessage(workspace.discordThreadId, workspace.statusMessageId);
+		}
+	}
+
+	async #listWorkspaceThreads(
+		workspace: DiscordGatewayWorkspaceSurface,
+	): Promise<WorkspaceThreadSummary[]> {
+		const byId = new Map<string, WorkspaceThreadSummary>();
+		for (const thread of await this.#listCodexThreadSummaries()) {
+			if (
+				workspaceKey(workspaceCwdForPath(thread.cwd, this.config.cwd)) ===
+					workspace.key
+			) {
+				byId.set(thread.id, thread);
+			}
+		}
+		for (const delegation of this.#gatewayDelegations()) {
+			const delegationWorkspaceKey = delegation.workspaceKey ??
+				workspaceKey(workspaceCwdForPath(delegation.cwd, this.config.cwd));
+			if (
+				delegationWorkspaceKey !== workspace.key ||
+				byId.has(delegation.codexThreadId)
+			) {
+				continue;
+			}
+			byId.set(delegation.codexThreadId, {
+				id: delegation.codexThreadId,
+				title: delegation.title,
+				cwd: delegation.cwd ?? workspace.cwd,
+				status: delegation.lastStatus ?? delegation.status,
+				updatedAt: Date.parse(delegation.updatedAt) / 1000,
+				discordThreadId: delegation.discordTaskThreadId,
+			});
+		}
+		for (const observed of this.#gatewayObservedThreads()) {
+			const observedWorkspaceKey = observed.workspaceKey ??
+				workspaceKey(workspaceCwdForPath(observed.cwd, this.config.cwd));
+			if (observedWorkspaceKey !== workspace.key) {
+				continue;
+			}
+			const existing = byId.get(observed.threadId);
+			const observedSummary: WorkspaceThreadSummary = {
+				id: observed.threadId,
+				title: observed.title ?? `Codex ${compactId(observed.threadId)}`,
+				cwd: observed.cwd ?? workspace.cwd,
+				status: observedThreadStatusText(observed),
+				updatedAt: Date.parse(observed.lastSeenAt) / 1000,
+				discordThreadId: this.#workspaceDiscordThreadForCodexThread(
+					observed.threadId,
+				)?.discordThreadId,
+			};
+			byId.set(
+				observed.threadId,
+				existing
+					? {
+							...existing,
+							status: observedSummary.status,
+							updatedAt: Math.max(existing.updatedAt, observedSummary.updatedAt),
+							discordThreadId: existing.discordThreadId ??
+								observedSummary.discordThreadId,
+						}
+					: observedSummary,
+			);
+		}
+		return [...byId.values()].sort((left, right) => right.updatedAt - left.updatedAt);
+	}
+
+	async #listActiveCodexThreadSummaries(): Promise<WorkspaceThreadSummary[]> {
+		const byId = new Map<string, WorkspaceThreadSummary>();
+		const put = (summary: WorkspaceThreadSummary) => {
+			const existing = byId.get(summary.id);
+			byId.set(summary.id, {
+				...existing,
+				...summary,
+				title: summary.title || existing?.title || `Codex ${compactId(summary.id)}`,
+				cwd: summary.cwd || existing?.cwd || this.config.cwd || process.cwd(),
+				status: summary.status || existing?.status || "active",
+				updatedAt: Math.max(existing?.updatedAt ?? 0, summary.updatedAt),
+				discordThreadId: existing?.discordThreadId ??
+					summary.discordThreadId ??
+					this.#discordChannelForCodexThread(summary.id),
+			});
+		};
+
+		for (const thread of await this.#listCodexThreadSummaries()) {
+			if (thread.status === "active") {
+				put({
+					...thread,
+					discordThreadId: this.#discordChannelForCodexThread(thread.id) ??
+						thread.discordThreadId,
+				});
+			}
+		}
+
+		const state = this.#requireState();
+		for (const session of state.sessions) {
+			if (!this.#isSessionRunning(session, state)) {
+				continue;
+			}
+			put({
+				id: session.codexThreadId,
+				title: session.title,
+				cwd: session.cwd ?? this.config.cwd ?? process.cwd(),
+				status: "active",
+				updatedAt: Date.parse(session.createdAt) / 1000,
+				discordThreadId: session.discordThreadId,
+			});
+		}
+
+		for (const delegation of this.#gatewayDelegations()) {
+			if (delegation.status !== "active" && delegation.lastStatus !== "in_progress") {
+				continue;
+			}
+			put({
+				id: delegation.codexThreadId,
+				title: delegation.title,
+				cwd: delegation.cwd ?? this.config.cwd ?? process.cwd(),
+				status: delegation.lastStatus ?? delegation.status,
+				updatedAt: Date.parse(delegation.updatedAt) / 1000,
+				discordThreadId: this.#discordChannelForCodexThread(delegation.codexThreadId),
+			});
+		}
+
+		for (const observed of this.#gatewayObservedThreads()) {
+			if (
+				observed.status !== "starting" &&
+				observed.status !== "active" &&
+				observed.status !== "tool" &&
+				observed.status !== "waiting"
+			) {
+				continue;
+			}
+			put({
+				id: observed.threadId,
+				title: observed.title ?? `Codex ${compactId(observed.threadId)}`,
+				cwd: observed.cwd ?? this.config.cwd ?? process.cwd(),
+				status: observedThreadStatusText(observed),
+				updatedAt: Date.parse(observed.lastSeenAt) / 1000,
+				discordThreadId: this.#discordChannelForCodexThread(observed.threadId),
+			});
+		}
+
+		return [...byId.values()].sort((left, right) => right.updatedAt - left.updatedAt);
+	}
+
+	#listOpenWorkspaceThreads(
+		workspace: DiscordGatewayWorkspaceSurface,
+	): WorkspaceThreadSummary[] {
+		const workbench = this.#gatewayWorkbenchConfig();
+		if (!workbench) {
+			return [];
+		}
+		const sessions = this.#requireState().sessions.filter((session) =>
+			session.parentChannelId === workbench.taskThreadsChannelId &&
+			workspaceKey(workspaceCwdForPath(session.cwd, this.config.cwd)) ===
+				workspace.key
+		);
+		return sessions.map((session) => ({
+			id: session.codexThreadId,
+			title: session.title,
+			cwd: session.cwd ?? workspace.cwd,
+			status: this.#isSessionRunning(session, this.#requireState())
+				? "active"
+				: "open",
+			updatedAt: Date.parse(session.createdAt) / 1000,
+			discordThreadId: session.discordThreadId,
+		})).sort((left, right) => right.updatedAt - left.updatedAt);
+	}
+
+	async #listCodexThreadSummaries(): Promise<WorkspaceThreadSummary[]> {
+		const summaries: WorkspaceThreadSummary[] = [];
+		let cursor: string | null | undefined;
+		for (let page = 0; page < 10; page += 1) {
+			let response: v2.ThreadListResponse;
+			try {
+				response = await this.client.listThreads({
+					cursor: cursor ?? null,
+					limit: 100,
+					sortKey: "updated_at",
+					sortDirection: "desc",
+					archived: false,
+					sourceKinds: [],
+					useStateDbOnly: false,
+				});
+			} catch (error) {
+				this.#debug("gateway.workbench.threadList.failed", {
+					error: errorMessage(error),
+				});
+				return summaries;
+			}
+			for (const thread of response.data) {
+				summaries.push({
+					id: thread.id,
+					title: codexThreadTitle(thread),
+					cwd: thread.cwd,
+					status: threadStatusText(thread.status),
+					updatedAt: thread.updatedAt,
+					discordThreadId: this.#workspaceDiscordThreadForCodexThread(thread.id)
+						?.discordThreadId,
+				});
+			}
+			if (!response.nextCursor) {
+				break;
+			}
+			cursor = response.nextCursor;
+		}
+		return summaries;
+	}
+
+	#workspaceDiscordThreadForCodexThread(
+		codexThreadId: string,
+	): DiscordBridgeSession | undefined {
+		const workbench = this.#gatewayWorkbenchConfig();
+		return this.#requireState().sessions.find((session) =>
+			session.codexThreadId === codexThreadId &&
+			session.parentChannelId === workbench?.taskThreadsChannelId
+		);
+	}
+
+	#discordChannelForCodexThread(codexThreadId: string): string | undefined {
+		if (this.#isGatewayMainThread(codexThreadId)) {
+			return this.config.gateway?.homeChannelId;
+		}
+		const session = this.#requireState().sessions.find((candidate) =>
+			candidate.codexThreadId === codexThreadId
+		);
+		const delegation = this.#delegationForThread(codexThreadId);
+		return session?.discordThreadId ??
+			delegation?.discordTaskThreadId ??
+			delegation?.discordDetailThreadId;
+	}
+
+	#workspaceForChannel(channelId: string): DiscordGatewayWorkspaceSurface | undefined {
+		const workspaces = this.#requireState().gateway?.workspaces ?? [];
+		const direct = workspaces.find((workspace) =>
+			workspace.discordThreadId === channelId
+		);
+		if (direct) {
+			return direct;
+		}
+		const session = this.#requireState().sessions.find((candidate) =>
+			candidate.discordThreadId === channelId
+		);
+		if (!session?.cwd) {
+			return undefined;
+		}
+		const key = workspaceKey(workspaceCwdForPath(session.cwd, this.config.cwd));
+		return workspaces.find((workspace) => workspace.key === key);
+	}
+
+	async #mirrorDelegationResultToTaskThread(
+		delegation: DiscordGatewayDelegation,
+	): Promise<void> {
+		if (
+			!delegation.discordTaskThreadId ||
+			!delegation.lastFinal ||
+			delegation.taskMirroredAt ||
+			this.#hasDelegationTaskFinalDelivery(delegation)
+		) {
+			return;
+		}
+		const outboundMessageIds = await this.transport.sendMessage(
+			delegation.discordTaskThreadId,
+			delegationTaskResultText(delegation),
+		);
+		const deliveredAt = this.#now().toISOString();
+		this.#requireState().deliveries.push({
+			discordMessageId: `gateway-workbench:${delegation.id}:${delegation.lastTurnId ?? "latest"}`,
+			discordThreadId: delegation.discordTaskThreadId,
+			codexThreadId: delegation.codexThreadId,
+			turnId: delegation.lastTurnId,
+			kind: "final",
+			outboundMessageIds,
+			deliveredAt,
+		});
+		delegation.taskMirroredAt = deliveredAt;
+		delegation.updatedAt = deliveredAt;
+	}
+
+	#hasDelegationTaskFinalDelivery(delegation: DiscordGatewayDelegation): boolean {
+		if (!delegation.discordTaskThreadId) {
+			return false;
+		}
+		return this.#requireState().deliveries.some((delivery) =>
+			delivery.kind === "final" &&
+			delivery.discordThreadId === delegation.discordTaskThreadId &&
+			delivery.codexThreadId === delegation.codexThreadId &&
+			(!delegation.lastTurnId || delivery.turnId === delegation.lastTurnId)
+		);
+	}
+
 	async #startGatewayStopHookSpool(): Promise<void> {
 		if (!this.config.gateway || this.#gatewayStopHookWatcher) {
 			return;
@@ -1197,17 +2145,27 @@ export class DiscordCodexBridge {
 				await archiveStopHookSpoolFile(file, spoolDir, "failed");
 				continue;
 			}
-			const processedIds = this.#gatewayProcessedStopHookEventIds();
+			const processedIds = this.#gatewayProcessedHookEventIds();
 			if (processedIds.includes(file.event.id)) {
 				await archiveStopHookSpoolFile(file, spoolDir, "ignored");
 				continue;
 			}
-			const result = await this.#handleGatewayStopHookEvent(file.event);
+			const result = await this.#handleGatewayHookEvent(file.event);
 			if (result === "retry") {
 				shouldRetry = true;
 				continue;
 			}
 			processedIds.push(file.event.id);
+			if (file.event.eventName === "Stop") {
+				const gateway = this.#requireState().gateway;
+				const stopIds = gateway?.processedStopHookEventIds ?? [];
+				if (!stopIds.includes(file.event.id)) {
+					stopIds.push(file.event.id);
+				}
+				if (gateway) {
+					gateway.processedStopHookEventIds = stopIds;
+				}
+			}
 			await this.#persist();
 			await archiveStopHookSpoolFile(
 				file,
@@ -1220,13 +2178,17 @@ export class DiscordCodexBridge {
 		}
 	}
 
-	async #handleGatewayStopHookEvent(
-		event: DiscordGatewayStopHookEvent,
+	async #handleGatewayHookEvent(
+		event: DiscordGatewayHookEvent,
 	): Promise<"processed" | "ignored" | "retry"> {
-		if (event.eventName !== "Stop") {
-			return "ignored";
+		const isGatewayMain = this.#isGatewayMainThread(event.sessionId);
+		if (!isGatewayMain) {
+			await this.#recordObservedThreadEvent(event);
 		}
-		if (this.#isGatewayMainThread(event.sessionId)) {
+		if (event.eventName !== "Stop") {
+			return "processed";
+		}
+		if (isGatewayMain) {
 			const started = await this.#processPendingWakes({
 				completedThreadId: event.sessionId,
 				completedTurnId: event.turnId,
@@ -1237,7 +2199,7 @@ export class DiscordCodexBridge {
 		}
 		const delegation = this.#delegationForThread(event.sessionId);
 		if (!delegation) {
-			return "ignored";
+			return "processed";
 		}
 		const completedAt = this.#now().toISOString();
 		delegation.status = "complete";
@@ -1246,9 +2208,66 @@ export class DiscordCodexBridge {
 		delegation.lastFinal = event.lastAssistantMessage ?? delegation.lastFinal;
 		delegation.completedAt = completedAt;
 		delegation.updatedAt = completedAt;
+		await this.#syncDelegationWorkbench(delegation, { includeTaskResult: true });
 		await this.#applyDelegationReturnPolicy(delegation);
 		await this.#processPendingWakes();
 		return "processed";
+	}
+
+	async #recordObservedThreadEvent(
+		event: DiscordGatewayHookEvent,
+	): Promise<void> {
+		const observedThreads = this.#gatewayObservedThreads();
+		const seenAt = event.createdAt || this.#now().toISOString();
+		let observed = observedThreads.find((thread) =>
+			thread.threadId === event.sessionId
+		);
+		if (!observed) {
+			observed = {
+				threadId: event.sessionId,
+				title: observedThreadTitle(event),
+				status: observedStatusForHookEvent(event),
+				firstSeenAt: seenAt,
+				lastSeenAt: seenAt,
+				updatedAt: seenAt,
+			};
+			observedThreads.push(observed);
+		}
+
+		const cwd = event.cwd ?? observed.cwd;
+		observed.status = observedStatusForHookEvent(event);
+		observed.cwd = cwd;
+		observed.workspaceKey = cwd
+			? workspaceKey(workspaceCwdForPath(cwd, this.config.cwd))
+			: observed.workspaceKey;
+		observed.model = event.model ?? observed.model;
+		observed.transcriptPath = event.transcriptPath ?? observed.transcriptPath;
+		observed.lastTurnId = event.turnId ?? observed.lastTurnId;
+		observed.lastHookEventName = event.eventName;
+		observed.source = event.source ?? observed.source;
+		observed.promptPreview = event.promptPreview ?? observed.promptPreview;
+		observed.assistantPreview = event.lastAssistantMessage
+			? previewText(event.lastAssistantMessage)
+			: observed.assistantPreview;
+		observed.toolName = event.toolName ?? observed.toolName;
+		observed.toolUseId = event.toolUseId ?? observed.toolUseId;
+		observed.toolInputPreview = event.toolInputPreview ?? observed.toolInputPreview;
+		observed.toolResponsePreview = event.toolResponsePreview ??
+			observed.toolResponsePreview;
+		observed.permissionDescription = event.permissionDescription ??
+			observed.permissionDescription;
+		observed.title = observedThreadTitle(event, observed);
+		observed.lastSeenAt = seenAt;
+		observed.updatedAt = seenAt;
+
+		const config = this.#gatewayWorkbenchConfig();
+		if (config && cwd) {
+			const workspace = await this.#ensureWorkspaceSurfaceForCwd(
+				workspaceCwdForPath(cwd, this.config.cwd),
+				config,
+			);
+			await this.#updateWorkspaceSurface(workspace);
+		}
 	}
 
 	async #applyDelegationReturnPolicy(
@@ -1314,7 +2333,16 @@ export class DiscordCodexBridge {
 		if (!homeChannelId || delegation.mirroredAt) {
 			return;
 		}
-		await this.transport.sendMessage(homeChannelId, delegationResultText(delegation));
+		await this.#syncDelegationWorkbench(delegation, { includeTaskResult: true });
+		const hasWorkbenchLinks = Boolean(
+			delegation.discordWorkspaceThreadId || delegation.discordTaskThreadId,
+		);
+		await this.transport.sendMessage(
+			homeChannelId,
+			this.#gatewayWorkbenchConfig() && hasWorkbenchLinks
+				? compactDelegationResultText(delegation)
+				: delegationResultText(delegation),
+		);
 		delegation.mirroredAt = this.#now().toISOString();
 		delegation.updatedAt = delegation.mirroredAt;
 	}
@@ -1457,6 +2485,14 @@ export class DiscordCodexBridge {
 		);
 	}
 
+	#observedThreadForThread(
+		threadId: string,
+	): DiscordGatewayObservedThread | undefined {
+		return this.#gatewayObservedThreads().find((thread) =>
+			thread.threadId === threadId
+		);
+	}
+
 	#isSessionRunning(
 		session: DiscordBridgeSession,
 		state: DiscordBridgeState,
@@ -1490,18 +2526,46 @@ export class DiscordCodexBridge {
 	}
 
 	#isAllowedChannel(channelId: string): boolean {
+		const workbench = this.#gatewayWorkbenchConfig();
+		if (
+			channelId === this.config.gateway?.homeChannelId ||
+			channelId === workbench?.workspaceForumChannelId ||
+			channelId === workbench?.taskThreadsChannelId
+		) {
+			return true;
+		}
 		if (this.config.allowedChannelIds.size === 0) {
 			return true;
 		}
 		if (this.config.allowedChannelIds.has(channelId)) {
 			return true;
 		}
+		if (
+			this.#requireState().gateway?.workspaces?.some((workspace) =>
+				workspace.discordThreadId === channelId
+			)
+		) {
+			return true;
+		}
 		const session = this.#requireState().sessions.find(
 			(candidate) => candidate.discordThreadId === channelId,
 		);
 		return Boolean(
-			session && this.config.allowedChannelIds.has(session.parentChannelId),
+			session &&
+				(this.config.allowedChannelIds.has(session.parentChannelId) ||
+					session.parentChannelId === workbench?.taskThreadsChannelId ||
+					session.parentChannelId === workbench?.workspaceForumChannelId),
 		);
+	}
+
+	#commandRegistrationChannelIds(): string[] {
+		const gateway = this.config.gateway;
+		return uniqueStringList([
+			...this.config.allowedChannelIds,
+			gateway?.homeChannelId ?? "",
+			gateway?.workspaceForumChannelId ?? "",
+			gateway?.taskThreadsChannelId ?? "",
+		]);
 	}
 
 	#isAllowedInboundChannel(
@@ -1549,6 +2613,21 @@ export class DiscordCodexBridge {
 			this.#debug("discord.thread.members.addFailed", {
 				discordThreadId,
 				participantUserIds,
+				error: errorMessage(error),
+			});
+		}
+	}
+
+	async #pinMessage(channelId: string, messageId: string): Promise<void> {
+		if (!this.transport.pinMessage) {
+			return;
+		}
+		try {
+			await this.transport.pinMessage(channelId, messageId);
+		} catch (error) {
+			this.#debug("discord.message.pinFailed", {
+				channelId,
+				messageId,
 				error: errorMessage(error),
 			});
 		}
@@ -2076,6 +3155,233 @@ function delegationResultText(delegation: DiscordGatewayDelegation): string {
 	].filter((line): line is string => line !== undefined).join("\n");
 }
 
+function delegationTaskResultText(delegation: DiscordGatewayDelegation): string {
+	return [
+		"**Delegation Result**",
+		`Delegation: ${delegation.title}`,
+		`Codex thread: \`${delegation.codexThreadId}\``,
+		delegation.groupId ? `Group: \`${delegation.groupId}\`` : undefined,
+		`Status: \`${delegation.lastStatus ?? delegation.status}\``,
+		delegation.lastTurnId ? `Turn: \`${delegation.lastTurnId}\`` : undefined,
+		"",
+		delegation.lastFinal ?? "(no final assistant message captured)",
+	].filter((line): line is string => line !== undefined).join("\n");
+}
+
+function compactDelegationResultText(delegation: DiscordGatewayDelegation): string {
+	const links = [
+		delegation.discordWorkspaceThreadId
+			? `workspace <#${delegation.discordWorkspaceThreadId}>`
+			: undefined,
+		delegation.discordTaskThreadId
+			? `task <#${delegation.discordTaskThreadId}>`
+			: undefined,
+	].filter((link): link is string => link !== undefined).join(", ");
+	return [
+		"[discord-gateway delegation result]",
+		`${delegation.title}: ${delegation.lastStatus ?? delegation.status}`,
+		delegation.groupId ? `Group: ${delegation.groupId}` : undefined,
+		links ? `Links: ${links}` : undefined,
+		delegation.lastTurnId ? `Turn: ${delegation.lastTurnId}` : undefined,
+	].filter((line): line is string => line !== undefined).join("\n");
+}
+
+function workspaceDashboardText(
+	workspace: DiscordGatewayWorkspaceSurface,
+	options: {
+		delegations?: DiscordGatewayDelegation[];
+		threads?: WorkspaceThreadSummary[];
+	} = {},
+): string {
+	const delegations = options.delegations ?? [];
+	const threads = options.threads ?? [];
+	const visibleThreads = threads.slice(0, 25);
+	return [
+		`**Workspace: ${workspace.title}**`,
+		`Dir: \`${workspace.cwd}\``,
+		`Open Discord threads: ${threads.length}`,
+		`Tracked delegations: ${delegations.length}`,
+		"",
+		"**Open Threads**",
+		visibleThreads.length > 0
+			? visibleThreads.map(workspaceThreadLine).join("\n")
+			: "None",
+		threads.length > visibleThreads.length
+			? `Showing newest ${visibleThreads.length} of ${threads.length} threads.`
+			: undefined,
+		"",
+		"Run `/threads` here to browse or resume workspace Codex threads.",
+	].filter((line): line is string => line !== undefined).join("\n");
+}
+
+function workspaceThreadLine(
+	thread: WorkspaceThreadSummary,
+	index: number,
+): string {
+	const link = thread.discordThreadId ? `<#${thread.discordThreadId}>` : "`not opened`";
+	const title = truncateDiscordThreadName(thread.title);
+	return `${index + 1}. ${link} ${title} (${thread.status})`;
+}
+
+function activeThreadStatusLines(
+	threads: WorkspaceThreadSummary[],
+	openableThreads: WorkspaceThreadSummary[],
+): string[] {
+	const createIndexById = new Map(
+		openableThreads.map((thread, index) => [thread.id, index]),
+	);
+	return threads.map((thread) => {
+		const createIndex = createIndexById.get(thread.id);
+		const marker = createIndex === undefined
+			? "-"
+			: threadPickerReactions[createIndex] ?? `${createIndex + 1}.`;
+		const link = thread.discordThreadId ? `<#${thread.discordThreadId}>` : "`not opened`";
+		const title = truncateDiscordThreadName(thread.title);
+		return `${marker} ${link} ${title} (${thread.status})`;
+	});
+}
+
+function threadPickerText(
+	workspace: DiscordGatewayWorkspaceSurface,
+	threads: WorkspaceThreadSummary[],
+	total: number,
+	options: { action?: string } = {},
+): string {
+	return [
+		`**Threads: ${workspace.title}**`,
+		`Dir: \`${workspace.cwd}\``,
+		"",
+		...threads.map((thread, index) => {
+			const link = thread.discordThreadId
+				? `<#${thread.discordThreadId}>`
+				: "`not opened`";
+			const title = truncateDiscordThreadName(thread.title);
+			return `${threadPickerReactions[index]} ${link} ${title} (${thread.status})`;
+		}),
+		total > threads.length ? `Showing newest ${threads.length} of ${total}.` : undefined,
+		"",
+		options.action ?? "Choose a number to open or resume that thread in Discord.",
+	].filter((line): line is string => line !== undefined).join("\n");
+}
+
+function threadPickerKey(channelId: string, messageId: string): string {
+	return `${channelId}:${messageId}`;
+}
+
+function threadPickerReactionIndex(emoji: string): number | undefined {
+	const index = threadPickerReactions.indexOf(emoji);
+	return index >= 0 ? index : undefined;
+}
+
+async function updateOrReply(
+	interaction: Pick<DiscordThreadPickerInbound, "update" | "reply">,
+	text: string,
+): Promise<void> {
+	if (interaction.update) {
+		await interaction.update(text);
+		return;
+	}
+	await interaction.reply?.(text);
+}
+
+function threadFromResponse(response: v2.ThreadResumeResponse): v2.Thread | undefined {
+	const thread = (response as { thread?: unknown }).thread;
+	return thread && typeof thread === "object" && "id" in thread
+		? thread as v2.Thread
+		: undefined;
+}
+
+function codexThreadTitle(thread: v2.Thread): string {
+	return thread.name?.trim() ||
+		firstLine(thread.preview)?.trim() ||
+		`Codex ${compactId(thread.id)}`;
+}
+
+function threadStatusText(status: v2.ThreadStatus): string {
+	return status.type === "active" ? "active" : status.type;
+}
+
+function observedThreadStatusText(thread: DiscordGatewayObservedThread): string {
+	if (thread.status === "waiting" && thread.permissionDescription) {
+		return `waiting: ${thread.permissionDescription}`;
+	}
+	if (thread.status === "tool" && thread.toolName) {
+		return `tool: ${thread.toolName}`;
+	}
+	return thread.status;
+}
+
+function observedStatusForHookEvent(
+	event: DiscordGatewayHookEvent,
+): DiscordGatewayObservedThread["status"] {
+	if (event.eventName === "SessionStart") {
+		return "starting";
+	}
+	if (event.eventName === "UserPromptSubmit") {
+		return "active";
+	}
+	if (event.eventName === "PermissionRequest") {
+		return "waiting";
+	}
+	if (event.eventName === "PreToolUse" || event.eventName === "PostToolUse") {
+		return "tool";
+	}
+	return "idle";
+}
+
+function observedThreadTitle(
+	event: DiscordGatewayHookEvent,
+	existing?: DiscordGatewayObservedThread,
+): string {
+	return firstLine(event.promptPreview)?.trim() ||
+		firstLine(event.lastAssistantMessage)?.trim() ||
+		existing?.title ||
+		`Codex ${compactId(event.sessionId)}`;
+}
+
+function previewText(value: string, maxLength = 500): string {
+	return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
+}
+
+function normalizeWorkspaceCwd(cwd: string | undefined): string {
+	return path.resolve(cwd ?? process.cwd());
+}
+
+function workspaceCwdForPath(cwd: string | undefined, root: string | undefined): string {
+	const normalizedRoot = normalizeWorkspaceCwd(root);
+	const normalizedCwd = normalizeWorkspaceCwd(cwd ?? normalizedRoot);
+	const relative = path.relative(normalizedRoot, normalizedCwd);
+	if (!relative) {
+		return normalizedRoot;
+	}
+	if (
+		relative === ".." ||
+		relative.startsWith(`..${path.sep}`) ||
+		path.isAbsolute(relative)
+	) {
+		return normalizedCwd;
+	}
+	const [workspaceName] = relative.split(path.sep).filter(Boolean);
+	return workspaceName ? path.join(normalizedRoot, workspaceName) : normalizedRoot;
+}
+
+function workspaceKey(cwd: string): string {
+	return `workspace-${createHash("sha256").update(cwd).digest("hex").slice(0, 12)}`;
+}
+
+function workspaceTitle(cwd: string): string {
+	const base = path.basename(cwd);
+	return base && base !== path.sep ? base : cwd;
+}
+
+function uniqueStringList(values: string[]): string[] {
+	return [...new Set(values.filter(Boolean))];
+}
+
+function isDiscoverableWorkspaceEntry(name: string): boolean {
+	return Boolean(name) && !name.startsWith(".") && name !== "node_modules";
+}
+
 function wakePrompt(
 	wake: DiscordGatewayPendingWake,
 	delegations: DiscordGatewayDelegation[],
@@ -2113,13 +3419,6 @@ function wakeId(
 	return `wake-${createHash("sha256").update(
 		JSON.stringify({ kind, groupId, delegationIds }),
 	).digest("hex").slice(0, 12)}`;
-}
-
-function parseGatewayCommand(content: string): "status" | undefined {
-	const normalized = content.trim().toLowerCase();
-	return normalized === "status" || normalized === "/status"
-		? "status"
-		: undefined;
 }
 
 function record(value: unknown): Record<string, unknown> {

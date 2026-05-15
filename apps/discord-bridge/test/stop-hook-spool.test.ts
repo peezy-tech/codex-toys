@@ -60,6 +60,52 @@ describe("stop hook spool", () => {
 		}
 	});
 
+	test("writes passive lifecycle hook events with previews", async () => {
+		const spoolDir = await mkdtemp(path.join(os.tmpdir(), "hook-spool-"));
+		try {
+			const event = await writeStopHookSpoolEvent(
+				{
+					hook_event_name: "UserPromptSubmit",
+					session_id: "session-observed",
+					turn_id: "turn-observed",
+					cwd: "/workspace/observed",
+					transcript_path: "/tmp/session-observed.jsonl",
+					model: "gpt-test",
+					prompt: "Inspect the observed workspace without routing through Discord.",
+				},
+				{
+					spoolDir,
+					now: () => new Date("2026-05-14T12:00:00.000Z"),
+				},
+			);
+
+			expect(event).toEqual(
+				expect.objectContaining({
+					eventName: "UserPromptSubmit",
+					sessionId: "session-observed",
+					turnId: "turn-observed",
+					cwd: "/workspace/observed",
+					model: "gpt-test",
+					promptPreview:
+						"Inspect the observed workspace without routing through Discord.",
+				}),
+			);
+			const pending = await readPendingStopHookSpoolFiles(spoolDir);
+			expect(pending[0]).toEqual(
+				expect.objectContaining({
+					event: expect.objectContaining({
+						id: event.id,
+						eventName: "UserPromptSubmit",
+						promptPreview:
+							"Inspect the observed workspace without routing through Discord.",
+					}),
+				}),
+			);
+		} finally {
+			await rm(spoolDir, { recursive: true, force: true });
+		}
+	});
+
 	test("archives processed files out of pending", async () => {
 		const spoolDir = await mkdtemp(path.join(os.tmpdir(), "stop-hook-spool-"));
 		try {

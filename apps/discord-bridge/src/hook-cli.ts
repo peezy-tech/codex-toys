@@ -2,11 +2,18 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { writeStopHookSpoolEvent } from "./stop-hook-spool.ts";
+import { writeHookSpoolEvent } from "./stop-hook-spool.ts";
 
-const defaultHookCommand = "codex-discord-bridge hook stop";
+const defaultHookCommand = "codex-discord-bridge hook event";
 const defaultBunxPackage = "codex-discord-bridge";
-const hookStatusMessage = "Recording Discord gateway Stop event";
+const gatewayHookEvents = [
+	"SessionStart",
+	"UserPromptSubmit",
+	"PreToolUse",
+	"PermissionRequest",
+	"PostToolUse",
+	"Stop",
+] as const;
 
 export type HookInstallOptions = {
 	command?: string;
@@ -29,8 +36,8 @@ export async function handleHookCommand(argv: string[]): Promise<boolean> {
 		return false;
 	}
 	const subcommand = argv[1] ?? "help";
-	if (subcommand === "stop") {
-		await runStopHook();
+	if (subcommand === "event" || subcommand === "stop") {
+		await runHookEvent();
 		return true;
 	}
 	if (subcommand === "install") {
@@ -45,16 +52,24 @@ export async function handleHookCommand(argv: string[]): Promise<boolean> {
 	throw new Error(`Unknown hook subcommand: ${subcommand}`);
 }
 
-export async function runStopHook(): Promise<void> {
+export async function runHookEvent(): Promise<void> {
+	let input = "";
 	try {
-		const input = await new Response(Bun.stdin.stream()).text();
-		await writeStopHookSpoolEvent(JSON.parse(input));
-		process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
+		input = await new Response(Bun.stdin.stream()).text();
+		const parsed = JSON.parse(input);
+		const event = await writeHookSpoolEvent(parsed);
+		if (eventSupportsContinueOutput(event.eventName)) {
+			process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
+		}
 	} catch (error) {
-		process.stderr.write(`discord gateway stop hook failed: ${errorMessage(error)}\n`);
-		process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
+		process.stderr.write(`discord gateway hook failed: ${errorMessage(error)}\n`);
+		if (eventSupportsContinueOutput(eventNameFromHookInput(input))) {
+			process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
+		}
 	}
 }
+
+export const runStopHook = runHookEvent;
 
 export async function installStopHook(
 	options: HookInstallOptions = {},
@@ -110,13 +125,15 @@ export function upsertStopHookConfig(
 ): Record<string, unknown> {
 	const config = parseHooksJson(hooksText);
 	const hooks = record(config.hooks);
-	const stopGroups = Array.isArray(hooks.Stop) ? hooks.Stop : [];
-	hooks.Stop = [
-		stopHookGroup(command),
-		...stopGroups
-			.map(removeGatewayStopHookHandlers)
-			.filter((group): group is Record<string, unknown> => group !== undefined),
-	];
+	for (const eventName of gatewayHookEvents) {
+		const groups = Array.isArray(hooks[eventName]) ? hooks[eventName] : [];
+		hooks[eventName] = [
+			hookGroup(command),
+			...groups
+				.map(removeGatewayStopHookHandlers)
+				.filter((group): group is Record<string, unknown> => group !== undefined),
+		];
+	}
 	config.hooks = hooks;
 	return config;
 }
@@ -188,14 +205,13 @@ function hookCommand(options: HookInstallOptions): string {
 	return defaultHookCommand;
 }
 
-function stopHookGroup(command: string): Record<string, unknown> {
+function hookGroup(command: string): Record<string, unknown> {
 	return {
 		hooks: [
 			{
 				type: "command",
 				command,
 				timeout: 10,
-				statusMessage: hookStatusMessage,
 			},
 		],
 	};
@@ -216,8 +232,28 @@ function isGatewayStopHookHandler(input: unknown): boolean {
 	const handler = record(input);
 	const command = typeof handler.command === "string" ? handler.command : "";
 	return command.includes("codex-discord-bridge hook stop") ||
+		command.includes("codex-discord-bridge hook event") ||
 		command.includes("codex-discord-gateway-stop-hook") ||
 		command.includes("apps/discord-bridge/src/stop-hook.ts");
+}
+
+function eventSupportsContinueOutput(eventName: string): boolean {
+	return eventName === "SessionStart" ||
+		eventName === "UserPromptSubmit" ||
+		eventName === "Stop";
+}
+
+function eventNameFromHookInput(input: string): string {
+	try {
+		const parsed = record(JSON.parse(input));
+		return typeof parsed.hook_event_name === "string"
+			? parsed.hook_event_name
+			: typeof parsed.eventName === "string"
+			? parsed.eventName
+			: "";
+	} catch {
+		return "";
+	}
 }
 
 async function readTextIfExists(filePath: string): Promise<string> {
@@ -264,14 +300,14 @@ function requiredNext(argv: string[], index: number, flag: string): string {
 }
 
 function hookHelpText(): string {
-	return `codex-discord-bridge hook manages the global Codex Stop hook.
+	return `codex-discord-bridge hook manages the global Codex observability hooks.
 
 Usage:
   codex-discord-bridge hook install [options]
-  codex-discord-bridge hook stop
+  codex-discord-bridge hook event
 
 Options:
-  --command <cmd>          Hook command to write. Defaults to "codex-discord-bridge hook stop".
+  --command <cmd>          Hook command to write. Defaults to "codex-discord-bridge hook event".
   --bunx                  Write a bunx command instead of the global binary command.
   --bunx-package <pkg>    Package for bunx --package. Defaults to codex-discord-bridge.
   --config-path <path>    Codex config.toml path.

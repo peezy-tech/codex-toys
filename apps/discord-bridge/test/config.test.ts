@@ -196,6 +196,10 @@ describe("parseConfig", () => {
 				"home-channel",
 				"--main-thread-id",
 				"main-thread",
+				"--workspace-forum-channel-id",
+				"workspace-forum",
+				"--task-threads-channel-id",
+				"task-channel",
 				"--flow-backend-url",
 				"http://127.0.0.1:8089",
 			],
@@ -206,6 +210,8 @@ describe("parseConfig", () => {
 			{
 				CODEX_DISCORD_GATEWAY_HOME_CHANNEL_ID: "env-home",
 				CODEX_DISCORD_GATEWAY_MAIN_THREAD_ID: "env-thread",
+				CODEX_DISCORD_GATEWAY_WORKSPACE_FORUM_CHANNEL_ID: "env-workspace-forum",
+				CODEX_DISCORD_GATEWAY_TASK_THREADS_CHANNEL_ID: "env-task-channel",
 				CODEX_FLOW_BACKEND_URL: "http://127.0.0.1:8090",
 			},
 		);
@@ -216,11 +222,15 @@ describe("parseConfig", () => {
 			expect(fromFlag.config.gateway).toEqual({
 				homeChannelId: "home-channel",
 				mainThreadId: "main-thread",
+				workspaceForumChannelId: "workspace-forum",
+				taskThreadsChannelId: "task-channel",
 			});
 			expect(fromFlag.config.flowBackendUrl).toBe("http://127.0.0.1:8089");
 			expect(fromEnv.config.gateway).toEqual({
 				homeChannelId: "env-home",
 				mainThreadId: "env-thread",
+				workspaceForumChannelId: "env-workspace-forum",
+				taskThreadsChannelId: "env-task-channel",
 			});
 			expect(fromEnv.config.flowBackendUrl).toBe("http://127.0.0.1:8090");
 		}
@@ -240,6 +250,48 @@ describe("parseConfig", () => {
 				{},
 			)
 		).toThrow("Cannot set a gateway main thread without a gateway home channel.");
+	});
+
+	test("rejects partial gateway workbench channel configuration", () => {
+		expect(() =>
+			parseConfig(
+				[
+					"--token",
+					"discord-token",
+					"--allowed-user-ids",
+					"user-1",
+					"--home-channel-id",
+					"home-channel",
+					"--workspace-forum-channel-id",
+					"workspace-forum",
+				],
+				{},
+			)
+		).toThrow(
+			"Discord workbench requires both workspace forum and task threads channels.",
+		);
+	});
+
+	test("rejects gateway workbench channels that are not separate", () => {
+		expect(() =>
+			parseConfig(
+				[
+					"--token",
+					"discord-token",
+					"--allowed-user-ids",
+					"user-1",
+					"--home-channel-id",
+					"home-channel",
+					"--workspace-forum-channel-id",
+					"workspace-forum",
+					"--task-threads-channel-id",
+					"home-channel",
+				],
+				{},
+			)
+		).toThrow(
+			"Discord workbench channels must be separate from the gateway home channel and each other.",
+		);
 	});
 
 	test("can force a local app-server even when workspace URL env is set", () => {

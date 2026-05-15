@@ -22,7 +22,7 @@ describe("discord gateway hook CLI", () => {
 		);
 	});
 
-	test("upserts package-bin Stop hook while preserving unrelated hooks", () => {
+	test("upserts package-bin observability hooks while preserving unrelated hooks", () => {
 		const updated = upsertStopHookConfig(
 			JSON.stringify({
 				hooks: {
@@ -46,15 +46,57 @@ describe("discord gateway hook CLI", () => {
 					],
 				},
 			}),
-			"codex-discord-bridge hook stop",
+			"codex-discord-bridge hook event",
 		);
 
 		expect(updated).toEqual({
 			hooks: {
 				PreToolUse: [
 					{
+						hooks: [
+							{
+								type: "command",
+								command: "codex-discord-bridge hook event",
+								timeout: 10,
+							},
+						],
+					},
+					{
 						matcher: "Bash",
 						hooks: [{ type: "command", command: "echo pre" }],
+					},
+				],
+				PermissionRequest: [
+					{
+						hooks: [
+							{
+								type: "command",
+								command: "codex-discord-bridge hook event",
+								timeout: 10,
+							},
+						],
+					},
+				],
+				PostToolUse: [
+					{
+						hooks: [
+							{
+								type: "command",
+								command: "codex-discord-bridge hook event",
+								timeout: 10,
+							},
+						],
+					},
+				],
+				SessionStart: [
+					{
+						hooks: [
+							{
+								type: "command",
+								command: "codex-discord-bridge hook event",
+								timeout: 10,
+							},
+						],
 					},
 				],
 				Stop: [
@@ -62,14 +104,24 @@ describe("discord gateway hook CLI", () => {
 						hooks: [
 							{
 								type: "command",
-								command: "codex-discord-bridge hook stop",
+								command: "codex-discord-bridge hook event",
 								timeout: 10,
-								statusMessage: "Recording Discord gateway Stop event",
 							},
 						],
 					},
 					{
 						hooks: [{ type: "command", command: "echo other-stop" }],
+					},
+				],
+				UserPromptSubmit: [
+					{
+						hooks: [
+							{
+								type: "command",
+								command: "codex-discord-bridge hook event",
+								timeout: 10,
+							},
+						],
 					},
 				],
 			},
@@ -91,7 +143,7 @@ describe("discord gateway hook CLI", () => {
 
 			expect(result).toEqual({
 				command:
-					"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook stop",
+					"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook event",
 				configPath,
 				hooksPath,
 				dryRun: false,
@@ -102,12 +154,22 @@ describe("discord gateway hook CLI", () => {
 			expect(JSON.parse(await readFile(hooksPath, "utf8"))).toEqual(
 				expect.objectContaining({
 					hooks: expect.objectContaining({
+						UserPromptSubmit: [
+							{
+								hooks: [
+									expect.objectContaining({
+										command:
+											"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook event",
+									}),
+								],
+							},
+						],
 						Stop: [
 							{
 								hooks: [
 									expect.objectContaining({
 										command:
-											"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook stop",
+											"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook event",
 									}),
 								],
 							},
