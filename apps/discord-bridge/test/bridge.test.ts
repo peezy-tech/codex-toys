@@ -391,6 +391,7 @@ describe("DiscordCodexBridge", () => {
 
 	test("workspace workbench opens delegation task threads lazily from workspace posts", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
+		const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "discord-workbench-root-"));
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const bridge = new DiscordCodexBridge({
@@ -398,6 +399,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
+				cwd: workspaceRoot,
 				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
@@ -558,13 +560,15 @@ describe("DiscordCodexBridge", () => {
 			expect(inputText(client.startTurnCalls[1]?.input[0])).toContain(
 				"Continue in this delegated thread.",
 			);
-		} finally {
-			await bridge.stop();
-			await rm(hookSpoolDir, { recursive: true, force: true });
-		}
-	});
+			} finally {
+				await bridge.stop();
+				await rm(hookSpoolDir, { recursive: true, force: true });
+				await rm(workspaceRoot, { recursive: true, force: true });
+			}
+		});
 
 	test("workspace workbench reuses one workspace post per normalized cwd", async () => {
+		const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "discord-workbench-root-"));
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const bridge = new DiscordCodexBridge({
@@ -572,6 +576,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
+				cwd: workspaceRoot,
 				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
@@ -581,40 +586,44 @@ describe("DiscordCodexBridge", () => {
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
 		});
 
-		await bridge.start();
-		await waitFor(() => bridge.stateForTest().sessions.length === 1);
-		for (const [index, title] of ["First task", "Second task"].entries()) {
-			client.emitRequest({
-				id: `tool-${index}`,
-				method: "item/tool/call",
-				params: {
-					threadId: "codex-thread-1",
-					namespace: "codex_workspace",
-					tool: "start_delegation",
-					arguments: {
-						cwd: index === 0
-							? "/workspace/codex-flows/."
-							: "/workspace/codex-flows",
-						title,
+		try {
+			await bridge.start();
+			await waitFor(() => bridge.stateForTest().sessions.length === 1);
+			for (const [index, title] of ["First task", "Second task"].entries()) {
+				client.emitRequest({
+					id: `tool-${index}`,
+					method: "item/tool/call",
+					params: {
+						threadId: "codex-thread-1",
+						namespace: "codex_workspace",
+						tool: "start_delegation",
+						arguments: {
+							cwd: index === 0
+								? "/workspace/codex-flows/."
+								: "/workspace/codex-flows",
+							title,
+						},
 					},
-				},
-			});
-			await waitFor(() => client.responses.length === index + 1);
-		}
+				});
+				await waitFor(() => client.responses.length === index + 1);
+			}
 
-		expect(transport.createdForumPosts).toHaveLength(1);
-		expect(transport.createdThreads).toHaveLength(0);
-		const workspaces = bridge.stateForTest().workspace?.workspaces ?? [];
-		const delegations = bridge.stateForTest().workspace?.delegations ?? [];
-		expect(workspaces).toEqual([
-			expect.objectContaining({
-				cwd: "/workspace/codex-flows",
-				delegationIds: delegations.map((delegation) => delegation.id),
-			}),
-		]);
-		expect(new Set(delegations.map((delegation) => delegation.workspaceKey)).size)
-			.toBe(1);
-		await bridge.stop();
+			expect(transport.createdForumPosts).toHaveLength(1);
+			expect(transport.createdThreads).toHaveLength(0);
+			const workspaces = bridge.stateForTest().workspace?.workspaces ?? [];
+			const delegations = bridge.stateForTest().workspace?.delegations ?? [];
+			expect(workspaces).toEqual([
+				expect.objectContaining({
+					cwd: "/workspace/codex-flows",
+					delegationIds: delegations.map((delegation) => delegation.id),
+				}),
+			]);
+			expect(new Set(delegations.map((delegation) => delegation.workspaceKey)).size)
+				.toBe(1);
+		} finally {
+			await bridge.stop();
+			await rm(workspaceRoot, { recursive: true, force: true });
+		}
 	});
 
 	test("workspace workbench discovers top-level folders under the main workspace", async () => {
@@ -897,6 +906,7 @@ describe("DiscordCodexBridge", () => {
 	});
 
 	test("workspace workbench resumes persisted task thread sessions after restart", async () => {
+		const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "discord-workbench-root-"));
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const existingWorkspaceKey = testWorkspaceKey("/workspace/codex-flows");
@@ -963,6 +973,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store,
 			config: testConfig({
+				cwd: workspaceRoot,
 				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
@@ -972,27 +983,31 @@ describe("DiscordCodexBridge", () => {
 			}),
 		});
 
-		await bridge.start();
-		await waitFor(() => bridge.stateForTest().sessions.length === 2);
-		expect(transport.createdForumPosts).toEqual([]);
-		expect(transport.createdThreads).toEqual([]);
+		try {
+			await bridge.start();
+			await waitFor(() => bridge.stateForTest().sessions.length === 2);
+			expect(transport.createdForumPosts).toEqual([]);
+			expect(transport.createdThreads).toEqual([]);
 
-		transport.emit({
-			kind: "message",
-			channelId: "task-thread-existing",
-			messageId: "message-existing-task",
-			author: { id: "user-1", name: "Peezy", isBot: false },
-			content: "Continue the restarted delegated task.",
-			createdAt: "2026-05-14T12:00:00.000Z",
-		});
-		await waitFor(() => client.startTurnCalls.length === 1);
-		expect(client.startTurnCalls[0]).toEqual(
-			expect.objectContaining({
-				threadId: "codex-delegated",
-				cwd: "/workspace/codex-flows",
-			}),
-		);
-		await bridge.stop();
+			transport.emit({
+				kind: "message",
+				channelId: "task-thread-existing",
+				messageId: "message-existing-task",
+				author: { id: "user-1", name: "Peezy", isBot: false },
+				content: "Continue the restarted delegated task.",
+				createdAt: "2026-05-14T12:00:00.000Z",
+			});
+			await waitFor(() => client.startTurnCalls.length === 1);
+			expect(client.startTurnCalls[0]).toEqual(
+				expect.objectContaining({
+					threadId: "codex-delegated",
+					cwd: "/workspace/codex-flows",
+				}),
+			);
+		} finally {
+			await bridge.stop();
+			await rm(workspaceRoot, { recursive: true, force: true });
+		}
 	});
 
 	test("workspace rejects dynamic tool calls outside the main operator thread", async () => {
