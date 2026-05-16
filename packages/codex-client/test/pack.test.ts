@@ -124,6 +124,144 @@ describe("pack installer", () => {
 		expect(await readFile(installedSkill, "utf8")).toContain("# TDD");
 	});
 
+	test("treats destination files as conflicts and overwrites them with backups", async () => {
+		const workspaceRoot = await tempWorkspace();
+		const skillDestination = path.join(workspaceRoot, ".agents", "skills", "tdd");
+		await writeFixtureFile(workspaceRoot, ".agents/skills/tdd", "not a directory\n");
+
+		const conflict = await planPackAdd({
+			source: fixtureRoot,
+			workspaceRoot,
+			include: ["tdd"],
+		});
+		expect(conflict.items.find((item) => item.name === "tdd")).toMatchObject({
+			action: "conflict",
+			reason: expect.stringContaining("destination is a file"),
+		});
+
+		const overwritten = await applyPackAdd({
+			source: fixtureRoot,
+			workspaceRoot,
+			apply: true,
+			overwrite: true,
+			include: ["tdd"],
+		});
+		const tdd = overwritten.items.find((item) => item.name === "tdd");
+		expect(tdd?.action).toBe("overwrite");
+		expect(tdd?.backupPath).toBeDefined();
+		expect(await readFile(tdd?.backupPath ?? "", "utf8")).toContain("not a directory");
+		expect(await readFile(path.join(skillDestination, "SKILL.md"), "utf8")).toContain("# TDD");
+	});
+
+	test("conflicts with same-name marketplace plugins from another source unless overwritten", async () => {
+		const workspaceRoot = await tempWorkspace();
+		await writeMarketplace(workspaceRoot, [
+			{
+				name: "repo-policy",
+				source: { source: "local", path: "./plugins/existing-policy" },
+			},
+			{
+				name: "other-plugin",
+				source: { source: "local", path: "./plugins/other-plugin" },
+			},
+		]);
+
+		const conflict = await planPackAdd({
+			source: fixtureRoot,
+			workspaceRoot,
+			include: ["repo-policy"],
+		});
+		expect(conflict.items.find((item) => item.name === "repo-policy")).toMatchObject({
+			action: "conflict",
+			reason: expect.stringContaining("marketplace already has plugin repo-policy"),
+		});
+
+		const overwritten = await applyPackAdd({
+			source: fixtureRoot,
+			workspaceRoot,
+			apply: true,
+			overwrite: true,
+			include: ["repo-policy"],
+		});
+
+		expect(overwritten.marketplaceBackupPath).toBeDefined();
+		expect(await readFile(overwritten.marketplaceBackupPath ?? "", "utf8"))
+			.toContain("./plugins/existing-policy");
+		const marketplace = JSON.parse(
+			await readFile(path.join(workspaceRoot, ".agents", "plugins", "marketplace.json"), "utf8"),
+		) as { plugins: Array<{ name: string; source: { path: string } }> };
+		expect(marketplace.plugins.filter((plugin) => plugin.name === "repo-policy")).toEqual([
+			expect.objectContaining({
+				name: "repo-policy",
+				source: { source: "local", path: "./plugins/repo-policy" },
+			}),
+		]);
+		expect(marketplace.plugins.find((plugin) => plugin.name === "other-plugin")).toBeDefined();
+	});
+
+	test("does not inspect marketplace when no plugins are selected", async () => {
+		const workspaceRoot = await tempWorkspace();
+		await writeFixtureFile(workspaceRoot, ".agents/plugins/marketplace.json", "{not json");
+
+		const plan = await planPackAdd({
+			source: fixtureRoot,
+			workspaceRoot,
+			include: ["tdd"],
+		});
+
+		expect(plan.items.find((item) => item.name === "tdd")?.action).toBe("add");
+		expect(plan.items.find((item) => item.name === "repo-policy")?.action).toBe("skip");
+	});
+
+	test("doctor reports changed installed destinations", async () => {
+		const workspaceRoot = await tempWorkspace();
+		await applyPackAdd({
+			source: fixtureRoot,
+			workspaceRoot,
+			apply: true,
+			include: ["tdd"],
+		});
+		await writeFile(
+			path.join(workspaceRoot, ".agents", "skills", "tdd", "SKILL.md"),
+			"# Edited\n",
+		);
+
+		const doctor = await collectPackDoctor({ workspaceRoot });
+
+		expect(doctor.missingDestinations).toEqual([]);
+		expect(doctor.changedDestinations).toHaveLength(1);
+		expect(doctor.changedDestinations[0]).toMatchObject({
+			kind: "skill",
+			name: "tdd",
+			reason: "content hash differs",
+		});
+	});
+
+	test("supports remote git refs that are commit SHAs", async () => {
+		const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-pack-git-source-"));
+		await writeFixtureFile(sourceRoot, "skills/git-skill/SKILL.md", "# Git Skill\n");
+		await runGit(["init"], sourceRoot);
+		await runGit(["config", "user.email", "test@example.com"], sourceRoot);
+		await runGit(["config", "user.name", "Pack Test"], sourceRoot);
+		await runGit(["add", "."], sourceRoot);
+		await runGit(["commit", "-m", "Initial pack"], sourceRoot);
+		const commit = (await runGit(["rev-parse", "HEAD"], sourceRoot)).trim();
+
+		const inspection = await inspectPackSource({
+			source: `file://${sourceRoot}`,
+			ref: commit,
+		});
+
+		expect(inspection.source).toMatchObject({
+			type: "git",
+			ref: commit,
+			commit,
+		});
+		expect(inspection.items.map((item) => `${item.kind}:${item.name}`)).toEqual([
+			"skill:git-skill",
+		]);
+	});
+
 	test("discovers conventional layouts without codex-pack.toml", async () => {
 		const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-pack-source-"));
 		await writeFixtureFile(sourceRoot, "skills/demo/SKILL.md", "# Demo\n");
@@ -159,6 +297,36 @@ async function writeFixtureFile(root: string, relativePath: string, contents: st
 	const fullPath = path.join(root, relativePath);
 	await mkdir(path.dirname(fullPath), { recursive: true });
 	await writeFile(fullPath, contents);
+}
+
+async function writeMarketplace(root: string, plugins: Array<Record<string, unknown>>): Promise<void> {
+	await writeFixtureFile(
+		root,
+		".agents/plugins/marketplace.json",
+		`${JSON.stringify({
+			name: "workspace",
+			interface: { displayName: "Workspace" },
+			plugins,
+		}, null, 2)}\n`,
+	);
+}
+
+async function runGit(args: string[], cwd: string): Promise<string> {
+	const proc = Bun.spawn({
+		cmd: ["git", ...args],
+		cwd,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	const [stdout, stderr, exitCode] = await Promise.all([
+		new Response(proc.stdout).text(),
+		new Response(proc.stderr).text(),
+		proc.exited,
+	]);
+	if (exitCode !== 0) {
+		throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`);
+	}
+	return stdout;
 }
 
 async function exists(filePath: string): Promise<boolean> {

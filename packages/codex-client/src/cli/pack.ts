@@ -73,6 +73,7 @@ export type PackAddPlan = {
 	warnings: string[];
 	lockPath: string;
 	backupRoot?: string;
+	marketplaceBackupPath?: string;
 };
 
 export type PackLock = {
@@ -96,9 +97,15 @@ export type PackDoctorResult = {
 	lockExists: boolean;
 	installedItems: number;
 	missingDestinations: PackLockItem[];
+	changedDestinations: PackChangedDestination[];
 	marketplace: JsonFileCheck;
 	hooks: JsonFileCheck;
 	errors: string[];
+};
+
+export type PackChangedDestination = PackLockItem & {
+	actualHash?: string;
+	reason?: string;
 };
 
 export type JsonFileCheck = {
@@ -113,6 +120,12 @@ type ResolvedPackSource = {
 	descriptor: PackSourceDescriptor;
 	cleanup?: () => Promise<void>;
 };
+
+type PathInspection =
+	| { kind: "missing" }
+	| { kind: "directory" }
+	| { kind: "file" }
+	| { kind: "other"; description: string };
 
 const lockRelativePath = path.join(".codex", "pack-lock.json");
 const marketplaceRelativePath = path.join(".agents", "plugins", "marketplace.json");
@@ -201,9 +214,35 @@ export async function collectPackDoctor(options: {
 		errors.push(errorMessage(error));
 	}
 	const missingDestinations: PackLockItem[] = [];
+	const changedDestinations: PackChangedDestination[] = [];
 	for (const item of lock.items) {
-		if (!await exists(path.join(workspaceRoot, item.destinationPath))) {
+		const destinationPath = path.join(workspaceRoot, item.destinationPath);
+		const destination = await inspectPath(destinationPath);
+		if (destination.kind === "missing") {
 			missingDestinations.push(item);
+			continue;
+		}
+		if (destination.kind !== "directory") {
+			changedDestinations.push({
+				...item,
+				reason: `destination is ${pathInspectionLabel(destination)}`,
+			});
+			continue;
+		}
+		try {
+			const actual = await hashDirectory(destinationPath);
+			if (actual.hash !== item.contentHash) {
+				changedDestinations.push({
+					...item,
+					actualHash: actual.hash,
+					reason: "content hash differs",
+				});
+			}
+		} catch (error) {
+			changedDestinations.push({
+				...item,
+				reason: `failed to hash destination: ${errorMessage(error)}`,
+			});
 		}
 	}
 	return {
@@ -212,6 +251,7 @@ export async function collectPackDoctor(options: {
 		lockExists,
 		installedItems: lock.items.length,
 		missingDestinations,
+		changedDestinations,
 		marketplace: await checkJsonFile(path.join(workspaceRoot, marketplaceRelativePath)),
 		hooks: await checkJsonFile(path.join(workspaceRoot, hooksRelativePath)),
 		errors,
@@ -281,11 +321,16 @@ export function formatPackDoctor(result: PackDoctorResult): string {
 		`lock                  ${result.lockExists ? result.lockPath : "missing"}`,
 		`installed items       ${result.installedItems}`,
 		`missing destinations  ${result.missingDestinations.length}`,
+		`changed destinations  ${result.changedDestinations.length}`,
 		`marketplace           ${jsonCheckLabel(result.marketplace)}`,
 		`hooks                 ${jsonCheckLabel(result.hooks)}`,
 	];
 	for (const item of result.missingDestinations) {
 		lines.push(`missing               ${item.kind}/${item.name} -> ${item.destinationPath}`);
+	}
+	for (const item of result.changedDestinations) {
+		const suffix = item.reason ? ` (${item.reason})` : "";
+		lines.push(`changed               ${item.kind}/${item.name} -> ${item.destinationPath}${suffix}`);
 	}
 	for (const error of result.errors) {
 		lines.push(`error                 ${error}`);
@@ -336,6 +381,11 @@ async function buildPackAddPlan(
 	const exclude = new Set(options.exclude ?? []);
 	const items: PackItemPlan[] = [];
 	const warnings = [...inspection.warnings];
+	const lock = await readPackLock(workspaceRoot);
+	const selectedPlugins = inspection.items.filter((item) =>
+		item.kind === "plugin" && !selectionReason(item, include, exclude)
+	);
+	const marketplaceConflicts = await collectMarketplacePluginConflicts(workspaceRoot, selectedPlugins, lock);
 	for (const item of inspection.items) {
 		const selection = selectionReason(item, include, exclude);
 		const destinationPath = destinationForItem(workspaceRoot, item);
@@ -348,12 +398,39 @@ async function buildPackAddPlan(
 			});
 			continue;
 		}
-		const destinationExists = await exists(destinationPath);
-		if (!destinationExists) {
+		const marketplaceConflictReason = item.kind === "plugin"
+			? marketplaceConflicts.get(item.name)
+			: undefined;
+		if (marketplaceConflictReason && !options.overwrite) {
+			items.push({
+				...planBase(item, destinationPath, destinationRelativePath),
+				action: "conflict",
+				reason: marketplaceConflictReason,
+			});
+			continue;
+		}
+		const destination = await inspectPath(destinationPath);
+		if (destination.kind === "missing") {
 			items.push({
 				...planBase(item, destinationPath, destinationRelativePath),
 				action: "add",
 			});
+			continue;
+		}
+		if (destination.kind !== "directory") {
+			if (options.overwrite) {
+				items.push({
+					...planBase(item, destinationPath, destinationRelativePath),
+					action: "overwrite",
+					backupPath: path.join(backupRoot, destinationRelativePath),
+				});
+			} else {
+				items.push({
+					...planBase(item, destinationPath, destinationRelativePath),
+					action: "conflict",
+					reason: `destination is ${pathInspectionLabel(destination)}; rerun with --overwrite to replace it`,
+				});
+			}
 			continue;
 		}
 		const destinationHash = await hashDirectory(destinationPath);
@@ -397,6 +474,9 @@ async function buildPackAddPlan(
 		warnings,
 		lockPath: path.join(workspaceRoot, lockRelativePath),
 		...(items.some((item) => item.action === "overwrite") ? { backupRoot } : {}),
+		...(options.overwrite && marketplaceConflicts.size > 0
+			? { marketplaceBackupPath: path.join(backupRoot, marketplaceRelativePath) }
+			: {}),
 	};
 }
 
@@ -454,7 +534,10 @@ async function updateMarketplace(
 	const existingPlugins = Array.isArray(marketplace.plugins) ? marketplace.plugins : [];
 	const pluginEntries = plugins.map((plugin) => pluginMarketplaceEntry(plugin.name));
 	const managedNames = new Set(pluginEntries.map((entry) => entry.name));
-	const managedPaths = new Set(pluginEntries.map((entry) => `./plugins/${entry.name}`));
+	if (plan.marketplaceBackupPath && await exists(marketplacePath)) {
+		await mkdir(path.dirname(plan.marketplaceBackupPath), { recursive: true });
+		await cp(marketplacePath, plan.marketplaceBackupPath, { force: true });
+	}
 	marketplace.name = stringValue(marketplace.name) ?? "workspace-packs";
 	if (!isRecord(marketplace.interface)) {
 		marketplace.interface = { displayName: "Workspace Packs" };
@@ -463,9 +546,7 @@ async function updateMarketplace(
 		...existingPlugins.filter((entry) => {
 			const plugin = record(entry);
 			const name = stringValue(plugin.name);
-			const source = record(plugin.source);
-			const sourcePath = stringValue(source.path);
-			return !(name && managedNames.has(name) && sourcePath && managedPaths.has(sourcePath));
+			return !(name && managedNames.has(name));
 		}),
 		...pluginEntries,
 	];
@@ -843,6 +924,44 @@ function destinationForItem(workspaceRoot: string, item: Pick<PackCapability, "k
 	return path.join(workspaceRoot, ".codex", "hooks", item.name);
 }
 
+async function collectMarketplacePluginConflicts(
+	workspaceRoot: string,
+	capabilities: PackCapability[],
+	lock: PackLock,
+): Promise<Map<string, string>> {
+	const pluginNames = new Set(capabilities.filter((item) => item.kind === "plugin").map((item) => item.name));
+	const conflicts = new Map<string, string>();
+	if (pluginNames.size === 0) {
+		return conflicts;
+	}
+	const marketplacePath = path.join(workspaceRoot, marketplaceRelativePath);
+	if (!await exists(marketplacePath)) {
+		return conflicts;
+	}
+	const marketplace = await readJsonObjectIfExists(marketplacePath);
+	const existingPlugins = Array.isArray(marketplace.plugins) ? marketplace.plugins : [];
+	const lockOwnedNames = new Set(lock.items.filter((item) => item.kind === "plugin").map((item) => item.name));
+	for (const entry of existingPlugins) {
+		const plugin = record(entry);
+		const name = stringValue(plugin.name);
+		if (!name || !pluginNames.has(name)) {
+			continue;
+		}
+		const sourcePath = stringValue(record(plugin.source).path);
+		const expectedPath = `./plugins/${name}`;
+		if (sourcePath === expectedPath || lockOwnedNames.has(name)) {
+			continue;
+		}
+		conflicts.set(
+			name,
+			sourcePath
+				? `marketplace already has plugin ${name} from ${sourcePath}; rerun with --overwrite to replace it`
+				: `marketplace already has plugin ${name} with an unknown source; rerun with --overwrite to replace it`,
+		);
+	}
+	return conflicts;
+}
+
 function selectionReason(
 	item: Pick<PackCapability, "kind" | "name">,
 	include: Set<string>,
@@ -914,12 +1033,14 @@ async function clonePackSource(options: {
 }): Promise<ResolvedPackSource> {
 	const tempRoot = await mkdtemp(path.join(os.tmpdir(), "codex-pack-"));
 	const cloneRoot = path.join(tempRoot, "source");
-	const args = ["clone", "--depth", "1"];
 	if (options.ref) {
-		args.push("--branch", options.ref);
+		await runGit(["init", cloneRoot]);
+		await runGit(["-C", cloneRoot, "remote", "add", "origin", options.url]);
+		await runGit(["-C", cloneRoot, "fetch", "--depth", "1", "origin", options.ref]);
+		await runGit(["-C", cloneRoot, "checkout", "--detach", "FETCH_HEAD"]);
+	} else {
+		await runGit(["clone", "--depth", "1", options.url, cloneRoot]);
 	}
-	args.push(options.url, cloneRoot);
-	await runGit(args);
 	const commit = await gitCommit(cloneRoot);
 	return {
 		root: cloneRoot,
@@ -968,7 +1089,7 @@ function githubShorthand(source: string): boolean {
 }
 
 function gitUrl(source: string): boolean {
-	return /^(https?:\/\/|ssh:\/\/|git@)/.test(source) || source.endsWith(".git");
+	return /^(https?:\/\/|ssh:\/\/|file:\/\/|git@)/.test(source) || source.endsWith(".git");
 }
 
 async function readFlowName(flowTomlPath: string): Promise<string | undefined> {
@@ -1153,6 +1274,31 @@ async function isDirectory(value: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+async function inspectPath(value: string): Promise<PathInspection> {
+	try {
+		const info = await stat(value);
+		if (info.isDirectory()) {
+			return { kind: "directory" };
+		}
+		if (info.isFile()) {
+			return { kind: "file" };
+		}
+		return { kind: "other", description: "unsupported path type" };
+	} catch (error) {
+		if (isErrno(error, "ENOENT")) {
+			return { kind: "missing" };
+		}
+		throw error;
+	}
+}
+
+function pathInspectionLabel(value: Exclude<PathInspection, { kind: "missing" | "directory" }>): string {
+	if (value.kind === "file") {
+		return "a file";
+	}
+	return value.description;
 }
 
 async function exists(value: string): Promise<boolean> {

@@ -109,11 +109,12 @@ local directory, GitHub shorthand such as `owner/repo`, or a Git URL. Use
 `pack add` is dry-run by default and writes only with `--apply`. It installs
 repo-local capabilities into `.agents/skills`, `.codex/flows`, `plugins`,
 `.agents/plugins/marketplace.json`, `.codex/hooks`, and `.codex/hooks.json`.
-Changed destinations are conflicts unless `--overwrite` is set; overwrite backs
-up replaced item directories under `.codex/pack-backups/<timestamp>/`.
+Changed destinations and same-name plugin marketplace entries from another
+source are conflicts unless `--overwrite` is set; overwrite backs up replaced
+paths under `.codex/pack-backups/<timestamp>/`.
 
 `pack list` reads `.codex/pack-lock.json`. `pack doctor` checks the lockfile,
-destination paths, plugin marketplace JSON, and direct hook JSON. See
+destination paths and content hashes, plugin marketplace JSON, and direct hook JSON. See
 [Install pack repos](../guides/install-pack-repos).
 
 ## Flow Inspection

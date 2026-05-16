@@ -102,7 +102,9 @@ known, selected capabilities, destination paths, and content hashes.
 
 Plugin entries are local marketplace entries pointing at
 `./plugins/<plugin-name>`. Existing marketplace entries are preserved unless
-they point at the same installed local plugin path.
+they point at the same installed local plugin path. If another marketplace entry
+already uses the same plugin name, install reports a conflict unless `--overwrite`
+is set.
 
 Direct hook packs are workspace policy. Their bundle directory is copied under
 `.codex/hooks/<hook-pack>`, and their hook groups are merged into
@@ -121,4 +123,5 @@ codex-flows pack doctor --json
 ```
 
 `pack list` reads `.codex/pack-lock.json`. `pack doctor` validates the lock,
-destination paths, `.agents/plugins/marketplace.json`, and `.codex/hooks.json`.
+destination paths and content hashes, `.agents/plugins/marketplace.json`, and
+`.codex/hooks.json`.
