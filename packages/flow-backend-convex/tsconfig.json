@@ -17,7 +17,12 @@
 		"types": ["node", "bun"],
 		"baseUrl": ".",
 		"paths": {
-			"@peezy.tech/flow-runtime": ["../flow-runtime/src/index.ts"]
+			"@peezy.tech/codex-flows": ["../codex-client/src/index.ts"],
+			"@peezy.tech/codex-flows/flows": ["../codex-client/src/app-server/flows.ts"],
+			"@peezy.tech/codex-flows/workspace-backend": ["../codex-client/src/workspace-backend/index.ts"],
+			"@peezy.tech/codex-flows/*": ["../codex-client/src/*"],
+			"@peezy.tech/flow-runtime": ["../flow-runtime/src/index.ts"],
+			"@peezy.tech/flow-runtime/*": ["../flow-runtime/src/*"]
 		}
 	},
 	"include": ["src/**/*.ts", "test/**/*.ts"]
