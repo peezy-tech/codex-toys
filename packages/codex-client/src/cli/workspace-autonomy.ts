@@ -1,4 +1,5 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "bun";
@@ -319,7 +320,7 @@ export async function tickWorkspace(
 	const due = dueTasks(config.tasks, previousRuns, new Date());
 	const runs: WorkspaceRunRecord[] = [];
 	for (const task of due) {
-		runs.push(await runWorkspaceTask(context, task, options));
+		runs.push(await runWorkspaceTask(context, config, task, options));
 	}
 	const allRuns = [...previousRuns, ...runs];
 	for (const rule of config.reactive.filter((item) => item.enabled)) {
@@ -344,7 +345,7 @@ export async function runWorkspaceTaskById(
 	if (!task) {
 		throw new Error(`Unknown workspace task: ${taskId}`);
 	}
-	return await runWorkspaceTask(context, task, options);
+	return await runWorkspaceTask(context, config, task, options);
 }
 
 export async function commitActionsWorkspaceState(
@@ -381,11 +382,12 @@ export async function commitActionsWorkspaceState(
 
 async function runWorkspaceTask(
 	context: WorkspaceContext,
+	config: WorkspaceConfig,
 	task: WorkspaceTask,
 	options: { callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown> },
 ): Promise<WorkspaceRunRecord> {
 	const startedAt = new Date().toISOString();
-	const runId = `${startedAt.replace(/[:.]/g, "-")}-${task.id}`;
+	const runId = workspaceRunId(task.id, startedAt);
 	const outputPath = path.join(context.stateRoot, "outputs", `${runId}.json`);
 	try {
 		let result: unknown;
@@ -397,7 +399,7 @@ async function runWorkspaceTask(
 		}
 		if (task.kind === "flow") {
 			result = await options.callWorkspaceBackend("flow.dispatch", {
-				event: task.event ?? { type: task.flow, payload: { taskId: task.id } },
+				event: workspaceFlowEvent(config, task, runId, startedAt),
 			});
 		} else if (task.kind === "command") {
 			result = await runCommand(task.command, context);
@@ -412,6 +414,32 @@ async function runWorkspaceTask(
 		await persistRun(context, run, { error: errorMessage(error) });
 		return run;
 	}
+}
+
+function workspaceRunId(taskId: string, startedAt: string): string {
+	return `${startedAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}-${taskId}`;
+}
+
+function workspaceFlowEvent(
+	config: WorkspaceConfig,
+	task: Extract<WorkspaceTask, { kind: "flow" }>,
+	runId: string,
+	startedAt: string,
+): Record<string, unknown> {
+	const event = task.event ?? {};
+	const payload = isRecord(event.payload) ? event.payload : {};
+	return {
+		...event,
+		id: `workspace:${config.name}:${task.id}:${runId}`,
+		type: stringValue(event.type, task.flow),
+		source: stringValue(event.source, config.name),
+		occurredAt: startedAt,
+		receivedAt: startedAt,
+		payload: {
+			taskId: task.id,
+			...payload,
+		},
+	};
 }
 
 async function runReactiveRule(

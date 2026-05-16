@@ -150,6 +150,88 @@ schedule = "* * * * *"
 		expect(doctor.latestRun?.taskId).toBe("flow-due");
 	});
 
+	test("flow tasks synthesize complete workspace events", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "flow-task"
+enabled = true
+kind = "flow"
+flow = "demo.event"
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const calls: Array<{ method: string; params: unknown }> = [];
+		const run = await runWorkspaceTaskById(context, "flow-task", {
+			callWorkspaceBackend: async (method, params) => {
+				calls.push({ method, params });
+				return { ok: true };
+			},
+		});
+		expect(run.status).toBe("completed");
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.method).toBe("flow.dispatch");
+		const event = (calls[0]?.params as { event: Record<string, unknown> }).event;
+		expect(String(event.id).startsWith("workspace:demo:flow-task:")).toBe(true);
+		expect(String(event.id).endsWith(run.id)).toBe(true);
+		expect(event.type).toBe("demo.event");
+		expect(event.source).toBe("demo");
+		expect(event.occurredAt).toBe(run.startedAt);
+		expect(event.receivedAt).toBe(run.startedAt);
+		expect(event.payload).toEqual({ taskId: "flow-task" });
+	});
+
+	test("flow tasks merge static event payload and ignore recurring static ids", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "flow-task"
+enabled = true
+kind = "flow"
+flow = "demo.event"
+
+[workspace.tasks.event]
+id = "static-id"
+type = "custom.event"
+source = "custom-source"
+occurredAt = "2026-01-01T00:00:00.000Z"
+receivedAt = "2026-01-01T00:00:00.000Z"
+priority = "normal"
+
+[workspace.tasks.event.payload]
+taskId = "payload-task"
+lookback_sessions = 10
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const events: Record<string, unknown>[] = [];
+		for (let index = 0; index < 2; index += 1) {
+			await runWorkspaceTaskById(context, "flow-task", {
+				callWorkspaceBackend: async (_method, params) => {
+					events.push((params as { event: Record<string, unknown> }).event);
+					return { ok: true };
+				},
+			});
+		}
+		expect(events).toHaveLength(2);
+		expect(events[0]?.id).not.toBe("static-id");
+		expect(events[1]?.id).not.toBe("static-id");
+		expect(events[0]?.id).not.toBe(events[1]?.id);
+		expect(events[0]?.type).toBe("custom.event");
+		expect(events[0]?.source).toBe("custom-source");
+		expect(events[0]?.priority).toBe("normal");
+		expect(events[0]?.occurredAt).not.toBe("2026-01-01T00:00:00.000Z");
+		expect(events[0]?.receivedAt).toBe(events[0]?.occurredAt);
+		expect(events[0]?.payload).toEqual({
+			taskId: "payload-task",
+			lookback_sessions: 10,
+		});
+	});
+
 	test("run records disabled tasks as skipped", async () => {
 		const root = await tempWorkspace();
 		await writeWorkspaceToml(root, `

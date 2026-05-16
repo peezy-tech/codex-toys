@@ -124,7 +124,11 @@ var = "workspace status"
 
 ### `flow`
 
-Dispatches through the workspace backend flow capability.
+Dispatches a generated `FlowEvent` through the workspace backend
+`flow.dispatch` capability. The workspace backend discovers installed flows in
+`.codex/flows/*` and source-local flows in `flows/*`, so repository-authored
+flows can stay under `flows/`. Use `.codex/flows` for installed external
+capabilities.
 
 ```toml
 [[workspace.tasks]]
@@ -133,7 +137,17 @@ enabled = true
 kind = "flow"
 flow = "workspace.release.health"
 schedule = "*/30 * * * *"
+
+[workspace.tasks.event.payload]
+lookback_sessions = 10
 ```
+
+For each run, workspace autonomy creates a unique event id in the form
+`workspace:<workspace-name>:<task-id>:<workspace-run-id>`, sets `type` from
+`event.type` or `flow`, sets `source` from `event.source` or the workspace name,
+and sets `occurredAt` and `receivedAt` to the task start time. Static
+`event.payload` entries are merged over `{ taskId = "<task-id>" }`, so explicit
+payload values win without reusing a static event id across recurring runs.
 
 ### `command`
 
