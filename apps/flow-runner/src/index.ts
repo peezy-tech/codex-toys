@@ -5,6 +5,7 @@ import {
 	createLocalFlowClient,
 	runFlowStep,
 	type FlowEvent,
+	type FlowRunRuntimeInput,
 	type LoadedFlow,
 	type FlowStep,
 } from "@peezy.tech/flow-runtime";
@@ -13,7 +14,14 @@ type Cli =
 	| { kind: "help" }
 	| { kind: "list"; cwd: string }
 	| { kind: "fire"; cwd: string; eventPath: string }
-	| { kind: "run"; cwd: string; flow: string; step: string; eventPath: string };
+	| {
+			kind: "run";
+			cwd: string;
+			flow: string;
+			step: string;
+			eventPath: string;
+			runtime: FlowRunRuntimeInput;
+	  };
 
 await main().catch((error) => {
 	process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -60,16 +68,25 @@ async function main(): Promise<void> {
 	}
 	const flow = requireFlow(flows, cli.flow);
 	const step = requireStep(flow, cli.step);
-	const result = await runAndReport(flow, step, event);
+	const result = await runAndReport(flow, step, event, cli.runtime);
 	process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
-async function runAndReport(flow: LoadedFlow, step: FlowStep, event: FlowEvent): Promise<Record<string, unknown>> {
+async function runAndReport(
+	flow: LoadedFlow,
+	step: FlowStep,
+	event: FlowEvent,
+	runtime: FlowRunRuntimeInput,
+): Promise<Record<string, unknown>> {
 	const result = await runFlowStep({
 		flow,
 		step,
 		event,
 		env: process.env,
+		runtime: {
+			eventId: event.id,
+			...runtime,
+		},
 		codeMode: {
 			codexCommand: process.env.CODEX_APP_SERVER_CODEX_COMMAND,
 			codexHome: process.env.CODEX_HOME,
@@ -113,6 +130,7 @@ function requireStep(flow: LoadedFlow, name: string): FlowStep {
 
 function parseArgs(argv: string[]): Cli {
 	let cwd = process.cwd();
+	const runtime: FlowRunRuntimeInput = {};
 	const args: string[] = [];
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
@@ -125,6 +143,34 @@ function parseArgs(argv: string[]): Cli {
 		}
 		if (arg.startsWith("--cwd=")) {
 			cwd = path.resolve(arg.slice("--cwd=".length));
+			continue;
+		}
+		if (arg === "--run-id") {
+			runtime.runId = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--run-id=")) {
+			runtime.runId = arg.slice("--run-id=".length);
+			continue;
+		}
+		if (arg === "--attempt-id") {
+			runtime.attemptId = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--attempt-id=")) {
+			runtime.attemptId = arg.slice("--attempt-id=".length);
+			continue;
+		}
+		if (arg === "--replay") {
+			runtime.replay = true;
+			continue;
+		}
+		if (arg === "--workspace-backend-url") {
+			runtime.workspaceBackendUrl = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--workspace-backend-url=")) {
+			runtime.workspaceBackendUrl = arg.slice("--workspace-backend-url=".length);
 			continue;
 		}
 		args.push(arg);
@@ -146,7 +192,7 @@ function parseArgs(argv: string[]): Cli {
 		if (!flow || !step) {
 			throw new Error("run requires <flow> <step>");
 		}
-		return { kind: "run", cwd, flow, step, eventPath: eventPathArg(args, 3) };
+		return { kind: "run", cwd, flow, step, eventPath: eventPathArg(args, 3), runtime };
 	}
 	throw new Error(`Unknown command: ${command}`);
 }
@@ -177,7 +223,7 @@ function helpText(): string {
 		"Usage:",
 		"  codex-flow-runner [--cwd <dir>] list",
 		"  codex-flow-runner [--cwd <dir>] fire --event <event.json>",
-		"  codex-flow-runner [--cwd <dir>] run <flow> <step> --event <event.json>",
+		"  codex-flow-runner [--cwd <dir>] run <flow> <step> --event <event.json> [--run-id <id>] [--attempt-id <id>] [--replay] [--workspace-backend-url <ws-url>]",
 		"",
 	].join("\n");
 }

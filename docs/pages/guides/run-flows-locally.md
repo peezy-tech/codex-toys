@@ -6,7 +6,9 @@ description: Use the CLI or local client to discover, match, and execute flow st
 # Run flows locally
 
 Local execution is the simplest path for development and product CLIs. It uses
-the same `FlowEvent` and `FLOW_RESULT` contract as backend execution.
+the same `FlowEvent` and normalized flow result contract as backend execution.
+Raw Bun scripts can still emit `FLOW_RESULT`; module-style Bun steps return the
+result object directly.
 
 ## List flows
 
@@ -52,6 +54,15 @@ bun run flow run hello-flow hello --event event.json
 
 Use explicit `run` when you are debugging one step and do not want trigger
 matching to select other steps.
+
+When reproducing a workspace backend launch, pass runtime metadata explicitly:
+
+```bash
+bun run flow run hello-flow hello --event event.json \
+  --run-id run_123 \
+  --attempt-id run_123 \
+  --workspace-backend-url ws://127.0.0.1:3586
+```
 
 ## Use the local client
 

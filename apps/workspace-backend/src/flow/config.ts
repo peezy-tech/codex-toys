@@ -12,6 +12,7 @@ export type FlowBackendConfig = {
 	bunCommand: string;
 	flowRunnerPath: string;
 	forwardEnv: string[];
+	workspaceBackendUrl?: string;
 };
 
 export type FlowBackendCli =
@@ -44,6 +45,9 @@ export function readConfig(
 			overrides.flowRunnerPath ?? env.CODEX_FLOW_RUNNER_PATH ?? defaultFlowRunnerPath(),
 		),
 		forwardEnv: overrides.forwardEnv ?? forwardEnv(env.CODEX_FLOW_BACKEND_FORWARD_ENV),
+		...(overrides.workspaceBackendUrl ?? env.CODEX_WORKSPACE_BACKEND_WS_URL
+			? { workspaceBackendUrl: overrides.workspaceBackendUrl ?? env.CODEX_WORKSPACE_BACKEND_WS_URL }
+			: {}),
 	};
 }
 
@@ -61,6 +65,7 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 	let executor: FlowBackendExecutor | undefined;
 	let bunCommand: string | undefined;
 	let flowRunnerPath: string | undefined;
+	let workspaceBackendUrl: string | undefined;
 	let wait = false;
 	let eventPath: string | undefined;
 	let eventId: string | undefined;
@@ -104,6 +109,14 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 		}
 		if (arg === "--flow-runner") {
 			flowRunnerPath = required(rest, ++index, arg);
+			continue;
+		}
+		if (arg === "--workspace-backend-url") {
+			workspaceBackendUrl = required(rest, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--workspace-backend-url=")) {
+			workspaceBackendUrl = arg.slice("--workspace-backend-url=".length);
 			continue;
 		}
 		if (arg === "--event") {
@@ -174,6 +187,7 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 		...(executor ? { executor } : {}),
 		...(bunCommand ? { bunCommand } : {}),
 		...(flowRunnerPath ? { flowRunnerPath } : {}),
+		...(workspaceBackendUrl ? { workspaceBackendUrl } : {}),
 	});
 	if (command === "serve") {
 		return { kind: "serve", config };
@@ -220,6 +234,7 @@ export function helpText(): string {
 		"Environment:",
 		"  CODEX_FLOW_BACKEND_SECRET       Optional HMAC secret for HTTP dispatches",
 		"  CODEX_FLOW_BACKEND_EXECUTOR     direct or systemd-run",
+		"  CODEX_WORKSPACE_BACKEND_WS_URL  Workspace backend WebSocket URL passed to flow steps",
 		"  CODEX_FLOWS_MODE                Set to code-mode to enable Code Mode and fork defaults",
 		"  CODEX_FLOWS_ENABLE_CODE_MODE    Enables runner = \"code-mode\" steps",
 		"  CODEX_FLOW_PUSH/PUBLISH         Optional release-flow action gates",
@@ -257,8 +272,14 @@ function forwardEnv(value: string | undefined): string[] {
 		"CODEX_APP_SERVER_CODEX_COMMAND",
 		"CODEX_APP_SERVER_CODEX_PACKAGE",
 		"CODEX_APP_SERVER_BUNX_COMMAND",
+		"CODEX_FLOW_ATTEMPT_ID",
 		"CODEX_HOME",
+		"CODEX_FLOW_EVENT_ID",
 		"PEEZY_CODEX_REPO",
+		"CODEX_FLOW_LAUNCHED_BY",
+		"CODEX_FLOW_REPLAY",
+		"CODEX_FLOW_RUN_ID",
+		"CODEX_WORKSPACE_BACKEND_WS_URL",
 		"PEEZY_CODEX_TARGET_BRANCH",
 		"PEEZY_CODEX_CARGO_TARGET_DIR",
 		"HOME",

@@ -1,13 +1,20 @@
 import { codexFlowsCodeModeEnabled } from "@peezy.tech/codex-flows";
 import { runBunStep } from "./runners/bun.ts";
 import { runCodeModeStep, type RunCodeModeStepOptions } from "./runners/code-mode.ts";
-import type { FlowEvent, FlowResult, FlowStep, LoadedFlow } from "./types.ts";
+import type {
+	FlowEvent,
+	FlowResult,
+	FlowRunRuntimeInput,
+	FlowStep,
+	LoadedFlow,
+} from "./types.ts";
 
 export type RunFlowStepOptions = {
 	flow: LoadedFlow;
 	step: FlowStep;
 	event: FlowEvent;
 	env?: Record<string, string | undefined>;
+	runtime?: FlowRunRuntimeInput;
 	codeMode?: Pick<RunCodeModeStepOptions, "codexCommand" | "codexHome" | "stream">;
 };
 

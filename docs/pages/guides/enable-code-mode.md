@@ -9,6 +9,12 @@ description: Gate Code Mode steps explicitly and configure the Codex executor.
 `thread/codeMode/execute` method. Code Mode remains opt-in because it executes
 Codex work with repository access and tool permissions.
 
+Do not enable Code Mode just because a Bun flow step needs to ask Codex to do
+work. Trusted `runner = "bun"` steps can use
+`createCodexFlowClientFromContext(ctx)` from `@peezy.tech/flow-runtime/bun` to
+call the workspace backend and its app-server pass-through. That is normal flow
+orchestration and does not require the fork-only Code Mode method.
+
 ## Enable the mode
 
 ```bash

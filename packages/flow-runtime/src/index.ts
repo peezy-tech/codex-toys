@@ -7,6 +7,13 @@ export { readJsonSchema, validateJsonSchema } from "./schema.ts";
 export { matchingSteps, stepMatchesEvent } from "./triggers.ts";
 export { createFlowClient } from "./client.ts";
 export { createLocalFlowClient, LocalFlowClient } from "./local-client.ts";
+export {
+	createCodexFlowClientFromContext,
+	createWorkspaceBackendClientFromContext,
+	defineBunFlow,
+	readFlowContext,
+	workspaceBackendUrlFromContext,
+} from "./bun.ts";
 export type {
 	FlowAttemptView,
 	FlowCancelResult,
@@ -29,6 +36,11 @@ export type {
 	FlowClientOptions,
 } from "./client.ts";
 export type {
+	BunFlowHandler,
+	CodexFlowClientFromContextOptions,
+	WorkspaceBackendClientFromContextOptions,
+} from "./bun.ts";
+export type {
 	LocalFlowClientOptions,
 	LocalFlowCodexOptions,
 } from "./local-client.ts";
@@ -38,6 +50,8 @@ export type {
 	FlowResult,
 	FlowResultStatus,
 	FlowRunContext,
+	FlowRunRuntimeContext,
+	FlowRunRuntimeInput,
 	FlowStep,
 	FlowStepRunner,
 	FlowStepTrigger,

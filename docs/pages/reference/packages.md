@@ -27,6 +27,7 @@ Runtime package for:
 - discovering `.codex/flows/*` before `flows/*`
 - matching events with trigger type and JSON Schema
 - running Bun and gated Code Mode steps
+- module-style Bun step helpers under `@peezy.tech/flow-runtime/bun`
 - local and HTTP flow clients
 - backend response normalization
 

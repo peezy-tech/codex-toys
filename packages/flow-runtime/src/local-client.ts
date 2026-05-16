@@ -215,6 +215,14 @@ export class LocalFlowClient implements FlowClient {
 				step: options.step,
 				event: options.event,
 				env: this.#env,
+				runtime: {
+					runId,
+					eventId: options.event.id,
+					attemptId: runId,
+					replay: options.replayNonce !== undefined,
+					workspaceBackendUrl: this.#env.CODEX_WORKSPACE_BACKEND_WS_URL,
+					launchedBy: "flow-runtime-local-client",
+				},
 				codeMode: {
 					codexCommand: this.#codex?.command ?? this.#env.CODEX_APP_SERVER_CODEX_COMMAND,
 					codexHome: this.#codex?.codexHome ?? this.#env.CODEX_HOME,

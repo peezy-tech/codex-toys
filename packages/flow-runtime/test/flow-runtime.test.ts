@@ -2,12 +2,17 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
 	discoverFlows,
+	createCodexFlowClientFromContext,
+	createWorkspaceBackendClientFromContext,
 	matchingSteps,
+	readFlowContext,
 	runBunStep,
 	runFlowStep,
 	validateJsonSchema,
+	workspaceBackendUrlFromContext,
 } from "../src/index.ts";
 import { codeModeEnabled } from "../src/run.ts";
 import type { FlowEvent } from "../src/index.ts";
@@ -143,6 +148,177 @@ test("runs Bun flow steps and parses FLOW_RESULT", async () => {
 	}
 });
 
+test("runs module-style Bun flow steps and passes runtime metadata", async () => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
+	try {
+		await writeFlow(directory, "flows/demo", "source", [
+			"export default async function step(context) {",
+			"  return {",
+			"    status: 'completed',",
+			"    message: `${context.runtime.runId}:${context.runtime.attemptId}:${context.runtime.replay}` ,",
+			"    artifacts: {",
+			"      eventId: context.runtime.eventId,",
+			"      workspaceBackendUrl: context.runtime.workspaceBackendUrl,",
+			"      envRunId: process.env.CODEX_FLOW_RUN_ID,",
+			"      envEventId: process.env.CODEX_FLOW_EVENT_ID,",
+			"      envReplay: process.env.CODEX_FLOW_REPLAY,",
+			"      envWorkspaceBackendUrl: process.env.CODEX_WORKSPACE_BACKEND_WS_URL,",
+			"    },",
+			"  };",
+			"}",
+			"",
+		].join("\n"));
+		const [flow] = await discoverFlows({ cwd: directory });
+		const step = flow?.manifest.steps[0];
+		if (!flow || !step) {
+			throw new Error("expected fixture flow");
+		}
+
+		const result = await runBunStep({
+			flow,
+			step,
+			event: {
+				id: "event-1",
+				type: "demo.event",
+				receivedAt: "2026-05-13T00:00:00.000Z",
+				payload: { name: "Ada" },
+			},
+			runtime: {
+				runId: "run_123",
+				attemptId: "attempt_1",
+				replay: true,
+				workspaceBackendUrl: "ws://127.0.0.1:3586",
+			},
+		});
+
+		expect(result).toEqual({
+			status: "completed",
+			message: "run_123:attempt_1:true",
+			artifacts: {
+				eventId: "event-1",
+				workspaceBackendUrl: "ws://127.0.0.1:3586",
+				envRunId: "run_123",
+				envEventId: "event-1",
+				envReplay: "1",
+				envWorkspaceBackendUrl: "ws://127.0.0.1:3586",
+			},
+		});
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("runs defineBunFlow module-style Bun flow steps", async () => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
+	try {
+		const helperUrl = pathToFileURL(path.resolve(import.meta.dir, "../src/bun.ts")).href;
+		await writeFlow(directory, "flows/demo", "source", [
+			`import { defineBunFlow } from ${JSON.stringify(helperUrl)};`,
+			"export default defineBunFlow(async (context) => ({",
+			"  status: 'completed',",
+			"  message: `hello ${context.flow.event.payload.name}`",
+			"}));",
+			"",
+		].join("\n"));
+		const [flow] = await discoverFlows({ cwd: directory });
+		const step = flow?.manifest.steps[0];
+		if (!flow || !step) {
+			throw new Error("expected fixture flow");
+		}
+
+		const result = await runBunStep({
+			flow,
+			step,
+			event: {
+				id: "event-1",
+				type: "demo.event",
+				receivedAt: "2026-05-13T00:00:00.000Z",
+				payload: { name: "Ada" },
+			},
+		});
+
+		expect(result).toEqual({
+			status: "completed",
+			message: "hello Ada",
+		});
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("Bun flow helpers read context and create workspace-backed Codex clients", async () => {
+	const context = await readFlowContext(JSON.stringify({
+		flow: {
+			name: "demo",
+			version: 1,
+			root: "/tmp/demo",
+			step: "hello",
+			event: {
+				id: "event-1",
+				type: "demo.event",
+				receivedAt: "2026-05-13T00:00:00.000Z",
+				payload: {},
+			},
+		},
+		runtime: {
+			eventId: "event-1",
+			runId: "run_123",
+			replay: false,
+			workspaceBackendUrl: "ws://127.0.0.1:3586",
+		},
+	}));
+	const fakeTransport = {
+		requestTimeoutMs: 1000,
+		calls: [] as Array<{ method: string; params?: unknown }>,
+		start() {},
+		close() {},
+		async request(method: string, params?: unknown) {
+			this.calls.push({ method, params });
+			if (method === "workspace.initialize") {
+				return {};
+			}
+			if (method === "appServer.call" && isRecord(params)) {
+				if (params.method === "thread/start" || params.method === "thread/resume") {
+					return { thread: { id: "thread-1" } };
+				}
+				if (params.method === "turn/start") {
+					return { turn: { id: "turn-1", status: "running" } };
+				}
+			}
+			throw new Error(`unexpected request ${method}`);
+		},
+		notify() {},
+		on() {},
+		off() {},
+	};
+
+	expect(workspaceBackendUrlFromContext(context)).toBe("ws://127.0.0.1:3586");
+	const workspaceClient = createWorkspaceBackendClientFromContext(context, {
+		transport: fakeTransport as never,
+	});
+	const codex = createCodexFlowClientFromContext(context, { workspaceClient });
+
+	expect(codex.client).toBe(workspaceClient);
+	await expect(codex.startFlow({
+		prompt: "continue",
+		threadId: "existing-thread",
+		wait: false,
+	})).resolves.toMatchObject({
+		threadId: "thread-1",
+		turnId: "turn-1",
+	});
+	expect(fakeTransport.calls.map((call) => call.method)).toEqual([
+		"workspace.initialize",
+		"appServer.call",
+		"appServer.call",
+	]);
+	expect(fakeTransport.calls[1]?.params).toMatchObject({
+		method: "thread/resume",
+		params: { threadId: "existing-thread" },
+	});
+	codex.close();
+});
+
 test("requires a feature flag before running Code Mode flow steps", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
 	try {
@@ -171,7 +347,12 @@ test("requires a feature flag before running Code Mode flow steps", async () => 
 	}
 });
 
-async function writeFlow(root: string, relative: string, description: string): Promise<void> {
+async function writeFlow(
+	root: string,
+	relative: string,
+	description: string,
+	script?: string,
+): Promise<void> {
 	const flowRoot = path.join(root, relative);
 	await mkdir(path.join(flowRoot, "exec"), { recursive: true });
 	await mkdir(path.join(flowRoot, "schemas"), { recursive: true });
@@ -206,11 +387,15 @@ async function writeFlow(root: string, relative: string, description: string): P
 	);
 	await Bun.write(
 		path.join(flowRoot, "exec/hello.ts"),
-		[
+		script ?? [
 			"const context = JSON.parse(await Bun.stdin.text());",
 			"const name = context.flow.event.payload.name;",
 			"console.log(`FLOW_RESULT ${JSON.stringify({ status: 'completed', message: `hello ${name}` })}`);",
 			"",
 		].join("\n"),
 	);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

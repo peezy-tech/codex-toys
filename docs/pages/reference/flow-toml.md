@@ -45,6 +45,12 @@ schema = "schemas/upstream-release.schema.json"
 | `timeout_ms` | number | Yes | Step timeout. |
 | `cwd` | string | No | Working directory relative to the flow root. |
 
+For `runner = "bun"`, `script` may be either a raw script that reads context
+from stdin and emits `FLOW_RESULT`, or a module-style script with a default
+export that returns a `FlowResult`. Module-style scripts can use
+`defineBunFlow()` and `createCodexFlowClientFromContext()` from
+`@peezy.tech/flow-runtime/bun`.
+
 ## Trigger fields
 
 | Field | Type | Required | Meaning |

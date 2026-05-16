@@ -17,8 +17,8 @@ sequenceDiagram
 
   App->>Client: dispatchEvent(FlowEvent)
   Client->>Backend: local match or HTTP POST /events
-  Backend->>Step: runner context on stdin
-  Step-->>Backend: FLOW_RESULT
+  Backend->>Step: runner context
+  Step-->>Backend: FlowResult or FLOW_RESULT
   Backend-->>Client: run/event views
   Backend-->>Domain: app-owned worker or wrapper applies product effects
 ```

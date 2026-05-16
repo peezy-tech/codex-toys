@@ -121,6 +121,15 @@ bun run flow run <flow> <step> --event event.json
 `flow fire` dispatches through the local client and runs every step whose
 trigger type and schema match the event.
 
+`flow run` also accepts run metadata used by workspace backend launches:
+
+```bash
+bun run flow run <flow> <step> --event event.json \
+  --run-id run_123 \
+  --attempt-id run_123 \
+  --workspace-backend-url ws://127.0.0.1:3586
+```
+
 ## Workspace Flow Backend
 
 ```bash
@@ -167,3 +176,8 @@ bun run flow:backend replay-event <event-id> --wait
 | `CODEX_FLOW_BACKEND_SECRET` | Shared HMAC secret for HTTP flow dispatch. |
 | `CODEX_FLOW_BACKEND_EXECUTOR` | `direct` or `systemd-run`. |
 | `CODEX_FLOW_BACKEND_DATA_DIR` | Durable backend state directory. |
+| `CODEX_FLOW_EVENT_ID` | Event id passed to running Bun steps. |
+| `CODEX_FLOW_RUN_ID` | Run id passed to running Bun steps. |
+| `CODEX_FLOW_ATTEMPT_ID` | Attempt identity passed to running Bun steps. |
+| `CODEX_FLOW_REPLAY` | `1` when the current execution is a replay. |
+| `CODEX_FLOW_LAUNCHED_BY` | Runner or backend identity that launched the step. |

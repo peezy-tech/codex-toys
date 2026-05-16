@@ -9,7 +9,12 @@ import {
 	type LoadedFlow,
 } from "@peezy.tech/flow-runtime";
 import type { FlowBackendConfig } from "./config.ts";
-import { executeCommand, flowCommand, parseRunnerResult } from "./executor.ts";
+import {
+	executeCommand,
+	flowCommand,
+	flowRunExecutionEnv,
+	parseRunnerResult,
+} from "./executor.ts";
 import { FlowBackendStore, type FlowRunRecord } from "./store.ts";
 
 export type DispatchFlowEventOptions = {
@@ -115,15 +120,30 @@ async function executeAndRecord(options: {
 	const command = flowCommand({
 		config: options.config,
 		runId: options.run.id,
+		eventId: options.run.eventId,
 		eventPath: options.run.eventPath,
 		flowName: options.run.flowName,
 		stepName: options.run.stepName,
+		attemptId: options.run.id,
+		replay: options.run.id.endsWith("_replay"),
+		workspaceBackendUrl: options.config.workspaceBackendUrl,
 		env: options.env,
 	});
 	options.store.markRunRunning(options.run.id, JSON.stringify(command), command.unit);
 	let result: Awaited<ReturnType<typeof executeCommand>>;
 	try {
-		result = await executeCommand(command, options.config, options.env);
+		result = await executeCommand(command, options.config, flowRunExecutionEnv({
+			config: options.config,
+			runId: options.run.id,
+			eventId: options.run.eventId,
+			eventPath: options.run.eventPath,
+			flowName: options.run.flowName,
+			stepName: options.run.stepName,
+			attemptId: options.run.id,
+			replay: options.run.id.endsWith("_replay"),
+			workspaceBackendUrl: options.config.workspaceBackendUrl,
+			env: options.env,
+		}));
 	} catch (error) {
 		options.store.markRunCompleted(options.run.id, {
 			status: "failed",

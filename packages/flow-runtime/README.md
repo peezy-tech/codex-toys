@@ -10,6 +10,41 @@ Code Mode runners.
 import { discoverFlows, matchingSteps, runFlowStep } from "@peezy.tech/flow-runtime";
 ```
 
+## Bun Step Helpers
+
+`runner = "bun"` still supports raw scripts that read JSON from stdin and print
+`FLOW_RESULT`. The recommended authoring shape is a module default export:
+
+```ts
+import {
+	defineBunFlow,
+	createCodexFlowClientFromContext,
+} from "@peezy.tech/flow-runtime/bun";
+
+export default defineBunFlow(async (ctx) => {
+	const codex = createCodexFlowClientFromContext(ctx);
+	try {
+		const turn = await codex.startFlow({
+			threadId: typeof ctx.flow.event.payload.threadId === "string"
+				? ctx.flow.event.payload.threadId
+				: undefined,
+			prompt: "Continue this workspace task.",
+			wait: false,
+		});
+		return {
+			status: "needs_intervention",
+			artifacts: { threadId: turn.threadId, turnId: turn.turnId },
+		};
+	} finally {
+		codex.close();
+	}
+});
+```
+
+The helper uses `ctx.runtime.workspaceBackendUrl` or
+`CODEX_WORKSPACE_BACKEND_WS_URL` so the step calls the same workspace backend
+that launched the run.
+
 ## Flow Client
 
 `@peezy.tech/flow-runtime/client` exposes a small flow-native client factory for

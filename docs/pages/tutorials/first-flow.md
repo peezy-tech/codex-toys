@@ -6,7 +6,7 @@ description: Create a minimal Bun-backed flow package and run it locally.
 # Build your first flow
 
 This tutorial creates a flow package that handles a `demo.hello` event and
-prints a `FLOW_RESULT`.
+returns a `FlowResult`.
 
 ## 1. Create the files
 
@@ -53,17 +53,19 @@ schema = "schemas/hello.schema.json"
 ## 4. Implement the step
 
 ```ts
-const context = JSON.parse(await Bun.stdin.text());
-const name = context.flow.event.payload.name;
+import { defineBunFlow } from "@peezy.tech/flow-runtime/bun";
 
-console.log(`FLOW_RESULT ${JSON.stringify({
-  status: "completed",
-  message: `hello ${name}`,
-})}`);
+export default defineBunFlow(async (ctx) => {
+  const name = ctx.flow.event.payload.name;
+  return {
+    status: "completed",
+    message: `hello ${name}`,
+  };
+});
 ```
 
-The runner sends JSON on stdin. The step must print a final line beginning with
-`FLOW_RESULT ` followed by JSON.
+The runner still preserves the stdin plus `FLOW_RESULT` ABI for raw scripts, but
+module-style steps can return the result object directly.
 
 ## 5. Fire the event
 

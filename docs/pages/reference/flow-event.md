@@ -18,6 +18,25 @@ type FlowEvent<T = unknown> = {
 };
 ```
 
+Flow steps receive the event inside `FlowRunContext.flow.event`. Runners also
+add run-scoped metadata under `FlowRunContext.runtime`:
+
+```ts
+type FlowRunRuntimeContext = {
+  eventId: string;
+  runId?: string;
+  attemptId?: string;
+  replay: boolean;
+  workspaceBackendUrl?: string;
+  launchedBy?: string;
+};
+```
+
+The workspace backend passes matching environment variables to direct and
+`systemd-run` executions: `CODEX_FLOW_EVENT_ID`, `CODEX_FLOW_RUN_ID`,
+`CODEX_FLOW_ATTEMPT_ID`, `CODEX_FLOW_REPLAY`,
+`CODEX_WORKSPACE_BACKEND_WS_URL`, and `CODEX_FLOW_LAUNCHED_BY`.
+
 ## Fields
 
 | Field | Required | Meaning |
@@ -31,11 +50,14 @@ type FlowEvent<T = unknown> = {
 
 ## Result status
 
-Steps print one final line:
+Raw Bun scripts print one final line:
 
 ```text
 FLOW_RESULT {"status":"completed","message":"done"}
 ```
+
+Module-style Bun steps return the same object directly from their default
+export. Backends store the normalized result payload either way.
 
 Known semantic statuses:
 

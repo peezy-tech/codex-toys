@@ -1,6 +1,15 @@
 import { createHash } from "node:crypto";
 import type { FlowBackendConfig } from "./config.ts";
 
+const flowRuntimeEnvNames = [
+	"CODEX_FLOW_EVENT_ID",
+	"CODEX_FLOW_RUN_ID",
+	"CODEX_FLOW_ATTEMPT_ID",
+	"CODEX_FLOW_REPLAY",
+	"CODEX_WORKSPACE_BACKEND_WS_URL",
+	"CODEX_FLOW_LAUNCHED_BY",
+];
+
 export type FlowCommandSpec = {
 	command: string;
 	args: string[];
@@ -10,9 +19,13 @@ export type FlowCommandSpec = {
 export type ExecuteFlowRunOptions = {
 	config: FlowBackendConfig;
 	runId: string;
+	eventId: string;
 	eventPath: string;
 	flowName: string;
 	stepName: string;
+	attemptId?: string;
+	replay?: boolean;
+	workspaceBackendUrl?: string;
 	env?: Record<string, string | undefined>;
 };
 
@@ -25,7 +38,7 @@ export type ExecuteFlowRunResult = {
 
 export async function executeFlowRun(options: ExecuteFlowRunOptions): Promise<ExecuteFlowRunResult> {
 	const command = flowCommand(options);
-	const result = await executeCommand(command, options.config, options.env);
+	const result = await executeCommand(command, options.config, flowRunExecutionEnv(options));
 	return { command, ...result };
 }
 
@@ -58,7 +71,18 @@ export function flowCommand(options: ExecuteFlowRunOptions): FlowCommandSpec {
 		options.stepName,
 		"--event",
 		options.eventPath,
+		"--run-id",
+		options.runId,
+		"--attempt-id",
+		options.attemptId ?? options.runId,
 	];
+	const workspaceBackendUrl = options.workspaceBackendUrl ?? options.config.workspaceBackendUrl;
+	if (workspaceBackendUrl) {
+		runnerArgs.push("--workspace-backend-url", workspaceBackendUrl);
+	}
+	if (options.replay) {
+		runnerArgs.push("--replay");
+	}
 	if (options.config.executor === "direct") {
 		return { command: options.config.bunCommand, args: runnerArgs };
 	}
@@ -72,7 +96,7 @@ export function flowCommand(options: ExecuteFlowRunOptions): FlowCommandSpec {
 			"--wait",
 			`--unit=${unit}`,
 			`--working-directory=${options.config.cwd}`,
-			...systemdSetEnvArgs(options.config, options.env ?? process.env),
+			...systemdSetEnvArgs(options.config, flowRunExecutionEnv(options)),
 			options.config.bunCommand,
 			...runnerArgs,
 		],
@@ -100,7 +124,25 @@ function forwardedEnv(config: FlowBackendConfig, env: Record<string, string | un
 			next[name] = value;
 		}
 	}
+	for (const name of flowRuntimeEnvNames) {
+		const value = source[name];
+		if (value !== undefined) {
+			next[name] = value;
+		}
+	}
 	return next;
+}
+
+export function flowRunExecutionEnv(options: ExecuteFlowRunOptions): Record<string, string | undefined> {
+	return {
+		...(options.env ?? process.env),
+		CODEX_FLOW_EVENT_ID: options.eventId,
+		CODEX_FLOW_RUN_ID: options.runId,
+		CODEX_FLOW_ATTEMPT_ID: options.attemptId ?? options.runId,
+		CODEX_FLOW_REPLAY: options.replay ? "1" : "0",
+		CODEX_WORKSPACE_BACKEND_WS_URL: options.workspaceBackendUrl ?? options.config.workspaceBackendUrl,
+		CODEX_FLOW_LAUNCHED_BY: "codex-workspace-backend-local",
+	};
 }
 
 function systemdSetEnvArgs(config: FlowBackendConfig, env: Record<string, string | undefined>): string[] {

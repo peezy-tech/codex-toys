@@ -157,7 +157,13 @@ function workspaceFlowConfig(
 		...(args.executor ? { executor: requireFlowExecutor(args.executor) } : {}),
 		...(args.bunCommand ? { bunCommand: args.bunCommand } : {}),
 		...(args.flowRunnerPath ? { flowRunnerPath: args.flowRunnerPath } : {}),
+		workspaceBackendUrl: localWorkspaceBackendUrl(args.hostname, args.port),
 	});
+}
+
+function localWorkspaceBackendUrl(hostname: string, port: number): string {
+	const host = hostname === "0.0.0.0" || hostname === "::" ? "127.0.0.1" : hostname;
+	return `ws://${host}:${port}`;
 }
 
 function flowMethodHandlers(

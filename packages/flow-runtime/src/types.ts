@@ -56,6 +56,17 @@ export type LoadedFlow = {
 	manifest: FlowManifest;
 };
 
+export type FlowRunRuntimeContext = {
+	eventId: string;
+	runId?: string;
+	attemptId?: string;
+	replay: boolean;
+	workspaceBackendUrl?: string;
+	launchedBy?: string;
+};
+
+export type FlowRunRuntimeInput = Partial<FlowRunRuntimeContext>;
+
 export type FlowRunContext = {
 	flow: {
 		name: string;
@@ -65,4 +76,5 @@ export type FlowRunContext = {
 		config?: Record<string, unknown>;
 		event: FlowEvent;
 	};
+	runtime: FlowRunRuntimeContext;
 };

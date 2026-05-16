@@ -46,7 +46,9 @@ in the schema and event payload, not in the generic runner.
 
 ## Step input
 
-Bun steps receive a JSON context on stdin:
+Bun steps receive a JSON context. The raw ABI is still JSON on stdin, and the
+recommended authoring shape is a module default export that receives the same
+context as its first argument:
 
 ```json
 {
@@ -57,20 +59,89 @@ Bun steps receive a JSON context on stdin:
     "step": "do-work",
     "config": {},
     "event": {}
+  },
+  "runtime": {
+    "eventId": "event-1",
+    "runId": "run_123",
+    "attemptId": "run_123",
+    "replay": false,
+    "workspaceBackendUrl": "ws://127.0.0.1:3586"
   }
 }
 ```
 
+`runtime.workspaceBackendUrl` is set by the local workspace backend when it
+launches a run. Trusted Bun steps can use it to call back into the same
+workspace backend and its app-server pass-through.
+
 ## Step output
 
-Print a final `FLOW_RESULT` line:
+Module-style steps return a `FlowResult`:
 
 ```ts
+import { defineBunFlow } from "@peezy.tech/flow-runtime/bun";
+
+export default defineBunFlow(async (ctx) => {
+  return {
+    status: "completed",
+    message: `handled ${ctx.flow.event.id}`,
+  };
+});
+```
+
+The runner still supports raw scripts that read stdin and print a final
+`FLOW_RESULT` line:
+
+```ts
+const ctx = JSON.parse(await Bun.stdin.text());
+
 console.log(`FLOW_RESULT ${JSON.stringify({
   status: "completed",
-  message: "updated bindings",
+  message: `handled ${ctx.flow.event.id}`,
 })}`);
 ```
 
 Use `blocked` or `needs_intervention` when a human or external condition is
 required. Clients and backends mark those statuses as needing attention.
+
+## Calling Codex from Bun
+
+Bun orchestration can start or continue Codex threads through the same workspace
+backend that launched the flow run:
+
+```ts
+import {
+  createCodexFlowClientFromContext,
+  defineBunFlow,
+} from "@peezy.tech/flow-runtime/bun";
+
+export default defineBunFlow(async (ctx) => {
+  const codex = createCodexFlowClientFromContext(ctx);
+  try {
+    const result = await codex.startFlow({
+      threadId: typeof ctx.flow.event.payload.threadId === "string"
+        ? ctx.flow.event.payload.threadId
+        : undefined,
+      prompt: "Continue the workspace task from this flow event.",
+      wait: { timeoutMs: 120000 },
+    });
+
+    return {
+      status: "needs_intervention",
+      message: "Codex turn started.",
+      artifacts: {
+        threadId: result.threadId,
+        turnId: result.turnId,
+        completed: Boolean(result.completedTurn),
+      },
+    };
+  } finally {
+    codex.close();
+  }
+});
+```
+
+Use `wait: false` or omit `wait` for fire-and-record orchestration. Use
+`wait: true` or wait options when the step should block until the turn reaches
+a terminal state. The thread id belongs in the event payload, flow config, or
+step logic; the generic runner does not invent one.

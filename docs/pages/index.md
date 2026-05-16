@@ -122,7 +122,10 @@ Products dispatch generic events:
 ```
 
 Flow packages match events with `flow.toml` and JSON Schema. Steps run through a
-Bun runner or a gated Code Mode runner and print one `FLOW_RESULT`.
+Bun runner or a gated Code Mode runner. Bun steps can be raw
+stdin/`FLOW_RESULT` scripts or module-style handlers that return a result object
+and, when trusted, call the launching workspace backend to orchestrate Codex
+turns.
 
 ## Boundaries
 

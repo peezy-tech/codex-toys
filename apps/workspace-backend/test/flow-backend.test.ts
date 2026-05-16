@@ -112,16 +112,30 @@ test("parses inspection and replay commands", () => {
 		kind: "show-run",
 		runId: "run_123",
 	});
+	expect(parseCli(["dispatch", "--event", "event.json", "--workspace-backend-url", "ws://127.0.0.1:3586"], {})).toMatchObject({
+		kind: "dispatch",
+		config: {
+			workspaceBackendUrl: "ws://127.0.0.1:3586",
+		},
+	});
 });
 
 test("builds systemd-run commands without executing them", () => {
-	const config = readConfig({}, { cwd: "/tmp/project", executor: "systemd-run", bunCommand: "/usr/bin/bun" });
+	const config = readConfig({}, {
+		cwd: "/tmp/project",
+		executor: "systemd-run",
+		bunCommand: "/usr/bin/bun",
+		workspaceBackendUrl: "ws://127.0.0.1:3586",
+	});
 	const command = flowCommand({
 		config,
 		runId: "run_123",
+		eventId: "event-1",
 		eventPath: "/tmp/event.json",
 		flowName: "demo",
 		stepName: "hello",
+		attemptId: "attempt-1",
+		replay: true,
 		env: {
 			CODEX_FLOWS_MODE: "code-mode",
 			CODEX_FLOWS_ENABLE_CODE_MODE: "1",
@@ -137,7 +151,41 @@ test("builds systemd-run commands without executing them", () => {
 	expect(command.args).toContain("--setenv=CODEX_FLOWS_ENABLE_CODE_MODE=1");
 	expect(command.args).toContain("--setenv=CODEX_FLOW_PUSH=1");
 	expect(command.args).toContain("--setenv=PEEZY_CODEX_REPO=/tmp/codex");
+	expect(command.args).toContain("--setenv=CODEX_FLOW_EVENT_ID=event-1");
+	expect(command.args).toContain("--setenv=CODEX_FLOW_RUN_ID=run_123");
+	expect(command.args).toContain("--setenv=CODEX_FLOW_ATTEMPT_ID=attempt-1");
+	expect(command.args).toContain("--setenv=CODEX_FLOW_REPLAY=1");
+	expect(command.args).toContain("--setenv=CODEX_WORKSPACE_BACKEND_WS_URL=ws://127.0.0.1:3586");
 	expect(command.args).toContain("/usr/bin/bun");
+	expect(command.args).toContain("--run-id");
+	expect(command.args).toContain("run_123");
+	expect(command.args).toContain("--attempt-id");
+	expect(command.args).toContain("attempt-1");
+	expect(command.args).toContain("--workspace-backend-url");
+	expect(command.args).toContain("ws://127.0.0.1:3586");
+	expect(command.args).toContain("--replay");
+});
+
+test("always forwards generated flow runtime env even with custom forwardEnv", () => {
+	const config = readConfig({}, {
+		cwd: "/tmp/project",
+		executor: "systemd-run",
+		bunCommand: "/usr/bin/bun",
+		forwardEnv: ["PATH"],
+		workspaceBackendUrl: "ws://127.0.0.1:3586",
+	});
+	const command = flowCommand({
+		config,
+		runId: "run_123",
+		eventId: "event-1",
+		eventPath: "/tmp/event.json",
+		flowName: "demo",
+		stepName: "hello",
+	});
+
+	expect(command.args).toContain("--setenv=CODEX_FLOW_EVENT_ID=event-1");
+	expect(command.args).toContain("--setenv=CODEX_FLOW_RUN_ID=run_123");
+	expect(command.args).toContain("--setenv=CODEX_WORKSPACE_BACKEND_WS_URL=ws://127.0.0.1:3586");
 });
 
 async function writeFlow(root: string): Promise<void> {
