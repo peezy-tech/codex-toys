@@ -732,7 +732,7 @@ function discordBridgeCommands(): ApplicationCommandDataResolvable[] {
 		},
 		{
 			name: "status",
-			description: "Show Codex gateway status",
+			description: "Show Codex workspace status",
 		},
 		{
 			name: "threads",

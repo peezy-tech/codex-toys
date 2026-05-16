@@ -203,19 +203,19 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 }
 
 export function defaultFlowRunnerPath(): string {
-	return path.resolve(import.meta.dir, "..", "..", "flow-runner", "src", "index.ts");
+	return path.resolve(import.meta.dir, "..", "..", "..", "flow-runner", "src", "index.ts");
 }
 
 export function helpText(): string {
 	return [
 		"Usage:",
-		"  codex-flow-systemd-local serve [--cwd <dir>] [--data-dir <dir>] [--host <host>] [--port <port>]",
-		"  codex-flow-systemd-local dispatch --event <event.json> [--cwd <dir>] [--data-dir <dir>] [--wait]",
-		"  codex-flow-systemd-local list-events [--type <type>] [--limit <n>]",
-		"  codex-flow-systemd-local show-event <event-id>",
-		"  codex-flow-systemd-local replay-event <event-id> [--wait]",
-		"  codex-flow-systemd-local list-runs [--event-id <event-id>] [--status <status>] [--limit <n>]",
-		"  codex-flow-systemd-local show-run <run-id>",
+		"  codex-workspace-backend-local serve [--cwd <dir>] [--data-dir <dir>] [--host <host>] [--port <port>]",
+		"  codex-workspace-backend-local dispatch --event <event.json> [--cwd <dir>] [--data-dir <dir>] [--wait]",
+		"  codex-workspace-backend-local list-events [--type <type>] [--limit <n>]",
+		"  codex-workspace-backend-local show-event <event-id>",
+		"  codex-workspace-backend-local replay-event <event-id> [--wait]",
+		"  codex-workspace-backend-local list-runs [--event-id <event-id>] [--status <status>] [--limit <n>]",
+		"  codex-workspace-backend-local show-run <run-id>",
 		"",
 		"Environment:",
 		"  CODEX_FLOW_BACKEND_SECRET       Optional HMAC secret for HTTP dispatches",

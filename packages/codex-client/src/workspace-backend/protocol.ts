@@ -4,8 +4,8 @@ import type {
 	JsonRpcRequest,
 } from "../app-server/rpc.ts";
 
-export const GATEWAY_INITIALIZE_METHOD = "gateway.initialize";
-export const GATEWAY_EVENT_METHOD = "gateway.event";
+export const WORKSPACE_BACKEND_INITIALIZE_METHOD = "workspace.initialize";
+export const WORKSPACE_BACKEND_EVENT_METHOD = "workspace.event";
 export const APP_SERVER_CALL_METHOD = "appServer.call";
 export const APP_SERVER_NOTIFY_METHOD = "appServer.notify";
 export const APP_SERVER_RESPOND_METHOD = "appServer.respond";
@@ -13,7 +13,7 @@ export const APP_SERVER_RESPOND_ERROR_METHOD = "appServer.respondError";
 export const APP_SERVER_NOTIFICATION_METHOD = "appServer.notification";
 export const APP_SERVER_REQUEST_METHOD = "appServer.request";
 
-export type GatewayInitializeParams = {
+export type WorkspaceBackendInitializeParams = {
 	clientInfo?: {
 		name?: string;
 		title?: string | null;
@@ -22,7 +22,7 @@ export type GatewayInitializeParams = {
 	capabilities?: Record<string, unknown>;
 };
 
-export type GatewayInitializeResponse = {
+export type WorkspaceBackendInitializeResponse = {
 	ok: true;
 	serverInfo: {
 		name: string;
@@ -30,7 +30,7 @@ export type GatewayInitializeResponse = {
 	};
 	capabilities: {
 		appServerPassThrough: true;
-		gatewayCommands: string[];
+		workspaceMethods: string[];
 		flowInspection: boolean;
 	};
 };
@@ -65,7 +65,7 @@ export type AppServerRequestParams = {
 	message: JsonRpcRequest;
 };
 
-export type GatewayEvent =
+export type WorkspaceBackendEvent =
 	| {
 			type: "connected";
 			at: string;
@@ -86,23 +86,23 @@ export type GatewayEvent =
 			message: string;
 	  }
 	| {
-			type: "unsupportedGatewayCommand";
+			type: "unsupportedWorkspaceBackendMethod";
 			at: string;
 			method: string;
 	  };
 
-export type GatewayEventParams = {
-	event: GatewayEvent;
+export type WorkspaceBackendEventParams = {
+	event: WorkspaceBackendEvent;
 };
 
-export const gatewayOwnedMethodPrefixes = [
-	"gateway.delegation.",
-	"gateway.workbench.",
-	"gateway.flow.",
+export const workspaceBackendOwnedMethodPrefixes = [
+	"delegation.",
+	"workbench.",
+	"flow.",
 ] as const;
 
-export function isGatewayOwnedMethod(method: string): boolean {
-	return gatewayOwnedMethodPrefixes.some((prefix) => method.startsWith(prefix));
+export function isWorkspaceBackendOwnedMethod(method: string): boolean {
+	return workspaceBackendOwnedMethodPrefixes.some((prefix) => method.startsWith(prefix));
 }
 
 export function appServerCallParams(
@@ -167,16 +167,16 @@ export function appServerRequestParams(
 	return message ? { message } : undefined;
 }
 
-export function gatewayEventParams(
+export function workspaceBackendEventParams(
 	value: unknown,
-): GatewayEventParams | undefined {
+): WorkspaceBackendEventParams | undefined {
 	const input = record(value);
 	const event = record(input.event);
 	const type = stringValue(event.type);
 	if (!type) {
 		return undefined;
 	}
-	return { event: event as unknown as GatewayEvent };
+	return { event: event as unknown as WorkspaceBackendEvent };
 }
 
 function jsonRpcNotification(value: unknown): JsonRpcNotification | undefined {

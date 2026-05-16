@@ -14,10 +14,10 @@ describe("JsonFileStateStore", () => {
 				statePath,
 				`${JSON.stringify({
 					version: 1,
-					gateway: {
+					workspace: {
 						homeChannelId: "home-channel",
-						mainThreadId: "codex-gateway-thread",
-						statusMessageId: "message-gateway-status",
+						mainThreadId: "codex-workspace-thread",
+						statusMessageId: "message-workspace-status",
 						createdAt: "2026-05-11T00:00:00.000Z",
 						toolsVersion: 1,
 						delegations: [
@@ -100,7 +100,7 @@ describe("JsonFileStateStore", () => {
 							ownerUserId: "user-1",
 							participantUserIds: ["user-2", "", "user-2", "user-3"],
 							cwd: "/workspace/project",
-							mode: "gateway",
+							mode: "workspace",
 							statusMessageId: "message-status-1",
 						},
 						{
@@ -137,10 +137,10 @@ describe("JsonFileStateStore", () => {
 
 			const state = await new JsonFileStateStore(statePath).load();
 
-			expect(state.gateway).toEqual({
+			expect(state.workspace).toEqual({
 				homeChannelId: "home-channel",
-				mainThreadId: "codex-gateway-thread",
-				statusMessageId: "message-gateway-status",
+				mainThreadId: "codex-workspace-thread",
+				statusMessageId: "message-workspace-status",
 				createdAt: "2026-05-11T00:00:00.000Z",
 				toolsVersion: 1,
 				delegations: [
@@ -221,7 +221,7 @@ describe("JsonFileStateStore", () => {
 				"user-3",
 			]);
 			expect(state.sessions[0]?.cwd).toBe("/workspace/project");
-			expect(state.sessions[0]?.mode).toBe("gateway");
+			expect(state.sessions[0]?.mode).toBe("workspace");
 			expect(state.sessions[0]?.statusMessageId).toBe("message-status-1");
 			expect(state.sessions[1]?.ownerUserId).toBeUndefined();
 			expect(state.sessions[1]?.sourceMessageId).toBeUndefined();

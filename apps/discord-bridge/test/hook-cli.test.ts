@@ -9,7 +9,7 @@ import {
 	upsertStopHookConfig,
 } from "../src/hook-cli.ts";
 
-describe("discord gateway hook CLI", () => {
+describe("discord workspace hook CLI", () => {
 	test("enables the current hooks feature in config.toml", () => {
 		expect(enableHooksFeature("model = \"gpt-5\"\n")).toBe(
 			"model = \"gpt-5\"\n\n[features]\nhooks = true\n",

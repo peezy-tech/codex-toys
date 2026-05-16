@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-	CodexGatewayClient,
-	CodexGatewayProtocolServer,
-	type CodexGatewayAppServer,
-	type CodexGatewayPeer,
-} from "../src/gateway/index.ts";
+	CodexWorkspaceBackendClient,
+	CodexWorkspaceBackendProtocolServer,
+	type CodexWorkspaceBackendAppServer,
+	type CodexWorkspaceBackendPeer,
+} from "../src/workspace-backend/index.ts";
 import { CodexEventEmitter } from "../src/app-server/events.ts";
 import type {
 	JsonRpcId,
@@ -12,10 +12,10 @@ import type {
 	JsonRpcResponse,
 } from "../src/app-server/rpc.ts";
 
-describe("Codex gateway protocol", () => {
+describe("Codex workspace backend protocol", () => {
 	test("server proxies appServer.call without interpreting native app-server methods", async () => {
 		const appServer = new FakeAppServer();
-		const server = new CodexGatewayProtocolServer({ appServer });
+		const server = new CodexWorkspaceBackendProtocolServer({ appServer });
 		const peer = new MemoryPeer();
 		server.addPeer(peer);
 
@@ -38,28 +38,50 @@ describe("Codex gateway protocol", () => {
 		});
 	});
 
-	test("server declares gateway-owned commands but does not fake implementations", async () => {
+	test("server handles registered workspace methods without forwarding them", async () => {
 		const appServer = new FakeAppServer();
-		const server = new CodexGatewayProtocolServer({ appServer });
+		const server = new CodexWorkspaceBackendProtocolServer({
+			appServer,
+			methods: {
+				"delegation.list": () => ({ delegations: [] }),
+			},
+		});
 		const peer = new MemoryPeer();
 		server.addPeer(peer);
 
 		await server.handleMessage(peer, JSON.stringify({
 			jsonrpc: "2.0",
 			id: "delegation",
-			method: "gateway.delegation.start",
+			method: "delegation.list",
+			params: {},
+		}));
+
+		expect(appServer.requests).toEqual([]);
+		expect(peer.response("delegation")?.result).toEqual({ delegations: [] });
+	});
+
+	test("unknown workspace backend methods return method not found", async () => {
+		const appServer = new FakeAppServer();
+		const server = new CodexWorkspaceBackendProtocolServer({ appServer });
+		const peer = new MemoryPeer();
+		server.addPeer(peer);
+
+		await server.handleMessage(peer, JSON.stringify({
+			jsonrpc: "2.0",
+			id: "delegation",
+			method: "delegation.start",
 			params: { prompt: "do work" },
 		}));
 
 		expect(appServer.requests).toEqual([]);
 		expect(peer.response("delegation")?.error?.code).toBe(-32601);
-		expect(peer.notifications("gateway.event")).toContainEqual(
+		expect(peer.notifications("workspace.event")).toContainEqual(
 			expect.objectContaining({
-				method: "gateway.event",
+				method: "workspace.event",
 				params: {
 					event: expect.objectContaining({
-						type: "unsupportedGatewayCommand",
-						method: "gateway.delegation.start",
+						type: "unsupportedWorkspaceBackendMethod",
+						method: "delegation.start",
 					}),
 				},
 			}),
@@ -68,7 +90,7 @@ describe("Codex gateway protocol", () => {
 
 	test("server proxies appServer.notify notifications without a response", async () => {
 		const appServer = new FakeAppServer();
-		const server = new CodexGatewayProtocolServer({ appServer });
+		const server = new CodexWorkspaceBackendProtocolServer({ appServer });
 		const peer = new MemoryPeer();
 
 		await server.handleMessage(peer, JSON.stringify({
@@ -87,8 +109,8 @@ describe("Codex gateway protocol", () => {
 	});
 
 	test("client uses appServer.call for native helpers and unwraps app-server notifications", async () => {
-		const transport = new FakeGatewayTransport();
-		const client = new CodexGatewayClient({
+		const transport = new FakeWorkspaceBackendTransport();
+		const client = new CodexWorkspaceBackendClient({
 			transport,
 			clientName: "test-web",
 			clientTitle: "Test Web",
@@ -114,7 +136,7 @@ describe("Codex gateway protocol", () => {
 
 		expect(transport.requests).toEqual([
 			{
-				method: "gateway.initialize",
+				method: "workspace.initialize",
 				params: {
 					clientInfo: {
 						name: "test-web",
@@ -151,7 +173,7 @@ describe("Codex gateway protocol", () => {
 	});
 });
 
-class FakeAppServer extends CodexEventEmitter implements CodexGatewayAppServer {
+class FakeAppServer extends CodexEventEmitter implements CodexWorkspaceBackendAppServer {
 	requests: Array<{ method: string; params?: unknown }> = [];
 	notifications: Array<{ method: string; params?: unknown }> = [];
 	responses: Array<{ id: JsonRpcId; result: unknown }> = [];
@@ -185,7 +207,7 @@ class FakeAppServer extends CodexEventEmitter implements CodexGatewayAppServer {
 	}
 }
 
-class MemoryPeer implements CodexGatewayPeer {
+class MemoryPeer implements CodexWorkspaceBackendPeer {
 	messages: unknown[] = [];
 
 	send(message: string): void {
@@ -205,7 +227,7 @@ class MemoryPeer implements CodexGatewayPeer {
 	}
 }
 
-class FakeGatewayTransport extends CodexEventEmitter {
+class FakeWorkspaceBackendTransport extends CodexEventEmitter {
 	readonly requestTimeoutMs = 60_000;
 	requests: Array<{ method: string; params?: unknown }> = [];
 	started = false;
@@ -220,13 +242,13 @@ class FakeGatewayTransport extends CodexEventEmitter {
 
 	async request<T = unknown>(method: string, params?: unknown): Promise<T> {
 		this.requests.push({ method, params });
-		if (method === "gateway.initialize") {
+		if (method === "workspace.initialize") {
 			return {
 				ok: true,
 				serverInfo: { name: "fake", version: "0.1.0" },
 				capabilities: {
 					appServerPassThrough: true,
-					gatewayCommands: [],
+					workspaceMethods: [],
 					flowInspection: false,
 				},
 			} as T;

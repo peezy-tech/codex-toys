@@ -2,11 +2,11 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { dispatchFlowEvent, replayFlowEvent } from "../src/backend.ts";
-import { parseCli, readConfig } from "../src/config.ts";
-import { flowCommand } from "../src/executor.ts";
-import { requestSignature, signBody, verifyBodySignature } from "../src/signature.ts";
-import { FlowBackendStore } from "../src/store.ts";
+import { dispatchFlowEvent, replayFlowEvent } from "../src/flow/backend.ts";
+import { parseCli, readConfig } from "../src/flow/config.ts";
+import { flowCommand } from "../src/flow/executor.ts";
+import { requestSignature, signBody, verifyBodySignature } from "../src/flow/signature.ts";
+import { FlowBackendStore } from "../src/flow/store.ts";
 
 test("signs and verifies dispatch bodies", () => {
 	const body = JSON.stringify({ id: "event-1" });

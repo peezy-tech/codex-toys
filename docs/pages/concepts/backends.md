@@ -1,6 +1,6 @@
 ---
 title: Backends
-description: Compare local memory, file state, systemd-local, HTTP adapters, and Convex.
+description: Compare local memory, file state, workspace flow backends, HTTP adapters, and Convex.
 ---
 
 # Backends
@@ -15,11 +15,12 @@ event ids, list/get, and replay across client instances.
 
 Use it for product CLIs, tests, and local development.
 
-## systemd-local
+## Workspace flow capability
 
-The systemd-local backend accepts HTTP dispatches, stores events and runs in
+The workspace flow capability accepts dispatches, stores events and runs in
 SQLite, writes event JSON files, and starts local steps directly or through
-`systemd-run`.
+`systemd-run`. Embedded workspace backends can call it directly; the networked
+local workspace backend also mounts compatible HTTP routes.
 
 Use it for a small host-level service where local system tools and Codex are
 available.

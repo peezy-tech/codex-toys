@@ -186,7 +186,7 @@ describe("parseConfig", () => {
 		}
 	});
 
-	test("parses gateway home and main thread ids", () => {
+	test("parses workspace home and main thread ids", () => {
 		const fromFlag = parseConfig(
 			[
 				"--token",
@@ -220,14 +220,14 @@ describe("parseConfig", () => {
 		expect(fromFlag.type).toBe("run");
 		expect(fromEnv.type).toBe("run");
 		if (fromFlag.type === "run" && fromEnv.type === "run") {
-			expect(fromFlag.config.gateway).toEqual({
+			expect(fromFlag.config.workspace).toEqual({
 				homeChannelId: "home-channel",
 				mainThreadId: "main-thread",
 				workspaceForumChannelId: "workspace-forum",
 				taskThreadsChannelId: "task-channel",
 			});
 			expect(fromFlag.config.flowBackendUrl).toBe("http://127.0.0.1:8089");
-			expect(fromEnv.config.gateway).toEqual({
+			expect(fromEnv.config.workspace).toEqual({
 				homeChannelId: "env-home",
 				mainThreadId: "env-thread",
 				workspaceForumChannelId: "env-workspace-forum",
@@ -237,17 +237,17 @@ describe("parseConfig", () => {
 		}
 	});
 
-	test("parses workspace-owned gateway surfaces and keeps env defaults as fallback", () => {
+	test("parses workspace-owned workspace surfaces and keeps env defaults as fallback", () => {
 		const root = workspaceRoot();
 		writeWorkspaceToml(root, "crypto-workspace", `
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "crypto"
 home_channel_id = "home-b"
 workspace_forum_channel_id = "forum-b"
 task_threads_channel_id = "tasks-b"
 `);
 		writeWorkspaceToml(root, "research-workspace", `
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "crypto"
 home_channel_id = "home-b"
 workspace_forum_channel_id = "forum-b"
@@ -272,7 +272,7 @@ task_threads_channel_id = "tasks-b"
 
 			expect(parsed.type).toBe("run");
 			if (parsed.type === "run") {
-				expect(parsed.config.gateway).toEqual({
+				expect(parsed.config.workspace).toEqual({
 					homeChannelId: "home-a",
 					workspaceForumChannelId: "forum-a",
 					taskThreadsChannelId: "tasks-a",
@@ -302,20 +302,20 @@ task_threads_channel_id = "tasks-b"
 		}
 	});
 
-	test("rejects ambiguous workspace-owned gateway surfaces", () => {
+	test("rejects ambiguous workspace-owned workspace surfaces", () => {
 		const multiple = workspaceRoot();
 		writeWorkspaceToml(multiple, "crypto-workspace", `
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "default"
 home_channel_id = "home-a"
 
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "other"
 home_channel_id = "home-b"
 `);
 		try {
 			expect(() => parseConfig(baseArgsForRoot(multiple), {})).toThrow(
-				"workspace.toml discord.gateway.surfaces must contain one surface",
+				"workspace.toml discord.workspace.surfaces must contain one surface",
 			);
 		} finally {
 			rmSync(multiple, { recursive: true, force: true });
@@ -323,18 +323,18 @@ home_channel_id = "home-b"
 
 		const duplicate = workspaceRoot();
 		writeWorkspaceToml(duplicate, "crypto-workspace", `
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "default"
 home_channel_id = "home-a"
 `);
 		writeWorkspaceToml(duplicate, "research-workspace", `
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "default"
 home_channel_id = "home-b"
 `);
 		try {
 			expect(() => parseConfig(baseArgsForRoot(duplicate), {})).toThrow(
-				"Gateway surface key default is configured with different channels.",
+				"Workspace surface key default is configured with different channels.",
 			);
 		} finally {
 			rmSync(duplicate, { recursive: true, force: true });
@@ -342,25 +342,25 @@ home_channel_id = "home-b"
 
 		const channelCollision = workspaceRoot();
 		writeWorkspaceToml(channelCollision, "crypto-workspace", `
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "crypto"
 home_channel_id = "home-a"
 `);
 		writeWorkspaceToml(channelCollision, "alpha-workspace", `
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "alpha"
 home_channel_id = "home-a"
 `);
 		try {
 			expect(() => parseConfig(baseArgsForRoot(channelCollision), {})).toThrow(
-				"Gateway surface channel is configured more than once: home-a",
+				"Workspace surface channel is configured more than once: home-a",
 			);
 		} finally {
 			rmSync(channelCollision, { recursive: true, force: true });
 		}
 	});
 
-	test("ignores workspace.toml without gateway surfaces", () => {
+	test("ignores workspace.toml without workspace surfaces", () => {
 		const root = workspaceRoot();
 		writeRootWorkspaceToml(root, `
 name = "home"
@@ -373,14 +373,14 @@ enabled = true
 
 			expect(parsed.type).toBe("run");
 			if (parsed.type === "run") {
-				expect(parsed.config.gateway).toBeUndefined();
+				expect(parsed.config.workspace).toBeUndefined();
 			}
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
 	});
 
-	test("rejects gateway main thread without home channel", () => {
+	test("rejects workspace main thread without home channel", () => {
 		expect(() =>
 			parseConfig(
 				[
@@ -393,10 +393,10 @@ enabled = true
 				],
 				{},
 			)
-		).toThrow("Cannot set a gateway main thread without a gateway home channel.");
+		).toThrow("Cannot set a workspace main thread without a workspace home channel.");
 	});
 
-	test("rejects partial gateway workbench channel configuration", () => {
+	test("rejects partial workspace workbench channel configuration", () => {
 		expect(() =>
 			parseConfig(
 				[
@@ -416,7 +416,7 @@ enabled = true
 		);
 	});
 
-	test("rejects gateway workbench channels that are not separate", () => {
+	test("rejects workspace workbench channels that are not separate", () => {
 		expect(() =>
 			parseConfig(
 				[
@@ -434,7 +434,7 @@ enabled = true
 				{},
 			)
 		).toThrow(
-			"Discord workbench channels must be separate from the gateway home channel and each other.",
+			"Discord workbench channels must be separate from the workspace home channel and each other.",
 		);
 	});
 

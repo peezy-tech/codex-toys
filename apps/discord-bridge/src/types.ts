@@ -10,7 +10,7 @@ export type DiscordBridgeConfig = {
 	allowedUserIds: Set<string>;
 	allowedChannelIds: Set<string>;
 	statePath: string;
-	gateway?: DiscordGatewayConfig;
+	workspace?: DiscordWorkspaceConfig;
 	flowBackendUrl?: string;
 	cwd?: string;
 	model?: string;
@@ -33,15 +33,15 @@ export type DiscordBridgeConfig = {
 export type DiscordProgressMode = "summary" | "commentary" | "none";
 export type DiscordConsoleOutputMode = "messages" | "none";
 
-export type DiscordGatewayConfig = {
+export type DiscordWorkspaceConfig = {
 	homeChannelId: string;
 	mainThreadId?: string;
 	workspaceForumChannelId?: string;
 	taskThreadsChannelId?: string;
-	surfaces?: DiscordGatewaySurfaceConfig[];
+	surfaces?: DiscordWorkspaceSurfaceConfig[];
 };
 
-export type DiscordGatewaySurfaceConfig = {
+export type DiscordWorkspaceSurfaceConfig = {
 	key: string;
 	homeChannelId: string;
 	workspaceForumChannelId?: string;
@@ -238,7 +238,7 @@ export type CodexBridgeClient = {
 
 export type DiscordBridgeState = {
 	version: 1;
-	gateway?: DiscordGatewayState;
+	workspace?: DiscordWorkspaceState;
 	sessions: DiscordBridgeSession[];
 	queue: DiscordBridgeQueueItem[];
 	activeTurns: DiscordBridgeActiveTurn[];
@@ -246,28 +246,28 @@ export type DiscordBridgeState = {
 	deliveries: DiscordBridgeDelivery[];
 };
 
-export type DiscordGatewayState = {
+export type DiscordWorkspaceState = {
 	homeChannelId: string;
 	mainThreadId?: string;
 	statusMessageId?: string;
 	createdAt?: string;
 	toolsVersion?: number;
-	delegations: DiscordGatewayDelegation[];
-	workspaces?: DiscordGatewayWorkspaceSurface[];
-	observedThreads?: DiscordGatewayObservedThread[];
-	pendingWakes?: DiscordGatewayPendingWake[];
+	delegations: DiscordWorkspaceDelegation[];
+	workspaces?: DiscordWorkspaceWorkspaceSurface[];
+	observedThreads?: DiscordWorkspaceObservedThread[];
+	pendingWakes?: DiscordWorkspacePendingWake[];
 	processedHookEventIds?: string[];
 	processedStopHookEventIds?: string[];
 };
 
-export type DiscordGatewayDelegationReturnMode =
+export type DiscordWorkspaceDelegationReturnMode =
 	| "detached"
 	| "record_only"
 	| "wake_on_done"
 	| "wake_on_group"
 	| "manual";
 
-export type DiscordGatewayDelegation = {
+export type DiscordWorkspaceDelegation = {
 	id: string;
 	codexThreadId: string;
 	title: string;
@@ -276,7 +276,7 @@ export type DiscordGatewayDelegation = {
 	workspaceKey?: string;
 	surfaceKey?: string;
 	groupId?: string;
-	returnMode?: DiscordGatewayDelegationReturnMode;
+	returnMode?: DiscordWorkspaceDelegationReturnMode;
 	discordDetailThreadId?: string;
 	discordTaskThreadId?: string;
 	discordWorkspaceThreadId?: string;
@@ -293,7 +293,7 @@ export type DiscordGatewayDelegation = {
 	updatedAt: string;
 };
 
-export type DiscordGatewayWorkspaceSurface = {
+export type DiscordWorkspaceWorkspaceSurface = {
 	key: string;
 	surfaceKey?: string;
 	cwd: string;
@@ -305,7 +305,7 @@ export type DiscordGatewayWorkspaceSurface = {
 	updatedAt: string;
 };
 
-export type DiscordGatewayPendingWake = {
+export type DiscordWorkspacePendingWake = {
 	id: string;
 	kind: "delegation" | "group";
 	delegationIds: string[];
@@ -315,7 +315,7 @@ export type DiscordGatewayPendingWake = {
 	startedAt?: string;
 };
 
-export type DiscordGatewayHookEventName =
+export type DiscordWorkspaceHookEventName =
 	| "SessionStart"
 	| "UserPromptSubmit"
 	| "PreToolUse"
@@ -323,10 +323,10 @@ export type DiscordGatewayHookEventName =
 	| "PostToolUse"
 	| "Stop";
 
-export type DiscordGatewayHookEvent = {
+export type DiscordWorkspaceHookEvent = {
 	version: 1;
 	id: string;
-	eventName: DiscordGatewayHookEventName;
+	eventName: DiscordWorkspaceHookEventName;
 	sessionId: string;
 	turnId?: string;
 	cwd?: string;
@@ -344,28 +344,28 @@ export type DiscordGatewayHookEvent = {
 	createdAt: string;
 };
 
-export type DiscordGatewayStopHookEvent = DiscordGatewayHookEvent & {
+export type DiscordWorkspaceStopHookEvent = DiscordWorkspaceHookEvent & {
 	eventName: "Stop";
 };
 
-export type DiscordGatewayObservedThreadStatus =
+export type DiscordWorkspaceObservedThreadStatus =
 	| "starting"
 	| "active"
 	| "tool"
 	| "waiting"
 	| "idle";
 
-export type DiscordGatewayObservedThread = {
+export type DiscordWorkspaceObservedThread = {
 	threadId: string;
 	title?: string;
-	status: DiscordGatewayObservedThreadStatus;
+	status: DiscordWorkspaceObservedThreadStatus;
 	cwd?: string;
 	workspaceKey?: string;
 	surfaceKey?: string;
 	model?: string;
 	transcriptPath?: string;
 	lastTurnId?: string;
-	lastHookEventName?: DiscordGatewayHookEventName;
+	lastHookEventName?: DiscordWorkspaceHookEventName;
 	source?: string;
 	promptPreview?: string;
 	assistantPreview?: string;
@@ -391,7 +391,7 @@ export type DiscordBridgeSession = {
 	ownerUserId?: string;
 	participantUserIds?: string[];
 	cwd?: string;
-	mode?: "new" | "resumed" | "gateway" | "delegated" | "workspace";
+	mode?: "new" | "resumed" | "operator" | "delegated" | "workspace";
 	statusMessageId?: string;
 };
 

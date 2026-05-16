@@ -1,26 +1,30 @@
 ---
-title: Operate systemd-local
-description: Run the local HTTP backend, inspect stored events, and replay failed runs.
+title: Operate the workspace flow backend
+description: Run the local workspace backend flow capability and inspect stored events.
 ---
 
-# Operate systemd-local
+# Operate the workspace flow backend
 
-`codex-flow-systemd-local` is the local durable HTTP backend. Patch and other
-services can post generic `FlowEvent` JSON to it while operators inspect and
-replay runs later.
+The local workspace backend includes the durable flow capability. It can accept
+generic `FlowEvent` JSON over the networked HTTP surface, persist events and
+runs, start matching steps locally, and replay stored events.
+
+In embedded local mode, tools can call the same flow capability directly without
+HTTP. The routes below are the optional networked surface mounted by
+`codex-workspace-backend-local`.
 
 ## Start the backend
 
 ```bash
-bun run flow:backend serve --cwd /home/peezy/codex-flows-public
+bun run workspace:backend --cwd /home/peezy/codex-flows-public
 ```
 
 Useful environment:
 
 ```bash
-CODEX_FLOW_BACKEND_HOST=127.0.0.1
-CODEX_FLOW_BACKEND_PORT=7345
-CODEX_FLOW_BACKEND_DATA_DIR=/var/lib/codex-flow-systemd-local
+CODEX_WORKSPACE_BACKEND_HOST=127.0.0.1
+CODEX_WORKSPACE_BACKEND_PORT=3586
+CODEX_FLOW_BACKEND_DATA_DIR=/var/lib/codex-workspace-flow
 CODEX_FLOW_BACKEND_SECRET=shared-hmac-secret
 CODEX_FLOW_BACKEND_EXECUTOR=direct
 ```
@@ -32,7 +36,7 @@ suitable when the backend service itself is already managed by systemd.
 ## Dispatch
 
 ```bash
-curl -X POST http://127.0.0.1:7345/events \
+curl -X POST http://127.0.0.1:3586/events \
   -H 'content-type: application/json' \
   --data @event.json
 ```
@@ -55,7 +59,7 @@ run attempt.
 
 ## Back up state
 
-The backend stores SQLite state under `CODEX_FLOW_BACKEND_DATA_DIR` and per
+The capability stores SQLite state under `CODEX_FLOW_BACKEND_DATA_DIR` and per
 event JSON files under `CODEX_FLOW_BACKEND_DATA_DIR/events`. Back up the whole
 data directory while the service is stopped, or use SQLite online backup plus a
 copy of the `events/` directory.

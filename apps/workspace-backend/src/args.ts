@@ -1,10 +1,16 @@
-export type GatewayCliArgs =
+export type WorkspaceBackendCliArgs =
 	| {
 			type: "serve";
 			port: number;
 			hostname: string;
 			appServerUrl?: string;
 			localAppServer: boolean;
+			cwd?: string;
+			dataDir?: string;
+			secret?: string;
+			executor?: string;
+			bunCommand?: string;
+			flowRunnerPath?: string;
 	  }
 	| {
 			type: "help";
@@ -14,7 +20,7 @@ export type GatewayCliArgs =
 export function parseArgs(
 	argv: string[],
 	env: Record<string, string | undefined> = process.env,
-): GatewayCliArgs {
+): WorkspaceBackendCliArgs {
 	if (argv.includes("--help") || argv.includes("-h")) {
 		return { type: "help", text: helpText() };
 	}
@@ -23,20 +29,26 @@ export function parseArgs(
 		throw new Error(`Unknown command: ${command}`);
 	}
 	const appServerUrl =
-		stringFlag(argv, "app-server-url") ?? env.CODEX_GATEWAY_APP_SERVER_URL;
+		stringFlag(argv, "app-server-url") ?? env.CODEX_WORKSPACE_BACKEND_APP_SERVER_URL;
 	const localAppServer = booleanFlag(argv, "local-app-server") ||
-		booleanEnv(env.CODEX_GATEWAY_LOCAL_APP_SERVER);
+		booleanEnv(env.CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER);
 	if (appServerUrl && localAppServer) {
 		throw new Error("Cannot set both --local-app-server and --app-server-url.");
 	}
 	return {
 		type: "serve",
 		port: integerFlag(argv, "port") ??
-			integerEnv(env.CODEX_GATEWAY_PORT) ??
+			integerEnv(env.CODEX_WORKSPACE_BACKEND_PORT) ??
 			3586,
-		hostname: stringFlag(argv, "host") ?? env.CODEX_GATEWAY_HOST ?? "127.0.0.1",
+		hostname: stringFlag(argv, "host") ?? env.CODEX_WORKSPACE_BACKEND_HOST ?? "127.0.0.1",
 		appServerUrl,
 		localAppServer,
+		cwd: stringFlag(argv, "cwd"),
+		dataDir: stringFlag(argv, "data-dir"),
+		secret: stringFlag(argv, "secret"),
+		executor: stringFlag(argv, "executor"),
+		bunCommand: stringFlag(argv, "bun"),
+		flowRunnerPath: stringFlag(argv, "flow-runner"),
 	};
 }
 
@@ -78,22 +90,28 @@ function booleanEnv(value: string | undefined): boolean {
 }
 
 function helpText(): string {
-	return `codex-gateway-local serves the local Codex gateway protocol.
+	return `codex-workspace-backend-local serves the local Codex workspace backend protocol.
 
 Usage:
-  codex-gateway-local serve [options]
+  codex-workspace-backend-local serve [options]
 
 Options:
   --host <host>              Host to bind. Defaults to 127.0.0.1.
   --port <port>              Port to bind. Defaults to 3586.
   --app-server-url <url>     Existing app-server WebSocket URL.
   --local-app-server         Start a local app-server over stdio.
+  --cwd <dir>                Workspace root for flow discovery.
+  --data-dir <dir>           Durable flow backend state directory.
+  --secret <secret>          Optional HMAC secret for HTTP flow dispatch.
+  --executor <executor>      Flow executor: direct or systemd-run.
+  --bun <path>               Bun command for flow execution.
+  --flow-runner <path>       Flow runner script path.
   --help, -h                 Show this help.
 
 Environment:
-  CODEX_GATEWAY_HOST
-  CODEX_GATEWAY_PORT
-  CODEX_GATEWAY_APP_SERVER_URL
-  CODEX_GATEWAY_LOCAL_APP_SERVER
+  CODEX_WORKSPACE_BACKEND_HOST
+  CODEX_WORKSPACE_BACKEND_PORT
+  CODEX_WORKSPACE_BACKEND_APP_SERVER_URL
+  CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER
 `;
 }

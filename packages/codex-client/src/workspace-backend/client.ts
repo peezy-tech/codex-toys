@@ -12,16 +12,16 @@ import {
 	APP_SERVER_REQUEST_METHOD,
 	APP_SERVER_RESPOND_ERROR_METHOD,
 	APP_SERVER_RESPOND_METHOD,
-	GATEWAY_EVENT_METHOD,
-	GATEWAY_INITIALIZE_METHOD,
+	WORKSPACE_BACKEND_EVENT_METHOD,
+	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 	appServerNotificationParams,
 	appServerRequestParams,
-	gatewayEventParams,
-	type GatewayEvent,
-	type GatewayInitializeResponse,
+	workspaceBackendEventParams,
+	type WorkspaceBackendEvent,
+	type WorkspaceBackendInitializeResponse,
 } from "./protocol.ts";
 
-export type CodexGatewayTransport = CodexEventEmitter & {
+export type CodexWorkspaceBackendTransport = CodexEventEmitter & {
 	readonly requestTimeoutMs: number;
 	start(): void;
 	close(): void;
@@ -29,26 +29,26 @@ export type CodexGatewayTransport = CodexEventEmitter & {
 	notify(method: string, params?: unknown): void;
 };
 
-export type CodexGatewayClientOptions = {
-	transport?: CodexGatewayTransport;
+export type CodexWorkspaceBackendClientOptions = {
+	transport?: CodexWorkspaceBackendTransport;
 	webSocketTransportOptions?: CodexWebSocketTransportOptions;
 	clientName?: string;
 	clientTitle?: string;
 	clientVersion?: string;
 };
 
-export class CodexGatewayClient extends CodexEventEmitter {
-	readonly transport: CodexGatewayTransport;
+export class CodexWorkspaceBackendClient extends CodexEventEmitter {
+	readonly transport: CodexWorkspaceBackendTransport;
 	#clientName: string;
 	#clientTitle: string | null;
 	#clientVersion: string;
 	#connected = false;
 
-	constructor(options: CodexGatewayClientOptions = {}) {
+	constructor(options: CodexWorkspaceBackendClientOptions = {}) {
 		super();
 		const url = options.webSocketTransportOptions?.url;
 		if (!options.transport && !url) {
-			throw new Error("A Codex gateway WebSocket URL is required");
+			throw new Error("A Codex workspace backend WebSocket URL is required");
 		}
 		this.transport =
 			options.transport ??
@@ -56,8 +56,8 @@ export class CodexGatewayClient extends CodexEventEmitter {
 				url: url!,
 				requestTimeoutMs: options.webSocketTransportOptions?.requestTimeoutMs,
 			});
-		this.#clientName = options.clientName ?? "codex-gateway-client";
-		this.#clientTitle = options.clientTitle ?? "Codex Gateway Client";
+		this.#clientName = options.clientName ?? "codex-workspace-backend-client";
+		this.#clientTitle = options.clientTitle ?? "Codex Workspace Backend Client";
 		this.#clientVersion = options.clientVersion ?? "0.1.0";
 
 		this.transport.on("notification", (message) => {
@@ -75,10 +75,10 @@ export class CodexGatewayClient extends CodexEventEmitter {
 				}
 				return;
 			}
-			if (message.method === GATEWAY_EVENT_METHOD) {
-				const params = gatewayEventParams(message.params);
+			if (message.method === WORKSPACE_BACKEND_EVENT_METHOD) {
+				const params = workspaceBackendEventParams(message.params);
 				if (params) {
-					this.emit("gatewayEvent", params.event);
+					this.emit("workspaceBackendEvent", params.event);
 				}
 				return;
 			}
@@ -93,8 +93,8 @@ export class CodexGatewayClient extends CodexEventEmitter {
 			return;
 		}
 		this.transport.start();
-		await this.transport.request<GatewayInitializeResponse>(
-			GATEWAY_INITIALIZE_METHOD,
+		await this.transport.request<WorkspaceBackendInitializeResponse>(
+			WORKSPACE_BACKEND_INITIALIZE_METHOD,
 			{
 				clientInfo: {
 					name: this.#clientName,
@@ -136,7 +136,7 @@ export class CodexGatewayClient extends CodexEventEmitter {
 		}).catch((error: unknown) => this.emit("error", error));
 	}
 
-	gatewayRequest<T = unknown>(method: string, params?: unknown): Promise<T> {
+	workspaceRequest<T = unknown>(method: string, params?: unknown): Promise<T> {
 		return this.transport.request<T>(method, params);
 	}
 
@@ -187,4 +187,4 @@ export class CodexGatewayClient extends CodexEventEmitter {
 	}
 }
 
-export type { GatewayEvent };
+export type { WorkspaceBackendEvent };

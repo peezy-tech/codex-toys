@@ -36,7 +36,7 @@ flowchart LR
 - New to flows: [Build your first flow](tutorials/first-flow).
 - Integrating a product: [Dispatch a release event](tutorials/dispatch-release-event).
 - Need exact shapes: [FlowEvent and FLOW_RESULT](reference/flow-event).
-- Operating runs: [Operate systemd-local](guides/operate-systemd-local).
+- Operating runs: [Operate the workspace flow backend](guides/operate-workspace-flow-backend).
 
 ## What is in this repo
 
@@ -47,7 +47,7 @@ flowchart LR
 - `@peezy.tech/flow-backend-convex`: reusable Convex control-plane component
   for generic flow events and runs.
 - `codex-flow-runner`: CLI for discovering and firing local flow packages.
-- `codex-flow-systemd-local`: local HTTP backend for durable flow dispatch,
-  inspection, replay, and optional `systemd-run` execution.
+- `codex-workspace-backend-local`: local workspace backend process with durable
+  flow dispatch, inspection, replay, and optional `systemd-run` execution.
 - `codex-discord-bridge`: Discord sidecar for routing Discord threads to Codex
-  app-server threads, gateway delegation, and read-only flow inspection.
+  app-server threads, workspace delegation, and flow inspection.

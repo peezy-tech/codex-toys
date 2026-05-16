@@ -37,21 +37,6 @@
         "typescript": "catalog:",
       },
     },
-    "apps/flow-backend-systemd-local": {
-      "name": "codex-flow-systemd-local",
-      "version": "0.1.0",
-      "bin": {
-        "codex-flow-systemd-local": "./src/index.ts",
-      },
-      "dependencies": {
-        "@peezy.tech/flow-runtime": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "@types/node": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
     "apps/flow-runner": {
       "name": "codex-flow-runner",
       "version": "0.1.0",
@@ -60,21 +45,6 @@
       },
       "dependencies": {
         "@peezy.tech/flow-runtime": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "@types/node": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
-    "apps/gateway": {
-      "name": "codex-gateway-local",
-      "version": "0.1.0",
-      "bin": {
-        "codex-gateway-local": "./src/index.ts",
-      },
-      "dependencies": {
-        "@peezy.tech/codex-flows": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -100,6 +70,22 @@
         "@vitejs/plugin-react": "catalog:",
         "typescript": "catalog:",
         "vite": "catalog:",
+      },
+    },
+    "apps/workspace-backend": {
+      "name": "codex-workspace-backend-local",
+      "version": "0.1.0",
+      "bin": {
+        "codex-workspace-backend-local": "./src/index.ts",
+      },
+      "dependencies": {
+        "@peezy.tech/codex-flows": "workspace:*",
+        "@peezy.tech/flow-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "docs": {
@@ -735,9 +721,7 @@
 
     "codex-flow-runner": ["codex-flow-runner@workspace:apps/flow-runner"],
 
-    "codex-flow-systemd-local": ["codex-flow-systemd-local@workspace:apps/flow-backend-systemd-local"],
-
-    "codex-gateway-local": ["codex-gateway-local@workspace:apps/gateway"],
+    "codex-workspace-backend-local": ["codex-workspace-backend-local@workspace:apps/workspace-backend"],
 
     "collapse-white-space": ["collapse-white-space@2.1.0", "", {}, "sha512-loKTxY1zCOuG4j9f6EPnuyyYkf58RnhhWTvRoZEokgB+WbdXehfjFviyOVYkqzEWz1Q5kRiZdBYS5SwxbQYwzw=="],
 

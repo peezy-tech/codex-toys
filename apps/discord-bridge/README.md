@@ -2,12 +2,12 @@
 
 Long-lived Discord sidecar for connecting Discord to Codex app-server threads.
 
-## Gateway Mode
+## Workspace Mode
 
-Gateway mode is opt-in. It keeps one Discord home surface as the primary UX, or
+Workspace mode is opt-in. It keeps one Discord home surface as the primary UX, or
 several guild-scoped surfaces when multi-guild routing is configured, and one
-main Codex thread as the operator memory for the gateway. Legacy
-thread-per-task behavior remains available outside the configured gateway
+main Codex thread as the operator memory for the workspace. Legacy
+thread-per-task behavior remains available outside the configured workspace
 channels.
 
 Set these environment values before starting the bridge:
@@ -31,7 +31,7 @@ top-level workspace under it:
 
 ```toml
 # /home/peezy/crypto-workspace/.codex/workspace.toml
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "crypto"
 home_channel_id = "1503107617512919220"
 workspace_forum_channel_id = "1503107617512919221"
@@ -44,20 +44,20 @@ workspace is the route. Workspaces without a Discord surface entry use the
 default `.env` surface. If multiple workspaces name the same surface key with
 the same channel ids, they are merged into one guild surface. Surface keys and
 channel ids must be unique, and each workspace file may contain at most one
-`[[discord.gateway.surfaces]]` entry.
+`[[discord.workspace.surfaces]]` entry.
 
 `CODEX_DISCORD_MAIN_THREAD_ID` is optional. If omitted, the bridge creates a new
-main operator thread, attaches the privileged gateway tools to it, and stores it
+main operator thread, attaches the privileged workspace tools to it, and stores it
 in the bridge state file. Existing configured main threads are resumed as-is;
-recreate the main operator thread if you need to attach gateway tools to a
-thread that predates gateway mode.
+recreate the main operator thread if you need to attach workspace tools to a
+thread that predates workspace mode.
 
 In each configured home channel:
 
 - normal messages are sent to the main operator thread
-- bot mentions are treated as gateway messages and do not create Discord task
+- bot mentions are treated as workspace messages and do not create Discord task
   threads
-- `/status` replies directly with gateway state instead of starting a Codex turn
+- `/status` replies directly with workspace state instead of starting a Codex turn
 - `/status` also lists active Codex threads, linking any opened Discord thread
   on the same surface and offering private buttons to open active threads that
   are not yet in Discord
@@ -66,14 +66,14 @@ In each configured home channel:
 - `/goals` inside an opened Codex Discord thread manages that specific thread's
   goal; use the slash options to set the objective/status/token budget or clear it
 
-The prompt sent to the main thread uses `[discord-gateway]` framing so the model
-knows it is operating as the gateway over the codex-flows backend, not as a
+The prompt sent to the main thread uses `[discord-workspace]` framing so the model
+knows it is operating as the workspace over the codex-flows backend, not as a
 single task thread.
 
 ## Delegation Tools
 
 Discord should not become a workspace registry. The main operator thread is the
-place where routing decisions happen. Privileged `codex_gateway` dynamic tools
+place where routing decisions happen. Privileged `codex_workspace` dynamic tools
 are attached only to that main thread and expose:
 
 - `list_delegations`
@@ -98,15 +98,15 @@ Those tools can:
 - record completed delegation results into the main operator thread
 - inspect flow backend state through `CODEX_FLOW_BACKEND_URL`
 
-Gateway state stores delegation records, including optional Discord detail
+Workspace state stores delegation records, including optional Discord detail
 thread ids for noisy work. Delegated Codex sessions do not receive the privileged
-gateway tools; only the main operator thread can manage delegation.
+workspace tools; only the main operator thread can manage delegation.
 
 ## Workbench Prototype
 
-The gateway can optionally maintain a noisy Discord workbench beside each home
+The workspace can optionally maintain a noisy Discord workbench beside each home
 channel. Configure both channels on the default `.env` surface, or on a
-workspace-owned `[[discord.gateway.surfaces]]` entry, to enable it:
+workspace-owned `[[discord.workspace.surfaces]]` entry, to enable it:
 
 ```bash
 CODEX_DISCORD_WORKSPACE_FORUM_CHANNEL_ID=1502107617512919221
@@ -116,7 +116,7 @@ CODEX_DISCORD_TASK_THREADS_CHANNEL_ID=1502107617512919222
 The home channel remains the compact operator chat. Each surface's workspace
 forum gets one post for each discoverable top-level folder under
 `CODEX_DISCORD_DIR` that routes to that surface. `CODEX_DISCORD_DIR` is the
-gateway's main workspace root. For the home-folder gateway, set
+workspace's main workspace root. For the home-folder workspace, set
 `CODEX_DISCORD_DIR=/home/peezy`; a delegated cwd such as
 `/home/peezy/codex-fork-workspace/codex-flows` maps to the
 `/home/peezy/codex-fork-workspace` workspace post. Hidden folders and
@@ -167,22 +167,22 @@ Delegations support return modes:
 - `wake_on_done`: inject and mirror the result, then wake the main operator when idle
 - `wake_on_group`: inject and mirror each result, then wake once the whole group is terminal
 - `record_only`: inject and mirror results without waking the main operator
-- `manual`: keep results in gateway state until `flush_delegation_results`
+- `manual`: keep results in workspace state until `flush_delegation_results`
 - `detached`: do not loop results back to the main thread; useful for human-continued threads
 
 Automatic result return uses `thread/inject_items` to append structured
 delegation results to the main operator thread's model-visible history. Codex
 hooks, not background thread polling, drive automatic result return and passive
 observability. The global hook writes durable lifecycle events into the spool
-directory, and the gateway drains that spool on startup and while running.
+directory, and the workspace drains that spool on startup and while running.
 Starting a main-thread turn is a separate wake step, so long-running main goals
 are not interrupted; wakes are queued until the main operator thread is idle.
-For sessions that were not created through the gateway, the same hook stream
+For sessions that were not created through the workspace, the same hook stream
 updates an observed-thread index used by `/threads`.
 
 ## Codex Hooks
 
-Install the global hooks once for the Codex runtime that backs the gateway:
+Install the global hooks once for the Codex runtime that backs the workspace:
 
 ```bash
 codex-discord-bridge hook install
@@ -252,14 +252,14 @@ codex-discord-bridge hook install --bunx
 codex-discord-bridge hook install --bunx-package @peezy.tech/codex-flows
 ```
 
-The hook is intentionally dumb: it does not read gateway state or call the
+The hook is intentionally dumb: it does not read workspace state or call the
 backend. It only writes idempotent lifecycle-event files and lets Codex
-continue. The gateway treats known delegated `Stop` events according to their
+continue. The workspace treats known delegated `Stop` events according to their
 return mode, uses main-operator `Stop` events to drain queued wakes, and records
 unknown non-main sessions as observed threads. Observed threads are visible from
 `/threads` for their workspace and can be opened into the task thread channel
 on demand.
 
 After changing hook configuration, restart the Codex runtime that backs the
-gateway and trust the hook when Codex asks for review. `hooks/list` should show
+workspace and trust the hook when Codex asks for review. `hooks/list` should show
 the hook as `trusted`; untrusted hooks are discovered but do not run.

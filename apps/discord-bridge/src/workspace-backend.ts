@@ -4,7 +4,7 @@ import type {
 	DiscordInbound,
 } from "./types.ts";
 
-export type CodexGatewayBackend = {
+export type CodexWorkspaceBackend = {
 	start(): Promise<void>;
 	startTransportDependentWork?(): Promise<void>;
 	startBackgroundWork?(): Promise<void>;
@@ -15,7 +15,7 @@ export type CodexGatewayBackend = {
 	flushSummariesForTest?(): Promise<void>;
 };
 
-export type CodexGatewayPresenter = {
+export type CodexWorkspacePresenter = {
 	createWorkspacePost?(
 		locationId: string,
 		title: string,

@@ -4,12 +4,13 @@ Thin browser UI plus TypeScript client for `codex app-server`.
 
 The current source is:
 
-- `apps/web`: React/Vite UI that connects directly to a Codex app-server WebSocket.
+- `apps/web`: React/Vite UI that connects through the workspace backend.
 - `apps/cli`: Bun CLI that sends JSON-RPC actions to a listening Codex app-server.
 - `apps/discord-bridge`: Discord sidecar that connects Discord threads to
-  Codex app-server threads and gateway delegation.
+  Codex app-server threads through the workspace backend capability model.
 - `apps/flow-runner`: CLI for discovering and firing packaged flows.
-- `apps/flow-backend-systemd-local`: local HTTP backend for executing flows from dispatch events.
+- `apps/workspace-backend`: local workspace backend process with browser/control
+  WebSocket and optional flow HTTP routes.
 - `docs`: Tome documentation site for codex-flow.
 - `packages/codex-client`: JSON-RPC client, app-server transports, flow helpers, and generated protocol types.
 - `packages/flow-runtime`: flow manifest loading, event matching, and runner primitives.
@@ -23,10 +24,11 @@ Install dependencies:
 bun install
 ```
 
-Start a Codex app-server WebSocket in a separate shell:
+Start the local workspace backend in a separate shell. It can spawn a local
+stdio app-server:
 
 ```bash
-codex app-server --listen ws://127.0.0.1:3585 --enable apps --enable hooks
+bun run workspace:backend --local-app-server
 ```
 
 Start the web app:
@@ -36,15 +38,14 @@ bun run dev
 ```
 
 In development, the web app defaults to a same-origin Vite WebSocket proxy at
-`/__codex-app-server`, which forwards to `ws://127.0.0.1:3585`. This avoids
-browser `Origin` header rejections from the app-server, which can show up in
-WSL and other browser-to-localhost setups.
+`/__codex-workspace-backend`, which forwards to `ws://127.0.0.1:3586`.
 
-Set `VITE_CODEX_APP_SERVER_PROXY_TARGET` to proxy to a different app-server
-URL. Set `VITE_CODEX_APP_SERVER_WS_URL` only when you explicitly want the
-browser to connect directly to an app-server WebSocket.
+Set `VITE_CODEX_WORKSPACE_BACKEND_PROXY_TARGET` to proxy to a different
+workspace backend URL. Set `VITE_CODEX_WORKSPACE_BACKEND_WS_URL` only when you
+explicitly want the browser to connect directly to a workspace backend
+WebSocket.
 
-Send a command to the running app-server:
+Send a command to a standalone app-server WebSocket:
 
 ```bash
 bun apps/cli/src/index.ts thread/list '{"limit": 20, "sourceKinds": []}'
@@ -64,15 +65,15 @@ bun run build
 bun run test
 ```
 
-`bun run test` runs the client, flow runtime, local flow backend, CLI, and
-Discord bridge tests.
+`bun run test` runs the client, flow runtime, workspace backend, CLI, Discord
+bridge, and web tests.
 
 ## Flow Automation
 
 Flow packages live under `flows/*` and installed copies can live under
 `.codex/flows/*`. The publishable Tome docs live in [docs](docs) and cover
 `flow.toml`, generic `FlowEvent` dispatch, Bun and Code Mode runners, local
-clients, systemd-local, and Convex backends.
+clients, the workspace flow backend, and Convex backends.
 
 ```bash
 bun run flow list
@@ -172,6 +173,8 @@ The low-level app-server client package. It exports:
 - `@peezy.tech/codex-flows/browser`: browser entry with WebSocket transport only.
 - `@peezy.tech/codex-flows/flows`: framework-agnostic helpers for app servers that want to start Codex-backed workflows.
 - `@peezy.tech/codex-flows/workbench`: transport-neutral thread UX state reducers and app-server request descriptors.
+- `@peezy.tech/codex-flows/workspace-backend`: workspace backend client,
+  protocol server, and built-in capability primitives.
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC helpers and types.
 - `@peezy.tech/codex-flows/generated`: generated Codex app-server protocol types.
 
@@ -188,11 +191,14 @@ OpenCode Go upstream surface. See
 CLI package for listing flow packages, firing every step that matches a
 `FlowEvent`, or running one explicit flow step.
 
-### `flow-backend-systemd-local`
+### `codex-workspace-backend-local`
 
-HTTP and CLI backend that persists dispatched flow events/runs to SQLite and
-starts matching steps locally. It is intended to run as a small systemd-managed
-service, with optional transient `systemd-run` units per step.
+Local workspace backend process. In networked mode, it exposes the workspace
+backend browser/control WebSocket and mounts the existing flow HTTP routes. The
+same flow execution and inspection behavior is a built-in workspace capability
+that embedded presenters can call directly without HTTP. Flow state is persisted
+to SQLite, and matching steps can run directly or through transient
+`systemd-run` units.
 
 ### `@peezy.tech/flow-runtime`
 
@@ -221,9 +227,10 @@ and expose their own authenticated wrappers for service workers.
 
 ### `web`
 
-The browser app imports `@peezy.tech/codex-flows/browser`, opens a direct WebSocket
-connection, lists threads, starts turns, interrupts running turns, and renders
-thread items and live app-server events.
+The browser app imports `@peezy.tech/codex-flows/workspace-backend`, opens a
+workspace backend WebSocket, lists threads, starts turns, interrupts running
+turns, and renders thread items and live app-server events forwarded through the
+workspace backend.
 
 ### `cli`
 

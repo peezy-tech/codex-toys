@@ -1,21 +1,21 @@
 ---
 title: Discord bridge
-description: Long-lived Discord sidecar for Codex app-server threads, gateway mode, and flow inspection.
+description: Long-lived Discord sidecar for Codex app-server threads, workspace mode, and flow inspection.
 ---
 
 # Discord bridge
 
 `codex-discord-bridge` is a private workspace app that exposes Discord as a
-transport over a Codex gateway backend. It is a user interface and operator
+transport over a Codex workspace backend. It is a user interface and operator
 sidecar, not part of the generic flow runtime.
 
 Use it when a team wants to:
 
 - start or resume Codex work from Discord
-- keep one gateway home channel as the operator surface
+- keep one workspace home channel as the operator surface
 - delegate work into separate Codex threads
 - expose selected Codex thread state through Discord commands
-- inspect codex-flow backend events and runs from the gateway
+- inspect workspace flow backend events and runs
 
 ## Run it
 
@@ -47,24 +47,23 @@ Common optional configuration:
 |----------|---------|
 | `CODEX_DISCORD_ALLOWED_CHANNEL_IDS` | Parent channels where the bridge may respond. |
 | `CODEX_DISCORD_DIR` | Root directory for Codex thread workspaces. |
-| `CODEX_DISCORD_HOME_CHANNEL_ID` | Enables gateway mode for a Discord home channel. |
-| `CODEX_DISCORD_MAIN_THREAD_ID` | Existing Codex operator thread to resume for gateway mode. |
+| `CODEX_DISCORD_HOME_CHANNEL_ID` | Enables workspace mode for a Discord home channel. |
+| `CODEX_DISCORD_MAIN_THREAD_ID` | Existing Codex operator thread to resume for workspace mode. |
 | `CODEX_DISCORD_WORKSPACE_FORUM_CHANNEL_ID` | Optional workbench forum channel. |
 | `CODEX_DISCORD_TASK_THREADS_CHANNEL_ID` | Optional workbench task-thread channel. |
-| `CODEX_FLOW_BACKEND_URL` | Optional HTTP flow backend for read-only run/event inspection. |
+| `CODEX_FLOW_BACKEND_URL` | Optional workspace flow HTTP surface for run/event inspection. |
 | `CODEX_DISCORD_HOOK_SPOOL_DIR` | Directory for Codex hook lifecycle events. |
 
-## Gateway mode
+## Workspace Mode
 
-Gateway mode keeps one Discord home channel as the compact operator surface and
+Workspace mode keeps one Discord home channel as the compact operator surface and
 one Codex main thread as the model-visible operator memory. Normal messages in
 the home channel go to that main thread. The main thread receives privileged
-`codex_gateway` tools that can start, resume, read, and message delegated Codex
+`codex_workspace` tools that can start, resume, read, and message delegated Codex
 sessions.
 
-The gateway tools can also list flow events and runs when
-`CODEX_FLOW_BACKEND_URL` points at a compatible backend such as
-`codex-flow-systemd-local`.
+The workspace tools can also list flow events and runs when
+`CODEX_FLOW_BACKEND_URL` points at a compatible workspace flow HTTP surface.
 
 ## Backend contract
 
@@ -73,12 +72,12 @@ The Discord process has two sides:
 - the Discord transport starts the bot, receives commands and messages, maps
   Discord channels and threads, registers slash commands, and sends Discord
   output
-- the gateway backend handles inbound events, owns Codex app-server lifecycle,
+- the workspace backend handles inbound events, owns Codex app-server lifecycle,
   starts and resumes Codex threads, manages goals, delegations, workbench state,
   persisted bridge state, and hook-spool wake behavior
 
 The built-in backend is local. It preserves the current behavior while giving
-the bridge an explicit `CodexGatewayBackend` contract that another backend can
+the bridge an explicit `CodexWorkspaceBackend` contract that another backend can
 implement later. The local backend only receives the outbound Discord
 presentation surface; transport startup, shutdown, inbound dispatch, and command
 registration stay in the Discord wrapper.
@@ -102,7 +101,7 @@ Single-surface `.env` configuration is the default. For multi-guild routing,
 put one surface entry in a workspace-owned `.codex/workspace.toml`:
 
 ```toml
-[[discord.gateway.surfaces]]
+[[discord.workspace.surfaces]]
 key = "crypto"
 home_channel_id = "1503107617512919220"
 workspace_forum_channel_id = "1503107617512919221"
@@ -115,7 +114,7 @@ workspace is the route.
 
 ## Codex hooks
 
-Install Codex hooks once for the runtime backing the gateway:
+Install Codex hooks once for the runtime backing the workspace backend:
 
 ```bash
 codex-discord-bridge hook install
@@ -136,8 +135,8 @@ operator thread when configured.
 ## Boundary
 
 The Discord bridge may present flow backend events and runs, but it does not
-own the generic flow ABI. The gateway backend can read from
-`@peezy.tech/flow-runtime` backend clients for inspection, but flow packages
-still communicate through `FlowEvent`, `flow.toml`, and `FLOW_RESULT`;
-app-specific completion still belongs in the app that dispatched or consumed the
-event.
+own the generic flow ABI. The workspace backend can read from
+`@peezy.tech/flow-runtime` backend clients or the built-in workspace flow
+capability for inspection, but flow packages still communicate through
+`FlowEvent`, `flow.toml`, and `FLOW_RESULT`; app-specific completion still
+belongs in the app that dispatched or consumed the event.

@@ -157,7 +157,7 @@ function createRunRecord(
 		flowName: flow.manifest.name,
 		stepName: step.name,
 		status: "queued",
-		backend: "systemd-local",
+		backend: "workspace-local",
 		executor: config.executor,
 		eventPath,
 		createdAt: new Date().toISOString(),

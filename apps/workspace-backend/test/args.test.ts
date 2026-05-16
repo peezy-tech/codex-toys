@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { parseArgs } from "../src/args.ts";
 
 describe("parseArgs", () => {
-	test("defaults to serving the local gateway port", () => {
-		expect(parseArgs([], {})).toEqual({
+	test("defaults to serving the local workspace backend port", () => {
+		expect(parseArgs([], {})).toMatchObject({
 			type: "serve",
 			hostname: "127.0.0.1",
 			port: 3586,
@@ -23,7 +23,7 @@ describe("parseArgs", () => {
 				"--app-server-url",
 				"ws://127.0.0.1:3585",
 			], {}),
-		).toEqual({
+		).toMatchObject({
 			type: "serve",
 			hostname: "0.0.0.0",
 			port: 4599,
@@ -46,11 +46,11 @@ describe("parseArgs", () => {
 	test("reads environment overrides", () => {
 		expect(
 			parseArgs([], {
-				CODEX_GATEWAY_HOST: "0.0.0.0",
-				CODEX_GATEWAY_PORT: "4599",
-				CODEX_GATEWAY_LOCAL_APP_SERVER: "yes",
+				CODEX_WORKSPACE_BACKEND_HOST: "0.0.0.0",
+				CODEX_WORKSPACE_BACKEND_PORT: "4599",
+				CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER: "yes",
 			}),
-		).toEqual({
+		).toMatchObject({
 			type: "serve",
 			hostname: "0.0.0.0",
 			port: 4599,

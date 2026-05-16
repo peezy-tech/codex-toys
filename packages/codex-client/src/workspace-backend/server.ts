@@ -15,18 +15,23 @@ import {
 	APP_SERVER_REQUEST_METHOD,
 	APP_SERVER_RESPOND_ERROR_METHOD,
 	APP_SERVER_RESPOND_METHOD,
-	GATEWAY_EVENT_METHOD,
-	GATEWAY_INITIALIZE_METHOD,
+	WORKSPACE_BACKEND_EVENT_METHOD,
+	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 	appServerCallParams,
 	appServerNotifyParams,
 	appServerRespondErrorParams,
 	appServerRespondParams,
-	isGatewayOwnedMethod,
-	type GatewayEvent,
-	type GatewayInitializeResponse,
+	isWorkspaceBackendOwnedMethod,
+	type WorkspaceBackendEvent,
+	type WorkspaceBackendInitializeResponse,
 } from "./protocol.ts";
 
-export type CodexGatewayAppServer = CodexEventEmitter & {
+export type WorkspaceBackendMethodHandler = (
+	params: unknown,
+	request: JsonRpcRequest,
+) => unknown | Promise<unknown>;
+
+export type CodexWorkspaceBackendAppServer = CodexEventEmitter & {
 	connect?(): Promise<void>;
 	close?(): void;
 	request<T = unknown>(method: string, params?: unknown): Promise<T>;
@@ -35,35 +40,39 @@ export type CodexGatewayAppServer = CodexEventEmitter & {
 	respondError(id: JsonRpcId, code: number, message: string, data?: unknown): void;
 };
 
-export type CodexGatewayPeer = {
+export type CodexWorkspaceBackendPeer = {
 	send(message: string): void;
 };
 
-export type CodexGatewayProtocolServerOptions = {
-	appServer: CodexGatewayAppServer;
+export type CodexWorkspaceBackendProtocolServerOptions = {
+	appServer: CodexWorkspaceBackendAppServer;
 	now?: () => Date;
 	serverName?: string;
 	serverVersion?: string;
 	flowInspection?: boolean;
-	gatewayCommands?: string[];
+	workspaceMethods?: string[];
+	methods?: Record<string, WorkspaceBackendMethodHandler>;
 };
 
-export class CodexGatewayProtocolServer {
-	readonly appServer: CodexGatewayAppServer;
-	#peers = new Set<CodexGatewayPeer>();
+export class CodexWorkspaceBackendProtocolServer {
+	readonly appServer: CodexWorkspaceBackendAppServer;
+	#peers = new Set<CodexWorkspaceBackendPeer>();
 	#now: () => Date;
 	#serverName: string;
 	#serverVersion: string;
 	#flowInspection: boolean;
-	#gatewayCommands: string[];
+	#workspaceMethods: string[];
+	#methods: Map<string, WorkspaceBackendMethodHandler>;
 
-	constructor(options: CodexGatewayProtocolServerOptions) {
+	constructor(options: CodexWorkspaceBackendProtocolServerOptions) {
 		this.appServer = options.appServer;
 		this.#now = options.now ?? (() => new Date());
-		this.#serverName = options.serverName ?? "codex-gateway-local";
+		this.#serverName = options.serverName ?? "codex-workspace-backend-local";
 		this.#serverVersion = options.serverVersion ?? "0.1.0";
 		this.#flowInspection = options.flowInspection ?? false;
-		this.#gatewayCommands = options.gatewayCommands ?? [];
+		this.#methods = new Map(Object.entries(options.methods ?? {}));
+		this.#workspaceMethods = options.workspaceMethods ??
+			[...this.#methods.keys()].sort();
 
 		this.appServer.on("notification", (message) => {
 			this.broadcastNotification(APP_SERVER_NOTIFICATION_METHOD, { message });
@@ -72,14 +81,14 @@ export class CodexGatewayProtocolServer {
 			this.broadcastNotification(APP_SERVER_REQUEST_METHOD, { message });
 		});
 		this.appServer.on("error", (error) => {
-			this.broadcastGatewayEvent({
+			this.broadcastWorkspaceBackendEvent({
 				type: "appServer.error",
 				at: this.#now().toISOString(),
 				message: errorMessage(error),
 			});
 		});
 		this.appServer.on("close", (code, reason) => {
-			this.broadcastGatewayEvent({
+			this.broadcastWorkspaceBackendEvent({
 				type: "appServer.closed",
 				at: this.#now().toISOString(),
 				code: typeof code === "number" ? code : null,
@@ -88,19 +97,19 @@ export class CodexGatewayProtocolServer {
 		});
 	}
 
-	addPeer(peer: CodexGatewayPeer): void {
+	addPeer(peer: CodexWorkspaceBackendPeer): void {
 		this.#peers.add(peer);
-		this.sendGatewayEvent(peer, {
+		this.sendWorkspaceBackendEvent(peer, {
 			type: "connected",
 			at: this.#now().toISOString(),
 		});
 	}
 
-	removePeer(peer: CodexGatewayPeer): void {
+	removePeer(peer: CodexWorkspaceBackendPeer): void {
 		this.#peers.delete(peer);
 	}
 
-	async handleMessage(peer: CodexGatewayPeer, data: string): Promise<void> {
+	async handleMessage(peer: CodexWorkspaceBackendPeer, data: string): Promise<void> {
 		let parsed: unknown;
 		try {
 			parsed = JSON.parse(data) as unknown;
@@ -128,22 +137,27 @@ export class CodexGatewayProtocolServer {
 		}
 	}
 
-	broadcastGatewayEvent(event: GatewayEvent): void {
-		this.broadcastNotification(GATEWAY_EVENT_METHOD, { event });
+	broadcastWorkspaceBackendEvent(event: WorkspaceBackendEvent): void {
+		this.broadcastNotification(WORKSPACE_BACKEND_EVENT_METHOD, { event });
 	}
 
-	sendGatewayEvent(peer: CodexGatewayPeer, event: GatewayEvent): void {
+	sendWorkspaceBackendEvent(peer: CodexWorkspaceBackendPeer, event: WorkspaceBackendEvent): void {
 		peer.send(JSON.stringify({
 			jsonrpc: "2.0",
-			method: GATEWAY_EVENT_METHOD,
+			method: WORKSPACE_BACKEND_EVENT_METHOD,
 			params: { event },
 		} satisfies JsonRpcNotification));
 	}
 
 	async #handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
 		try {
-			if (request.method === GATEWAY_INITIALIZE_METHOD) {
+			if (request.method === WORKSPACE_BACKEND_INITIALIZE_METHOD) {
 				return successResponse(request.id, this.#initializeResponse());
+			}
+			const workspaceMethod = this.#methods.get(request.method);
+			if (workspaceMethod) {
+				const result = await workspaceMethod(request.params, request);
+				return successResponse(request.id, result ?? { ok: true });
 			}
 			if (request.method === APP_SERVER_CALL_METHOD) {
 				const params = appServerCallParams(request.params);
@@ -186,19 +200,19 @@ export class CodexGatewayProtocolServer {
 				);
 				return successResponse(request.id, { ok: true });
 			}
-			if (isGatewayOwnedMethod(request.method)) {
-				this.broadcastGatewayEvent({
-					type: "unsupportedGatewayCommand",
+			if (isWorkspaceBackendOwnedMethod(request.method)) {
+				this.broadcastWorkspaceBackendEvent({
+					type: "unsupportedWorkspaceBackendMethod",
 					at: this.#now().toISOString(),
 					method: request.method,
 				});
 				return errorResponse(
 					request.id,
 					-32601,
-					`Gateway command is not implemented: ${request.method}`,
+					`Workspace backend method is not implemented: ${request.method}`,
 				);
 			}
-			return errorResponse(request.id, -32601, `Unknown gateway method: ${request.method}`);
+			return errorResponse(request.id, -32601, `Unknown workspace backend method: ${request.method}`);
 		} catch (error) {
 			return errorResponse(request.id, -32603, errorMessage(error));
 		}
@@ -209,7 +223,7 @@ export class CodexGatewayProtocolServer {
 			if (notification.method === APP_SERVER_NOTIFY_METHOD) {
 				const params = appServerNotifyParams(notification.params);
 				if (!params) {
-					this.broadcastGatewayEvent({
+					this.broadcastWorkspaceBackendEvent({
 						type: "appServer.error",
 						at: this.#now().toISOString(),
 						message: "Invalid appServer.notify params",
@@ -219,15 +233,15 @@ export class CodexGatewayProtocolServer {
 				this.appServer.notify(params.method, params.params);
 				return;
 			}
-			if (isGatewayOwnedMethod(notification.method)) {
-				this.broadcastGatewayEvent({
-					type: "unsupportedGatewayCommand",
+			if (isWorkspaceBackendOwnedMethod(notification.method)) {
+				this.broadcastWorkspaceBackendEvent({
+					type: "unsupportedWorkspaceBackendMethod",
 					at: this.#now().toISOString(),
 					method: notification.method,
 				});
 			}
 		} catch (error) {
-			this.broadcastGatewayEvent({
+			this.broadcastWorkspaceBackendEvent({
 				type: "appServer.error",
 				at: this.#now().toISOString(),
 				message: errorMessage(error),
@@ -235,7 +249,7 @@ export class CodexGatewayProtocolServer {
 		}
 	}
 
-	#initializeResponse(): GatewayInitializeResponse {
+	#initializeResponse(): WorkspaceBackendInitializeResponse {
 		return {
 			ok: true,
 			serverInfo: {
@@ -244,7 +258,7 @@ export class CodexGatewayProtocolServer {
 			},
 			capabilities: {
 				appServerPassThrough: true,
-				gatewayCommands: this.#gatewayCommands,
+				workspaceMethods: this.#workspaceMethods,
 				flowInspection: this.#flowInspection,
 			},
 		};

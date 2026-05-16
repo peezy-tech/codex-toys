@@ -11,8 +11,8 @@ import os from "node:os";
 import path from "node:path";
 
 import type {
-	DiscordGatewayHookEvent,
-	DiscordGatewayHookEventName,
+	DiscordWorkspaceHookEvent,
+	DiscordWorkspaceHookEventName,
 } from "./types.ts";
 
 export type HookEventSpoolDisposition = "processed" | "ignored" | "failed";
@@ -22,7 +22,7 @@ export type PendingHookEventSpoolFile =
 	| {
 			filePath: string;
 			fileName: string;
-			event: DiscordGatewayHookEvent;
+			event: DiscordWorkspaceHookEvent;
 	  }
 	| {
 			filePath: string;
@@ -65,7 +65,7 @@ export async function writeStopHookSpoolEvent(
 		spoolDir?: string;
 		now?: () => Date;
 	} = {},
-): Promise<DiscordGatewayHookEvent> {
+): Promise<DiscordWorkspaceHookEvent> {
 	return await writeHookSpoolEvent(input, options);
 }
 
@@ -75,7 +75,7 @@ export async function writeHookSpoolEvent(
 		spoolDir?: string;
 		now?: () => Date;
 	} = {},
-): Promise<DiscordGatewayHookEvent> {
+): Promise<DiscordWorkspaceHookEvent> {
 	const spoolDir = options.spoolDir ?? stopHookSpoolDirFromEnv();
 	const event = hookEventFromInput(input, options.now ?? (() => new Date()));
 	const paths = stopHookSpoolPaths(spoolDir);
@@ -151,7 +151,7 @@ export async function removeStopHookSpool(spoolDir: string): Promise<void> {
 function hookEventFromInput(
 	input: unknown,
 	now: () => Date,
-): DiscordGatewayHookEvent {
+): DiscordWorkspaceHookEvent {
 	const parsed = record(input);
 	const eventName = stringValue(parsed.hook_event_name) ?? stringValue(parsed.eventName);
 	if (!isHookEventName(eventName)) {
@@ -212,7 +212,7 @@ function hookEventFromInput(
 	};
 }
 
-function parseHookSpoolEvent(input: unknown): DiscordGatewayHookEvent {
+function parseHookSpoolEvent(input: unknown): DiscordWorkspaceHookEvent {
 	const parsed = record(input);
 	if (parsed.version !== 1) {
 		throw new Error("Invalid hook event version");
@@ -249,7 +249,7 @@ function parseHookSpoolEvent(input: unknown): DiscordGatewayHookEvent {
 }
 
 function hookEventId(input: {
-	eventName: DiscordGatewayHookEventName;
+	eventName: DiscordWorkspaceHookEventName;
 	sessionId: string;
 	turnId?: string;
 	transcriptPath?: string;
@@ -277,7 +277,7 @@ function hookEventId(input: {
 	return `${prefix}-${createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 24)}`;
 }
 
-function isHookEventName(value: unknown): value is DiscordGatewayHookEventName {
+function isHookEventName(value: unknown): value is DiscordWorkspaceHookEventName {
 	return value === "SessionStart" ||
 		value === "UserPromptSubmit" ||
 		value === "PreToolUse" ||

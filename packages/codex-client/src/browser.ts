@@ -4,11 +4,11 @@ export {
 	type CodexBrowserAppServerTransport as CodexAppServerTransport,
 } from "./app-server/browser-client.ts";
 export {
-	CodexGatewayClient,
-	type CodexGatewayClientOptions,
-	type CodexGatewayTransport,
-	type GatewayEvent,
-} from "./gateway/client.ts";
+	CodexWorkspaceBackendClient,
+	type CodexWorkspaceBackendClientOptions,
+	type CodexWorkspaceBackendTransport,
+	type WorkspaceBackendEvent,
+} from "./workspace-backend/client.ts";
 export {
 	CodexWebSocketTransport,
 	type CodexWebSocketTransportOptions,

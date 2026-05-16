@@ -8,28 +8,28 @@ import type {
 	DiscordBridgeTransport,
 } from "./types.ts";
 import type {
-	CodexGatewayBackend,
-	CodexGatewayPresenter,
-} from "./gateway-backend.ts";
+	CodexWorkspaceBackend,
+	CodexWorkspacePresenter,
+} from "./workspace-backend.ts";
 import {
-	LocalCodexGatewayBackend,
-	type LocalCodexGatewayBackendOptions,
+	LocalCodexWorkspaceBackend,
+	type LocalCodexWorkspaceBackendOptions,
 	parseThreadStartIntent,
 	splitDiscordMessage,
-} from "./local-gateway-backend.ts";
+} from "./local-workspace-backend.ts";
 
 export { parseThreadStartIntent, splitDiscordMessage };
-export { LocalCodexGatewayBackend };
-export type { LocalCodexGatewayBackendOptions };
+export { LocalCodexWorkspaceBackend };
+export type { LocalCodexWorkspaceBackendOptions };
 
 export type DiscordCodexBridgeLocalOptions =
-	Omit<LocalCodexGatewayBackendOptions, "presenter"> & {
+	Omit<LocalCodexWorkspaceBackendOptions, "presenter"> & {
 		transport: DiscordBridgeTransport;
 		backend?: undefined;
 	};
 
 export type DiscordCodexBridgeBackendOptions = {
-	backend: CodexGatewayBackend;
+	backend: CodexWorkspaceBackend;
 	transport: DiscordBridgeTransport;
 	logger?: DiscordBridgeLogger;
 	config?: Pick<DiscordBridgeConfig, "debug" | "logLevel">;
@@ -42,7 +42,7 @@ export type DiscordCodexBridgeOptions =
 
 export class DiscordCodexBridge {
 	readonly transport: DiscordBridgeTransport;
-	readonly backend: CodexGatewayBackend;
+	readonly backend: CodexWorkspaceBackend;
 	#logger: DiscordBridgeLogger;
 
 	constructor(options: DiscordCodexBridgeOptions) {
@@ -53,7 +53,7 @@ export class DiscordCodexBridge {
 				logLevel: options.config?.logLevel,
 				now: options.now,
 			});
-		this.backend = options.backend ?? new LocalCodexGatewayBackend({
+		this.backend = options.backend ?? new LocalCodexWorkspaceBackend({
 			...options,
 			presenter: discordTransportPresenter(options.transport),
 		});
@@ -92,7 +92,7 @@ export class DiscordCodexBridge {
 
 	stateForTest(): DiscordBridgeState {
 		if (!this.backend.stateForTest) {
-			throw new Error("Gateway backend does not expose test state.");
+			throw new Error("Workspace backend does not expose test state.");
 		}
 		return this.backend.stateForTest();
 	}
@@ -104,7 +104,7 @@ export class DiscordCodexBridge {
 
 function discordTransportPresenter(
 	transport: DiscordBridgeTransport,
-): CodexGatewayPresenter {
+): CodexWorkspacePresenter {
 	return {
 		createWorkspacePost: transport.createForumPost?.bind(transport),
 		createThread: transport.createThread.bind(transport),

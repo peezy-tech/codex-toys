@@ -68,7 +68,7 @@ const backend = createFlowBackendHttpClient({
 const { runs } = await backend.listRuns({ status: "completed", limit: 20 });
 ```
 
-The client normalizes systemd-local, Convex-adapter, and codex-service-style
+The client normalizes workspace-local, Convex-adapter, and codex-service-style
 run/event responses into stable view models with `processStatus`,
 `resultStatus`, `effectiveStatus`, `needsAttention`, attempts, latest output,
 and result payload data. Semantic statuses such as `blocked` and

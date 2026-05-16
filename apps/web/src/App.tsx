@@ -33,12 +33,12 @@ import {
 	type v2,
 } from "@peezy.tech/codex-flows/browser";
 import {
-	CodexGatewayClient,
-	type GatewayEvent,
-} from "@peezy.tech/codex-flows/gateway";
+	CodexWorkspaceBackendClient,
+	type WorkspaceBackendEvent,
+} from "@peezy.tech/codex-flows/workspace-backend";
 
 import { ThemeProvider } from "./components/theme-provider.tsx";
-import { gatewayStorageKey, initialGatewayWsUrl } from "./gateway-url.ts";
+import { workspaceBackendStorageKey, initialWorkspaceBackendWsUrl } from "./workspace-backend-url.ts";
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
@@ -59,11 +59,11 @@ export function App() {
 }
 
 function BareCodexApp() {
-	const clientRef = useRef<CodexGatewayClient | null>(null);
+	const clientRef = useRef<CodexWorkspaceBackendClient | null>(null);
 	const authRef = useRef<CodexAuthClient | null>(null);
 	const [wsUrl, setWsUrl] = useState(() =>
-		initialGatewayWsUrl({
-			envUrl: import.meta.env.VITE_CODEX_GATEWAY_WS_URL,
+		initialWorkspaceBackendWsUrl({
+			envUrl: import.meta.env.VITE_CODEX_WORKSPACE_BACKEND_WS_URL,
 			location: window.location,
 			storage: window.localStorage,
 		})
@@ -206,7 +206,7 @@ function BareCodexApp() {
 		}
 
 		clientRef.current?.close();
-		const client = new CodexGatewayClient({
+		const client = new CodexWorkspaceBackendClient({
 			webSocketTransportOptions: { url, requestTimeoutMs: 90_000 },
 			clientName: "bare-web",
 			clientTitle: "Codex Bare Web",
@@ -223,17 +223,17 @@ function BareCodexApp() {
 				body: previewJson(message.params, 900),
 			});
 		});
-		client.on("gatewayEvent", (event: GatewayEvent) => {
+		client.on("workspaceBackendEvent", (event: WorkspaceBackendEvent) => {
 			appendEvent({
 				kind: "control",
-				title: `gateway ${event.type}`,
+				title: `workspace backend ${event.type}`,
 				body: previewJson(event, 900),
 			});
 		});
 		client.on("error", (eventError: unknown) => {
 			appendEvent({
 				kind: "error",
-				title: "gateway transport error",
+				title: "workspace backend transport error",
 				body: errorMessage(eventError),
 			});
 			setError(errorMessage(eventError));
@@ -255,7 +255,7 @@ function BareCodexApp() {
 		setError(undefined);
 		try {
 			await client.connect();
-			window.localStorage.setItem(gatewayStorageKey, url);
+			window.localStorage.setItem(workspaceBackendStorageKey, url);
 			setConnectedUrl(url);
 			setStatus("connected");
 			appendEvent({ kind: "control", title: "connected", body: url });
@@ -506,7 +506,7 @@ function BareCodexApp() {
 							<h1 className="truncate text-base font-semibold">Codex Bare</h1>
 						</div>
 						<p className="truncate text-xs text-muted-foreground">
-							{connectedUrl ?? "No gateway connection"}
+							{connectedUrl ?? "No workspace backend connection"}
 						</p>
 					</div>
 					<form

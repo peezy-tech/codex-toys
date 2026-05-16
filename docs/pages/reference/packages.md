@@ -10,7 +10,7 @@ description: Public and workspace packages in the codex-flow stack.
 Low-level Codex app-server client package. It exports:
 
 - app-server JSON-RPC client and stdio/WebSocket transports
-- browser-safe gateway client and gateway protocol server primitives
+- browser-safe workspace backend client and protocol server primitives
 - browser-safe WebSocket transport
 - framework-agnostic app-server flow helpers
 - auth helpers for account login/status/usage
@@ -36,10 +36,9 @@ attempts, leases, output chunks, and final result payloads.
 ## Workspace apps
 
 - `codex-flow-runner`: local CLI for listing, firing, and running steps.
-- `codex-flow-systemd-local`: local durable HTTP backend and CLI.
+- `codex-workspace-backend-local`: local workspace backend process with browser
+  control WebSocket and optional flow HTTP routes.
 - [`codex-discord-bridge`](discord-bridge): Discord-to-Codex bridge with
-  gateway delegation and read-only flow inspection tools.
-- `codex-gateway-local`: local WebSocket gateway that forwards native
-  app-server calls and exposes gateway-owned events/commands.
-- `web`: browser UI for Codex threads through the local gateway.
+  workspace delegation and flow inspection tools.
+- `web`: browser UI for Codex threads through the local workspace backend.
 - `codex-app-cli`: JSON-RPC CLI for app-server actions.

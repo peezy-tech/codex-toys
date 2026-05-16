@@ -11,7 +11,7 @@ export type FlowRunRecord = {
 	flowName: string;
 	stepName: string;
 	status: FlowRunStatus;
-	backend: "systemd-local";
+	backend: "workspace-local";
 	executor: string;
 	unit?: string;
 	eventPath: string;
@@ -252,7 +252,7 @@ function rowToRunRecord(row: unknown): FlowRunRecord {
 		flowName: String(row.flow_name),
 		stepName: String(row.step_name),
 		status: String(row.status) as FlowRunStatus,
-		backend: "systemd-local",
+		backend: "workspace-local",
 		executor: String(row.executor),
 		...(typeof row.unit === "string" ? { unit: row.unit } : {}),
 		eventPath: String(row.event_path),

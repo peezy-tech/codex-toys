@@ -1,6 +1,6 @@
 import type { JsonRpcNotification } from "@peezy.tech/codex-flows/rpc";
 import type { v2 } from "@peezy.tech/codex-flows/generated";
-import type { CodexGatewayPresenter } from "./gateway-backend.ts";
+import type { CodexWorkspacePresenter } from "./workspace-backend.ts";
 
 import type {
 	DiscordConsoleMessageKind,
@@ -25,7 +25,7 @@ const runningCommandStatusDelayMs = 5_000;
 
 export type ThreadRunnerContext = {
 	client: CodexBridgeClient;
-	presenter: CodexGatewayPresenter;
+	presenter: CodexWorkspacePresenter;
 	config: DiscordBridgeConfig;
 	getState(): DiscordBridgeState;
 	persist(): Promise<void>;
@@ -999,7 +999,7 @@ export class DiscordThreadRunner {
 				this.#state().deliveries
 					.filter(
 						(delivery) =>
-							(this.session.mode === "gateway" ||
+							(this.session.mode === "operator" ||
 								delivery.discordThreadId === this.session.discordThreadId) &&
 							delivery.codexThreadId === this.session.codexThreadId &&
 							delivery.kind === "final" &&
@@ -1565,7 +1565,7 @@ export class DiscordThreadRunner {
 	#hasDelivery(turnId: string, kind: DiscordBridgeDelivery["kind"]): boolean {
 		return this.#state().deliveries.some(
 			(delivery) =>
-				(this.session.mode === "gateway" ||
+				(this.session.mode === "operator" ||
 					delivery.discordThreadId === this.session.discordThreadId) &&
 				delivery.codexThreadId === this.session.codexThreadId &&
 				delivery.turnId === turnId &&
@@ -1603,7 +1603,7 @@ export class DiscordThreadRunner {
 	#sessionActiveTurns(): DiscordBridgeActiveTurn[] {
 		return this.#state().activeTurns.filter(
 			(active) =>
-				(this.session.mode === "gateway" ||
+				(this.session.mode === "operator" ||
 					active.discordThreadId === this.session.discordThreadId) &&
 				active.codexThreadId === this.session.codexThreadId,
 		);
@@ -1620,7 +1620,7 @@ export class DiscordThreadRunner {
 		const observedAt = this.#context.now().toISOString();
 		state.activeTurns = state.activeTurns.filter(
 			(active) =>
-				(this.session.mode !== "gateway" &&
+				(this.session.mode !== "operator" &&
 					active.discordThreadId !== this.session.discordThreadId) ||
 				active.codexThreadId !== this.session.codexThreadId ||
 				active.turnId === input.turnId,
@@ -1651,7 +1651,7 @@ export class DiscordThreadRunner {
 		const state = this.#state();
 		state.activeTurns = state.activeTurns.filter(
 			(active) =>
-				(this.session.mode !== "gateway" &&
+				(this.session.mode !== "operator" &&
 					active.discordThreadId !== this.session.discordThreadId) ||
 				active.codexThreadId !== this.session.codexThreadId ||
 				active.turnId !== turnId,
@@ -1677,7 +1677,7 @@ export class DiscordThreadRunner {
 	#sessionQueueItems(): DiscordBridgeQueueItem[] {
 		return this.#state().queue.filter(
 			(item) =>
-				(this.session.mode === "gateway" ||
+				(this.session.mode === "operator" ||
 					item.discordThreadId === this.session.discordThreadId) &&
 				item.codexThreadId === this.session.codexThreadId,
 		);
@@ -2079,20 +2079,20 @@ function formatDiscordPrompt(
 	session: DiscordBridgeSession,
 	config: DiscordBridgeConfig,
 ): string {
-	if (session.mode === "gateway") {
-		const surface = config.gateway?.surfaces?.find((candidate) =>
+	if (session.mode === "operator") {
+		const surface = config.workspace?.surfaces?.find((candidate) =>
 			candidate.homeChannelId === item.discordThreadId
 		);
 		return [
-			"[discord-gateway]",
-			"Role: You are the main Codex operator thread for a configured Discord gateway surface.",
-			"Intent: Treat this as a gateway request. Answer directly when appropriate; otherwise reason about backend/runtime delegation without assuming Discord itself owns a workspace registry.",
+			"[discord-workspace]",
+			"Role: You are the main Codex operator thread for a configured Discord workspace surface.",
+			"Intent: Treat this as a workspace request. Answer directly when appropriate; otherwise reason about backend/runtime delegation without assuming Discord itself owns a workspace registry.",
 			"Canonical memory: This main Codex thread is the operator memory. Delegated Codex threads remain canonical history for delegated work.",
 			surface ? `Surface: ${surface.key}` : undefined,
 			`Author: ${item.authorName} (${item.authorId})`,
 			`Message: ${item.discordMessageId}`,
 			`Home channel: ${item.discordThreadId}`,
-			`Gateway cwd: ${session.cwd ?? "default"}`,
+			`Workspace cwd: ${session.cwd ?? "default"}`,
 			"",
 			item.content,
 		].filter((line): line is string => line !== undefined).join("\n");

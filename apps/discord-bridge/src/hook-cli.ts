@@ -6,7 +6,7 @@ import { writeHookSpoolEvent } from "./stop-hook-spool.ts";
 
 const defaultHookCommand = "codex-discord-bridge hook event";
 const defaultBunxPackage = "codex-discord-bridge";
-const gatewayHookEvents = [
+const workspaceHookEvents = [
 	"SessionStart",
 	"UserPromptSubmit",
 	"PreToolUse",
@@ -62,7 +62,7 @@ export async function runHookEvent(): Promise<void> {
 			process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
 		}
 	} catch (error) {
-		process.stderr.write(`discord gateway hook failed: ${errorMessage(error)}\n`);
+		process.stderr.write(`discord workspace hook failed: ${errorMessage(error)}\n`);
 		if (eventSupportsContinueOutput(eventNameFromHookInput(input))) {
 			process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
 		}
@@ -125,12 +125,12 @@ export function upsertStopHookConfig(
 ): Record<string, unknown> {
 	const config = parseHooksJson(hooksText);
 	const hooks = record(config.hooks);
-	for (const eventName of gatewayHookEvents) {
+	for (const eventName of workspaceHookEvents) {
 		const groups = Array.isArray(hooks[eventName]) ? hooks[eventName] : [];
 		hooks[eventName] = [
 			hookGroup(command),
 			...groups
-				.map(removeGatewayStopHookHandlers)
+				.map(removeWorkspaceStopHookHandlers)
 				.filter((group): group is Record<string, unknown> => group !== undefined),
 		];
 	}
@@ -217,10 +217,10 @@ function hookGroup(command: string): Record<string, unknown> {
 	};
 }
 
-function removeGatewayStopHookHandlers(input: unknown): Record<string, unknown> | undefined {
+function removeWorkspaceStopHookHandlers(input: unknown): Record<string, unknown> | undefined {
 	const group = record(input);
 	const handlers = Array.isArray(group.hooks)
-		? group.hooks.filter((handler) => !isGatewayStopHookHandler(handler))
+		? group.hooks.filter((handler) => !isWorkspaceStopHookHandler(handler))
 		: [];
 	if (handlers.length === 0) {
 		return undefined;
@@ -228,12 +228,12 @@ function removeGatewayStopHookHandlers(input: unknown): Record<string, unknown> 
 	return { ...group, hooks: handlers };
 }
 
-function isGatewayStopHookHandler(input: unknown): boolean {
+function isWorkspaceStopHookHandler(input: unknown): boolean {
 	const handler = record(input);
 	const command = typeof handler.command === "string" ? handler.command : "";
 	return command.includes("codex-discord-bridge hook stop") ||
 		command.includes("codex-discord-bridge hook event") ||
-		command.includes("codex-discord-gateway-stop-hook") ||
+		command.includes("codex-discord-workspace-stop-hook") ||
 		command.includes("apps/discord-bridge/src/stop-hook.ts");
 }
 

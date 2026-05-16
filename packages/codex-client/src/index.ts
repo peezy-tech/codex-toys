@@ -4,15 +4,15 @@ export {
 	type CodexAppServerTransport,
 } from "./app-server/client.ts";
 export {
-	CodexGatewayClient,
-	CodexGatewayProtocolServer,
-	type CodexGatewayAppServer,
-	type CodexGatewayClientOptions,
-	type CodexGatewayPeer,
-	type CodexGatewayProtocolServerOptions,
-	type CodexGatewayTransport,
-	type GatewayEvent,
-} from "./gateway/index.ts";
+	CodexWorkspaceBackendClient,
+	CodexWorkspaceBackendProtocolServer,
+	type CodexWorkspaceBackendAppServer,
+	type CodexWorkspaceBackendClientOptions,
+	type CodexWorkspaceBackendPeer,
+	type CodexWorkspaceBackendProtocolServerOptions,
+	type CodexWorkspaceBackendTransport,
+	type WorkspaceBackendEvent,
+} from "./workspace-backend/index.ts";
 export {
 	CodexStdioTransport,
 	DEFAULT_CODEX_COMMAND,

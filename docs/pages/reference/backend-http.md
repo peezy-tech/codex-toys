@@ -1,12 +1,13 @@
 ---
 title: Backend HTTP API
-description: Endpoints used by systemd-local and compatible flow backends.
+description: Endpoints used by the workspace flow HTTP surface and compatible flow backends.
 ---
 
 # Backend HTTP API
 
 HTTP backends accept generic `FlowEvent` objects and expose stored event and run
-state.
+state. In the local workspace backend, these routes are an optional networked
+surface over the built-in flow capability.
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -29,8 +30,8 @@ SHA-256 and send:
 x-flow-signature-256: sha256=<hex digest>
 ```
 
-`x-patch-flow-signature-256` remains accepted by systemd-local for older Patch
-dispatchers.
+`x-patch-flow-signature-256` remains accepted by the local workspace backend for
+older Patch dispatchers.
 
 ## Compatibility
 

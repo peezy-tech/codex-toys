@@ -24,7 +24,7 @@ It does not own product-specific completion:
 - payment state
 - minting
 - Discord write tools
-- gateway backends and arbitrary app-server thread wrappers
+- workspace backend presenters and arbitrary app-server thread wrappers
 
 Keep domain completion in the consuming app. For example, a pet-game worker can
 generate an asset through a flow step, upload the asset, update payment state,
@@ -33,7 +33,7 @@ mint if needed, and only then complete the generic run.
 This boundary keeps flow packages portable and prevents generic backends from
 depending on app-specific Convex schemas, credentials, or release policy.
 
-The Discord gateway backend follows the same rule. It may inspect generic flow
+The Discord workspace backend follows the same rule. It may inspect generic flow
 runs and events for an operator, but its app-server thread orchestration,
 delegation policy, Discord workbench state, and hook-spool wake behavior are not
 part of the generic codex-flow backend contract.

@@ -9,7 +9,7 @@ import type { FlowBackendClient } from "@peezy.tech/flow-runtime/backend-client"
 
 import {
 	DiscordCodexBridge,
-	LocalCodexGatewayBackend,
+	LocalCodexWorkspaceBackend,
 	parseThreadStartIntent,
 } from "../src/bridge.ts";
 import type {
@@ -19,9 +19,9 @@ import type {
 import { MemoryStateStore, emptyState } from "../src/state.ts";
 import { writeStopHookSpoolEvent } from "../src/stop-hook-spool.ts";
 import type {
-	CodexGatewayBackend,
-	CodexGatewayPresenter,
-} from "../src/gateway-backend.ts";
+	CodexWorkspaceBackend,
+	CodexWorkspacePresenter,
+} from "../src/workspace-backend.ts";
 import type {
 	CodexBridgeClient,
 	DiscordBridgeConfig,
@@ -50,11 +50,11 @@ describe("DiscordCodexBridge", () => {
 		});
 	});
 
-	test("can run Discord as a transport over a gateway backend", async () => {
+	test("can run Discord as a transport over a workspace backend", async () => {
 		const transport = new FakeDiscordTransport();
 		const calls: string[] = [];
 		const inboundEvents: DiscordInbound[] = [];
-		const backend: CodexGatewayBackend = {
+		const backend: CodexWorkspaceBackend = {
 			async start() {
 				calls.push("backend.start");
 			},
@@ -107,11 +107,11 @@ describe("DiscordCodexBridge", () => {
 		expect(calls).toContain("backend.stop");
 	});
 
-	test("local gateway backend runs against a presenter without Discord transport lifecycle", async () => {
+	test("local workspace backend runs against a presenter without Discord transport lifecycle", async () => {
 		const client = new FakeCodexClient();
 		const sentMessages: Array<{ locationId: string; text: string }> = [];
 		const typingLocations: string[] = [];
-		const presenter: CodexGatewayPresenter = {
+		const presenter: CodexWorkspacePresenter = {
 			async createThread(locationId, title, sourceMessageId) {
 				expect(locationId).toBe("parent-channel");
 				expect(title).toBe("Existing thread");
@@ -127,12 +127,12 @@ describe("DiscordCodexBridge", () => {
 				typingLocations.push(locationId);
 			},
 		};
-		const backend = new LocalCodexGatewayBackend({
+		const backend = new LocalCodexWorkspaceBackend({
 			client,
 			presenter,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				allowedChannelIds: new Set(["parent-channel"]),
 			}),
 		});
@@ -162,7 +162,7 @@ describe("DiscordCodexBridge", () => {
 		await backend.stop();
 	});
 
-	test("starts a gateway main thread and routes home channel messages to it", async () => {
+	test("starts a workspace main thread and routes home channel messages to it", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const bridge = new DiscordCodexBridge({
@@ -170,7 +170,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				allowedChannelIds: new Set(["parent-channel"]),
 			}),
 		});
@@ -184,20 +184,20 @@ describe("DiscordCodexBridge", () => {
 		expect(client.startThreadCalls[0]?.dynamicTools).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					name: "start_delegation",
 				}),
 				expect.objectContaining({
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					name: "list_flow_runs",
 				}),
 			]),
 		);
 		expect(client.setThreadNameCalls[0]).toEqual({
 			threadId: "codex-thread-1",
-			name: "[discord-gateway] Codex Gateway",
+			name: "[discord-workspace] Codex Workspace",
 		});
-		expect(bridge.stateForTest().gateway).toEqual(
+		expect(bridge.stateForTest().workspace).toEqual(
 			expect.objectContaining({
 				homeChannelId: "home-channel",
 				mainThreadId: "codex-thread-1",
@@ -209,9 +209,9 @@ describe("DiscordCodexBridge", () => {
 				discordThreadId: "home-channel",
 				parentChannelId: "home-channel",
 				codexThreadId: "codex-thread-1",
-				title: "Codex Gateway",
+				title: "Codex Workspace",
 				cwd: "/workspace",
-				mode: "gateway",
+				mode: "operator",
 			}),
 		);
 
@@ -229,7 +229,7 @@ describe("DiscordCodexBridge", () => {
 			"status across the workspaces",
 		);
 		expect(inputText(client.startTurnCalls[0]?.input[0])).toContain(
-			"[discord-gateway]",
+			"[discord-workspace]",
 		);
 		expect(inputText(client.startTurnCalls[0]?.input[0])).toContain(
 			"main Codex operator thread",
@@ -240,7 +240,7 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("gateway tool starts and tracks delegated Codex sessions without privileged tools", async () => {
+	test("workspace tool starts and tracks delegated Codex sessions without privileged tools", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const store = new MemoryStateStore();
@@ -249,7 +249,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store,
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
 		});
@@ -263,12 +263,12 @@ describe("DiscordCodexBridge", () => {
 				threadId: "codex-thread-1",
 				turnId: "turn-main",
 				callId: "call-1",
-				namespace: "codex_gateway",
+				namespace: "codex_workspace",
 				tool: "start_delegation",
 				arguments: {
 					cwd: "/workspace/other",
 					title: "Other workspace",
-					prompt: "Inspect the remaining gateway work.",
+					prompt: "Inspect the remaining workspace work.",
 					discordDetailThreadId: "detail-thread",
 					parentDiscordMessageId: "home-message",
 				},
@@ -293,9 +293,9 @@ describe("DiscordCodexBridge", () => {
 			}),
 		);
 		expect(inputText(client.startTurnCalls[0]?.input[0])).toBe(
-			"Inspect the remaining gateway work.",
+			"Inspect the remaining workspace work.",
 		);
-		expect(bridge.stateForTest().gateway?.delegations).toEqual([
+		expect(bridge.stateForTest().workspace?.delegations).toEqual([
 			expect.objectContaining({
 				codexThreadId: "codex-thread-2",
 				title: "Other workspace",
@@ -305,7 +305,7 @@ describe("DiscordCodexBridge", () => {
 				parentDiscordMessageId: "home-message",
 			}),
 		]);
-		expect(gatewayToolResult(client.responses[0]?.result)).toEqual(
+		expect(workspaceToolResult(client.responses[0]?.result)).toEqual(
 			expect.objectContaining({
 				turnId: "turn-1",
 				delegation: expect.objectContaining({
@@ -316,7 +316,7 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("gateway flow inspection uses backend client and preserves tool payload shape", async () => {
+	test("workspace flow inspection uses backend client and preserves tool payload shape", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const flowBackendClient = new FakeFlowBackendClient();
@@ -325,7 +325,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 			}),
 			flowBackendClient,
 		});
@@ -337,7 +337,7 @@ describe("DiscordCodexBridge", () => {
 			method: "item/tool/call",
 			params: {
 				threadId: "codex-thread-1",
-				namespace: "codex_gateway",
+				namespace: "codex_workspace",
 				tool: "list_flow_runs",
 				arguments: {
 					eventId: "event-1",
@@ -351,7 +351,7 @@ describe("DiscordCodexBridge", () => {
 			method: "item/tool/call",
 			params: {
 				threadId: "codex-thread-1",
-				namespace: "codex_gateway",
+				namespace: "codex_workspace",
 				tool: "list_flow_events",
 				arguments: {
 					type: "upstream.release",
@@ -367,7 +367,7 @@ describe("DiscordCodexBridge", () => {
 		expect(flowBackendClient.listEventsCalls).toEqual([
 			{ type: "upstream.release", limit: 3 },
 		]);
-		expect(gatewayToolResult(client.responses[0]?.result)).toEqual({
+		expect(workspaceToolResult(client.responses[0]?.result)).toEqual({
 			eventId: "event-1",
 			runs: [
 				expect.objectContaining({
@@ -378,7 +378,7 @@ describe("DiscordCodexBridge", () => {
 				}),
 			],
 		});
-		expect(gatewayToolResult(client.responses[1]?.result)).toEqual({
+		expect(workspaceToolResult(client.responses[1]?.result)).toEqual({
 			events: [
 				expect.objectContaining({
 					id: "event-1",
@@ -389,7 +389,7 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("gateway workbench opens delegation task threads lazily from workspace posts", async () => {
+	test("workspace workbench opens delegation task threads lazily from workspace posts", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -398,7 +398,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -417,7 +417,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: "/workspace/codex-flows",
@@ -438,23 +438,23 @@ describe("DiscordCodexBridge", () => {
 			]);
 			expect(transport.createdThreads).toEqual([]);
 			const state = bridge.stateForTest();
-			expect(state.gateway?.workspaces).toEqual([
+			expect(state.workspace?.workspaces).toEqual([
 				expect.objectContaining({
 					cwd: "/workspace/codex-flows",
 					title: "codex-flows",
 					discordThreadId: "forum-post-1",
 					statusMessageId: "forum-post-1",
-					delegationIds: [state.gateway?.delegations[0]?.id],
+					delegationIds: [state.workspace?.delegations[0]?.id],
 				}),
 			]);
-			expect(state.gateway?.delegations[0]).toEqual(
+			expect(state.workspace?.delegations[0]).toEqual(
 				expect.objectContaining({
 					codexThreadId: "codex-thread-2",
-					workspaceKey: state.gateway?.workspaces?.[0]?.key,
+					workspaceKey: state.workspace?.workspaces?.[0]?.key,
 					discordWorkspaceThreadId: "forum-post-1",
 				}),
 			);
-			expect(state.gateway?.delegations[0]?.discordTaskThreadId).toBeUndefined();
+			expect(state.workspace?.delegations[0]?.discordTaskThreadId).toBeUndefined();
 			const workspaceUpdate = transport.updatedMessages.find((message) =>
 				message.channelId === "forum-post-1" &&
 				message.messageId === "forum-post-1"
@@ -529,7 +529,7 @@ describe("DiscordCodexBridge", () => {
 			)).toBe(true);
 			const homeResult = transport.messages.find((message) =>
 				message.channelId === "home-channel" &&
-				message.text.includes("[discord-gateway delegation result]") &&
+				message.text.includes("[discord-workspace delegation result]") &&
 				message.text.includes("Hook packaging")
 			)?.text ?? "";
 			expect(homeResult).toContain("<#forum-post-1>");
@@ -564,7 +564,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway workbench reuses one workspace post per normalized cwd", async () => {
+	test("workspace workbench reuses one workspace post per normalized cwd", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const bridge = new DiscordCodexBridge({
@@ -572,7 +572,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -589,7 +589,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: index === 0
@@ -604,8 +604,8 @@ describe("DiscordCodexBridge", () => {
 
 		expect(transport.createdForumPosts).toHaveLength(1);
 		expect(transport.createdThreads).toHaveLength(0);
-		const workspaces = bridge.stateForTest().gateway?.workspaces ?? [];
-		const delegations = bridge.stateForTest().gateway?.delegations ?? [];
+		const workspaces = bridge.stateForTest().workspace?.workspaces ?? [];
+		const delegations = bridge.stateForTest().workspace?.delegations ?? [];
 		expect(workspaces).toEqual([
 			expect.objectContaining({
 				cwd: "/workspace/codex-flows",
@@ -617,7 +617,7 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("gateway workbench discovers top-level folders under the main workspace", async () => {
+	test("workspace workbench discovers top-level folders under the main workspace", async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), "discord-workspaces-"));
 		await mkdir(path.join(root, "alpha", "nested"), { recursive: true });
 		await mkdir(path.join(root, "beta"), { recursive: true });
@@ -644,7 +644,7 @@ describe("DiscordCodexBridge", () => {
 			store: new MemoryStateStore(),
 			config: testConfig({
 				cwd: root,
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -659,7 +659,7 @@ describe("DiscordCodexBridge", () => {
 				"alpha",
 				"beta",
 			]);
-			expect(bridge.stateForTest().gateway?.workspaces?.map((workspace) =>
+			expect(bridge.stateForTest().workspace?.workspaces?.map((workspace) =>
 				workspace.cwd
 			)).toEqual([
 				path.join(root, "alpha"),
@@ -711,7 +711,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: path.join(root, "alpha", "nested", "project"),
@@ -723,10 +723,10 @@ describe("DiscordCodexBridge", () => {
 			expect(transport.createdForumPosts).toHaveLength(2);
 			expect(transport.createdThreads).toHaveLength(1);
 			const state = bridge.stateForTest();
-			const alpha = state.gateway?.workspaces?.find((workspace) =>
+			const alpha = state.workspace?.workspaces?.find((workspace) =>
 				workspace.cwd === path.join(root, "alpha")
 			);
-			const delegation = state.gateway?.delegations[0];
+			const delegation = state.workspace?.delegations[0];
 			expect(delegation).toBeDefined();
 			expect(alpha?.delegationIds).toEqual([delegation!.id]);
 			expect(delegation).toEqual(
@@ -741,7 +741,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway workbench surfaces hook-observed non-gateway threads", async () => {
+	test("workspace workbench surfaces hook-observed non-workspace threads", async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), "discord-observed-"));
 		const hookSpoolDir = await testHookSpoolDir();
 		await mkdir(path.join(root, "alpha", "project"), { recursive: true });
@@ -753,7 +753,7 @@ describe("DiscordCodexBridge", () => {
 			store: new MemoryStateStore(),
 			config: testConfig({
 				cwd: root,
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -776,7 +776,7 @@ describe("DiscordCodexBridge", () => {
 				prompt: "Inspect observed runtime activity.",
 			});
 			await waitFor(() =>
-				bridge.stateForTest().gateway?.observedThreads?.[0]?.status === "active"
+				bridge.stateForTest().workspace?.observedThreads?.[0]?.status === "active"
 			);
 			await emitHookEvent(hookSpoolDir, {
 				eventName: "PermissionRequest",
@@ -787,9 +787,9 @@ describe("DiscordCodexBridge", () => {
 				toolInput: { description: "Needs network" },
 			});
 			await waitFor(() =>
-				bridge.stateForTest().gateway?.observedThreads?.[0]?.status === "waiting"
+				bridge.stateForTest().workspace?.observedThreads?.[0]?.status === "waiting"
 			);
-			expect(bridge.stateForTest().gateway?.observedThreads?.[0]).toEqual(
+			expect(bridge.stateForTest().workspace?.observedThreads?.[0]).toEqual(
 				expect.objectContaining({
 					threadId: "codex-observed",
 					title: "Inspect observed runtime activity.",
@@ -848,7 +848,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway hook drain continues when workspace dashboard updates fail", async () => {
+	test("workspace hook drain continues when workspace dashboard updates fail", async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), "discord-observed-fail-"));
 		const hookSpoolDir = await testHookSpoolDir();
 		await mkdir(path.join(root, "alpha", "project"), { recursive: true });
@@ -860,7 +860,7 @@ describe("DiscordCodexBridge", () => {
 			store: new MemoryStateStore(),
 			config: testConfig({
 				cwd: root,
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -881,7 +881,7 @@ describe("DiscordCodexBridge", () => {
 				prompt: "Keep draining hooks.",
 			});
 			await waitFor(() =>
-				bridge.stateForTest().gateway?.observedThreads?.some((thread) =>
+				bridge.stateForTest().workspace?.observedThreads?.some((thread) =>
 					thread.threadId === "codex-observed-fail" &&
 					thread.status === "active"
 				) ?? false
@@ -896,13 +896,13 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway workbench resumes persisted task thread sessions after restart", async () => {
+	test("workspace workbench resumes persisted task thread sessions after restart", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const existingWorkspaceKey = testWorkspaceKey("/workspace/codex-flows");
 		const store = new MemoryStateStore({
 			...emptyState(),
-			gateway: {
+			workspace: {
 				homeChannelId: "home-channel",
 				mainThreadId: "codex-main",
 				toolsVersion: 1,
@@ -938,10 +938,10 @@ describe("DiscordCodexBridge", () => {
 					discordThreadId: "home-channel",
 					parentChannelId: "home-channel",
 					codexThreadId: "codex-main",
-					title: "Codex Gateway",
+					title: "Codex Workspace",
 					createdAt: "2026-05-14T11:00:00.000Z",
 					cwd: "/workspace",
-					mode: "gateway",
+					mode: "workspace",
 				},
 				{
 					discordThreadId: "task-thread-existing",
@@ -963,7 +963,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store,
 			config: testConfig({
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -995,7 +995,7 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("gateway rejects dynamic tool calls outside the main operator thread", async () => {
+	test("workspace rejects dynamic tool calls outside the main operator thread", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const bridge = new DiscordCodexBridge({
@@ -1003,7 +1003,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 			}),
 		});
 
@@ -1014,7 +1014,7 @@ describe("DiscordCodexBridge", () => {
 			method: "item/tool/call",
 			params: {
 				threadId: "codex-thread-elsewhere",
-				namespace: "codex_gateway",
+				namespace: "codex_workspace",
 				tool: "list_delegations",
 				arguments: {},
 			},
@@ -1032,7 +1032,7 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("gateway records group delegation results and wakes after the group finishes", async () => {
+	test("workspace records group delegation results and wakes after the group finishes", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -1041,7 +1041,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				hookSpoolDir,
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
@@ -1056,7 +1056,7 @@ describe("DiscordCodexBridge", () => {
 					method: "item/tool/call",
 					params: {
 						threadId: "codex-thread-1",
-						namespace: "codex_gateway",
+						namespace: "codex_workspace",
 						tool: "start_delegation",
 						arguments: {
 							cwd: `/workspace/${index}`,
@@ -1097,7 +1097,7 @@ describe("DiscordCodexBridge", () => {
 			expect(inputText(client.startTurnCalls[2]?.input[0])).toContain(
 				"Delegation group fanout completed.",
 			);
-			expect(bridge.stateForTest().gateway?.pendingWakes?.[0]).toEqual(
+			expect(bridge.stateForTest().workspace?.pendingWakes?.[0]).toEqual(
 				expect.objectContaining({
 					kind: "group",
 					groupId: "fanout",
@@ -1106,14 +1106,14 @@ describe("DiscordCodexBridge", () => {
 			);
 			await sleep(30);
 			expect(client.startTurnCalls).toHaveLength(3);
-			expect(bridge.stateForTest().gateway?.pendingWakes).toHaveLength(1);
+			expect(bridge.stateForTest().workspace?.pendingWakes).toHaveLength(1);
 		} finally {
 			await bridge.stop();
 			await rm(hookSpoolDir, { recursive: true, force: true });
 		}
 	});
 
-	test("gateway detached delegations complete without injecting or waking the main thread", async () => {
+	test("workspace detached delegations complete without injecting or waking the main thread", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -1122,7 +1122,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				hookSpoolDir,
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
@@ -1136,7 +1136,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: "/workspace/detached",
@@ -1154,7 +1154,7 @@ describe("DiscordCodexBridge", () => {
 				lastAssistantMessage: "Detached result.",
 			});
 			await waitFor(() =>
-				bridge.stateForTest().gateway?.delegations[0]?.status === "complete"
+				bridge.stateForTest().workspace?.delegations[0]?.status === "complete"
 			);
 			expect(client.injectThreadItemsCalls).toEqual([]);
 			expect(client.startTurnCalls).toHaveLength(1);
@@ -1168,7 +1168,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway queues delegation wake while the main operator thread is busy", async () => {
+	test("workspace queues delegation wake while the main operator thread is busy", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -1177,7 +1177,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				hookSpoolDir,
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
@@ -1201,7 +1201,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: "/workspace/side",
@@ -1219,12 +1219,12 @@ describe("DiscordCodexBridge", () => {
 			});
 			await waitFor(() => client.injectThreadItemsCalls.length === 1);
 			expect(client.startTurnCalls).toHaveLength(2);
-			expect(bridge.stateForTest().gateway?.pendingWakes?.[0]).toEqual(
+			expect(bridge.stateForTest().workspace?.pendingWakes?.[0]).toEqual(
 				expect.objectContaining({
 					kind: "delegation",
 				}),
 			);
-			expect(bridge.stateForTest().gateway?.pendingWakes?.[0]).not.toHaveProperty(
+			expect(bridge.stateForTest().workspace?.pendingWakes?.[0]).not.toHaveProperty(
 				"startedAt",
 			);
 			await emitStopHook(hookSpoolDir, {
@@ -1236,7 +1236,7 @@ describe("DiscordCodexBridge", () => {
 			expect(inputText(client.startTurnCalls[2]?.input[0])).toContain(
 				"Delegation Side task completed.",
 			);
-			expect(bridge.stateForTest().gateway?.pendingWakes?.[0]).toEqual(
+			expect(bridge.stateForTest().workspace?.pendingWakes?.[0]).toEqual(
 				expect.objectContaining({
 					startedAt: "2026-05-14T12:00:00.000Z",
 				}),
@@ -1247,7 +1247,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway record-only delegations inject and mirror without waking", async () => {
+	test("workspace record-only delegations inject and mirror without waking", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -1256,7 +1256,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				hookSpoolDir,
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
@@ -1270,7 +1270,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: "/workspace/record",
@@ -1289,7 +1289,7 @@ describe("DiscordCodexBridge", () => {
 			});
 			await waitFor(() => client.injectThreadItemsCalls.length === 1);
 			expect(client.startTurnCalls).toHaveLength(1);
-			expect(bridge.stateForTest().gateway?.pendingWakes ?? []).toEqual([]);
+			expect(bridge.stateForTest().workspace?.pendingWakes ?? []).toEqual([]);
 			expect(transport.messages.some((message) =>
 				message.text.includes("Record-only result.")
 			)).toBe(true);
@@ -1299,13 +1299,13 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway drains queued stop hook events on startup", async () => {
+	test("workspace drains queued stop hook events on startup", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const store = new MemoryStateStore({
 			...emptyState(),
-			gateway: {
+			workspace: {
 				homeChannelId: "home-channel",
 				mainThreadId: "codex-thread-1",
 				toolsVersion: 1,
@@ -1329,10 +1329,10 @@ describe("DiscordCodexBridge", () => {
 					discordThreadId: "home-channel",
 					parentChannelId: "home-channel",
 					codexThreadId: "codex-thread-1",
-					title: "Codex Gateway",
+					title: "Codex Workspace",
 					createdAt: "2026-05-14T11:59:00.000Z",
 					cwd: "/workspace",
-					mode: "gateway",
+					mode: "workspace",
 				},
 			],
 		});
@@ -1347,7 +1347,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store,
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				hookSpoolDir,
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
@@ -1357,7 +1357,7 @@ describe("DiscordCodexBridge", () => {
 			await bridge.start();
 			await waitFor(() => client.injectThreadItemsCalls.length === 1);
 			expect(client.readThreadCalls).toEqual([]);
-			expect(bridge.stateForTest().gateway?.delegations[0]).toEqual(
+			expect(bridge.stateForTest().workspace?.delegations[0]).toEqual(
 				expect.objectContaining({
 					status: "complete",
 					lastTurnId: "turn-queued",
@@ -1374,7 +1374,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway stop hook events are idempotent", async () => {
+	test("workspace stop hook events are idempotent", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -1383,7 +1383,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				hookSpoolDir,
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
@@ -1397,7 +1397,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: "/workspace/idempotent",
@@ -1425,7 +1425,7 @@ describe("DiscordCodexBridge", () => {
 				message.text.includes("Exactly once.")
 			)).toHaveLength(1);
 			expect(
-				bridge.stateForTest().gateway?.processedStopHookEventIds,
+				bridge.stateForTest().workspace?.processedStopHookEventIds,
 			).toHaveLength(1);
 		} finally {
 			await bridge.stop();
@@ -1433,7 +1433,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("gateway manually flushes completed manual delegation results", async () => {
+	test("workspace manually flushes completed manual delegation results", async () => {
 		const hookSpoolDir = await testHookSpoolDir();
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
@@ -1442,7 +1442,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 				hookSpoolDir,
 			}),
 			now: () => new Date("2026-05-14T12:00:00.000Z"),
@@ -1456,7 +1456,7 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "start_delegation",
 					arguments: {
 						cwd: "/workspace/manual",
@@ -1474,7 +1474,7 @@ describe("DiscordCodexBridge", () => {
 				lastAssistantMessage: "Manual result.",
 			});
 			await waitFor(() =>
-				bridge.stateForTest().gateway?.delegations[0]?.status === "complete"
+				bridge.stateForTest().workspace?.delegations[0]?.status === "complete"
 			);
 			expect(client.injectThreadItemsCalls).toEqual([]);
 			client.emitRequest({
@@ -1482,10 +1482,10 @@ describe("DiscordCodexBridge", () => {
 				method: "item/tool/call",
 				params: {
 					threadId: "codex-thread-1",
-					namespace: "codex_gateway",
+					namespace: "codex_workspace",
 					tool: "flush_delegation_results",
 					arguments: {
-						delegationId: bridge.stateForTest().gateway?.delegations[0]?.id,
+						delegationId: bridge.stateForTest().workspace?.delegations[0]?.id,
 						wake: "false",
 					},
 				},
@@ -1504,7 +1504,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("answers gateway status command without starting a turn", async () => {
+	test("answers workspace status command without starting a turn", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const replies: string[] = [];
@@ -1513,7 +1513,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 			}),
 		});
 
@@ -1530,7 +1530,7 @@ describe("DiscordCodexBridge", () => {
 		});
 
 		await waitFor(() => replies.length === 1);
-		expect(replies[0]).toContain("**Codex Gateway**");
+		expect(replies[0]).toContain("**Codex Workspace**");
 		expect(client.startTurnCalls).toHaveLength(0);
 		await bridge.stop();
 	});
@@ -1583,7 +1583,7 @@ describe("DiscordCodexBridge", () => {
 			}),
 			config: testConfig({
 				cwd: root,
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -1637,7 +1637,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("multi-guild gateway surfaces scope workspaces, status, hooks, and home delivery", async () => {
+	test("multi-guild workspace surfaces scope workspaces, status, hooks, and home delivery", async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), "discord-surfaces-"));
 		const hookSpoolDir = await testHookSpoolDir();
 		const alphaCwd = path.join(root, "alpha", "project");
@@ -1669,7 +1669,7 @@ describe("DiscordCodexBridge", () => {
 			store: new MemoryStateStore(),
 			config: testConfig({
 				cwd: root,
-				gateway: {
+				workspace: {
 					homeChannelId: "home-default",
 					workspaceForumChannelId: "forum-default",
 					taskThreadsChannelId: "tasks-default",
@@ -1708,7 +1708,7 @@ describe("DiscordCodexBridge", () => {
 					threadId: "forum-post-2",
 				}),
 			]);
-			expect(bridge.stateForTest().gateway?.workspaces).toEqual([
+			expect(bridge.stateForTest().workspace?.workspaces).toEqual([
 				expect.objectContaining({
 					cwd: path.join(root, "alpha"),
 					surfaceKey: "default",
@@ -1775,7 +1775,7 @@ describe("DiscordCodexBridge", () => {
 				prompt: "Watch the crypto workspace.",
 			});
 			await waitFor(() =>
-				bridge.stateForTest().gateway?.observedThreads?.some((thread) =>
+				bridge.stateForTest().workspace?.observedThreads?.some((thread) =>
 					thread.threadId === "codex-crypto-observed" &&
 					thread.surfaceKey === "crypto" &&
 					thread.status === "active"
@@ -1853,7 +1853,7 @@ describe("DiscordCodexBridge", () => {
 					item: {
 						id: "message-crypto-final",
 						type: "agentMessage",
-						text: "Crypto gateway answer.",
+						text: "Crypto workspace answer.",
 						phase: "final_answer",
 						memoryCitation: null,
 					},
@@ -1873,12 +1873,12 @@ describe("DiscordCodexBridge", () => {
 			await waitFor(() =>
 				transport.messages.some((message) =>
 					message.channelId === "home-crypto" &&
-					message.text === "Crypto gateway answer."
+					message.text === "Crypto workspace answer."
 				)
 			);
 			expect(transport.messages.some((message) =>
 				message.channelId === "home-default" &&
-				message.text === "Crypto gateway answer."
+				message.text === "Crypto workspace answer."
 			)).toBe(false);
 		} finally {
 			await bridge.stop();
@@ -1916,7 +1916,7 @@ describe("DiscordCodexBridge", () => {
 			store: new MemoryStateStore(),
 			config: testConfig({
 				cwd: root,
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -2024,7 +2024,7 @@ describe("DiscordCodexBridge", () => {
 			}),
 			config: testConfig({
 				cwd: root,
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					workspaceForumChannelId: "workspace-forum",
 					taskThreadsChannelId: "task-channel",
@@ -2118,7 +2118,7 @@ describe("DiscordCodexBridge", () => {
 		}
 	});
 
-	test("resumes a configured gateway main thread without creating Discord threads", async () => {
+	test("resumes a configured workspace main thread without creating Discord threads", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const bridge = new DiscordCodexBridge({
@@ -2126,7 +2126,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: {
+				workspace: {
 					homeChannelId: "home-channel",
 					mainThreadId: "codex-main-thread",
 				},
@@ -2146,18 +2146,18 @@ describe("DiscordCodexBridge", () => {
 				discordThreadId: "home-channel",
 				codexThreadId: "codex-main-thread",
 				cwd: "/workspace",
-				mode: "gateway",
+				mode: "operator",
 			}),
 		);
 		await bridge.stop();
 	});
 
-	test("replaces stale persisted gateway sessions when no main thread is configured", async () => {
+	test("replaces stale persisted workspace sessions when no main thread is configured", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const store = new MemoryStateStore({
 			...emptyState(),
-			gateway: {
+			workspace: {
 				homeChannelId: "home-channel",
 				mainThreadId: "old-codex-thread",
 				createdAt: "2026-05-13T00:00:00.000Z",
@@ -2168,10 +2168,10 @@ describe("DiscordCodexBridge", () => {
 					discordThreadId: "home-channel",
 					parentChannelId: "home-channel",
 					codexThreadId: "old-codex-thread",
-					title: "Codex Gateway",
+					title: "Codex Workspace",
 					createdAt: "2026-05-13T00:00:00.000Z",
 					cwd: "/workspace",
-					mode: "gateway",
+					mode: "workspace",
 				},
 			],
 		});
@@ -2180,28 +2180,28 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store,
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 			}),
 		});
 
 		await bridge.start();
-		await waitFor(() => bridge.stateForTest().gateway?.mainThreadId === "codex-thread-1");
+		await waitFor(() => bridge.stateForTest().workspace?.mainThreadId === "codex-thread-1");
 
 		expect(client.resumeThreadCalls).toEqual([]);
 		expect(client.startThreadCalls).toHaveLength(1);
 		expect(client.startThreadCalls[0]?.dynamicTools).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ namespace: "codex_gateway" }),
+				expect.objectContaining({ namespace: "codex_workspace" }),
 			]),
 		);
 		expect(bridge.stateForTest().sessions.filter((session) =>
-			session.mode === "gateway"
+			session.mode === "operator"
 		)).toEqual([
 			expect.objectContaining({
 				codexThreadId: "codex-thread-1",
 			}),
 		]);
-		expect(bridge.stateForTest().gateway).toEqual(
+		expect(bridge.stateForTest().workspace).toEqual(
 			expect.objectContaining({
 				mainThreadId: "codex-thread-1",
 				toolsVersion: 1,
@@ -2210,13 +2210,13 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("recreates a tool-enabled gateway session when resume reports thread not found", async () => {
+	test("recreates a tool-enabled workspace session when resume reports thread not found", async () => {
 		const client = new FakeCodexClient();
 		client.failedResumeThreadIds.add("missing-codex-thread");
 		const transport = new FakeDiscordTransport();
 		const store = new MemoryStateStore({
 			...emptyState(),
-			gateway: {
+			workspace: {
 				homeChannelId: "home-channel",
 				mainThreadId: "missing-codex-thread",
 				createdAt: "2026-05-13T00:00:00.000Z",
@@ -2228,10 +2228,10 @@ describe("DiscordCodexBridge", () => {
 					discordThreadId: "home-channel",
 					parentChannelId: "home-channel",
 					codexThreadId: "missing-codex-thread",
-					title: "Codex Gateway",
+					title: "Codex Workspace",
 					createdAt: "2026-05-13T00:00:00.000Z",
 					cwd: "/workspace",
-					mode: "gateway",
+					mode: "workspace",
 				},
 			],
 		});
@@ -2240,12 +2240,12 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store,
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 			}),
 		});
 
 		await bridge.start();
-		await waitFor(() => bridge.stateForTest().gateway?.mainThreadId === "codex-thread-1");
+		await waitFor(() => bridge.stateForTest().workspace?.mainThreadId === "codex-thread-1");
 
 		expect(client.resumeThreadCalls[0]).toEqual(
 			expect.objectContaining({ threadId: "missing-codex-thread" }),
@@ -2253,17 +2253,17 @@ describe("DiscordCodexBridge", () => {
 		expect(client.startThreadCalls).toHaveLength(1);
 		expect(client.startThreadCalls[0]?.dynamicTools).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ namespace: "codex_gateway" }),
+				expect.objectContaining({ namespace: "codex_workspace" }),
 			]),
 		);
-		expect(bridge.stateForTest().gateway).toEqual(
+		expect(bridge.stateForTest().workspace).toEqual(
 			expect.objectContaining({
 				mainThreadId: "codex-thread-1",
 				toolsVersion: 1,
 			}),
 		);
 		expect(bridge.stateForTest().sessions.filter((session) =>
-			session.mode === "gateway"
+			session.mode === "operator"
 		)).toEqual([
 			expect.objectContaining({
 				codexThreadId: "codex-thread-1",
@@ -2272,7 +2272,7 @@ describe("DiscordCodexBridge", () => {
 		await bridge.stop();
 	});
 
-	test("routes bot mentions in the home channel to the gateway instead of creating threads", async () => {
+	test("routes bot mentions in the home channel to the workspace instead of creating threads", async () => {
 		const client = new FakeCodexClient();
 		const transport = new FakeDiscordTransport();
 		const bridge = new DiscordCodexBridge({
@@ -2280,7 +2280,7 @@ describe("DiscordCodexBridge", () => {
 			transport,
 			store: new MemoryStateStore(),
 			config: testConfig({
-				gateway: { homeChannelId: "home-channel" },
+				workspace: { homeChannelId: "home-channel" },
 			}),
 		});
 
@@ -5128,7 +5128,7 @@ function inputText(value: unknown): string {
 	return typeof text === "string" ? text : "";
 }
 
-function gatewayToolResult(value: unknown): unknown {
+function workspaceToolResult(value: unknown): unknown {
 	if (typeof value !== "object" || value === null || !("contentItems" in value)) {
 		return undefined;
 	}

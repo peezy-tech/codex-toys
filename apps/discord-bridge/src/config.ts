@@ -11,7 +11,7 @@ import type {
 import type {
 	DiscordBridgeConfig,
 	DiscordConsoleOutputMode,
-	DiscordGatewaySurfaceConfig,
+	DiscordWorkspaceSurfaceConfig,
 	DiscordProgressMode,
 } from "./types.ts";
 import type { DiscordBridgeLogLevelSetting } from "./logger.ts";
@@ -67,7 +67,7 @@ const sandboxValues = new Set<v2.SandboxMode>([
 	"workspace-write",
 	"danger-full-access",
 ]);
-const defaultGatewaySurfaceKey = "default";
+const defaultWorkspaceSurfaceKey = "default";
 
 export function parseConfig(argv: string[], env: NodeJS.ProcessEnv): ParsedConfig {
 	const args = parseFlags(argv);
@@ -135,7 +135,7 @@ export function parseConfig(argv: string[], env: NodeJS.ProcessEnv): ParsedConfi
 					env.CODEX_DISCORD_ALLOWED_CHANNEL_IDS,
 			),
 			statePath,
-			gateway: gatewayConfig(args, env, cwd),
+			workspace: workspaceConfig(args, env, cwd),
 			flowBackendUrl:
 				stringFlag(args, "flow-backend-url") ??
 				env.CODEX_FLOW_BACKEND_URL ??
@@ -290,15 +290,15 @@ function optionalProgressMode(value: string | undefined): DiscordProgressMode | 
 	return value as DiscordProgressMode;
 }
 
-function gatewayConfig(
+function workspaceConfig(
 	flags: Map<string, string | boolean>,
 	env: NodeJS.ProcessEnv,
 	workspaceRoot: string | undefined,
-): DiscordBridgeConfig["gateway"] {
-	const workspaceSurfaces = gatewaySurfacesConfig(workspaceRoot);
+): DiscordBridgeConfig["workspace"] {
+	const workspaceSurfaces = workspaceSurfacesConfig(workspaceRoot);
 	const configuredHomeChannelId =
 		stringFlag(flags, "home-channel-id") ??
-		stringFlag(flags, "gateway-home-channel-id") ??
+		stringFlag(flags, "workspace-home-channel-id") ??
 		env.CODEX_DISCORD_HOME_CHANNEL_ID ??
 		env.CODEX_DISCORD_GATEWAY_HOME_CHANNEL_ID;
 	const useWorkspacePrimaryDefaults = !configuredHomeChannelId;
@@ -306,12 +306,12 @@ function gatewayConfig(
 		workspaceSurfaces[0]?.homeChannelId;
 	const mainThreadId =
 		stringFlag(flags, "main-thread-id") ??
-		stringFlag(flags, "gateway-main-thread-id") ??
+		stringFlag(flags, "workspace-main-thread-id") ??
 		env.CODEX_DISCORD_MAIN_THREAD_ID ??
 		env.CODEX_DISCORD_GATEWAY_MAIN_THREAD_ID;
 	const configuredWorkspaceForumChannelId =
 		stringFlag(flags, "workspace-forum-channel-id") ??
-		stringFlag(flags, "gateway-workspace-forum-channel-id") ??
+		stringFlag(flags, "workspace-workspace-forum-channel-id") ??
 		env.CODEX_DISCORD_WORKSPACE_FORUM_CHANNEL_ID ??
 		env.CODEX_DISCORD_GATEWAY_WORKSPACE_FORUM_CHANNEL_ID;
 	const workspaceForumChannelId = configuredWorkspaceForumChannelId ??
@@ -320,7 +320,7 @@ function gatewayConfig(
 			: undefined);
 	const configuredTaskThreadsChannelId =
 		stringFlag(flags, "task-threads-channel-id") ??
-		stringFlag(flags, "gateway-task-threads-channel-id") ??
+		stringFlag(flags, "workspace-task-threads-channel-id") ??
 		env.CODEX_DISCORD_TASK_THREADS_CHANNEL_ID ??
 		env.CODEX_DISCORD_GATEWAY_TASK_THREADS_CHANNEL_ID;
 	const taskThreadsChannelId = configuredTaskThreadsChannelId ??
@@ -329,10 +329,10 @@ function gatewayConfig(
 			: undefined);
 	if (!homeChannelId) {
 		if (mainThreadId) {
-			throw new Error("Cannot set a gateway main thread without a gateway home channel.");
+			throw new Error("Cannot set a workspace main thread without a workspace home channel.");
 		}
 		if (workspaceForumChannelId || taskThreadsChannelId) {
-			throw new Error("Cannot set Discord workbench channels without a gateway home channel.");
+			throw new Error("Cannot set Discord workbench channels without a workspace home channel.");
 		}
 		return undefined;
 	}
@@ -349,17 +349,17 @@ function gatewayConfig(
 			workspaceForumChannelId === taskThreadsChannelId)
 	) {
 		throw new Error(
-			"Discord workbench channels must be separate from the gateway home channel and each other.",
+			"Discord workbench channels must be separate from the workspace home channel and each other.",
 		);
 	}
 	const defaultSurface = {
-		key: defaultGatewaySurfaceKey,
+		key: defaultWorkspaceSurfaceKey,
 		homeChannelId,
 		workspaceForumChannelId,
 		taskThreadsChannelId,
 	};
 	const surfaces = workspaceSurfaces.length > 0
-		? mergeGatewaySurfaces(
+		? mergeWorkspaceSurfaces(
 			configuredHomeChannelId
 				? [defaultSurface, ...workspaceSurfaces]
 				: workspaceSurfaces,
@@ -374,9 +374,9 @@ function gatewayConfig(
 	};
 }
 
-function gatewaySurfacesConfig(
+function workspaceSurfacesConfig(
 	workspaceRoot: string | undefined,
-): DiscordGatewaySurfaceConfig[] {
+): DiscordWorkspaceSurfaceConfig[] {
 	if (!workspaceRoot) {
 		return [];
 	}
@@ -384,14 +384,14 @@ function gatewaySurfacesConfig(
 	if (workspaceCwds.length === 0) {
 		return [];
 	}
-	const surfaces: DiscordGatewaySurfaceConfig[] = [];
+	const surfaces: DiscordWorkspaceSurfaceConfig[] = [];
 	for (const workspaceCwd of workspaceCwds) {
-		const surface = workspaceGatewaySurfaceConfig(workspaceCwd);
+		const surface = workspaceWorkspaceSurfaceConfig(workspaceCwd);
 		if (surface) {
 			surfaces.push(surface);
 		}
 	}
-	return mergeGatewaySurfaces(surfaces);
+	return mergeWorkspaceSurfaces(surfaces);
 }
 
 function discoverWorkspaceConfigCwds(workspaceRoot: string): string[] {
@@ -434,9 +434,9 @@ function isDiscoverableWorkspaceEntry(name: string): boolean {
 		name !== "node_modules";
 }
 
-function workspaceGatewaySurfaceConfig(
+function workspaceWorkspaceSurfaceConfig(
 	workspaceCwd: string,
-): DiscordGatewaySurfaceConfig | undefined {
+): DiscordWorkspaceSurfaceConfig | undefined {
 	const configPath = path.join(workspaceCwd, ".codex", "workspace.toml");
 	if (!existsSync(configPath)) {
 		return undefined;
@@ -449,13 +449,13 @@ function workspaceGatewaySurfaceConfig(
 			`Invalid workspace config TOML at ${configPath}: ${errorMessage(error)}`,
 		);
 	}
-	const surfacesInput = gatewaySurfaceEntries(parsed);
+	const surfacesInput = workspaceSurfaceEntries(parsed);
 	if (surfacesInput === undefined) {
 		return undefined;
 	}
 	if (!Array.isArray(surfacesInput)) {
 		throw new Error(
-			`workspace.toml discord.gateway.surfaces must be an array: ${configPath}`,
+			`workspace.toml discord.workspace.surfaces must be an array: ${configPath}`,
 		);
 	}
 	if (surfacesInput.length === 0) {
@@ -463,30 +463,30 @@ function workspaceGatewaySurfaceConfig(
 	}
 	if (surfacesInput.length > 1) {
 		throw new Error(
-			`workspace.toml discord.gateway.surfaces must contain one surface: ${configPath}`,
+			`workspace.toml discord.workspace.surfaces must contain one surface: ${configPath}`,
 		);
 	}
-	return parseGatewaySurface(surfacesInput[0], 0, workspaceCwd);
+	return parseWorkspaceSurface(surfacesInput[0], 0, workspaceCwd);
 }
 
-function gatewaySurfaceEntries(input: unknown): unknown {
+function workspaceSurfaceEntries(input: unknown): unknown {
 	const parsed = record(input);
 	if (parsed.discord === undefined) {
 		return undefined;
 	}
 	const discord = record(parsed.discord);
-	if (discord.gateway === undefined) {
+	if (discord.workspace === undefined) {
 		return undefined;
 	}
-	const gateway = record(discord.gateway);
-	return gateway.surfaces;
+	const workspace = record(discord.workspace);
+	return workspace.surfaces;
 }
 
-function parseGatewaySurface(
+function parseWorkspaceSurface(
 	input: unknown,
 	index: number,
 	workspaceCwd: string,
-): DiscordGatewaySurfaceConfig {
+): DiscordWorkspaceSurfaceConfig {
 	const parsed = record(input);
 	const key = optionalString(parsed.key) ?? optionalString(parsed.name);
 	const homeChannelId = optionalString(parsed.homeChannelId) ??
@@ -496,14 +496,14 @@ function parseGatewaySurface(
 	const taskThreadsChannelId = optionalString(parsed.taskThreadsChannelId) ??
 		optionalString(parsed.task_threads_channel_id);
 	if (!key) {
-		throw new Error(`Gateway surface at index ${index} is missing key.`);
+		throw new Error(`Workspace surface at index ${index} is missing key.`);
 	}
 	if (!homeChannelId) {
-		throw new Error(`Gateway surface ${key} is missing homeChannelId.`);
+		throw new Error(`Workspace surface ${key} is missing homeChannelId.`);
 	}
 	if (Boolean(workspaceForumChannelId) !== Boolean(taskThreadsChannelId)) {
 		throw new Error(
-			`Gateway surface ${key} requires both workspaceForumChannelId and taskThreadsChannelId.`,
+			`Workspace surface ${key} requires both workspaceForumChannelId and taskThreadsChannelId.`,
 		);
 	}
 	if (
@@ -513,7 +513,7 @@ function parseGatewaySurface(
 			homeChannelId === taskThreadsChannelId ||
 			workspaceForumChannelId === taskThreadsChannelId)
 	) {
-		throw new Error(`Gateway surface ${key} channels must be distinct.`);
+		throw new Error(`Workspace surface ${key} channels must be distinct.`);
 	}
 	return {
 		key,
@@ -524,10 +524,10 @@ function parseGatewaySurface(
 	};
 }
 
-function mergeGatewaySurfaces(
-	surfaces: DiscordGatewaySurfaceConfig[],
-): DiscordGatewaySurfaceConfig[] {
-	const byKey = new Map<string, DiscordGatewaySurfaceConfig>();
+function mergeWorkspaceSurfaces(
+	surfaces: DiscordWorkspaceSurfaceConfig[],
+): DiscordWorkspaceSurfaceConfig[] {
+	const byKey = new Map<string, DiscordWorkspaceSurfaceConfig>();
 	for (const surface of surfaces) {
 		const existing = byKey.get(surface.key);
 		if (!existing) {
@@ -545,7 +545,7 @@ function mergeGatewaySurfaces(
 			existing.taskThreadsChannelId !== surface.taskThreadsChannelId
 		) {
 			throw new Error(
-				`Gateway surface key ${surface.key} is configured with different channels.`,
+				`Workspace surface key ${surface.key} is configured with different channels.`,
 			);
 		}
 		existing.workspaceCwds = existing.workspaceCwds && surface.workspaceCwds
@@ -556,11 +556,11 @@ function mergeGatewaySurfaces(
 			: undefined;
 	}
 	const merged = [...byKey.values()];
-	validateGatewaySurfaces(merged);
+	validateWorkspaceSurfaces(merged);
 	return merged;
 }
 
-function validateGatewaySurfaces(surfaces: DiscordGatewaySurfaceConfig[]): void {
+function validateWorkspaceSurfaces(surfaces: DiscordWorkspaceSurfaceConfig[]): void {
 	const channelIds = new Set<string>();
 	let catchAllSurfaces = 0;
 	for (const surface of surfaces) {
@@ -577,14 +577,14 @@ function validateGatewaySurfaces(surfaces: DiscordGatewaySurfaceConfig[]): void 
 			}
 			if (channelIds.has(channelId)) {
 				throw new Error(
-					`Gateway surface channel is configured more than once: ${channelId}`,
+					`Workspace surface channel is configured more than once: ${channelId}`,
 				);
 			}
 			channelIds.add(channelId);
 		}
 	}
 	if (catchAllSurfaces > 1) {
-		throw new Error("Only one gateway surface may omit workspaceCwds.");
+		throw new Error("Only one workspace surface may omit workspaceCwds.");
 	}
 }
 
@@ -657,12 +657,12 @@ Options:
   --local-app-server              Start a local app-server over stdio
   --state-path <path>             Persistent bridge state file
   --allowed-channel-ids <ids>     Comma-separated parent channel ids
-  --home-channel-id <id>          Enable gateway mode for one Discord home channel
-  --main-thread-id <id>           Resume an existing Codex operator thread for gateway mode
+  --home-channel-id <id>          Enable workspace mode for one Discord home channel
+  --main-thread-id <id>           Resume an existing Codex operator thread for workspace mode
   --workspace-forum-channel-id <id>
                                   Optional workbench forum channel for workspace posts
   --task-threads-channel-id <id>  Optional workbench text channel for task threads
-  --flow-backend-url <url>        Optional codex-flow-systemd-local backend URL
+  --flow-backend-url <url>        Optional workspace flow HTTP backend URL
   --hook-spool-dir <path>         Directory drained for Codex hook events
   [dir]                           Optional Codex thread directory, resolved from home
   --dir <path>                    Codex thread directory, resolved from home
