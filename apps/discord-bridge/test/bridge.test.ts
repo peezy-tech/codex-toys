@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, test } from "bun:test";
 import type { JsonRpcNotification, JsonRpcRequest } from "@peezy.tech/codex-flows/rpc";
 import type { v2 } from "@peezy.tech/codex-flows/generated";
-import type { FlowBackendClient } from "@peezy.tech/flow-runtime/backend-client";
+import type { FlowBackendClient } from "@peezy.tech/codex-flows/flow-runtime/backend-client";
 
 import {
 	DiscordCodexBridge,

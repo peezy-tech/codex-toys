@@ -79,7 +79,7 @@ workspace backend and its app-server pass-through.
 Module-style steps return a `FlowResult`:
 
 ```ts
-import { defineBunFlow } from "@peezy.tech/flow-runtime/bun";
+import { defineBunFlow } from "@peezy.tech/codex-flows/flow-runtime/bun";
 
 export default defineBunFlow(async (ctx) => {
   return {
@@ -113,7 +113,7 @@ backend that launched the flow run:
 import {
   createCodexFlowClientFromContext,
   defineBunFlow,
-} from "@peezy.tech/flow-runtime/bun";
+} from "@peezy.tech/codex-flows/flow-runtime/bun";
 
 export default defineBunFlow(async (ctx) => {
   const codex = createCodexFlowClientFromContext(ctx);

@@ -43,7 +43,7 @@
 		}
 	},
 	"scripts": {
-		"build": "bun run --filter @peezy.tech/flow-runtime build && bun run clean && tsc -p tsconfig.build.json",
+		"build": "bun run --filter @peezy.tech/codex-flows build && bun run clean && tsc -p tsconfig.build.json",
 		"check:types": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"pack:dry-run": "npm pack --dry-run --json",
@@ -52,7 +52,7 @@
 		"test": "bun test test/*.test.ts"
 	},
 	"dependencies": {
-		"@peezy.tech/flow-runtime": "^0.4.0",
+		"@peezy.tech/codex-flows": "^0.3.4",
 		"convex": "^1.38.0"
 	},
 	"devDependencies": {

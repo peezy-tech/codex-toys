@@ -15,13 +15,13 @@ for native app-server methods.
 Connect the workspace backend to an existing app-server WebSocket:
 
 ```sh
-bun apps/workspace-backend/src/index.ts serve --app-server-url ws://127.0.0.1:3585
+codex-workspace-backend-local serve --app-server-url ws://127.0.0.1:3585
 ```
 
 Or let it start a local stdio app-server:
 
 ```sh
-bun apps/workspace-backend/src/index.ts serve --local-app-server
+codex-workspace-backend-local serve --local-app-server
 ```
 
 The backend listens on `ws://127.0.0.1:3586` by default. Override it with

@@ -26,7 +26,7 @@ sequenceDiagram
 The same flow package can run:
 
 - directly through `codex-flow-runner`
-- synchronously through `@peezy.tech/flow-runtime/local-client`
+- synchronously through `@peezy.tech/codex-flows/flow-runtime/local-client`
 - through the workspace backend's local flow capability
 - through a Convex control plane plus an external worker
 - through any app-owned backend adapter that preserves the event/result ABI

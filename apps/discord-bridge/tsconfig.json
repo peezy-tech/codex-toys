@@ -23,9 +23,9 @@
 			"@peezy.tech/codex-flows/generated": ["../../packages/codex-client/src/app-server/generated/index.ts"],
 			"@peezy.tech/codex-flows/generated/*": ["../../packages/codex-client/src/app-server/generated/*"],
 			"@peezy.tech/codex-flows/rpc": ["../../packages/codex-client/src/app-server/rpc.ts"],
-			"@peezy.tech/codex-flows/*": ["../../packages/codex-client/src/*"],
-			"@peezy.tech/flow-runtime": ["../../packages/flow-runtime/src/index.ts"],
-			"@peezy.tech/flow-runtime/*": ["../../packages/flow-runtime/src/*"]
+			"@peezy.tech/codex-flows/flow-runtime": ["../../packages/flow-runtime/src/index.ts"],
+			"@peezy.tech/codex-flows/flow-runtime/*": ["../../packages/flow-runtime/src/*"],
+			"@peezy.tech/codex-flows/*": ["../../packages/codex-client/src/*"]
 		}
 	},
 	"include": ["src", "test"]

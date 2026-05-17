@@ -7,7 +7,7 @@ import {
 	type FlowEvent,
 	type FlowStep,
 	type LoadedFlow,
-} from "@peezy.tech/flow-runtime";
+} from "@peezy.tech/codex-flows/flow-runtime";
 import type { FlowBackendConfig } from "./config.ts";
 import {
 	executeCommand,

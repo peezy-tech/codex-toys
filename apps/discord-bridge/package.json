@@ -1,24 +1,45 @@
 {
-	"name": "codex-discord-bridge",
+	"name": "@peezy.tech/codex-discord-bridge",
 	"version": "0.1.0",
 	"description": "Long-lived Discord sidecar for bridging Discord threads to Codex app-server threads.",
 	"type": "module",
-	"private": true,
 	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/peezy-tech/codex-flows.git",
+		"directory": "apps/discord-bridge"
+	},
+	"keywords": [
+		"codex",
+		"codex-app-server",
+		"discord",
+		"gateway"
+	],
 	"bin": {
-		"codex-discord-bridge": "./src/index.ts"
+		"codex-discord-bridge": "./dist/index.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public"
 	},
 	"scripts": {
-		"build": "tsc --noEmit",
+		"build": "bun run clean && bun run scripts/build-package.ts",
 		"check:types": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"pack:dry-run": "npm pack --dry-run --json",
 		"pretty-log": "bun ./src/pretty-log.ts",
+		"prepack": "bun run build",
+		"release:check": "bun run test && bun run check:types && bun run build && bun run smoke:bin && bun run pack:dry-run",
+		"smoke:bin": "bun run scripts/smoke-bin.ts",
 		"start:debug:commentary": "bun ./src/index.ts --local-app-server --debug --progress-mode commentary",
 		"test": "bun test test/*.test.ts"
 	},
 	"dependencies": {
-		"@peezy.tech/codex-flows": "workspace:*",
-		"@peezy.tech/flow-runtime": "workspace:*",
-		"discord.js": "catalog:"
+		"@peezy.tech/codex-flows": "^0.3.4",
+		"discord.js": "^14.22.1"
 	},
 	"devDependencies": {
 		"@types/bun": "catalog:",

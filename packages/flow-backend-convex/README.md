@@ -6,7 +6,7 @@ This package is the extracted version of the backend shape proven in
 `2d-codex-pet-game`: Convex stores generic flow events, matching runs, run
 attempts, leases, results, and compact output events. Process-heavy execution
 still happens in an external worker that claims runs and executes `flow.toml`
-steps through `@peezy.tech/flow-runtime`.
+steps through `@peezy.tech/codex-flows/flow-runtime`.
 
 ## Component Boundary
 

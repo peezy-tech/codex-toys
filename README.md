@@ -3,9 +3,11 @@
 Codex app-server clients, flow automation, workspace backend tools, and
 repo-native workspace operations.
 
-This repository is a monorepo. The npm package most users install is
-`@peezy.tech/codex-flows`, which publishes the `codex-flows` CLI plus app-server
-client APIs. The full user documentation lives in the Tome docs site under
+This repository is a monorepo. The npm package users should install is
+`@peezy.tech/codex-flows`, which publishes app-server client APIs, flow runtime
+helpers, workspace backend helpers, the `codex-flows` CLI, and runnable local
+backend bins. Gateway packages such as Discord integrations consume this package
+instead of being bundled into it. The full user documentation lives in the Tome docs site under
 [`docs/pages`](docs/pages).
 
 ## Start Here
@@ -15,6 +17,7 @@ client APIs. The full user documentation lives in the Tome docs site under
 - Workspace autonomy: [`docs/pages/guides/workspace-autonomy.md`](docs/pages/guides/workspace-autonomy.md).
 - Memory transplant: [`docs/pages/guides/memory-transplant.md`](docs/pages/guides/memory-transplant.md).
 - Pack repos: [`docs/pages/guides/install-pack-repos.md`](docs/pages/guides/install-pack-repos.md).
+- Single-package platform: [`docs/pages/concepts/single-package-platform.md`](docs/pages/concepts/single-package-platform.md).
 - Maintainers and release operators: [`RELEASE.md`](RELEASE.md).
 
 ## Repo Map
@@ -95,9 +98,18 @@ back to the docs site.
 
 ## Published Packages
 
-The public release train currently contains:
+The canonical user-facing package is:
 
 - `@peezy.tech/codex-flows`
+
+Gateway packages are published separately and depend on the core package:
+
+- `@peezy.tech/codex-discord-bridge`
+- `@peezy.tech/codex-workspace-voice-gateway`
+
+The release train still contains compatibility/library packages while the
+single-package platform consolidation continues:
+
 - `@peezy.tech/flow-runtime`
 - `@peezy.tech/flow-backend-convex`
 

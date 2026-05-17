@@ -8,7 +8,7 @@ import {
 	type FlowRunRuntimeInput,
 	type LoadedFlow,
 	type FlowStep,
-} from "@peezy.tech/flow-runtime";
+} from "@peezy.tech/codex-flows/flow-runtime";
 
 type Cli =
 	| { kind: "help" }

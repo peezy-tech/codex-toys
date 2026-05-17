@@ -5,7 +5,10 @@ description: Commands for app-server calls, workspace backend calls, flow inspec
 
 # CLI reference
 
-`codex-flows` controls Codex app-server and workspace backend surfaces.
+`codex-flows` controls Codex app-server and workspace backend surfaces. The
+same package also publishes focused bins for app-server calls, local flow runs,
+and the local workspace backend. Channel-specific gateways, such as Discord
+integrations, are separate packages/apps that depend on the core package.
 
 ```bash
 codex-flows --help
@@ -134,12 +137,12 @@ commands directly.
 
 ## Local Runner
 
-The monorepo also has a source runner script for local flow packages:
+The package includes `codex-flow-runner` for local flow packages:
 
 ```bash
-bun run flow list
-bun run flow fire --event event.json
-bun run flow run <flow> <step> --event event.json
+codex-flow-runner list
+codex-flow-runner fire --event event.json
+codex-flow-runner run <flow> <step> --event event.json
 ```
 
 `flow fire` dispatches through the local client and runs every step whose
@@ -148,7 +151,7 @@ trigger type and schema match the event.
 `flow run` also accepts run metadata used by workspace backend launches:
 
 ```bash
-bun run flow run <flow> <step> --event event.json \
+codex-flow-runner run <flow> <step> --event event.json \
   --run-id run_123 \
   --attempt-id run_123 \
   --workspace-backend-url ws://127.0.0.1:3586
@@ -157,12 +160,18 @@ bun run flow run <flow> <step> --event event.json \
 ## Workspace Flow Backend
 
 ```bash
-bun run flow:backend serve --cwd <workspace>
-bun run flow:backend list-events --limit 20
-bun run flow:backend show-event <event-id>
-bun run flow:backend list-runs --status failed --limit 20
-bun run flow:backend show-run <run-id>
-bun run flow:backend replay-event <event-id> --wait
+codex-workspace-backend-local serve --cwd <workspace>
+codex-workspace-backend-local list-events --limit 20
+codex-workspace-backend-local show-event <event-id>
+codex-workspace-backend-local list-runs --status failed --limit 20
+codex-workspace-backend-local show-run <run-id>
+codex-workspace-backend-local replay-event <event-id> --wait
+```
+
+## Companion Bins
+
+```bash
+codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 ```
 
 ## Common Options

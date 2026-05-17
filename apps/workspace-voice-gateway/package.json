@@ -1,24 +1,46 @@
 {
-	"name": "codex-workspace-voice-gateway",
+	"name": "@peezy.tech/codex-workspace-voice-gateway",
 	"version": "0.1.0",
 	"description": "Broadcast-only Discord voice gateway for Codex workspace backend updates.",
 	"type": "module",
-	"private": true,
 	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/peezy-tech/codex-flows.git",
+		"directory": "apps/workspace-voice-gateway"
+	},
+	"keywords": [
+		"codex",
+		"discord",
+		"voice",
+		"gateway"
+	],
 	"bin": {
-		"codex-workspace-voice-gateway": "./src/index.ts"
+		"codex-workspace-voice-gateway": "./dist/index.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public"
 	},
 	"scripts": {
-		"build": "tsc --noEmit",
+		"build": "bun run clean && bun run scripts/build-package.ts",
 		"check:types": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"pack:dry-run": "npm pack --dry-run --json",
+		"prepack": "bun run build",
+		"release:check": "bun run test && bun run check:types && bun run build && bun run smoke:bin && bun run pack:dry-run",
+		"smoke:bin": "bun run scripts/smoke-bin.ts",
 		"start": "bun ./src/index.ts",
 		"test": "bun test test/*.test.ts"
 	},
 	"dependencies": {
-		"@discordjs/voice": "catalog:",
-		"@peezy.tech/codex-flows": "workspace:*",
-		"discord.js": "catalog:",
-		"opusscript": "catalog:"
+		"@discordjs/voice": "^0.19.2",
+		"@peezy.tech/codex-flows": "^0.3.4",
+		"discord.js": "^14.22.1",
+		"opusscript": "^0.1.1"
 	},
 	"devDependencies": {
 		"@types/bun": "catalog:",

@@ -1,4 +1,4 @@
-import type { FlowEvent } from "@peezy.tech/flow-runtime";
+import type { FlowEvent } from "@peezy.tech/codex-flows/flow-runtime";
 import type { DispatchConvexFlowEventResult, SyncedFlowManifest } from "./types.ts";
 
 export type StoredFlowRunInput = {

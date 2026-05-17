@@ -5,14 +5,21 @@ description: Broadcast-only Discord voice output for Codex workspace backend upd
 
 # Workspace voice gateway
 
-`codex-workspace-voice-gateway` is a small broadcast-only sidecar. It keeps a
-Discord bot connected to one configured voice channel, observes a selected Codex
-workspace backend, and speaks concise workspace updates through a TTS worker.
+`codex-workspace-voice-gateway` is a small broadcast-only Discord gateway
+package/app built on `@peezy.tech/codex-flows`. It keeps a Discord bot connected
+to one configured voice channel, observes a selected Codex workspace backend,
+and speaks concise workspace updates through a TTS worker.
 
 It does not receive voice commands, run speech-to-text, or replace the Discord
 text bridge.
 
 ## Run it
+
+Install the gateway package:
+
+```bash
+bun add @peezy.tech/codex-workspace-voice-gateway
+```
 
 Start the TTS worker from the sibling speech repo:
 
@@ -24,15 +31,15 @@ uv run tts-worker
 Start a workspace backend:
 
 ```bash
-bun run workspace:backend --local-app-server
+codex-workspace-backend-local serve --local-app-server
 ```
 
 Run the gateway:
 
 ```bash
-bun ./apps/workspace-voice-gateway/src/index.ts \
-  --workspace-backend-url ws://127.0.0.1:3586 \
-  --tts-worker-url http://127.0.0.1:8000
+codex-workspace-voice-gateway \
+	--workspace-backend-url ws://127.0.0.1:3586 \
+	--tts-worker-url http://127.0.0.1:8000
 ```
 
 Or run the local persistent stack through `mprocs` from the repo root:

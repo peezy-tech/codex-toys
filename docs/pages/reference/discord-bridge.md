@@ -5,9 +5,10 @@ description: Long-lived Discord sidecar for Codex app-server threads, workspace 
 
 # Discord bridge
 
-`codex-discord-bridge` is a private workspace app that exposes Discord as a
-transport over a Codex workspace backend. It is a user interface and operator
-sidecar, not part of the generic flow runtime.
+`codex-discord-bridge` is a Discord gateway package/app built on
+`@peezy.tech/codex-flows`. It presents Discord as a transport over a Codex
+workspace backend. It is a user interface and operator sidecar, not part of the
+generic flow runtime or the core `@peezy.tech/codex-flows` package surface.
 
 Use it when a team wants to:
 
@@ -19,11 +20,17 @@ Use it when a team wants to:
 
 ## Run it
 
+Install the gateway package:
+
+```bash
+bun add @peezy.tech/codex-discord-bridge
+```
+
 The bridge can connect to an existing app-server WebSocket or start a local
 stdio app-server:
 
 ```bash
-bun ./apps/discord-bridge/src/index.ts \
+codex-discord-bridge \
   --app-server-url ws://127.0.0.1:3585 \
   --approval-policy never \
   --sandbox danger-full-access \
@@ -31,7 +38,7 @@ bun ./apps/discord-bridge/src/index.ts \
 ```
 
 ```bash
-bun ./apps/discord-bridge/src/index.ts --local-app-server
+codex-discord-bridge --local-app-server
 ```
 
 Required configuration:
@@ -124,7 +131,7 @@ For package-on-demand installs:
 
 ```bash
 codex-discord-bridge hook install --bunx
-codex-discord-bridge hook install --bunx-package @peezy.tech/codex-flows
+codex-discord-bridge hook install --bunx-package @peezy.tech/codex-discord-bridge
 ```
 
 The hook command is intentionally dumb. It writes lifecycle-event files to the
@@ -136,7 +143,7 @@ operator thread when configured.
 
 The Discord bridge may present flow backend events and runs, but it does not
 own the generic flow ABI. The workspace backend can read from
-`@peezy.tech/flow-runtime` backend clients or the built-in workspace flow
+`@peezy.tech/codex-flows/flow-runtime` backend clients or the built-in workspace flow
 capability for inspection, but flow packages still communicate through
 `FlowEvent`, `flow.toml`, and `FLOW_RESULT`; app-specific completion still
 belongs in the app that dispatched or consumed the event.

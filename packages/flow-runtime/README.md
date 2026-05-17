@@ -1,5 +1,8 @@
 # @peezy.tech/flow-runtime
 
+Compatibility package for the standalone flow runtime. New code should prefer
+the consolidated core export at `@peezy.tech/codex-flows/flow-runtime`.
+
 Generic runtime primitives for Codex flow packages.
 
 This package loads `flow.toml` manifests, matches generic events to flow steps,

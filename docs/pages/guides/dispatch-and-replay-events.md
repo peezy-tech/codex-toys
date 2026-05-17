@@ -5,13 +5,13 @@ description: Choose local or HTTP mode and understand idempotency, replay, and s
 
 # Dispatch and replay events
 
-Use `@peezy.tech/flow-runtime/client` when product code should not care whether
-execution is local or delegated to a backend.
+Use `@peezy.tech/codex-flows/flow-runtime/client` when product code should not
+care whether execution is local or delegated to a backend.
 
 ## Select execution mode
 
 ```ts
-import { createFlowClient } from "@peezy.tech/flow-runtime/client";
+import { createFlowClient } from "@peezy.tech/codex-flows/flow-runtime/client";
 
 const flows = createFlowClient({
   mode: "local",

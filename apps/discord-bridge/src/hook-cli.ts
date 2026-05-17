@@ -5,7 +5,7 @@ import path from "node:path";
 import { writeHookSpoolEvent } from "./stop-hook-spool.ts";
 
 const defaultHookCommand = "codex-discord-bridge hook event";
-const defaultBunxPackage = "codex-discord-bridge";
+const defaultBunxPackage = "@peezy.tech/codex-discord-bridge";
 const workspaceHookEvents = [
 	"SessionStart",
 	"UserPromptSubmit",
@@ -309,7 +309,7 @@ Usage:
 Options:
   --command <cmd>          Hook command to write. Defaults to "codex-discord-bridge hook event".
   --bunx                  Write a bunx command instead of the global binary command.
-  --bunx-package <pkg>    Package for bunx --package. Defaults to codex-discord-bridge.
+  --bunx-package <pkg>    Package for bunx --package. Defaults to @peezy.tech/codex-discord-bridge.
   --config-path <path>    Codex config.toml path.
   --hooks-path <path>     Codex hooks.json path.
   --dry-run               Print the planned install result without writing files.

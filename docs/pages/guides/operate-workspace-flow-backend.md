@@ -16,7 +16,7 @@ HTTP. The routes below are the optional networked surface mounted by
 ## Start the backend
 
 ```bash
-bun run workspace:backend --cwd /home/peezy/codex-flows-public
+codex-workspace-backend-local serve --cwd /home/peezy/codex-flows-public
 ```
 
 Useful environment:
@@ -52,11 +52,11 @@ When `CODEX_FLOW_BACKEND_SECRET` is configured, dispatches must include
 ## Inspect and replay
 
 ```bash
-bun run flow:backend list-events --limit 20
-bun run flow:backend show-event 'patch:source:entry:upstream.release'
-bun run flow:backend list-runs --status failed --limit 20
-bun run flow:backend show-run run_abc123
-bun run flow:backend replay-event 'patch:source:entry:upstream.release' --wait
+codex-workspace-backend-local list-events --limit 20
+codex-workspace-backend-local show-event 'patch:source:entry:upstream.release'
+codex-workspace-backend-local list-runs --status failed --limit 20
+codex-workspace-backend-local show-run run_abc123
+codex-workspace-backend-local replay-event 'patch:source:entry:upstream.release' --wait
 ```
 
 Normal dispatch is idempotent by `event.id`. Replay intentionally creates a new

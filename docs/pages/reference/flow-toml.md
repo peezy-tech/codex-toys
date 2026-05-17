@@ -49,7 +49,7 @@ For `runner = "bun"`, `script` may be either a raw script that reads context
 from stdin and emits `FLOW_RESULT`, or a module-style script with a default
 export that returns a `FlowResult`. Module-style scripts can use
 `defineBunFlow()` and `createCodexFlowClientFromContext()` from
-`@peezy.tech/flow-runtime/bun`.
+`@peezy.tech/codex-flows/flow-runtime/bun`.
 
 ## Trigger fields
 

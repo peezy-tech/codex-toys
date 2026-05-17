@@ -1,6 +1,11 @@
-# Codex Discord Bridge
+# @peezy.tech/codex-discord-bridge
 
-Long-lived Discord sidecar for connecting Discord to Codex app-server threads.
+Long-lived Discord gateway for connecting Discord to Codex app-server threads
+through `@peezy.tech/codex-flows`.
+
+```bash
+bun add @peezy.tech/codex-discord-bridge
+```
 
 ## Workspace Mode
 
@@ -249,7 +254,7 @@ For package-on-demand installs, write a `bunx` command instead:
 
 ```bash
 codex-discord-bridge hook install --bunx
-codex-discord-bridge hook install --bunx-package @peezy.tech/codex-flows
+codex-discord-bridge hook install --bunx-package @peezy.tech/codex-discord-bridge
 ```
 
 The hook is intentionally dumb: it does not read workspace state or call the

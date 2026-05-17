@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { Database } from "bun:sqlite";
-import type { FlowEvent } from "@peezy.tech/flow-runtime";
+import type { FlowEvent } from "@peezy.tech/codex-flows/flow-runtime";
 
 export type FlowRunStatus = "queued" | "running" | "completed" | "failed";
 

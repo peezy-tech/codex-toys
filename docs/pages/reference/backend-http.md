@@ -35,6 +35,6 @@ older Patch dispatchers.
 
 ## Compatibility
 
-`@peezy.tech/flow-runtime/backend-client` normalizes compatible backend
+`@peezy.tech/codex-flows/flow-runtime/backend-client` normalizes compatible backend
 responses into the shared flow view model. Convex deployments should expose an
 app-owned HTTP adapter if they need generic HTTP inspection.

@@ -1,4 +1,4 @@
-import type { FlowEvent, FlowResult, FlowStep } from "@peezy.tech/flow-runtime";
+import type { FlowEvent, FlowResult, FlowStep } from "@peezy.tech/codex-flows/flow-runtime";
 
 export type ConvexFlowRunStatus =
 	| "queued"

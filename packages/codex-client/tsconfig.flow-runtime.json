@@ -1,0 +1,17 @@
+{
+	"extends": "../flow-runtime/tsconfig.json",
+	"compilerOptions": {
+		"declaration": true,
+		"declarationMap": true,
+		"emitDeclarationOnly": false,
+		"noEmit": false,
+		"noEmitOnError": true,
+		"outDir": "dist/flow-runtime",
+		"rootDir": "../flow-runtime/src",
+		"sourceMap": true,
+		"rewriteRelativeImportExtensions": true,
+		"paths": {}
+	},
+	"include": ["../flow-runtime/src/**/*.ts"],
+	"exclude": ["../flow-runtime/test/**/*.ts", "dist"]
+}

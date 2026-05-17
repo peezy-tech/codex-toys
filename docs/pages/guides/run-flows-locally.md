@@ -13,7 +13,7 @@ result object directly.
 ## List flows
 
 ```bash
-bun run flow list
+codex-flow-runner list
 ```
 
 Discovery order is:
@@ -27,7 +27,7 @@ same name.
 ## Fire matching steps
 
 ```bash
-bun run flow fire --event event.json
+codex-flow-runner fire --event event.json
 ```
 
 `fire` dispatches the event through the local flow client and preserves the
@@ -49,7 +49,7 @@ existing CLI payload shape:
 ## Run one explicit step
 
 ```bash
-bun run flow run hello-flow hello --event event.json
+codex-flow-runner run hello-flow hello --event event.json
 ```
 
 Use explicit `run` when you are debugging one step and do not want trigger
@@ -58,7 +58,7 @@ matching to select other steps.
 When reproducing a workspace backend launch, pass runtime metadata explicitly:
 
 ```bash
-bun run flow run hello-flow hello --event event.json \
+codex-flow-runner run hello-flow hello --event event.json \
   --run-id run_123 \
   --attempt-id run_123 \
   --workspace-backend-url ws://127.0.0.1:3586
@@ -67,7 +67,7 @@ bun run flow run hello-flow hello --event event.json \
 ## Use the local client
 
 ```ts
-import { createLocalFlowClient } from "@peezy.tech/flow-runtime/local-client";
+import { createLocalFlowClient } from "@peezy.tech/codex-flows/flow-runtime/local-client";
 
 const flows = createLocalFlowClient({
   cwd: process.cwd(),

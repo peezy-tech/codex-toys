@@ -15,8 +15,7 @@
 		"test": "bun test test/*.test.ts"
 	},
 	"dependencies": {
-		"@peezy.tech/codex-flows": "workspace:*",
-		"@peezy.tech/flow-runtime": "workspace:*"
+		"@peezy.tech/codex-flows": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/bun": "catalog:",

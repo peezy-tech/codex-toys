@@ -38,7 +38,7 @@ The worker should:
 1. Sync or provide flow manifests.
 2. Claim a queued run.
 3. Heartbeat while it works.
-4. Execute the matching step with `@peezy.tech/flow-runtime`.
+4. Execute the matching step with `@peezy.tech/codex-flows/flow-runtime`.
 5. Apply app-owned domain completion if needed.
 6. Complete or fail the generic run.
 

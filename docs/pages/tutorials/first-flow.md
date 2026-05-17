@@ -53,7 +53,7 @@ schema = "schemas/hello.schema.json"
 ## 4. Implement the step
 
 ```ts
-import { defineBunFlow } from "@peezy.tech/flow-runtime/bun";
+import { defineBunFlow } from "@peezy.tech/codex-flows/flow-runtime/bun";
 
 export default defineBunFlow(async (ctx) => {
   const name = ctx.flow.event.payload.name;
@@ -86,7 +86,7 @@ Create `event.json`:
 Run all matching steps:
 
 ```bash
-bun run flow fire --event event.json
+codex-flow-runner fire --event event.json
 ```
 
 You should see the event id and one result for `hello-flow/hello`.

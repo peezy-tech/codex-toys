@@ -26,4 +26,4 @@ jobs:
         run: bun run test
 
       - name: Release check
-        run: bun run --filter @peezy.tech/codex-flows release:check
+        run: bun run release:check

@@ -138,12 +138,11 @@ describe("discord workspace hook CLI", () => {
 				configPath,
 				hooksPath,
 				useBunx: true,
-				bunxPackage: "@peezy.tech/codex-flows",
 			});
 
 			expect(result).toEqual({
 				command:
-					"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook event",
+					"bunx --package @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
 				configPath,
 				hooksPath,
 				dryRun: false,
@@ -159,7 +158,7 @@ describe("discord workspace hook CLI", () => {
 								hooks: [
 									expect.objectContaining({
 										command:
-											"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook event",
+											"bunx --package @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
 									}),
 								],
 							},
@@ -169,7 +168,7 @@ describe("discord workspace hook CLI", () => {
 								hooks: [
 									expect.objectContaining({
 										command:
-											"bunx --package @peezy.tech/codex-flows codex-discord-bridge hook event",
+											"bunx --package @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
 									}),
 								],
 							},

@@ -17,8 +17,6 @@ jobs:
     if: inputs.confirm_package == 'publish-codex-flow-packages'
     runs-on: ubuntu-latest
     environment: npm-publish
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,10 +35,6 @@ jobs:
       - name: Update npm
         run: npm install -g npm@^11.10.0
 
-      - name: Configure npm token
-        if: env.NPM_TOKEN != ''
-        run: npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -53,6 +47,26 @@ jobs:
           version=$(node -p "require('./package.json').version")
           if npm view "@peezy.tech/codex-flows@$version" version --json >/dev/null 2>&1; then
             echo "@peezy.tech/codex-flows@$version is already published"
+          else
+            npm publish --access public --provenance
+          fi
+
+      - name: Publish @peezy.tech/codex-discord-bridge
+        working-directory: apps/discord-bridge
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "@peezy.tech/codex-discord-bridge@$version" version --json >/dev/null 2>&1; then
+            echo "@peezy.tech/codex-discord-bridge@$version is already published"
+          else
+            npm publish --access public --provenance
+          fi
+
+      - name: Publish @peezy.tech/codex-workspace-voice-gateway
+        working-directory: apps/workspace-voice-gateway
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "@peezy.tech/codex-workspace-voice-gateway@$version" version --json >/dev/null 2>&1; then
+            echo "@peezy.tech/codex-workspace-voice-gateway@$version is already published"
           else
             npm publish --access public --provenance
           fi

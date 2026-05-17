@@ -35,6 +35,7 @@ credentials, domain state, release policy, and final side effects.
 | Install reusable skills, flows, plugins, and hooks into a workspace | [Install pack repos](guides/install-pack-repos) |
 | Operate Discord over the workspace backend | [Discord bridge](reference/discord-bridge) |
 | Broadcast workspace updates into Discord voice | [Workspace voice gateway](reference/workspace-voice-gateway) |
+| Understand the single-package platform target | [Single package platform](concepts/single-package-platform) |
 | Maintain releases | [Operate Codex release flows](guides/operate-codex-release-flows) and `RELEASE.md` |
 
 ## Current Package Surface
@@ -47,10 +48,17 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/auth`: privacy-preserving account status and login helpers
 - `@peezy.tech/codex-flows/workbench`: transport-neutral thread UX reducers and request descriptors
 - `@peezy.tech/codex-flows/workspace-backend`: workspace backend protocol helpers and capability primitives
+- `@peezy.tech/codex-flows/flow-runtime`: local flow runtime, clients, and Bun helpers
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
 - `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
   flow inspection, workspace autonomy, memory transplant, and pack repo install
+- `codex-workspace-backend-local`: local workspace backend process
+- `codex-app`: app-server JSON-RPC utility CLI
+- `codex-flow-runner`: local flow runner CLI
+
+Discord text and voice integrations are gateway packages/apps that consume
+`@peezy.tech/codex-flows`; they are not bundled into the core package.
 
 ## Workspace Autonomy In One Screen
 

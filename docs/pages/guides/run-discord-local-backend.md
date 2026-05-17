@@ -30,13 +30,13 @@ export CODEX_DISCORD_HOME_CHANNEL_ID="987654321"
 Start with a local stdio app-server:
 
 ```bash
-bun ./apps/discord-bridge/src/index.ts --local-app-server
+codex-discord-bridge --local-app-server
 ```
 
 Or connect to an app-server that is already running:
 
 ```bash
-bun ./apps/discord-bridge/src/index.ts \
+codex-discord-bridge \
   --app-server-url ws://127.0.0.1:3585 \
   --approval-policy never \
   --sandbox danger-full-access

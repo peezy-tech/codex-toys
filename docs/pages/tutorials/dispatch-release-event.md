@@ -31,7 +31,7 @@ attempt for the stored event.
 ## 2. Dispatch locally during CLI work
 
 ```ts
-import { createFlowClient } from "@peezy.tech/flow-runtime/client";
+import { createFlowClient } from "@peezy.tech/codex-flows/flow-runtime/client";
 
 const flows = createFlowClient({
   mode: "local",

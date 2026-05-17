@@ -74,14 +74,23 @@ The CI workflow runs:
 bun install --frozen-lockfile
 bun run check:types
 bun run test
-bun run --filter @peezy.tech/codex-flows release:check
+bun run release:check
 ```
 
 ## Releases
 
-Release packages:
+Canonical user-facing package:
 
 - `@peezy.tech/codex-flows`
+
+Gateway packages:
+
+- `@peezy.tech/codex-discord-bridge`
+- `@peezy.tech/codex-workspace-voice-gateway`
+
+Compatibility/library packages that may still be published during the
+single-package platform migration:
+
 - `@peezy.tech/flow-runtime`
 - `@peezy.tech/flow-backend-convex`
 
@@ -89,6 +98,11 @@ The GitHub publish workflow checks whether each package version already exists
 on npm. It publishes new versions and skips versions that are already present.
 For a stack release, bump all changed packages together. For a package-specific
 release, bump only the changed package and let the workflow skip the others.
+New public core runtime surfaces should be exported through
+`@peezy.tech/codex-flows` first, including reusable protocol helpers and
+runnable local backend bins. Product- or channel-specific gateways, such as
+Discord text or voice packages, should publish separately and depend on
+`@peezy.tech/codex-flows`.
 
 Before publishing:
 
@@ -106,12 +120,14 @@ To publish through GitHub trusted publishing:
 2. Commit and push to jojo.
 3. Confirm the Codeberg mirror has received the commit.
 4. Push the same commit to GitHub.
-5. For a package name that has never existed on npm, either publish once with a human npm session or add a short-lived `NPM_TOKEN` secret to the `npm-publish` GitHub environment. Package-level trusted publishing can take over after the package exists.
+5. For a package name that has never existed on npm, create the package/trusted-publisher setup with the owning npm account first. Do not add npm tokens to the repo or GitHub secrets.
 6. Run `.github/workflows/publish-codex-flows.yml` on GitHub with confirmation input `publish-codex-flow-packages`.
 7. Verify npm:
 
 ```bash
 npm dist-tag ls @peezy.tech/codex-flows
+npm dist-tag ls @peezy.tech/codex-discord-bridge
+npm dist-tag ls @peezy.tech/codex-workspace-voice-gateway
 npm dist-tag ls @peezy.tech/flow-runtime
 npm dist-tag ls @peezy.tech/flow-backend-convex
 ```

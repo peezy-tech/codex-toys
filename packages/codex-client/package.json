@@ -1,7 +1,7 @@
 {
 	"name": "@peezy.tech/codex-flows",
 	"version": "0.3.4",
-	"description": "Codex app-server JSON-RPC client, flow helpers, and generated protocol types.",
+	"description": "Codex app-server clients, flow runtime, workspace backend helpers, and runnable local backend bins.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"repository": {
@@ -18,7 +18,10 @@
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"bin": {
-		"codex-flows": "./dist/cli/index.js"
+		"codex-flows": "./dist/cli/index.js",
+		"codex-app": "./dist/bin/codex-app.js",
+		"codex-flow-runner": "./dist/bin/codex-flow-runner.js",
+		"codex-workspace-backend-local": "./dist/bin/codex-workspace-backend-local.js"
 	},
 	"files": [
 		"dist",
@@ -52,6 +55,14 @@
 			"types": "./dist/workspace-backend/index.d.ts",
 			"import": "./dist/workspace-backend/index.js"
 		},
+		"./flow-runtime": {
+			"types": "./dist/flow-runtime/index.d.ts",
+			"import": "./dist/flow-runtime/index.js"
+		},
+		"./flow-runtime/*": {
+			"types": "./dist/flow-runtime/*.d.ts",
+			"import": "./dist/flow-runtime/*.js"
+		},
 		"./rpc": {
 			"types": "./dist/app-server/rpc.d.ts",
 			"import": "./dist/app-server/rpc.js"
@@ -69,12 +80,15 @@
 		"bun": ">=1.3.11"
 	},
 	"scripts": {
-		"build": "bun run clean && tsc -p tsconfig.build.json",
+		"build": "bun run clean && tsc -p tsconfig.build.json && bun run build:flow-runtime && bun run build:bins",
+		"build:bins": "bun run scripts/build-bins.ts",
+		"build:flow-runtime": "tsc -p tsconfig.flow-runtime.json",
 		"check:types": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"pack:dry-run": "bun run scripts/pack-dry-run.ts",
 		"prepack": "bun run build",
-		"release:check": "bun run test && bun run check:types && bun run build && bun run smoke:exports && bun run pack:dry-run",
+		"release:check": "bun run test && bun run check:types && bun run build && bun run smoke:exports && bun run smoke:bins && bun run pack:dry-run",
+		"smoke:bins": "bun run scripts/smoke-bins.ts",
 		"smoke:exports": "bun run scripts/smoke-exports.ts",
 		"test": "bun test test/*.test.ts"
 	},

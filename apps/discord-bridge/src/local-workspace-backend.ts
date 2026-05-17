@@ -15,7 +15,7 @@ import {
 import {
 	createFlowBackendHttpClient,
 	type FlowBackendClient,
-} from "@peezy.tech/flow-runtime/backend-client";
+} from "@peezy.tech/codex-flows/flow-runtime/backend-client";
 
 import type { DiscordConsoleOutput } from "./console-output.ts";
 import type {

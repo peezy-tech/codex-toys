@@ -1,7 +1,7 @@
 # @peezy.tech/codex-flows
 
-Codex app-server client APIs, workspace backend helpers, and the `codex-flows`
-CLI.
+Codex app-server client APIs, workspace backend helpers, flow tooling, and
+runnable local backend CLIs.
 
 ```bash
 bun add @peezy.tech/codex-flows
@@ -32,6 +32,8 @@ Full documentation lives in the repo docs site:
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |
 | `@peezy.tech/codex-flows/workbench` | Transport-neutral thread UX reducers and app-server request descriptors. |
 | `@peezy.tech/codex-flows/workspace-backend` | Workspace backend protocol server/client helpers and capability primitives. |
+| `@peezy.tech/codex-flows/flow-runtime` | Flow package discovery, trigger matching, local execution, and flow result helpers. |
+| `@peezy.tech/codex-flows/flow-runtime/*` | Flow runtime client, local-client, backend-client, Bun helper, and runner subpaths. |
 | `@peezy.tech/codex-flows/rpc` | JSON-RPC message types and parsing helpers. |
 | `@peezy.tech/codex-flows/generated` | Generated Codex app-server protocol types. |
 | `@peezy.tech/codex-flows/generated/*` | Generated per-type modules. |
@@ -130,7 +132,8 @@ The app-server protocol remains the source of truth for thread commands.
 
 ## CLI
 
-The package publishes the `codex-flows` binary:
+The package publishes the `codex-flows` binary and runnable process bins for the
+local backend and utility CLIs:
 
 ```bash
 codex-flows fetch
@@ -142,9 +145,17 @@ codex-flows memories transplant global-to-workspace
 codex-flows pack inspect owner/repo
 codex-flows pack add ./engineering-capabilities --apply
 codex-flows flow events --limit 20
+
+codex-app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flow-runner list
+codex-workspace-backend-local serve --local-app-server
 ```
 
 See `docs/pages/reference/cli.md` for the full command surface.
+
+Gateway packages, such as Discord text or voice integrations, should depend on
+this package and consume `@peezy.tech/codex-flows/workspace-backend` instead of
+being bundled into the core package.
 
 ## Development Scripts
 

@@ -5,7 +5,7 @@ description: Common local and HTTP client API.
 
 # Flow client
 
-The common client lives at `@peezy.tech/flow-runtime/client`.
+The common client lives at `@peezy.tech/codex-flows/flow-runtime/client`.
 
 ```ts
 export type FlowClient = {
