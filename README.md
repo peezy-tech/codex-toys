@@ -30,6 +30,8 @@ client APIs. The full user documentation lives in the Tome docs site under
   WebSocket and optional flow HTTP routes.
 - `apps/discord-bridge`: Discord sidecar for Codex app-server threads,
   workspace delegation, workbench views, and flow inspection.
+- `apps/workspace-voice-gateway`: broadcast-only Discord voice sidecar for
+  selected workspace backend updates via the TTS worker.
 - `apps/flow-runner`: CLI for listing and running local flow packages.
 - `apps/web`: browser UI that talks to the local workspace backend.
 - `docs`: Tome documentation source.
@@ -56,6 +58,12 @@ Run the local backend and web app:
 ```bash
 bun run workspace:backend --local-app-server
 bun run dev
+```
+
+Run the local voice broadcast stack:
+
+```bash
+bun run voice:up
 ```
 
 Inspect the CLI:

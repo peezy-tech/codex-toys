@@ -16,6 +16,7 @@
 		],
 		"catalog": {
 			"@base-ui/react": "^1.4.1",
+			"@discordjs/voice": "^0.19.2",
 			"@tailwindcss/vite": "^4.1.18",
 			"@types/bun": "^1.3.13",
 			"@types/node": "^22.10.10",
@@ -26,6 +27,7 @@
 			"clsx": "^2.1.1",
 			"discord.js": "^14.22.1",
 			"lucide-react": "^1.14.0",
+			"opusscript": "^0.1.1",
 			"react": "^19.2.4",
 			"react-dom": "^19.2.4",
 			"shadcn": "^4.7.0",
@@ -37,7 +39,7 @@
 		}
 	},
 	"scripts": {
-		"build": "bun run --filter @peezy.tech/codex-flows build && bun run --filter @peezy.tech/flow-runtime build && bun run --filter @peezy.tech/flow-backend-convex build && bun run --filter @peezy.tech/codex-opencode-go-router build && bun run --filter @workspace/ui build && bun run --filter codex-app-cli build && bun run --filter codex-discord-bridge build && bun run --filter codex-workspace-backend-local build && bun run --filter codex-flow-runner build && bun run --filter web build && bun run --filter @peezy.tech/codex-flow-docs build",
+		"build": "bun run --filter @peezy.tech/codex-flows build && bun run --filter @peezy.tech/flow-runtime build && bun run --filter @peezy.tech/flow-backend-convex build && bun run --filter @peezy.tech/codex-opencode-go-router build && bun run --filter @workspace/ui build && bun run --filter codex-app-cli build && bun run --filter codex-discord-bridge build && bun run --filter codex-workspace-backend-local build && bun run --filter codex-workspace-voice-gateway build && bun run --filter codex-flow-runner build && bun run --filter web build && bun run --filter @peezy.tech/codex-flow-docs build",
 		"check:types": "bun run --workspaces check:types && bun run docs:check",
 		"codex:update": "bun scripts/run-codex-release-update-thread.ts",
 		"dev": "bun run --filter web dev",
@@ -48,11 +50,12 @@
 		"dev:web": "bun run --filter web dev",
 		"flow": "bun apps/flow-runner/src/index.ts",
 		"flow:backend": "bun apps/workspace-backend/src/index.ts",
+		"voice:up": "mprocs -c mprocs.voice.yaml",
 		"workspace:backend": "bun apps/workspace-backend/src/index.ts serve",
 		"replay:thread": "bun scripts/run-code-mode-in-new-thread.ts",
 		"start": "bun run --filter web preview",
 		"start:discord:debug:commentary": "bun run --filter codex-discord-bridge start:debug:commentary",
-		"test": "bun run --filter @peezy.tech/codex-flows test && bun run --filter @peezy.tech/flow-runtime test && bun run --filter @peezy.tech/flow-backend-convex test && bun run --filter @peezy.tech/codex-opencode-go-router test && bun run --filter codex-workspace-backend-local test && bun run --filter codex-flow-runner test && bun run --filter codex-app-cli test && bun run --filter codex-discord-bridge test && bun run --filter web test",
+		"test": "bun run --filter @peezy.tech/codex-flows test && bun run --filter @peezy.tech/flow-runtime test && bun run --filter @peezy.tech/flow-backend-convex test && bun run --filter @peezy.tech/codex-opencode-go-router test && bun run --filter codex-workspace-backend-local test && bun run --filter codex-workspace-voice-gateway test && bun run --filter codex-flow-runner test && bun run --filter codex-app-cli test && bun run --filter codex-discord-bridge test && bun run --filter web test",
 		"release:check": "bun run --filter @peezy.tech/codex-flows release:check && bun run --filter @peezy.tech/flow-runtime release:check && bun run --filter @peezy.tech/flow-backend-convex release:check"
 	}
 }

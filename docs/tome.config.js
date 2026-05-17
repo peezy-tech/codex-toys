@@ -42,6 +42,7 @@ export default {
 				"reference/backend-http",
 				"reference/cli",
 				"reference/discord-bridge",
+				"reference/workspace-voice-gateway",
 				"reference/packages",
 			],
 		},

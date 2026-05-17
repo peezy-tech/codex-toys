@@ -43,5 +43,7 @@ attempts, leases, output chunks, and final result payloads.
   control WebSocket and optional flow HTTP routes.
 - [`codex-discord-bridge`](discord-bridge): Discord-to-Codex bridge with
   workspace delegation and flow inspection tools.
+- [`codex-workspace-voice-gateway`](workspace-voice-gateway): broadcast-only
+  Discord voice output for selected workspace backend updates.
 - `web`: browser UI for Codex threads through the local workspace backend.
 - `codex-app-cli`: JSON-RPC CLI for app-server actions.

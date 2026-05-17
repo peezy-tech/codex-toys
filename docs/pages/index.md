@@ -34,6 +34,7 @@ credentials, domain state, release policy, and final side effects.
 | Move durable Codex memories between global and repo homes | [Memory transplant](guides/memory-transplant) |
 | Install reusable skills, flows, plugins, and hooks into a workspace | [Install pack repos](guides/install-pack-repos) |
 | Operate Discord over the workspace backend | [Discord bridge](reference/discord-bridge) |
+| Broadcast workspace updates into Discord voice | [Workspace voice gateway](reference/workspace-voice-gateway) |
 | Maintain releases | [Operate Codex release flows](guides/operate-codex-release-flows) and `RELEASE.md` |
 
 ## Current Package Surface
