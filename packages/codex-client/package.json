@@ -47,6 +47,14 @@
 			"types": "./dist/auth.d.ts",
 			"import": "./dist/auth.js"
 		},
+		"./actions": {
+			"types": "./dist/actions.d.ts",
+			"import": "./dist/actions.js"
+		},
+		"./memories": {
+			"types": "./dist/memories.d.ts",
+			"import": "./dist/memories.js"
+		},
 		"./workbench": {
 			"types": "./dist/workbench.d.ts",
 			"import": "./dist/workbench.js"

@@ -15,10 +15,12 @@ exports:
 - browser-safe WebSocket transport
 - framework-agnostic app-server flow helpers
 - auth helpers for account login/status/usage
+- Actions-mode workspace helpers under `@peezy.tech/codex-flows/actions`
+- stable Codex memory artifact helpers under `@peezy.tech/codex-flows/memories`
 - workbench reducers and request descriptors
 - generated Codex app-server protocol types
 - the `codex-flows` CLI for fetch, app-server calls, workspace backend calls,
-  flow inspection, workspace autonomy, and memory transplant
+  flow inspection, workspace autonomy, Actions helpers, and memory transplant
 - runnable core process bins:
   - `codex-app`
   - `codex-flow-runner`
@@ -40,6 +42,43 @@ Runtime package for:
 - module-style Bun step helpers under `@peezy.tech/codex-flows/flow-runtime/bun`
 - local and HTTP flow clients
 - backend response normalization
+
+## `@peezy.tech/codex-flows/actions`
+
+Actions helpers encode Codex workspace conventions for CI and local
+Actions-mode simulation:
+
+- `repoCodexHome(workspaceRoot)` returns `<repo>/.codex`
+- `prepareActionsCodexAuth` writes `.codex/auth.json` from
+  `CODEX_AUTH_JSON_B64`, `CODEX_AUTH_JSON`, or `OPENAI_API_KEY`
+- `cleanupActionsCodexHome` removes runtime-only auth, install ids, sessions,
+  shell snapshots, temp dirs, SQLite databases, `.codex/memories/.git`, and
+  generated workspace diffs without deleting durable memory markdown or
+  `.codex/workspace/actions`
+- `createActionsLocalFlowClient` creates a file-backed local flow client rooted
+  at `.codex/workspace/actions/flow-client` with `CODEX_HOME=<repo>/.codex`
+- `dispatchActionsFlowEvent` persists an event under
+  `.codex/workspace/actions/events` and dispatches it locally
+- `assertActionsFlowRun` validates the latest file-backed Actions run for a
+  flow and step
+
+These helpers intentionally do not inspect or mutate Codex memory SQLite
+internals.
+
+## `@peezy.tech/codex-flows/memories`
+
+Memory helpers operate on stable markdown artifacts only:
+
+- `listCodexMemoryArtifacts`
+- `findTextInCodexMemoryArtifacts`
+- `waitForCodexMemoryArtifacts`
+- `copyCodexMemoryArtifacts`
+- `sanitizeWorkspaceMemoryArtifacts`
+
+Stable artifacts are `memories/raw_memories.md` and
+`memories/rollout_summaries/*.md`. The helpers do not require
+`MEMORY.md` or `memory_summary.md`, and cleanup removes runtime-only memory
+files such as SQLite databases, `.git`, and `phase2_workspace_diff.md`.
 
 ## `@peezy.tech/flow-runtime`
 

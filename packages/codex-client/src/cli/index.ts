@@ -13,6 +13,12 @@ import {
 	COMMON_WORKSPACE_BACKEND_METHODS,
 } from "./actions.ts";
 import {
+	assertActionsFlowRun,
+	cleanupActionsCodexHome,
+	dispatchActionsFlowEvent,
+	prepareActionsCodexAuth,
+} from "../actions.ts";
+import {
 	DEFAULT_APP_SERVER_WS_URL,
 	DEFAULT_WORKSPACE_BACKEND_WS_URL,
 	parseArgs,
@@ -49,6 +55,7 @@ import {
 	formatWorkspaceDoctorInfo,
 	migrateWorkspaceConfig,
 	runWorkspaceTaskById,
+	scaffoldActionsWorkspace,
 	tickWorkspace,
 } from "./workspace-autonomy.ts";
 
@@ -144,6 +151,17 @@ async function main(): Promise<void> {
 		}, parsed.pretty);
 		return;
 	}
+	if (parsed.type === "workspace-init-actions") {
+		writeJson(await scaffoldActionsWorkspace({
+			workspaceRoot: parsed.workspaceRoot,
+			forgejo: parsed.forgejo,
+			github: parsed.github,
+			withSmoke: parsed.withSmoke,
+			withAgentTurn: parsed.withAgentTurn,
+			overwrite: parsed.overwrite,
+		}), parsed.pretty);
+		return;
+	}
 	if (parsed.type === "workspace-call") {
 		writeJson(
 			await callWorkspaceBackend(
@@ -223,6 +241,55 @@ async function main(): Promise<void> {
 			await callWorkspaceBackend("flow.getRun", { runId: parsed.runId }, parsed),
 			parsed.pretty,
 		);
+		return;
+	}
+	if (parsed.type === "actions-prepare-auth") {
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: "actions",
+		});
+		writeJson(await prepareActionsCodexAuth({
+			workspaceRoot: context.repoRoot,
+			env: process.env,
+		}), parsed.pretty);
+		return;
+	}
+	if (parsed.type === "actions-cleanup") {
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: "actions",
+		});
+		writeJson(await cleanupActionsCodexHome({
+			workspaceRoot: context.repoRoot,
+		}), parsed.pretty);
+		return;
+	}
+	if (parsed.type === "actions-dispatch") {
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: "actions",
+		});
+		const event = JSON.parse(await Bun.file(parsed.eventPath).text()) as unknown;
+		writeJson(await dispatchActionsFlowEvent({
+			workspaceRoot: context.repoRoot,
+			event,
+			env: process.env,
+		}), parsed.pretty);
+		return;
+	}
+	if (parsed.type === "actions-assert-run") {
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: "actions",
+		});
+		writeJson(await assertActionsFlowRun({
+			workspaceRoot: context.repoRoot,
+			flowName: parsed.flowName,
+			stepName: parsed.stepName,
+			requireCompleted: true,
+			artifactText: parsed.artifactText,
+			env: process.env,
+		}), parsed.pretty);
 		return;
 	}
 	if (parsed.type === "memories-transplant") {
@@ -818,6 +885,12 @@ Usage:
   codex-flows workspace doctor [--mode auto|local|actions] [--json]
   codex-flows workspace tick [--mode auto|local|actions]
   codex-flows workspace run <task-id> [--mode auto|local|actions]
+  codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-agent-turn]
+
+  codex-flows actions prepare-auth
+  codex-flows actions cleanup
+  codex-flows actions dispatch --event <event.json>
+  codex-flows actions assert-run --flow <name> --step <name> [--artifact-text <text>]
 
   codex-flows memories transplant global-to-workspace [--apply]
   codex-flows memories transplant workspace-to-global [--apply]
@@ -863,6 +936,13 @@ Options:
   --exclude <name>                           Exclude a pack item by name or kind:name.
   --merge codex                              Merge MEMORY.md and memory_summary.md with Codex.
   --no-backup                                Disable overwrite/merge backups.
+  --flow <name>                              Flow name for Actions run assertions.
+  --step <name>                              Step name for Actions run assertions.
+  --artifact-text <text>                     Require text in an Actions run record.
+  --forgejo                                  Generate a Forgejo Actions workflow.
+  --github                                   Generate a GitHub Actions workflow.
+  --with-smoke                               Generate an Actions smoke flow.
+  --with-agent-turn                          Generate an agent-turn flow.
   -h, --help                                 Show this help.
 
 Examples:
@@ -872,6 +952,8 @@ Examples:
   codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace delegation.list
   codex-flows workspace doctor --mode actions
+  codex-flows workspace init actions --forgejo --with-smoke --with-agent-turn
+  codex-flows actions dispatch --event .codex/workspace/actions/events/manual.json
   codex-flows memories transplant global-to-workspace
   codex-flows pack inspect owner/repo
   codex-flows pack add ./capability-pack --apply

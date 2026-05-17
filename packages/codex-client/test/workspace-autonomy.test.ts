@@ -9,6 +9,7 @@ import {
 	loadWorkspaceConfig,
 	resolveWorkspaceMode,
 	runWorkspaceTaskById,
+	scaffoldActionsWorkspace,
 	tickWorkspace,
 	commitActionsWorkspaceState,
 } from "../src/cli/workspace-autonomy.ts";
@@ -27,6 +28,27 @@ describe("workspace autonomy", () => {
 			requestedMode: "actions",
 			mode: "actions",
 		});
+	});
+
+	test("Actions mode ignores external CODEX_HOME while local mode honors it", async () => {
+		const root = await tempWorkspace();
+		const externalHome = path.join(root, "external-codex-home");
+		const actions = await createWorkspaceContext({
+			workspaceRoot: root,
+			mode: "actions",
+			env: { CODEX_HOME: externalHome },
+		});
+		expect(actions.runtimeCodexHome).toBe(path.join(root, ".codex"));
+		expect(actions.workspaceCodexHome).toBe(path.join(root, ".codex"));
+		expect(actions.globalCodexHome).toBe(externalHome);
+
+		const local = await createWorkspaceContext({
+			workspaceRoot: root,
+			mode: "local",
+			env: { CODEX_HOME: externalHome },
+		});
+		expect(local.runtimeCodexHome).toBe(externalHome);
+		expect(local.workspaceCodexHome).toBe(path.join(root, ".codex"));
 	});
 
 	test("parses workspace and memories commands without disturbing JSON-RPC commands", () => {
@@ -148,6 +170,7 @@ schedule = "* * * * *"
 		const doctor = await collectWorkspaceDoctorInfo(context);
 		expect(doctor.taskCount).toBe(1);
 		expect(doctor.latestRun?.taskId).toBe("flow-due");
+		expect(doctor.errors).toEqual([]);
 	});
 
 	test("flow tasks synthesize complete workspace events", async () => {
@@ -347,6 +370,31 @@ schedule = "not-cron"
 				path.join(root, ".codex", "workspace", "actions"),
 			],
 		});
+	});
+
+	test("scaffoldActionsWorkspace creates Actions config, workflows, flows, and gitignore entries", async () => {
+		const root = await tempWorkspace();
+		const result = await scaffoldActionsWorkspace({
+			workspaceRoot: root,
+			forgejo: true,
+			withSmoke: true,
+			withAgentTurn: true,
+		});
+		expect(result.files.some((file) => file.path.endsWith(".codex/workspace.toml"))).toBe(true);
+		expect(await readFile(path.join(root, ".codex", "workspace.toml"), "utf8"))
+			.toContain('id = "actions-smoke"');
+		expect(await readFile(path.join(root, ".codex", "config.toml"), "utf8"))
+			.toContain("repository-scoped Actions");
+		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-flows-actions.yml"), "utf8"))
+			.toContain("codex-flows actions prepare-auth");
+		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-flows-actions.yml"), "utf8"))
+			.toContain("codex-flows actions cleanup");
+		expect(await readFile(path.join(root, ".codex", "flows", "actions-smoke", "flow.toml"), "utf8"))
+			.toContain('name = "actions-smoke"');
+		expect(await readFile(path.join(root, ".codex", "flows", "actions-agent-turn", "exec", "agent-turn.ts"), "utf8"))
+			.toContain("runCodexAgentTurnFromFlow");
+		expect(await readFile(path.join(root, ".gitignore"), "utf8"))
+			.toContain(".codex/auth.json");
 	});
 });
 

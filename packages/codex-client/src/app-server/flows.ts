@@ -1,9 +1,12 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
 	CodexAppServerClient,
 	type CodexAppServerClientOptions,
 } from "./client.ts";
 import type { v2 } from "./generated/index.ts";
 import type { JsonRpcNotification } from "./rpc.ts";
+import { CodexWorkspaceBackendClient } from "../workspace-backend/client.ts";
 
 type JsonValue = NonNullable<v2.TurnStartParams["outputSchema"]>;
 type ThreadConfig = NonNullable<v2.ThreadStartParams["config"]>;
@@ -96,6 +99,38 @@ export type CodexFlowStartResult = {
 	threadId: string;
 	turnId: string;
 	completedTurn?: v2.Turn;
+};
+
+export type CodexFlowRunContextLike = {
+	flow: {
+		name: string;
+		root: string;
+		step: string;
+		event?: unknown;
+	};
+	runtime?: {
+		workspaceBackendUrl?: string;
+	};
+};
+
+export type RunCodexAgentTurnFromFlowOptions =
+	StartCodexFlowParams & {
+		flowClient?: CodexFlowClient;
+		client?: CodexFlowAppServerClient;
+		appServerUrl?: string;
+		requestTimeoutMs?: number;
+		exportThreadJson?: string | false;
+	};
+
+export type RunCodexAgentTurnFromFlowResult = CodexFlowStartResult & {
+	threadJsonPath?: string;
+	exportedThread?: v2.Thread;
+	artifacts: {
+		threadId: string;
+		turnId: string;
+		turnStatus?: v2.TurnStatus;
+		threadJsonPath?: string;
+	};
 };
 
 export type WaitForTurnParams = {
@@ -279,7 +314,11 @@ export class CodexFlowClient {
 							settle(turn);
 						}
 					})
-					.catch((error: unknown) => fail(asError(error)))
+					.catch((error: unknown) => {
+						if (!isRetryableThreadReadError(error)) {
+							fail(asError(error));
+						}
+					})
 					.finally(() => {
 						polling = false;
 					});
@@ -356,6 +395,54 @@ export function createCodexFlowClient(
 	options: CodexFlowClientOptions = {},
 ): CodexFlowClient {
 	return new CodexFlowClient(options);
+}
+
+export async function runCodexAgentTurnFromFlow(
+	context: CodexFlowRunContextLike,
+	options: RunCodexAgentTurnFromFlowOptions,
+): Promise<RunCodexAgentTurnFromFlowResult> {
+	const flowClient = options.flowClient ?? createCodexFlowClientForRunContext(context, options);
+	const shouldClose = options.flowClient === undefined;
+	try {
+		const {
+			flowClient: _flowClient,
+			client: _client,
+			appServerUrl: _appServerUrl,
+			requestTimeoutMs: _requestTimeoutMs,
+			exportThreadJson,
+			...startOptions
+		} = options;
+		const started = await flowClient.startFlow({
+			...startOptions,
+			cwd: startOptions.cwd ?? context.flow.root,
+			wait: startOptions.wait ?? { throwOnFailure: true },
+		});
+		let threadJsonPath: string | undefined;
+		let exportedThread: v2.Thread | undefined;
+		if (exportThreadJson) {
+			exportedThread = await flowClient.readThread(started.threadId, { includeTurns: true });
+			threadJsonPath = path.isAbsolute(exportThreadJson)
+				? exportThreadJson
+				: path.resolve(startOptions.cwd ?? context.flow.root, exportThreadJson);
+			await mkdir(path.dirname(threadJsonPath), { recursive: true });
+			await writeFile(threadJsonPath, `${JSON.stringify(exportedThread, null, 2)}\n`);
+		}
+		return {
+			...started,
+			...(threadJsonPath ? { threadJsonPath } : {}),
+			...(exportedThread ? { exportedThread } : {}),
+			artifacts: {
+				threadId: started.threadId,
+				turnId: started.turnId,
+				...(started.completedTurn?.status ? { turnStatus: started.completedTurn.status } : {}),
+				...(threadJsonPath ? { threadJsonPath } : {}),
+			},
+		};
+	} finally {
+		if (shouldClose) {
+			flowClient.close();
+		}
+	}
 }
 
 export function toCodexUserInput(
@@ -507,6 +594,41 @@ function maybeThrowForFailedTurn(
 	return turn;
 }
 
+function createCodexFlowClientForRunContext(
+	context: CodexFlowRunContextLike,
+	options: RunCodexAgentTurnFromFlowOptions,
+): CodexFlowClient {
+	const workspaceBackendUrl = context.runtime?.workspaceBackendUrl;
+	const client = options.client ??
+		(workspaceBackendUrl
+			? new CodexWorkspaceBackendClient({
+					webSocketTransportOptions: {
+						url: workspaceBackendUrl,
+						requestTimeoutMs: options.requestTimeoutMs,
+					},
+					clientName: "codex-flow-agent-turn",
+					clientTitle: `Codex Flow ${context.flow.name}/${context.flow.step}`,
+				})
+			: undefined);
+	return createCodexFlowClient({
+		client,
+		closeInjectedClient: client ? true : undefined,
+		appServerUrl: client ? undefined : options.appServerUrl,
+		requestTimeoutMs: options.requestTimeoutMs,
+		clientName: "codex-flow-agent-turn",
+		clientTitle: `Codex Flow ${context.flow.name}/${context.flow.step}`,
+	});
+}
+
+function isRetryableThreadReadError(error: unknown): boolean {
+	const message = errorMessage(error).toLowerCase();
+	return message.includes("thread") &&
+		(message.includes("not found") ||
+			message.includes("unknown") ||
+			message.includes("not materialized") ||
+			message.includes("no such"));
+}
+
 function compactUndefined<T extends Record<string, unknown>>(value: T): T {
 	const result: Record<string, unknown> = {};
 	for (const [key, entry] of Object.entries(value)) {
@@ -523,4 +645,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function asError(error: unknown): Error {
 	return error instanceof Error ? error : new Error(String(error));
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }

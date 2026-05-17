@@ -125,6 +125,26 @@ test("waits by polling when completion notification was missed", async () => {
 	expect(result.completedTurn?.id).toBe("turn-1");
 });
 
+test("wait polling tolerates temporary thread materialization failures", async () => {
+	const fake = new FakeAppServerClient();
+	fake.enqueueReadThreadError("Thread not materialized yet");
+	const flows = new CodexFlowClient({ client: fake });
+
+	const pending = flows.startFlow({
+		prompt: "wait through materialization",
+		wait: { timeoutMs: 500, pollIntervalMs: 10 },
+	});
+
+	await eventually(() => {
+		expect(fake.startTurnCalls.length).toBe(1);
+	});
+	fake.setThreadTurns("thread-1", [turn("turn-1", "completed")]);
+
+	const result = await pending;
+	expect(result.completedTurn?.status).toBe("completed");
+	expect(fake.readThreadCalls.length).toBeGreaterThanOrEqual(2);
+});
+
 test("can throw when a waited turn fails", async () => {
 	const fake = new FakeAppServerClient();
 	const flows = new CodexFlowClient({ client: fake });
@@ -167,6 +187,7 @@ class FakeAppServerClient implements CodexFlowAppServerClient {
 	readThreadCalls: v2.ThreadReadParams[] = [];
 	#listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 	#threads = new Map<string, v2.Thread>();
+	#readThreadErrors: string[] = [];
 	#nextThread = 1;
 	#nextTurn = 1;
 
@@ -192,6 +213,10 @@ class FakeAppServerClient implements CodexFlowAppServerClient {
 
 	notificationListenerCount(): number {
 		return this.#listeners.get("notification")?.size ?? 0;
+	}
+
+	enqueueReadThreadError(message: string): void {
+		this.#readThreadErrors.push(message);
 	}
 
 	async startThread(
@@ -241,6 +266,10 @@ class FakeAppServerClient implements CodexFlowAppServerClient {
 
 	async readThread(params: v2.ThreadReadParams): Promise<v2.ThreadReadResponse> {
 		this.readThreadCalls.push(params);
+		const message = this.#readThreadErrors.shift();
+		if (message) {
+			throw new Error(message);
+		}
 		return {
 			thread: this.#threads.get(params.threadId) ?? thread(params.threadId),
 		};

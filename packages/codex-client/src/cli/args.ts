@@ -50,6 +50,16 @@ export type ParsedCli =
 			pretty: boolean;
 	  }
 	| {
+			type: "workspace-init-actions";
+			workspaceRoot?: string;
+			forgejo: boolean;
+			github: boolean;
+			withSmoke: boolean;
+			withAgentTurn: boolean;
+			overwrite: boolean;
+			pretty: boolean;
+	  }
+	| {
 			type: "workspace-call";
 			method: string;
 			paramsText?: string;
@@ -109,6 +119,30 @@ export type ParsedCli =
 			runId: string;
 			url: string;
 			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "actions-prepare-auth";
+			workspaceRoot?: string;
+			pretty: boolean;
+	  }
+	| {
+			type: "actions-cleanup";
+			workspaceRoot?: string;
+			pretty: boolean;
+	  }
+	| {
+			type: "actions-dispatch";
+			workspaceRoot?: string;
+			eventPath: string;
+			pretty: boolean;
+	  }
+	| {
+			type: "actions-assert-run";
+			workspaceRoot?: string;
+			flowName: string;
+			stepName: string;
+			artifactText?: string;
 			pretty: boolean;
 	  }
 	| {
@@ -173,6 +207,9 @@ export function parseArgs(
 	let runId: string | undefined;
 	let status: string | undefined;
 	let limit: number | undefined;
+	let flowName: string | undefined;
+	let stepName: string | undefined;
+	let artifactText: string | undefined;
 	let wait = false;
 	let mode: WorkspaceModeInput | undefined;
 	let workspaceRoot: string | undefined;
@@ -183,6 +220,10 @@ export function parseArgs(
 	let merge: "codex" | undefined;
 	let backup = true;
 	let ref: string | undefined;
+	let forgejo = false;
+	let github = false;
+	let withSmoke = false;
+	let withAgentTurn = false;
 	const include: string[] = [];
 	const exclude: string[] = [];
 
@@ -392,6 +433,30 @@ export function parseArgs(
 			status = arg.slice("--status=".length);
 			continue;
 		}
+		if (arg === "--flow") {
+			flowName = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--flow=")) {
+			flowName = arg.slice("--flow=".length);
+			continue;
+		}
+		if (arg === "--step") {
+			stepName = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--step=")) {
+			stepName = arg.slice("--step=".length);
+			continue;
+		}
+		if (arg === "--artifact-text") {
+			artifactText = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--artifact-text=")) {
+			artifactText = arg.slice("--artifact-text=".length);
+			continue;
+		}
 		if (arg === "--limit") {
 			limit = positiveInteger(required(argv, ++index, arg), arg);
 			continue;
@@ -402,6 +467,22 @@ export function parseArgs(
 		}
 		if (arg === "--wait") {
 			wait = true;
+			continue;
+		}
+		if (arg === "--forgejo") {
+			forgejo = true;
+			continue;
+		}
+		if (arg === "--github") {
+			github = true;
+			continue;
+		}
+		if (arg === "--with-smoke") {
+			withSmoke = true;
+			continue;
+		}
+		if (arg === "--with-agent-turn") {
+			withAgentTurn = true;
 			continue;
 		}
 		if (arg === "--") {
@@ -481,6 +562,22 @@ export function parseArgs(
 				workspaceRoot,
 				url: workspaceUrl,
 				timeoutMs,
+				pretty,
+			};
+		}
+		if (subcommand === "init") {
+			const target = requiredPositional(positionals, 2, "workspace init requires actions");
+			if (target !== "actions") {
+				throw new Error("workspace init currently supports only actions");
+			}
+			return {
+				type: "workspace-init-actions",
+				workspaceRoot,
+				forgejo,
+				github,
+				withSmoke,
+				withAgentTurn,
+				overwrite,
 				pretty,
 			};
 		}
@@ -589,6 +686,46 @@ export function parseArgs(
 			};
 		}
 		throw new Error("flow requires dispatch, events, event, replay, runs, or run");
+	}
+	if (command === "actions") {
+		const subcommand = positionals[1];
+		if (subcommand === "prepare-auth") {
+			return { type: "actions-prepare-auth", workspaceRoot, pretty };
+		}
+		if (subcommand === "cleanup") {
+			return { type: "actions-cleanup", workspaceRoot, pretty };
+		}
+		if (subcommand === "dispatch") {
+			return {
+				type: "actions-dispatch",
+				workspaceRoot,
+				eventPath: eventPath ?? requiredPositional(
+					positionals,
+					2,
+					"actions dispatch requires --event <path> or <path>",
+				),
+				pretty,
+			};
+		}
+		if (subcommand === "assert-run") {
+			return {
+				type: "actions-assert-run",
+				workspaceRoot,
+				flowName: flowName ?? requiredPositional(
+					positionals,
+					2,
+					"actions assert-run requires --flow <name>",
+				),
+				stepName: stepName ?? requiredPositional(
+					positionals,
+					3,
+					"actions assert-run requires --step <name>",
+				),
+				artifactText,
+				pretty,
+			};
+		}
+		throw new Error("actions requires prepare-auth, cleanup, dispatch, or assert-run");
 	}
 	if (command === "memories") {
 		const subcommand = positionals[1];

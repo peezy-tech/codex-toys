@@ -62,16 +62,47 @@ The workspace path defaults to `CODEX_WORKSPACE_BACKEND_WS_URL` or
 codex-flows workspace doctor [--mode auto|local|actions] [--json]
 codex-flows workspace tick [--mode auto|local|actions]
 codex-flows workspace run <task-id> [--mode auto|local|actions]
+codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-agent-turn]
 ```
 
 - `doctor` reports mode, repo root, `.codex/workspace.toml`, runtime
   `CODEX_HOME`, state roots, task counts, due tasks, failing tasks, latest run,
-  memory roots, memory summary presence, and backend reachability.
+  memory roots, memory summary presence, invariant errors, and backend
+  reachability. In Actions mode it flags any runner that would use a Codex home
+  outside the repository `.codex` directory.
 - `tick` runs due scheduled tasks and reactive rules.
 - `run <task-id>` runs one task immediately.
+- `init actions` scaffolds `.codex/workspace.toml`, `.codex/config.toml`,
+  workflow files, optional smoke and agent-turn flows, and `.gitignore`
+  entries for runtime-only Codex files.
 
 See [Workspace autonomy](../guides/workspace-autonomy) for config, modes, and
 CI behavior.
+
+## Actions Helpers
+
+```bash
+codex-flows actions prepare-auth
+codex-flows actions cleanup
+codex-flows actions dispatch --event <event.json>
+codex-flows actions assert-run --flow <name> --step <name> [--artifact-text <text>]
+```
+
+These commands are for CI and local Actions-mode simulation. They always resolve
+the runtime Codex home to `<repo>/.codex`, even if the caller has another
+`CODEX_HOME` in the environment.
+
+- `prepare-auth` writes `.codex/auth.json` with mode `0600` from
+  `CODEX_AUTH_JSON_B64`, `CODEX_AUTH_JSON`, or `OPENAI_API_KEY`.
+- `cleanup` removes runtime-only auth, install ids, sessions, shell snapshots,
+  temp dirs, SQLite databases, `.codex/memories/.git`, and
+  `phase2_workspace_diff.md` while preserving `.codex/memories/*.md`,
+  `.codex/memories/rollout_summaries/*.md`, and `.codex/workspace/actions`.
+- `dispatch` persists the event under `.codex/workspace/actions/events` and
+  dispatches it through a file-backed local flow client rooted at
+  `.codex/workspace/actions/flow-client`.
+- `assert-run` checks the latest file-backed Actions run for a flow and step,
+  optionally requiring text in the stored run record.
 
 ## Memory Transplant
 
@@ -197,6 +228,13 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--exclude <name>` | Exclude a pack item by name or `kind:name`. |
 | `--merge codex` | Merge `MEMORY.md` and `memory_summary.md` with Codex. |
 | `--no-backup` | Disable overwrite or merge backups. |
+| `--flow <name>` | Flow name for `actions assert-run`. |
+| `--step <name>` | Step name for `actions assert-run`. |
+| `--artifact-text <text>` | Text that must appear in an asserted Actions run. |
+| `--forgejo` | Generate a Forgejo workflow with `workspace init actions`. |
+| `--github` | Generate a GitHub Actions workflow with `workspace init actions`. |
+| `--with-smoke` | Generate an Actions smoke flow with `workspace init actions`. |
+| `--with-agent-turn` | Generate an agent-turn flow with `workspace init actions`. |
 
 ## Environment
 
@@ -206,6 +244,9 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_WORKSPACE_BACKEND_WS_URL` | Default workspace backend WebSocket URL. |
 | `CODEX_WORKSPACE_MODE` | Default workspace autonomy mode: `auto`, `local`, or `actions`. |
 | `CODEX_HOME` | Active Codex home. Actions mode sets it to the repo `.codex`. |
+| `CODEX_AUTH_JSON_B64` | Base64 JSON auth payload consumed by `actions prepare-auth`. |
+| `CODEX_AUTH_JSON` | Raw JSON auth payload consumed by `actions prepare-auth`. |
+| `OPENAI_API_KEY` | API key fallback consumed by `actions prepare-auth`. |
 | `CODEX_FLOWS_MODE=code-mode` | Enables Code Mode flow steps and Peezy Codex defaults. |
 | `CODEX_APP_SERVER_CODEX_COMMAND` | Overrides the Codex command for stdio app-server launches. |
 | `CODEX_FLOW_BACKEND_URL` | HTTP backend URL for consumers such as Discord bridge inspection. |

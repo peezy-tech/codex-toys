@@ -46,13 +46,16 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/browser`: browser-safe WebSocket app-server client
 - `@peezy.tech/codex-flows/flows`: Codex-backed flow helpers
 - `@peezy.tech/codex-flows/auth`: privacy-preserving account status and login helpers
+- `@peezy.tech/codex-flows/actions`: Actions-mode workspace helpers
+- `@peezy.tech/codex-flows/memories`: stable Codex memory artifact helpers
 - `@peezy.tech/codex-flows/workbench`: transport-neutral thread UX reducers and request descriptors
 - `@peezy.tech/codex-flows/workspace-backend`: workspace backend protocol helpers and capability primitives
 - `@peezy.tech/codex-flows/flow-runtime`: local flow runtime, clients, and Bun helpers
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
 - `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
-  flow inspection, workspace autonomy, memory transplant, and pack repo install
+  flow inspection, workspace autonomy, Actions helpers, memory transplant,
+  and pack repo install
 - `codex-workspace-backend-local`: local workspace backend process
 - `codex-app`: app-server JSON-RPC utility CLI
 - `codex-flow-runner`: local flow runner CLI
@@ -87,13 +90,20 @@ codex-flows workspace tick --mode local
 Run it in CI with the repo `.codex` home:
 
 ```bash
-export CODEX_WORKSPACE_MODE=actions
-export CODEX_HOME="$GITHUB_WORKSPACE/.codex"
+codex-flows actions prepare-auth
 codex-flows workspace tick --mode actions
+codex-flows actions cleanup
+```
+
+Scaffold an Actions-ready workspace with:
+
+```bash
+codex-flows workspace init actions --forgejo --with-smoke --with-agent-turn
 ```
 
 Local generated state goes under `.codex/workspace/local`. Actions generated
-state goes under `.codex/workspace/actions`.
+state goes under `.codex/workspace/actions`, and Actions mode always runs with
+`CODEX_HOME=<repo>/.codex`.
 
 ## Memory Transplant In One Screen
 

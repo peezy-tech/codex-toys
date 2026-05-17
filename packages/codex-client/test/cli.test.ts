@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { parseArgs } from "../src/cli/args.ts";
 import { formatFetchInfo, type FetchInfo } from "../src/cli/fetch.ts";
 
@@ -11,6 +14,27 @@ describe("codex-flows CLI args", () => {
 				paramsText: "{\"limit\":1}",
 				url: "ws://127.0.0.1:3585",
 			});
+
+async function runCli(
+	args: string[],
+	env: Record<string, string | undefined> = {},
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+	const proc = Bun.spawn({
+		cmd: [process.execPath, path.resolve(import.meta.dir, "../src/cli/index.ts"), ...args],
+		env: {
+			...process.env,
+			...env,
+		},
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	const [stdout, stderr, exitCode] = await Promise.all([
+		new Response(proc.stdout).text(),
+		new Response(proc.stderr).text(),
+		proc.exited,
+	]);
+	return { exitCode, stdout, stderr };
+}
 	});
 
 	test("parses workspace-owned method calls", () => {
@@ -50,6 +74,94 @@ describe("codex-flows CLI args", () => {
 			type: "flow-get-run",
 			runId: "run_123",
 		});
+	});
+
+	test("parses Actions helper commands and workspace Actions scaffolding", () => {
+		expect(parseArgs(["actions", "prepare-auth", "--workspace-root", "/work"], {}))
+			.toEqual({
+				type: "actions-prepare-auth",
+				workspaceRoot: "/work",
+				pretty: true,
+			});
+		expect(parseArgs(["actions", "cleanup"], {})).toEqual({
+			type: "actions-cleanup",
+			workspaceRoot: undefined,
+			pretty: true,
+		});
+		expect(parseArgs(["actions", "dispatch", "--event", "event.json"], {}))
+			.toMatchObject({
+				type: "actions-dispatch",
+				eventPath: "event.json",
+			});
+		expect(parseArgs([
+			"actions",
+			"assert-run",
+			"--flow",
+			"actions-smoke",
+			"--step",
+			"smoke",
+			"--artifact-text",
+			"needle",
+		], {})).toEqual({
+			type: "actions-assert-run",
+			workspaceRoot: undefined,
+			flowName: "actions-smoke",
+			stepName: "smoke",
+			artifactText: "needle",
+			pretty: true,
+		});
+		expect(parseArgs([
+			"workspace",
+			"init",
+			"actions",
+			"--forgejo",
+			"--with-smoke",
+			"--with-agent-turn",
+			"--overwrite",
+		], {})).toEqual({
+			type: "workspace-init-actions",
+			workspaceRoot: undefined,
+			forgejo: true,
+			github: false,
+			withSmoke: true,
+			withAgentTurn: true,
+			overwrite: true,
+			pretty: true,
+		});
+	});
+
+	test("executes Actions prepare-auth and cleanup commands against a temp workspace", async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), "codex-actions-cli-"));
+		await mkdir(path.join(root, ".codex", "sessions"), { recursive: true });
+		await mkdir(path.join(root, ".codex", "memories"), { recursive: true });
+		await writeFile(path.join(root, ".codex", "sessions", "one.jsonl"), "{}");
+		await writeFile(path.join(root, ".codex", "memories", "raw_memories.md"), "keep\n");
+
+		const prepare = await runCli([
+			"--workspace-root",
+			root,
+			"actions",
+			"prepare-auth",
+		], { CODEX_AUTH_JSON_B64: "", CODEX_AUTH_JSON: "{\"token\":\"cli\"}" });
+		expect(prepare.exitCode).toBe(0);
+		expect(JSON.parse(prepare.stdout)).toMatchObject({
+			source: "CODEX_AUTH_JSON",
+			wrote: true,
+		});
+		expect(JSON.parse(await readFile(path.join(root, ".codex", "auth.json"), "utf8")))
+			.toEqual({ token: "cli" });
+
+		const cleanup = await runCli([
+			"--workspace-root",
+			root,
+			"actions",
+			"cleanup",
+		]);
+		expect(cleanup.exitCode).toBe(0);
+		expect(JSON.parse(cleanup.stdout).removed).toContain("auth.json");
+		expect(JSON.parse(cleanup.stdout).removed).toContain("sessions");
+		expect(await readFile(path.join(root, ".codex", "memories", "raw_memories.md"), "utf8"))
+			.toBe("keep\n");
 	});
 
 	test("parses pack commands", () => {

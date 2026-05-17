@@ -3,6 +3,8 @@ const checks = [
 	["@peezy.tech/codex-flows/browser", ["CodexAppServerClient"]],
 	["@peezy.tech/codex-flows/flows", ["CodexFlowClient", "createCodexFlowClient"]],
 	["@peezy.tech/codex-flows/auth", ["CodexAuthClient", "createCodexAuthClient"]],
+	["@peezy.tech/codex-flows/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
+	["@peezy.tech/codex-flows/memories", ["listCodexMemoryArtifacts"]],
 	["@peezy.tech/codex-flows/workbench", ["createThreadSnapshot", "turnStartDescriptor"]],
 	["@peezy.tech/codex-flows/workspace-backend", ["CodexWorkspaceBackendClient"]],
 	["@peezy.tech/codex-flows/flow-runtime", ["discoverFlows", "runFlowStep"]],

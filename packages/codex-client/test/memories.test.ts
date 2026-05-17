@@ -6,6 +6,13 @@ import {
 	applyMemoryTransplant,
 	planMemoryTransplant,
 } from "../src/cli/memories.ts";
+import {
+	copyCodexMemoryArtifacts,
+	findTextInCodexMemoryArtifacts,
+	listCodexMemoryArtifacts,
+	sanitizeWorkspaceMemoryArtifacts,
+	waitForCodexMemoryArtifacts,
+} from "../src/memories.ts";
 
 describe("memory transplant", () => {
 	test("dry-run reports adds, conflicts, skipped files, and bytes", async () => {
@@ -107,6 +114,59 @@ describe("memory transplant", () => {
 		expect(await readFile(path.join(workspaceHome, "memories", "memory_summary.md"), "utf8")).toBe("global\n");
 		expect(plan.conflicts[0]?.backupPath).toBeDefined();
 		expect(await readFile(plan.conflicts[0]?.backupPath ?? "", "utf8")).toBe("workspace\n");
+	});
+
+	test("public memory helpers use stable raw and rollout artifacts", async () => {
+		const { globalHome, workspaceRoot } = await memoryHomes();
+		await writeFile(path.join(globalHome, "memories", "MEMORY.md"), "not required\n");
+		await writeFile(path.join(globalHome, "memories", "memory_summary.md"), "not required\n");
+		await writeFile(path.join(globalHome, "memories", "raw_memories.md"), "needle raw\n");
+		await writeFile(path.join(globalHome, "memories", "rollout_summaries", "one.md"), "needle rollout\n");
+		await writeFile(path.join(globalHome, "memories", "state_5.sqlite"), "db");
+
+		const artifacts = await listCodexMemoryArtifacts({ codexHome: globalHome });
+		expect(artifacts.map((artifact) => artifact.relativePath)).toEqual([
+			"raw_memories.md",
+			"rollout_summaries/one.md",
+		]);
+		expect((await findTextInCodexMemoryArtifacts({ codexHome: globalHome, text: "needle" })))
+			.toHaveLength(2);
+		expect((await waitForCodexMemoryArtifacts({
+			codexHome: globalHome,
+			text: "needle raw",
+			timeoutMs: 10,
+			pollIntervalMs: 1,
+		}))[0]?.relativePath).toBe("raw_memories.md");
+
+		const copy = await copyCodexMemoryArtifacts({
+			sourceCodexHome: globalHome,
+			workspaceRoot,
+		});
+		expect(copy.copied.map((artifact) => artifact.relativePath)).toEqual([
+			"raw_memories.md",
+			"rollout_summaries/one.md",
+		]);
+		expect(await readFile(path.join(workspaceRoot, ".codex", "memories", "raw_memories.md"), "utf8"))
+			.toBe("needle raw\n");
+	});
+
+	test("sanitizeWorkspaceMemoryArtifacts removes memory runtime files", async () => {
+		const { workspaceHome, workspaceRoot } = await memoryHomes();
+		await mkdir(path.join(workspaceHome, "memories", ".git"), { recursive: true });
+		await writeFile(path.join(workspaceHome, "memories", ".git", "HEAD"), "ref\n");
+		await writeFile(path.join(workspaceHome, "memories", "phase2_workspace_diff.md"), "diff\n");
+		await writeFile(path.join(workspaceHome, "memories", "state_5.sqlite"), "db\n");
+		await writeFile(path.join(workspaceHome, "memories", "raw_memories.md"), "keep\n");
+
+		const result = await sanitizeWorkspaceMemoryArtifacts({ workspaceRoot });
+
+		expect(result.removed).toEqual([
+			".git",
+			"phase2_workspace_diff.md",
+			"state_5.sqlite",
+		]);
+		expect(await readFile(path.join(workspaceHome, "memories", "raw_memories.md"), "utf8"))
+			.toBe("keep\n");
 	});
 });
 

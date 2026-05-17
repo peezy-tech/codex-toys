@@ -40,7 +40,9 @@ directory in the v1 workspace autonomy layout.
 
 Local mode does not override the active Codex home. Actions mode intentionally
 uses the repository `.codex` directory so scheduled CI work can use repo skills
-and memories.
+and memories. This is enforced centrally: `createWorkspaceContext({ mode:
+"actions" })` sets both `workspaceCodexHome` and `runtimeCodexHome` to
+`<repo>/.codex`, ignoring any external `CODEX_HOME`.
 
 ## Commands
 
@@ -48,16 +50,28 @@ and memories.
 codex-flows workspace doctor
 codex-flows workspace tick --mode local
 codex-flows workspace run morning-brief --mode actions
+codex-flows workspace init actions --forgejo --with-smoke --with-agent-turn
 CODEX_WORKSPACE_MODE=actions codex-flows workspace doctor
 ```
 
 `doctor` reports mode, repo root, config path, runtime `CODEX_HOME`, state
 roots, task health, latest run, memory roots, memory summary presence, and
-workspace backend status when reachable.
+workspace backend status when reachable. In Actions mode it reports an error if
+the runtime Codex home would not be `<repo>/.codex`.
 
 `tick` runs due scheduled tasks once and evaluates reactive rules.
 
 `run <task-id>` runs one configured task immediately.
+
+`init actions` scaffolds an Actions-ready workspace. The command can generate:
+
+- `.codex/workspace.toml`
+- `.codex/config.toml`
+- `.forgejo/workflows/codex-flows-actions.yml` with `--forgejo`
+- `.github/workflows/codex-flows-actions.yml` with `--github`
+- an Actions smoke flow with `--with-smoke`
+- a sample agent-turn flow with `--with-agent-turn`
+- `.gitignore` entries for runtime-only Codex files
 
 Existing JSON-RPC passthrough commands stay intact:
 
@@ -178,23 +192,26 @@ kind = "skill"
 skill = "skill-repair"
 ```
 
-## GitHub Actions
+## Actions Mode
 
-Scheduler:
+Actions jobs should prepare auth, run workspace tasks, cleanup runtime-only
+state, and commit only durable workspace state:
 
 ```bash
-export CODEX_WORKSPACE_MODE=actions
-export CODEX_HOME="$GITHUB_WORKSPACE/.codex"
+codex-flows actions prepare-auth
 codex-flows workspace tick --mode actions
+codex-flows actions cleanup
 ```
 
-Runner:
+`prepare-auth` accepts secrets in this order:
 
-```bash
-export CODEX_WORKSPACE_MODE=actions
-export CODEX_HOME="$GITHUB_WORKSPACE/.codex"
-codex-flows workspace run "$TASK_ID" --mode actions
-```
+- `CODEX_AUTH_JSON_B64`
+- `CODEX_AUTH_JSON`
+- `OPENAI_API_KEY`
+
+It writes `.codex/auth.json` with `0600` permissions. `cleanup` removes auth,
+install ids, sessions, shell snapshots, temp dirs, SQLite databases,
+`.codex/memories/.git`, and `phase2_workspace_diff.md`.
 
 Actions commits should be limited to:
 
@@ -205,6 +222,21 @@ Actions commits should be limited to:
 
 Use job logs for verbose logs. Local mode generated state should not be
 committed.
+
+## Local Actions Simulation
+
+Use the Actions helpers to exercise the same repository-scoped Codex home
+without a hosted runner:
+
+```bash
+codex-flows actions dispatch --event ./event.json
+codex-flows actions assert-run --flow actions-smoke --step smoke
+```
+
+`actions dispatch` writes the event to `.codex/workspace/actions/events` and
+runs matching flows through a file-backed local flow client under
+`.codex/workspace/actions/flow-client`. Code Mode flow steps launched this way
+also receive `CODEX_HOME=<repo>/.codex`.
 
 ## Discord Surfaces
 

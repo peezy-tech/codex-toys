@@ -103,6 +103,24 @@ export type WorkspaceDoctorInfo = {
 	failingCount: number;
 	latestRun?: WorkspaceRunRecord;
 	surfaces: WorkspaceSurface[];
+	errors: string[];
+};
+
+export type ScaffoldActionsWorkspaceOptions = {
+	workspaceRoot?: string;
+	forgejo?: boolean;
+	github?: boolean;
+	withSmoke?: boolean;
+	withAgentTurn?: boolean;
+	overwrite?: boolean;
+};
+
+export type ScaffoldActionsWorkspaceResult = {
+	workspaceRoot: string;
+	files: Array<{
+		path: string;
+		action: "created" | "updated" | "unchanged";
+	}>;
 };
 
 export async function discoverWorkspaceRoot(start = process.cwd()): Promise<string> {
@@ -289,6 +307,7 @@ export async function collectWorkspaceDoctorInfo(context: WorkspaceContext): Pro
 		failingCount,
 		latestRun,
 		surfaces: config?.surfaces ?? [],
+		errors: workspaceDoctorErrors(context),
 	};
 }
 
@@ -307,7 +326,39 @@ export function formatWorkspaceDoctorInfo(info: WorkspaceDoctorInfo): string {
 		["tasks", `${info.taskCount} configured, ${info.dueCount} due, ${info.failingCount} failing`],
 		["latest run", info.latestRun ? `${info.latestRun.status} ${info.latestRun.taskId} ${info.latestRun.finishedAt}` : "none"],
 	];
+	for (const error of info.errors) {
+		rows.push(["error", error]);
+	}
 	return `${rows.map(([label, value]) => `${label.padEnd(19)} ${value}`).join("\n")}\n`;
+}
+
+export async function scaffoldActionsWorkspace(
+	options: ScaffoldActionsWorkspaceOptions = {},
+): Promise<ScaffoldActionsWorkspaceResult> {
+	const workspaceRoot = path.resolve(options.workspaceRoot ?? await discoverWorkspaceRoot());
+	const files: ScaffoldActionsWorkspaceResult["files"] = [];
+	const write = async (relativePath: string, content: string): Promise<void> => {
+		files.push(await writeScaffoldFile(workspaceRoot, relativePath, content, options.overwrite === true));
+	};
+
+	await write(".codex/workspace.toml", workspaceTomlTemplate(workspaceRoot, options));
+	await write(".codex/config.toml", codexConfigTemplate());
+	if (options.forgejo) {
+		await write(".forgejo/workflows/codex-flows-actions.yml", actionsWorkflowTemplate("forgejo"));
+	}
+	if (options.github || !options.forgejo) {
+		await write(".github/workflows/codex-flows-actions.yml", actionsWorkflowTemplate("github"));
+	}
+	if (options.withSmoke) {
+		await write(".codex/flows/actions-smoke/flow.toml", smokeFlowToml());
+		await write(".codex/flows/actions-smoke/exec/smoke.ts", smokeFlowScript());
+	}
+	if (options.withAgentTurn) {
+		await write(".codex/flows/actions-agent-turn/flow.toml", agentTurnFlowToml());
+		await write(".codex/flows/actions-agent-turn/exec/agent-turn.ts", agentTurnFlowScript());
+	}
+	files.push(await appendGitignoreEntries(workspaceRoot, actionsGitignoreEntries()));
+	return { workspaceRoot, files };
 }
 
 export async function tickWorkspace(
@@ -468,9 +519,7 @@ async function runReactiveRule(
 }
 
 async function runSkill(task: Extract<WorkspaceTask, { kind: "skill" }>, context: WorkspaceContext) {
-	const skillPath = context.mode === "actions"
-		? path.join(context.workspaceCodexHome, "skills", task.skill, "SKILL.md")
-		: path.join(context.runtimeCodexHome, "skills", task.skill, "SKILL.md");
+	const skillPath = path.join(context.runtimeCodexHome, "skills", task.skill, "SKILL.md");
 	if (!await exists(skillPath)) {
 		throw new Error(`Skill not found: ${skillPath}`);
 	}
@@ -494,7 +543,7 @@ async function runCommand(command: string[], context: WorkspaceContext) {
 	const env = {
 		...process.env,
 		CODEX_WORKSPACE_MODE: context.mode,
-		...(context.mode === "actions" ? { CODEX_HOME: context.workspaceCodexHome } : {}),
+		CODEX_HOME: context.runtimeCodexHome,
 	};
 	const proc = spawn({
 		cmd: [cmd, ...args],
@@ -619,6 +668,18 @@ function countFailingTasks(tasks: WorkspaceTask[], runs: WorkspaceRunRecord[]): 
 	return tasks.filter((task) => consecutiveFailures(task.id, runs) > 0).length;
 }
 
+function workspaceDoctorErrors(context: WorkspaceContext): string[] {
+	if (
+		context.mode === "actions" &&
+		path.resolve(context.runtimeCodexHome) !== path.resolve(context.workspaceCodexHome)
+	) {
+		return [
+			`Actions mode must use repo .codex as CODEX_HOME; got ${context.runtimeCodexHome}`,
+		];
+	}
+	return [];
+}
+
 function consecutiveFailures(taskId: string, runs: WorkspaceRunRecord[]): number {
 	let count = 0;
 	for (const run of runs.filter((item) => item.taskId === taskId).sort((a, b) => b.startedAt.localeCompare(a.startedAt))) {
@@ -657,6 +718,234 @@ async function ensureStateDirs(context: WorkspaceContext): Promise<void> {
 	for (const name of ["state", "runs", "outputs", "health"]) {
 		await mkdir(path.join(context.stateRoot, name), { recursive: true });
 	}
+}
+
+async function writeScaffoldFile(
+	workspaceRoot: string,
+	relativePath: string,
+	content: string,
+	overwrite: boolean,
+): Promise<ScaffoldActionsWorkspaceResult["files"][number]> {
+	const file = path.join(workspaceRoot, relativePath);
+	const normalizedContent = content.endsWith("\n") ? content : `${content}\n`;
+	if (await exists(file)) {
+		const current = await readFile(file, "utf8");
+		if (current === normalizedContent) {
+			return { path: file, action: "unchanged" };
+		}
+		if (!overwrite) {
+			return { path: file, action: "unchanged" };
+		}
+		await writeFile(file, normalizedContent);
+		return { path: file, action: "updated" };
+	}
+	await mkdir(path.dirname(file), { recursive: true });
+	await writeFile(file, normalizedContent);
+	return { path: file, action: "created" };
+}
+
+async function appendGitignoreEntries(
+	workspaceRoot: string,
+	entries: string[],
+): Promise<ScaffoldActionsWorkspaceResult["files"][number]> {
+	const file = path.join(workspaceRoot, ".gitignore");
+	let current = "";
+	try {
+		current = await readFile(file, "utf8");
+	} catch (error) {
+		if (!isRecord(error) || error.code !== "ENOENT") {
+			throw error;
+		}
+	}
+	const lines = new Set(current.split(/\r?\n/).filter(Boolean));
+	const missing = entries.filter((entry) => !lines.has(entry));
+	if (missing.length === 0) {
+		return { path: file, action: current ? "unchanged" : "created" };
+	}
+	await mkdir(path.dirname(file), { recursive: true });
+	const prefix = current && !current.endsWith("\n") ? "\n" : "";
+	const separator = current && !current.endsWith("\n\n") ? "\n" : "";
+	await writeFile(file, `${current}${prefix}${separator}${missing.join("\n")}\n`);
+	return { path: file, action: current ? "updated" : "created" };
+}
+
+function workspaceTomlTemplate(
+	workspaceRoot: string,
+	options: ScaffoldActionsWorkspaceOptions,
+): string {
+	const lines = [
+		"[workspace]",
+		`name = ${tomlString(path.basename(workspaceRoot))}`,
+		"",
+	];
+	if (options.withSmoke) {
+		lines.push(
+			"[[workspace.tasks]]",
+			'id = "actions-smoke"',
+			"enabled = true",
+			'kind = "flow"',
+			'flow = "workspace.smoke"',
+			"",
+			"[workspace.tasks.event]",
+			'type = "workspace.smoke"',
+			"",
+		);
+	}
+	if (options.withAgentTurn) {
+		lines.push(
+			"[[workspace.tasks]]",
+			'id = "actions-agent-turn"',
+			"enabled = true",
+			'kind = "flow"',
+			'flow = "workspace.agent_turn"',
+			"",
+			"[workspace.tasks.event]",
+			'type = "workspace.agent_turn"',
+			"",
+		);
+	}
+	return lines.join("\n");
+}
+
+function codexConfigTemplate(): string {
+	return [
+		"# Codex configuration for repository-scoped Actions runs.",
+		"# Actions helpers set CODEX_HOME to this .codex directory at runtime.",
+		"",
+	].join("\n");
+}
+
+function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
+	const checkout = provider === "github" ? "actions/checkout@v4" : "actions/checkout@v4";
+	const setupBun = provider === "github" ? "oven-sh/setup-bun@v2" : "oven-sh/setup-bun@v2";
+	return [
+		"name: Codex Flows Actions",
+		"",
+		"on:",
+		"  workflow_dispatch:",
+		"  schedule:",
+		"    - cron: '0 * * * *'",
+		"",
+		"jobs:",
+		"  workspace:",
+		"    runs-on: ubuntu-latest",
+		"    permissions:",
+		"      contents: write",
+		"    steps:",
+		`      - uses: ${checkout}`,
+		`      - uses: ${setupBun}`,
+		"      - run: bunx @peezy.tech/codex-flows actions prepare-auth",
+		"        env:",
+		"          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}",
+		"          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}",
+		"          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
+		"      - run: bunx @peezy.tech/codex-flows workspace tick --mode actions",
+		"      - if: always()",
+		"        run: bunx @peezy.tech/codex-flows actions cleanup",
+		"      - if: always()",
+		"        run: |",
+		"          git add .codex/memories .codex/workspace/actions",
+		"          git diff --cached --quiet && exit 0",
+		"          git config user.name codex-flows-actions",
+		"          git config user.email codex-flows-actions@users.noreply.github.com",
+		"          git commit -m \"Update Codex workspace state\"",
+		"          git push",
+		"",
+	].join("\n");
+}
+
+function smokeFlowToml(): string {
+	return [
+		'name = "actions-smoke"',
+		"version = 1",
+		'description = "Verify file-backed Actions flow dispatch."',
+		"",
+		"[[steps]]",
+		'name = "smoke"',
+		'runner = "bun"',
+		'script = "exec/smoke.ts"',
+		"timeout_ms = 30000",
+		"",
+		"[steps.trigger]",
+		'type = "workspace.smoke"',
+		"",
+	].join("\n");
+}
+
+function smokeFlowScript(): string {
+	return [
+		"const context = JSON.parse(await Bun.stdin.text());",
+		"console.log('FLOW_RESULT ' + JSON.stringify({",
+		"  status: 'completed',",
+		"  message: 'actions smoke completed',",
+		"  artifacts: {",
+		"    eventId: context.runtime.eventId,",
+		"    codexHome: process.env.CODEX_HOME,",
+		"    workspaceMode: process.env.CODEX_WORKSPACE_MODE,",
+		"  },",
+		"}));",
+		"",
+	].join("\n");
+}
+
+function agentTurnFlowToml(): string {
+	return [
+		'name = "actions-agent-turn"',
+		"version = 1",
+		'description = "Run one Codex agent turn from a Bun flow step."',
+		"",
+		"[[steps]]",
+		'name = "agent-turn"',
+		'runner = "bun"',
+		'script = "exec/agent-turn.ts"',
+		"cwd = \"../../..\"",
+		"timeout_ms = 900000",
+		"",
+		"[steps.trigger]",
+		'type = "workspace.agent_turn"',
+		"",
+	].join("\n");
+}
+
+function agentTurnFlowScript(): string {
+	return [
+		'import { readFlowContext } from "@peezy.tech/codex-flows/flow-runtime/bun";',
+		'import { runCodexAgentTurnFromFlow } from "@peezy.tech/codex-flows/flows";',
+		"",
+		"const context = await readFlowContext();",
+		"const result = await runCodexAgentTurnFromFlow(context, {",
+		"  cwd: process.cwd(),",
+		"  prompt: 'Run the configured workspace agent task and summarize the result.',",
+		"  approvalPolicy: 'never',",
+		"  sandbox: 'danger-full-access',",
+		"  wait: { timeoutMs: 900000, throwOnFailure: true },",
+		"  exportThreadJson: '.codex/workspace/actions/agent-turn-thread.json',",
+		"});",
+		"console.log('FLOW_RESULT ' + JSON.stringify({",
+		"  status: 'completed',",
+		"  message: 'agent turn completed',",
+		"  artifacts: result.artifacts,",
+		"}));",
+		"",
+	].join("\n");
+}
+
+function actionsGitignoreEntries(): string[] {
+	return [
+		".codex/auth.json",
+		".codex/install_id",
+		".codex/install-id",
+		".codex/installation_id",
+		".codex/sessions/",
+		".codex/shell_snapshots/",
+		".codex/shell-snapshots/",
+		".codex/tmp/",
+		".codex/temp/",
+		".codex/workspace/local/",
+		".codex/**/*.sqlite",
+		".codex/**/*.sqlite3",
+		".codex/**/*.db",
+	];
 }
 
 function parseSurface(input: unknown): WorkspaceSurface {
