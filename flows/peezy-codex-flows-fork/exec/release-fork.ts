@@ -250,53 +250,56 @@ async function applyForkOverlay(input: {
 
   const testPath = path.join(input.worktreeDir, "packages/codex-client/test/stdio-transport.test.ts");
   let testText = await readFile(testPath, "utf8");
-  testText = testText.replace(
-    [
-      "expect(resolveCodexStdioCommand({}, {})).toEqual({",
-      "\t\tcommand: \"codex\",",
-      "\t\targs: [\"app-server\", \"--listen\", \"stdio://\", \"--enable\", \"apps\", \"--enable\", \"hooks\"],",
-      "\t});",
-    ].join("\n\t"),
-    [
-      "expect(resolveCodexStdioCommand({}, {})).toEqual({",
-      "\t\tcommand: \"bunx\",",
-      "\t\targs: [",
-      "\t\t\tDEFAULT_CODEX_NPM_PACKAGE,",
-      "\t\t\t\"app-server\",",
-      "\t\t\t\"--listen\",",
-      "\t\t\t\"stdio://\",",
-      "\t\t\t\"--enable\",",
-      "\t\t\t\"apps\",",
-      "\t\t\t\"--enable\",",
-      "\t\t\t\"hooks\",",
-      "\t\t],",
-      "\t});",
-    ].join("\n\t"),
+  testText = replaceRequired(
+    testText,
+    `expect(resolveCodexStdioCommand({}, {})).toEqual({
+\t\tcommand: "codex",
+\t\targs: ["app-server", "--listen", "stdio://", "--enable", "apps", "--enable", "hooks"],
+\t});`,
+    `expect(resolveCodexStdioCommand({}, {})).toEqual({
+\t\tcommand: "bunx",
+\t\targs: [
+\t\t\tDEFAULT_CODEX_NPM_PACKAGE,
+\t\t\t"app-server",
+\t\t\t"--listen",
+\t\t\t"stdio://",
+\t\t\t"--enable",
+\t\t\t"apps",
+\t\t\t"--enable",
+\t\t\t"hooks",
+\t\t],
+\t});`,
+    "default stdio command expectation",
   );
-  testText = testText.replace(
-    [
-      "expect(resolveCodexStdioCommand({}, { CODEX_FLOWS_ENABLE_CODE_MODE: \"1\" })).toEqual({",
-      "\t\tcommand: \"codex\",",
-      "\t\targs: [\"app-server\", \"--listen\", \"stdio://\", \"--enable\", \"apps\", \"--enable\", \"hooks\"],",
-      "\t});",
-    ].join("\n\t"),
-    [
-      "expect(resolveCodexStdioCommand({}, { CODEX_FLOWS_ENABLE_CODE_MODE: \"1\" })).toEqual({",
-      "\t\tcommand: \"bunx\",",
-      "\t\targs: [",
-      "\t\t\tDEFAULT_CODEX_NPM_PACKAGE,",
-      "\t\t\t\"app-server\",",
-      "\t\t\t\"--listen\",",
-      "\t\t\t\"stdio://\",",
-      "\t\t\t\"--enable\",",
-      "\t\t\t\"apps\",",
-      "\t\t\t\"--enable\",",
-      "\t\t\t\"hooks\",",
-      "\t\t],",
-      "\t});",
-    ].join("\n\t"),
+  testText = replaceRequired(
+    testText,
+    `expect(resolveCodexStdioCommand({}, { CODEX_FLOWS_ENABLE_CODE_MODE: "1" })).toEqual({
+\t\tcommand: "codex",
+\t\targs: ["app-server", "--listen", "stdio://", "--enable", "apps", "--enable", "hooks"],
+\t});`,
+    `expect(resolveCodexStdioCommand({}, { CODEX_FLOWS_ENABLE_CODE_MODE: "1" })).toEqual({
+\t\tcommand: "bunx",
+\t\targs: [
+\t\t\tDEFAULT_CODEX_NPM_PACKAGE,
+\t\t\t"app-server",
+\t\t\t"--listen",
+\t\t\t"stdio://",
+\t\t\t"--enable",
+\t\t\t"apps",
+\t\t\t"--enable",
+\t\t\t"hooks",
+\t\t],
+\t});`,
+    "feature flag stdio command expectation",
   );
   await writeFile(testPath, testText, "utf8");
+}
+
+function replaceRequired(text: string, needle: string, replacement: string, label: string): string {
+  if (!text.includes(needle)) {
+    throw new Error(`Could not apply fork overlay for ${label}; upstream text changed.`);
+  }
+  return text.replace(needle, replacement);
 }
 
 function forkPackageVersion(baseVersion: string, codexVersion: string): string {
