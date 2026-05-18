@@ -49,14 +49,12 @@ import {
 	listInstalledPacks,
 } from "./pack.ts";
 import {
-	exportThreadBundle,
-	formatThreadBundleExport,
-	formatThreadBundleImport,
-	formatThreadBundleInspection,
+	formatThreadRolloutInspection,
+	formatThreadRolloutInstallation,
 	formatThreadRolloutLocation,
 	formatThreadRolloutTransplant,
-	importThreadBundle,
-	inspectThreadBundle,
+	installThreadRollout,
+	inspectThreadRollout,
 	locateThreadRollout,
 	transplantThreadRollout,
 } from "../threads.ts";
@@ -318,25 +316,18 @@ async function main(): Promise<void> {
 			: formatThreadRolloutLocation(location));
 		return;
 	}
-	if (parsed.type === "threads-export") {
-		const result = await exportThreadBundle(parsed);
-		write(parsed.json
-			? `${JSON.stringify(result, null, 2)}\n`
-			: formatThreadBundleExport(result));
-		return;
-	}
 	if (parsed.type === "threads-inspect") {
-		const result = await inspectThreadBundle(parsed);
+		const result = await inspectThreadRollout(parsed);
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
-			: formatThreadBundleInspection(result));
+			: formatThreadRolloutInspection(result));
 		return;
 	}
-	if (parsed.type === "threads-import") {
-		const result = await importThreadBundle(parsed);
+	if (parsed.type === "threads-install-rollout") {
+		const result = await installThreadRollout(parsed);
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
-			: formatThreadBundleImport(result));
+			: formatThreadRolloutInstallation(result));
 		return;
 	}
 	if (parsed.type === "threads-transplant") {
@@ -943,9 +934,8 @@ Usage:
   codex-flows memories transplant workspace-to-global [--apply]
 
   codex-flows threads locate <thread-id> [--codex-home <home>]
-  codex-flows threads export <thread-id> --output <bundle-dir> [--codex-home <home>]
-  codex-flows threads inspect <bundle-dir>
-  codex-flows threads import <bundle-dir> [--codex-home <home>] [--replace]
+  codex-flows threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
+  codex-flows threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
   codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
 
   codex-flows pack inspect <source> [--json]
@@ -983,12 +973,11 @@ Options:
   --codex-home <path>                        Codex home for thread transplant.
   --from-codex-home <path>                   Source Codex home for direct thread transplant.
   --to-codex-home <path>                     Target Codex home for direct thread transplant.
-  --output <path>                            Output bundle directory for threads export.
   --apply                                    Apply memory transplant changes.
   --overwrite                                Replace destination memory files after backup.
                                              For pack add, replace changed installed item dirs
                                              after backup under .codex/pack-backups.
-  --replace                                  Replace an existing imported thread rollout after backup.
+  --replace                                  Replace an existing thread rollout after backup.
   --ref <ref>                                Git ref for non-local pack sources.
   --include <name>                           Include a pack item by name or kind:name.
   --exclude <name>                           Exclude a pack item by name or kind:name.
@@ -1013,8 +1002,8 @@ Examples:
   codex-flows workspace init actions --forgejo --with-smoke --with-agent-turn
   codex-flows actions dispatch --event .codex/workspace/actions/events/manual.json
   codex-flows memories transplant global-to-workspace
-  codex-flows threads export 019e3654-1492-70d0-9b01-46b17d6444a9 --output ./thread-bundle
-  codex-flows threads import ./thread-bundle --codex-home ./.codex
+  codex-flows threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex
+  codex-flows threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home ./.codex
   codex-flows threads transplant 019e3654-1492-70d0-9b01-46b17d6444a9 --from-codex-home ~/.codex --to-codex-home ./.codex
   codex-flows pack inspect owner/repo
   codex-flows pack add ./capability-pack --apply

@@ -32,7 +32,7 @@ Full documentation lives in the repo docs site:
 | `@peezy.tech/codex-flows/flows` | Helpers for starting Codex-backed flow work. |
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |
 | `@peezy.tech/codex-flows/workbench` | Transport-neutral thread UX reducers and app-server request descriptors. |
-| `@peezy.tech/codex-flows/threads` | Raw Codex rollout locate, transplant, bundle export, inspect, and import helpers. |
+| `@peezy.tech/codex-flows/threads` | Raw Codex rollout locate, inspect, install, and transplant helpers. |
 | `@peezy.tech/codex-flows/workspace-backend` | Workspace backend protocol server/client helpers and capability primitives. |
 | `@peezy.tech/codex-flows/flow-runtime` | Flow package discovery, trigger matching, local execution, and flow result helpers. |
 | `@peezy.tech/codex-flows/flow-runtime/*` | Flow runtime client, local-client, backend-client, Bun helper, and runner subpaths. |

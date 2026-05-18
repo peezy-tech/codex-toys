@@ -3,19 +3,16 @@ import {
 	mkdir,
 	mkdtemp,
 	readFile,
-	readdir,
 	stat,
 	writeFile,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-	exportThreadBundle,
-	importThreadBundle,
-	inspectThreadBundle,
+	installThreadRollout,
+	inspectThreadRollout,
 	locateThreadRollout,
 	transplantThreadRollout,
-	type ThreadBundleManifest,
 } from "../src/threads.ts";
 
 const threadId = "019e3654-1492-70d0-9b01-46b17d6444a9";
@@ -63,73 +60,59 @@ describe("thread transplant", () => {
 			.rejects.toThrow("Multiple rollouts");
 	});
 
-	test("exports, inspects, and imports a byte-exact bundle", async () => {
+	test("inspects and installs a byte-exact rollout", async () => {
 		const sourceHome = await codexHome();
 		const targetHome = await codexHome();
-		const bundleDir = await emptyDir("thread-bundle-");
 		const rollout = await writeRollout(sourceHome, threadId, {
 			cwd: "/workspace/source",
 			body: "byte exact payload\n",
 		});
 		const sourceBytes = await readFile(rollout);
 
-		const exported = await exportThreadBundle({
-			threadId,
+		const inspectedById = await inspectThreadRollout({
+			threadIdOrPath: threadId,
 			codexHome: sourceHome,
-			outputDir: bundleDir,
 		});
-		const inspected = await inspectThreadBundle({ bundleDir });
-		const imported = await importThreadBundle({ bundleDir, codexHome: targetHome });
-		const targetPath = path.join(targetHome, exported.manifest.files[0]?.relativePath ?? "");
+		const inspectedByPath = await inspectThreadRollout({ threadIdOrPath: rollout });
+		const installed = await installThreadRollout({
+			rolloutPath: rollout,
+			codexHome: targetHome,
+		});
+		const targetPath = path.join(targetHome, inspectedById.relativePath);
 
-		expect(exported.manifest).toMatchObject({
-			schemaVersion: 1,
-			kind: "codex-flows.thread-bundle",
+		expect(inspectedById).toMatchObject({
 			threadId,
-			source: {
-				originalRelativePath: exported.rollout.relativePath,
-				cwd: "/workspace/source",
-			},
+			cwd: "/workspace/source",
+			matchedBy: "session_meta",
 		});
-		expect(exported.manifest.files).toEqual([
-			{
-				role: "rollout",
-				relativePath: exported.rollout.relativePath,
-				bytes: sourceBytes.byteLength,
-				sha256: exported.rollout.sha256,
-			},
-		]);
-		expect(inspected.manifest).toEqual(exported.manifest);
-		expect(imported.imported[0]?.path).toBe(targetPath);
+		expect(inspectedByPath.relativePath).toBe(inspectedById.relativePath);
+		expect(inspectedByPath.bytes).toBe(sourceBytes.byteLength);
+		expect(inspectedByPath.sha256).toBe(inspectedById.sha256);
+		expect(installed.installed.path).toBe(targetPath);
 		expect(await readFile(targetPath)).toEqual(sourceBytes);
 	});
 
-	test("rejects import conflicts unless replace creates a backup", async () => {
+	test("rejects install conflicts unless replace creates a backup", async () => {
 		const sourceHome = await codexHome();
 		const targetHome = await codexHome();
-		const bundleDir = await emptyDir("thread-bundle-");
-		await writeRollout(sourceHome, threadId, { body: "source rollout\n" });
-		const exported = await exportThreadBundle({
-			threadId,
-			codexHome: sourceHome,
-			outputDir: bundleDir,
-		});
-		const targetPath = path.join(targetHome, exported.manifest.files[0]?.relativePath ?? "");
+		const rollout = await writeRollout(sourceHome, threadId, { body: "source rollout\n" });
+		const inspected = await inspectThreadRollout({ threadIdOrPath: rollout });
+		const targetPath = path.join(targetHome, inspected.relativePath);
 		await mkdir(path.dirname(targetPath), { recursive: true });
 		await writeFile(targetPath, "existing rollout\n");
 
-		await expect(importThreadBundle({ bundleDir, codexHome: targetHome }))
+		await expect(installThreadRollout({ rolloutPath: rollout, codexHome: targetHome }))
 			.rejects.toThrow("already exists");
 
-		const imported = await importThreadBundle({
-			bundleDir,
+		const installed = await installThreadRollout({
+			rolloutPath: rollout,
 			codexHome: targetHome,
 			replace: true,
 		});
 
 		expect(await readFile(targetPath, "utf8")).toContain("source rollout");
-		expect(imported.imported[0]?.backupPath).toBeDefined();
-		expect(await readFile(imported.imported[0]?.backupPath ?? "", "utf8"))
+		expect(installed.installed.backupPath).toBeDefined();
+		expect(await readFile(installed.installed.backupPath ?? "", "utf8"))
 			.toBe("existing rollout\n");
 	});
 
@@ -174,45 +157,30 @@ describe("thread transplant", () => {
 			.toBe("existing target\n");
 	});
 
-	test("rejects missing manifests, checksum mismatches, and unsafe paths", async () => {
+	test("installs loose rollout files using the native sessions path", async () => {
 		const sourceHome = await codexHome();
-		const missingManifestDir = await emptyDir("thread-bundle-missing-");
-		const checksumBundleDir = await emptyDir("thread-bundle-checksum-");
-		const unsafeBundleDir = await emptyDir("thread-bundle-unsafe-");
-		await writeRollout(sourceHome, threadId, { body: "original\n" });
-		const exported = await exportThreadBundle({
-			threadId,
-			codexHome: sourceHome,
-			outputDir: checksumBundleDir,
-		});
-		const bundleRolloutPath = path.join(
-			checksumBundleDir,
-			exported.manifest.files[0]?.relativePath ?? "",
-		);
-		const tampered = Buffer.from(await readFile(bundleRolloutPath));
-		const tamperIndex = Math.max(0, tampered.length - 2);
-		const currentByte = tampered[tamperIndex] ?? 0;
-		tampered[tamperIndex] = currentByte === 65 ? 66 : 65;
-		await writeFile(bundleRolloutPath, tampered);
-		await writeManifest(unsafeBundleDir, {
-			...exported.manifest,
-			source: { originalRelativePath: "../escape.jsonl" },
-			files: [
-				{
-					role: "rollout",
-					relativePath: "../escape.jsonl",
-					bytes: 0,
-					sha256: "0".repeat(64),
-				},
-			],
+		const targetHome = await codexHome();
+		const rollout = await writeRollout(sourceHome, threadId, { body: "loose rollout\n" });
+		const loosePath = path.join(os.tmpdir(), `rollout-2026-05-17T00-00-00-${threadId}.jsonl`);
+		await writeFile(loosePath, await readFile(rollout));
+
+		const installed = await installThreadRollout({
+			rolloutPath: loosePath,
+			codexHome: targetHome,
 		});
 
-		await expect(inspectThreadBundle({ bundleDir: missingManifestDir }))
-			.rejects.toThrow("manifest");
-		await expect(inspectThreadBundle({ bundleDir: checksumBundleDir }))
-			.rejects.toThrow("checksum mismatch");
-		await expect(inspectThreadBundle({ bundleDir: unsafeBundleDir }))
-			.rejects.toThrow("unsafe segments");
+		expect(installed.installed.relativePath).toBe(
+			`sessions/2026/05/17/rollout-2026-05-17T00-00-00-${threadId}.jsonl`,
+		);
+		expect(await readFile(installed.installed.path, "utf8")).toContain("loose rollout");
+	});
+
+	test("rejects invalid rollout files", async () => {
+		const invalidPath = path.join(os.tmpdir(), "not-a-rollout.jsonl");
+		await writeFile(invalidPath, `${JSON.stringify({ type: "event_msg" })}\n`);
+
+		await expect(inspectThreadRollout({ threadIdOrPath: invalidPath }))
+			.rejects.toThrow("filename has no thread id");
 	});
 });
 
@@ -220,14 +188,6 @@ async function codexHome(): Promise<string> {
 	const home = await mkdtemp(path.join(os.tmpdir(), "codex-thread-home-"));
 	await mkdir(path.join(home, "sessions"), { recursive: true });
 	return home;
-}
-
-async function emptyDir(prefix: string): Promise<string> {
-	const directory = await mkdtemp(path.join(os.tmpdir(), prefix));
-	for (const entry of await readdir(directory)) {
-		throw new Error(`Temporary directory unexpectedly contained ${entry}`);
-	}
-	return directory;
 }
 
 async function writeRollout(
@@ -279,14 +239,4 @@ async function writeRollout(
 		`${records.map((record) => JSON.stringify(record)).join("\n")}\n`,
 	);
 	return rolloutPath;
-}
-
-async function writeManifest(
-	bundleDir: string,
-	manifest: ThreadBundleManifest,
-): Promise<void> {
-	await writeFile(
-		path.join(bundleDir, "manifest.json"),
-		`${JSON.stringify(manifest, null, 2)}\n`,
-	);
 }

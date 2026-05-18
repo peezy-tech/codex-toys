@@ -164,20 +164,14 @@ export type ParsedCli =
 			json: boolean;
 	  }
 	| {
-			type: "threads-export";
-			threadId: string;
-			codexHome?: string;
-			outputDir: string;
-			json: boolean;
-	  }
-	| {
 			type: "threads-inspect";
-			bundleDir: string;
+			threadIdOrPath: string;
 			json: boolean;
+			codexHome?: string;
 	  }
 	| {
-			type: "threads-import";
-			bundleDir: string;
+			type: "threads-install-rollout";
+			rolloutPath: string;
 			codexHome?: string;
 			replace: boolean;
 			json: boolean;
@@ -251,7 +245,6 @@ export function parseArgs(
 	let codexHome: string | undefined;
 	let fromCodexHome: string | undefined;
 	let toCodexHome: string | undefined;
-	let outputDir: string | undefined;
 	let apply = false;
 	let overwrite = false;
 	let replace = false;
@@ -397,14 +390,6 @@ export function parseArgs(
 		}
 		if (arg.startsWith("--to-codex-home=")) {
 			toCodexHome = arg.slice("--to-codex-home=".length);
-			continue;
-		}
-		if (arg === "--output") {
-			outputDir = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--output=")) {
-			outputDir = arg.slice("--output=".length);
 			continue;
 		}
 		if (arg === "--apply") {
@@ -833,30 +818,26 @@ export function parseArgs(
 				json,
 			};
 		}
-		if (subcommand === "export") {
-			return {
-				type: "threads-export",
-				threadId: requiredPositional(positionals, 2, "threads export requires <thread-id>"),
-				codexHome,
-				outputDir: outputDir ?? requiredPositional(
-					positionals,
-					3,
-					"threads export requires --output <bundle-dir>",
-				),
-				json,
-			};
-		}
 		if (subcommand === "inspect") {
 			return {
 				type: "threads-inspect",
-				bundleDir: requiredPositional(positionals, 2, "threads inspect requires <bundle-dir>"),
+				threadIdOrPath: requiredPositional(
+					positionals,
+					2,
+					"threads inspect requires <thread-id-or-rollout-path>",
+				),
+				codexHome,
 				json,
 			};
 		}
-		if (subcommand === "import") {
+		if (subcommand === "install-rollout") {
 			return {
-				type: "threads-import",
-				bundleDir: requiredPositional(positionals, 2, "threads import requires <bundle-dir>"),
+				type: "threads-install-rollout",
+				rolloutPath: requiredPositional(
+					positionals,
+					2,
+					"threads install-rollout requires <rollout.jsonl>",
+				),
 				codexHome,
 				replace,
 				json,
@@ -876,7 +857,7 @@ export function parseArgs(
 				json,
 			};
 		}
-		throw new Error("threads requires locate, export, inspect, import, or transplant");
+		throw new Error("threads requires locate, inspect, install-rollout, or transplant");
 	}
 	if (command === "pack") {
 		const subcommand = positionals[1];

@@ -62,9 +62,8 @@ const requiredCliLines = [
 	"codex-flows memories transplant global-to-workspace [--apply]",
 	"codex-flows memories transplant workspace-to-global [--apply]",
 	"codex-flows threads locate <thread-id> [--codex-home <home>]",
-	"codex-flows threads export <thread-id> --output <bundle-dir> [--codex-home <home>]",
-	"codex-flows threads inspect <bundle-dir>",
-	"codex-flows threads import <bundle-dir> [--codex-home <home>] [--replace]",
+	"codex-flows threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]",
+	"codex-flows threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]",
 	"codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]",
 	"codex-flows pack inspect <source> [--json]",
 	"codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]",
@@ -124,7 +123,7 @@ await expectIncludes("docs/pages/guides/memory-transplant.md", "rollout_summarie
 await expectIncludes("docs/pages/guides/memory-transplant.md", "sqlite");
 await expectIncludes("docs/pages/guides/memory-transplant.md", "skills");
 
-await expectIncludes("docs/pages/guides/thread-transplant.md", "manifest.json");
+await expectIncludes("docs/pages/guides/thread-transplant.md", "install-rollout");
 await expectIncludes("docs/pages/guides/thread-transplant.md", "sessions/<YYYY>/<MM>/<DD>/<rollout-file>.jsonl");
 await expectIncludes("docs/pages/guides/thread-transplant.md", "--replace");
 await expectIncludes("docs/pages/guides/thread-transplant.md", "not app-server-native import");

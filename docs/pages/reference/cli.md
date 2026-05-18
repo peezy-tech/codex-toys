@@ -131,20 +131,18 @@ The command is dry-run by default. It copies only durable memory artifacts under
 
 ```bash
 codex-flows threads locate <thread-id> [--codex-home <home>]
-codex-flows threads export <thread-id> --output <bundle-dir> [--codex-home <home>]
-codex-flows threads inspect <bundle-dir>
-codex-flows threads import <bundle-dir> [--codex-home <home>] [--replace]
+codex-flows threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
+codex-flows threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
 codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
 ```
 
 Thread transplant copies raw Codex rollout JSONL files between `CODEX_HOME`
 roots. `transplant` copies one native rollout directly from a source home to a
 target home, preserving the `sessions/.../rollout-*.jsonl` path and failing on
-conflicts unless `--replace` is set. Export/import are optional bundle commands:
-export creates a directory bundle with `manifest.json`, inspect validates the
-manifest, byte length, checksum, and safe paths, and import writes the rollout
-to the same relative path under the target Codex home. See
-[Thread transplant](../guides/thread-transplant).
+conflicts unless `--replace` is set. `inspect` validates a thread id or rollout
+JSONL directly and prints byte length and sha256. `install-rollout` places a
+loose JSONL file into a Codex home using the native sessions path. See [Thread
+transplant](../guides/thread-transplant).
 
 ## Pack Repos
 
@@ -243,10 +241,9 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--codex-home <path>` | Codex home for thread transplant. |
 | `--from-codex-home <path>` | Source Codex home for direct thread transplant. |
 | `--to-codex-home <path>` | Target Codex home for direct thread transplant. |
-| `--output <path>` | Output bundle directory for `threads export`. |
 | `--apply` | Apply memory transplant or pack install changes. |
 | `--overwrite` | Replace destination memory files or changed pack item directories after backup. |
-| `--replace` | Replace an existing imported or transplanted thread rollout after backup. |
+| `--replace` | Replace an existing thread rollout after backup. |
 | `--ref <ref>` | Git ref for non-local pack sources. |
 | `--include <name>` | Include a pack item by name or `kind:name`. |
 | `--exclude <name>` | Exclude a pack item by name or `kind:name`. |

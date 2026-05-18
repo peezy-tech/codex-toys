@@ -50,7 +50,7 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/actions`: Actions-mode workspace helpers
 - `@peezy.tech/codex-flows/memories`: stable Codex memory artifact helpers
 - `@peezy.tech/codex-flows/workbench`: transport-neutral thread UX reducers and request descriptors
-- `@peezy.tech/codex-flows/threads`: raw rollout transplant and bundle helpers
+- `@peezy.tech/codex-flows/threads`: raw rollout locate, inspect, install, and transplant helpers
 - `@peezy.tech/codex-flows/workspace-backend`: workspace backend protocol helpers and capability primitives
 - `@peezy.tech/codex-flows/flow-runtime`: local flow runtime, clients, and Bun helpers
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
@@ -138,8 +138,8 @@ codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex
 
 Transplant preserves the thread id, rollout bytes, checksum, and original
 `sessions/.../rollout-*.jsonl` path. It fails on conflicts unless `--replace`
-is provided. Export/import bundle commands remain available for archival
-workflows that need a `manifest.json`.
+is provided. Native rollout inspect and install commands cover validation and
+loose-file import without introducing a separate bundle format.
 
 ## Pack Install In One Screen
 

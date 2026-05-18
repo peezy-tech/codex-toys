@@ -5,10 +5,16 @@ description: Move Codex thread rollout files between CODEX_HOME roots.
 
 # Thread transplant
 
-Thread transplant copies a raw Codex rollout JSONL file from one `CODEX_HOME`
-to another. It is intentionally file-based in v1: it preserves the original
-thread id, filename, relative `sessions/...` path, bytes, and checksum so the
-target Codex home can resume the same thread id from disk.
+Thread transplant copies native Codex rollout JSONL files between `CODEX_HOME`
+roots. The rollout file is the durable artifact:
+
+```text
+sessions/<YYYY>/<MM>/<DD>/<rollout-file>.jsonl
+```
+
+Transplant preserves the original thread id, filename, relative `sessions/...`
+path, byte length, and sha256 checksum so the target Codex home can resume the
+same thread id from disk.
 
 ```bash
 codex-flows threads locate <thread-id> --codex-home ~/.codex
@@ -29,71 +35,39 @@ codex-flows threads transplant <thread-id> --from-codex-home <source> --to-codex
 `--replace` writes a timestamped backup beside the existing target rollout
 before copying the source file.
 
-## Bundle Format
-
-Bundles are optional archival artifacts for CI systems or manual transfer. A
-thread bundle is a directory, not an archive:
-
-
-```text
-manifest.json
-sessions/<YYYY>/<MM>/<DD>/<rollout-file>.jsonl
-```
-
-`manifest.json` records:
-
-- schema version and bundle kind
-- thread id
-- creation timestamp
-- original rollout relative path
-- source cwd when the rollout metadata exposes it
-- rollout byte length and sha256 checksum
-
-The rollout JSONL is copied byte-for-byte. The command does not reconstruct
-history from `thread/read`, rewrite ids, or modify rollout records.
-
-## Export
-
-```bash
-codex-flows threads export <thread-id> --codex-home <source> --output <bundle-dir>
-```
-
-Export scans `CODEX_HOME/sessions/**/rollout-*.jsonl`. It identifies the target
-rollout from parsed `session_meta.payload.id` first, then falls back to the
-thread id embedded in the filename when session metadata is not available.
-
-The output directory must be missing or empty. Export writes the copied rollout
-under its original `sessions/...` relative path and writes `manifest.json` with
-the checksum and byte count.
-
 ## Inspect
 
-```bash
-codex-flows threads inspect <bundle-dir>
-```
-
-Inspect validates the manifest, rejects unsafe relative paths, verifies the
-rollout byte length, and verifies the sha256 checksum before printing bundle
-details. Use `--json` for machine-readable output.
-
-## Import
+Inspect a thread in a Codex home:
 
 ```bash
-codex-flows threads import <bundle-dir> --codex-home <target>
+codex-flows threads inspect <thread-id> --codex-home <home>
 ```
 
-Import validates the bundle before writing and copies the rollout to the same
-relative path under the target `CODEX_HOME`. If the target rollout already
-exists, import fails by default.
-
-To replace an existing rollout, opt in explicitly:
+Inspect a rollout file directly:
 
 ```bash
-codex-flows threads import <bundle-dir> --codex-home <target> --replace
+codex-flows threads inspect .codex/sessions/2026/05/18/rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl
 ```
 
-`--replace` writes a timestamped backup beside the existing rollout before
-copying the imported file.
+Inspect reads the native JSONL, identifies the thread id from
+`session_meta.payload.id` first, falls back to the filename thread id when
+needed, and prints byte length, sha256, relative sessions path, and source cwd
+when available. Use `--json` for machine-readable output.
+
+## Install Rollout
+
+Use `install-rollout` when you have a loose rollout JSONL file and want to
+place it into a Codex home:
+
+```bash
+codex-flows threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home .codex
+```
+
+If the file already lives under a `sessions/...` path, that relative path is
+preserved. Otherwise the command infers the native `sessions/YYYY/MM/DD/...`
+path from the rollout filename timestamp. The installed file is verified by byte
+length and sha256. Existing target files fail by default; pass `--replace` to
+write a timestamped backup and replace them.
 
 ## Scope
 

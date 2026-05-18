@@ -116,7 +116,7 @@
     },
     "packages/codex-client": {
       "name": "@peezy.tech/codex-flows",
-      "version": "0.3.6",
+      "version": "0.4.0",
       "bin": {
         "codex-flows": "./dist/cli/index.js",
         "codex-app": "./dist/bin/codex-app.js",
@@ -1762,6 +1762,14 @@
     "@mdx-js/rollup/source-map": ["source-map@0.7.6", "", {}, "sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ=="],
 
     "@mswjs/interceptors/@open-draft/deferred-promise": ["@open-draft/deferred-promise@2.2.0", "", {}, "sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA=="],
+
+    "@peezy.tech/codex-discord-bridge/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
+
+    "@peezy.tech/codex-workspace-voice-gateway/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
+
+    "@peezy.tech/flow-backend-convex/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
+
+    "@peezy.tech/flow-runtime/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
 
     "@rollup/pluginutils/estree-walker": ["estree-walker@2.0.2", "", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
 

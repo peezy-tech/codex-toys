@@ -4,27 +4,13 @@ import {
 	copyFile,
 	mkdir,
 	readdir,
-	readFile,
 	stat,
-	writeFile,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
-export type ThreadBundleManifest = {
-	schemaVersion: 1;
-	kind: "codex-flows.thread-bundle";
-	threadId: string;
-	createdAt: string;
-	source: {
-		originalRelativePath: string;
-		cwd?: string;
-	};
-	files: ThreadBundleManifestFile[];
-};
-
-export type ThreadBundleManifestFile = {
+export type ThreadRolloutFile = {
 	role: "rollout";
 	relativePath: string;
 	bytes: number;
@@ -36,57 +22,41 @@ export type LocateThreadRolloutOptions = {
 	codexHome?: string;
 };
 
-export type ThreadRolloutLocation = {
+export type ThreadRolloutInspection = {
 	threadId: string;
-	codexHome: string;
 	path: string;
 	relativePath: string;
 	bytes: number;
 	sha256: string;
 	cwd?: string;
 	matchedBy: "session_meta" | "filename";
+	codexHome?: string;
 };
 
-export type ExportThreadBundleOptions = LocateThreadRolloutOptions & {
-	outputDir: string;
+export type ThreadRolloutLocation = ThreadRolloutInspection & {
+	codexHome: string;
 };
 
-export type ExportThreadBundleResult = {
-	bundleDir: string;
-	manifest: ThreadBundleManifest;
-	rollout: ThreadRolloutLocation;
+export type InspectThreadRolloutOptions = {
+	threadIdOrPath: string;
+	codexHome?: string;
 };
 
-export type InspectThreadBundleOptions = {
-	bundleDir: string;
-};
-
-export type InspectedThreadBundleFile = ThreadBundleManifestFile & {
-	path: string;
-};
-
-export type InspectThreadBundleResult = {
-	bundleDir: string;
-	manifest: ThreadBundleManifest;
-	files: InspectedThreadBundleFile[];
-};
-
-export type ImportThreadBundleOptions = {
-	bundleDir: string;
+export type InstallThreadRolloutOptions = {
+	rolloutPath: string;
 	codexHome?: string;
 	replace?: boolean;
 };
 
-export type ImportedThreadBundleFile = ThreadBundleManifestFile & {
+export type InstalledThreadRollout = ThreadRolloutFile & {
 	path: string;
 	backupPath?: string;
 };
 
-export type ImportThreadBundleResult = {
+export type InstallThreadRolloutResult = {
 	codexHome: string;
-	bundleDir: string;
-	manifest: ThreadBundleManifest;
-	imported: ImportedThreadBundleFile[];
+	source: ThreadRolloutInspection;
+	installed: InstalledThreadRollout;
 };
 
 export type TransplantThreadRolloutOptions = {
@@ -96,7 +66,7 @@ export type TransplantThreadRolloutOptions = {
 	replace?: boolean;
 };
 
-export type TransplantedThreadRollout = ThreadBundleManifestFile & {
+export type TransplantedThreadRollout = ThreadRolloutFile & {
 	path: string;
 	backupPath?: string;
 };
@@ -111,9 +81,8 @@ export type TransplantThreadRolloutResult = {
 
 type CandidateRollout = ThreadRolloutLocation;
 
-const bundleKind = "codex-flows.thread-bundle";
 const rolloutFilenamePattern = /^rollout-.+-([0-9a-fA-F-]{36})\.jsonl$/;
-const checksumPattern = /^[0-9a-f]{64}$/;
+const rolloutFilenameDatePattern = /^rollout-(\d{4})-(\d{2})-(\d{2})T.+-[0-9a-fA-F-]{36}\.jsonl$/;
 
 export async function locateThreadRollout(
 	options: LocateThreadRolloutOptions,
@@ -173,99 +142,44 @@ export async function locateThreadRollout(
 	return match;
 }
 
-export async function exportThreadBundle(
-	options: ExportThreadBundleOptions,
-): Promise<ExportThreadBundleResult> {
-	const outputDir = path.resolve(requiredNonEmpty(options.outputDir, "outputDir"));
-	const rollout = await locateThreadRollout(options);
-	await assertOutputDirectoryAvailable(outputDir);
-	const bundleRolloutPath = safeResolve(outputDir, rollout.relativePath);
-	await mkdir(path.dirname(bundleRolloutPath), { recursive: true });
-	await copyFile(rollout.path, bundleRolloutPath);
-	const copiedInfo = await stat(bundleRolloutPath);
-	const copiedSha256 = await sha256File(bundleRolloutPath);
-	if (copiedInfo.size !== rollout.bytes || copiedSha256 !== rollout.sha256) {
-		throw new Error(`Copied rollout checksum mismatch for ${rollout.relativePath}`);
+export async function inspectThreadRollout(
+	options: InspectThreadRolloutOptions,
+): Promise<ThreadRolloutInspection> {
+	const input = requiredNonEmpty(options.threadIdOrPath, "threadIdOrPath");
+	if (await isExistingFile(input) || isPathLikeRolloutInput(input)) {
+		return await inspectRolloutPath(path.resolve(input), options.codexHome);
 	}
-	const manifest: ThreadBundleManifest = {
-		schemaVersion: 1,
-		kind: bundleKind,
-		threadId: rollout.threadId,
-		createdAt: new Date().toISOString(),
-		source: {
-			originalRelativePath: rollout.relativePath,
-			...(rollout.cwd ? { cwd: rollout.cwd } : {}),
-		},
-		files: [
-			{
-				role: "rollout",
-				relativePath: rollout.relativePath,
-				bytes: rollout.bytes,
-				sha256: rollout.sha256,
-			},
-		],
-	};
-	await writeFile(
-		path.join(outputDir, "manifest.json"),
-		`${JSON.stringify(manifest, null, 2)}\n`,
-	);
-	return { bundleDir: outputDir, manifest, rollout };
+	return await locateThreadRollout({
+		threadId: input,
+		codexHome: options.codexHome,
+	});
 }
 
-export async function inspectThreadBundle(
-	options: InspectThreadBundleOptions,
-): Promise<InspectThreadBundleResult> {
-	const bundleDir = path.resolve(requiredNonEmpty(options.bundleDir, "bundleDir"));
-	const manifest = await readManifest(bundleDir);
-	const files: InspectedThreadBundleFile[] = [];
-	for (const file of manifest.files) {
-		const filePath = safeResolve(bundleDir, file.relativePath);
-		const info = await stat(filePath);
-		if (!info.isFile()) {
-			throw new Error(`Bundle file is not a regular file: ${file.relativePath}`);
-		}
-		if (info.size !== file.bytes) {
-			throw new Error(`Bundle file byte length mismatch: ${file.relativePath}`);
-		}
-		const actualSha256 = await sha256File(filePath);
-		if (actualSha256 !== file.sha256) {
-			throw new Error(`Bundle file checksum mismatch: ${file.relativePath}`);
-		}
-		files.push({ ...file, path: filePath });
-	}
-	return { bundleDir, manifest, files };
-}
-
-export async function importThreadBundle(
-	options: ImportThreadBundleOptions,
-): Promise<ImportThreadBundleResult> {
-	const inspected = await inspectThreadBundle({ bundleDir: options.bundleDir });
+export async function installThreadRollout(
+	options: InstallThreadRolloutOptions,
+): Promise<InstallThreadRolloutResult> {
+	const source = await inspectThreadRollout({ threadIdOrPath: options.rolloutPath });
 	const codexHome = resolveCodexHome(options.codexHome);
-	const imported: ImportedThreadBundleFile[] = [];
-	for (const file of inspected.files) {
-		const copied = await copyVerifiedRollout({
-			sourcePath: file.path,
-			targetCodexHome: codexHome,
-			relativePath: file.relativePath,
-			bytes: file.bytes,
-			sha256: file.sha256,
-			replace: options.replace,
-			verb: "Imported",
-		});
-		imported.push({
-			role: file.role,
-			relativePath: file.relativePath,
-			bytes: file.bytes,
-			sha256: file.sha256,
-			path: copied.path,
-			...(copied.backupPath ? { backupPath: copied.backupPath } : {}),
-		});
-	}
+	const copied = await copyVerifiedRollout({
+		sourcePath: source.path,
+		targetCodexHome: codexHome,
+		relativePath: source.relativePath,
+		bytes: source.bytes,
+		sha256: source.sha256,
+		replace: options.replace,
+		verb: "Installed",
+	});
 	return {
 		codexHome,
-		bundleDir: inspected.bundleDir,
-		manifest: inspected.manifest,
-		imported,
+		source,
+		installed: {
+			role: "rollout",
+			relativePath: source.relativePath,
+			bytes: source.bytes,
+			sha256: source.sha256,
+			path: copied.path,
+			...(copied.backupPath ? { backupPath: copied.backupPath } : {}),
+		},
 	};
 }
 
@@ -317,46 +231,32 @@ export function formatThreadRolloutLocation(location: ThreadRolloutLocation): st
 	return `${lines.join("\n")}\n`;
 }
 
-export function formatThreadBundleExport(result: ExportThreadBundleResult): string {
-	return [
-		`thread id          ${result.manifest.threadId}`,
-		`bundle             ${result.bundleDir}`,
-		`rollout            ${result.manifest.files[0]?.relativePath ?? ""}`,
-		`bytes              ${result.manifest.files[0]?.bytes ?? 0}`,
-		`sha256             ${result.manifest.files[0]?.sha256 ?? ""}`,
-		"",
-	].join("\n");
-}
-
-export function formatThreadBundleInspection(result: InspectThreadBundleResult): string {
-	const rollout = result.manifest.files[0];
+export function formatThreadRolloutInspection(result: ThreadRolloutInspection): string {
 	const lines = [
-		`thread id          ${result.manifest.threadId}`,
-		`bundle             ${result.bundleDir}`,
-		`schema             ${result.manifest.schemaVersion}`,
-		`created            ${result.manifest.createdAt}`,
-		`rollout            ${rollout?.relativePath ?? ""}`,
-		`bytes              ${rollout?.bytes ?? 0}`,
-		`sha256             ${rollout?.sha256 ?? ""}`,
+		`thread id          ${result.threadId}`,
+		...(result.codexHome ? [`codex home         ${result.codexHome}`] : []),
+		`path               ${result.path}`,
+		`rollout            ${result.relativePath}`,
+		`matched by         ${result.matchedBy}`,
+		`bytes              ${result.bytes}`,
+		`sha256             ${result.sha256}`,
 	];
-	if (result.manifest.source.cwd) {
-		lines.push(`source cwd         ${result.manifest.source.cwd}`);
+	if (result.cwd) {
+		lines.push(`cwd                ${result.cwd}`);
 	}
 	return `${lines.join("\n")}\n`;
 }
 
-export function formatThreadBundleImport(result: ImportThreadBundleResult): string {
+export function formatThreadRolloutInstallation(result: InstallThreadRolloutResult): string {
 	const lines = [
-		`thread id          ${result.manifest.threadId}`,
+		`thread id          ${result.source.threadId}`,
 		`codex home         ${result.codexHome}`,
-		`bundle             ${result.bundleDir}`,
-		`imported           ${result.imported.length}`,
+		`rollout            ${result.installed.relativePath}`,
+		`bytes              ${result.installed.bytes}`,
+		`sha256             ${result.installed.sha256}`,
 	];
-	for (const file of result.imported) {
-		lines.push(`rollout            ${file.relativePath}`);
-		if (file.backupPath) {
-			lines.push(`backup             ${file.backupPath}`);
-		}
+	if (result.installed.backupPath) {
+		lines.push(`backup             ${result.installed.backupPath}`);
 	}
 	return `${lines.join("\n")}\n`;
 }
@@ -383,7 +283,7 @@ async function copyVerifiedRollout(options: {
 	bytes: number;
 	sha256: string;
 	replace?: boolean;
-	verb: "Imported" | "Transplanted";
+	verb: "Installed" | "Transplanted";
 }): Promise<{ path: string; backupPath?: string }> {
 	const destinationPath = safeResolve(options.targetCodexHome, options.relativePath);
 	if (path.resolve(options.sourcePath) === destinationPath) {
@@ -471,108 +371,69 @@ async function readRolloutSessionMeta(
 	}
 }
 
+async function inspectRolloutPath(
+	rolloutPath: string,
+	codexHomeInput: string | undefined,
+): Promise<ThreadRolloutInspection> {
+	const filePath = path.resolve(rolloutPath);
+	const info = await stat(filePath);
+	if (!info.isFile()) {
+		throw new Error(`Thread rollout is not a regular file: ${filePath}`);
+	}
+	const metadata = await readRolloutSessionMeta(filePath);
+	const filenameThreadId = threadIdFromRolloutFilename(path.basename(filePath));
+	const threadId = metadata.threadId ?? filenameThreadId;
+	if (!threadId) {
+		throw new Error(
+			`Thread rollout does not contain a session_meta id and filename has no thread id: ${filePath}`,
+		);
+	}
+	const codexHome = codexHomeInput ? resolveCodexHome(codexHomeInput) : undefined;
+	const relativePath = codexHome && isInsideRoot(codexHome, filePath)
+		? toManifestPath(path.relative(codexHome, filePath))
+		: inferRolloutRelativePath(filePath);
+	assertSafeRelativePath(relativePath);
+	return {
+		threadId,
+		path: filePath,
+		relativePath,
+		bytes: info.size,
+		sha256: await sha256File(filePath),
+		...(metadata.cwd ? { cwd: metadata.cwd } : {}),
+		matchedBy: metadata.threadId ? "session_meta" : "filename",
+		...(codexHome ? { codexHome } : {}),
+	};
+}
+
+function isPathLikeRolloutInput(input: string): boolean {
+	return input.endsWith(".jsonl") || input.includes("/") || input.includes("\\");
+}
+
+async function isExistingFile(input: string): Promise<boolean> {
+	try {
+		return (await stat(path.resolve(input))).isFile();
+	} catch {
+		return false;
+	}
+}
+
+function inferRolloutRelativePath(filePath: string): string {
+	const normalized = filePath.split(/[\\/]+/);
+	const sessionsIndex = normalized.lastIndexOf("sessions");
+	if (sessionsIndex >= 0 && sessionsIndex < normalized.length - 1) {
+		return normalized.slice(sessionsIndex).join("/");
+	}
+	const filename = path.basename(filePath);
+	const match = rolloutFilenameDatePattern.exec(filename);
+	if (!match) {
+		throw new Error(`Cannot infer Codex sessions path from rollout filename: ${filename}`);
+	}
+	const [, year, month, day] = match;
+	return `sessions/${year}/${month}/${day}/${filename}`;
+}
+
 function threadIdFromRolloutFilename(fileName: string): string | undefined {
 	return rolloutFilenamePattern.exec(fileName)?.[1]?.toLowerCase();
-}
-
-async function readManifest(bundleDir: string): Promise<ThreadBundleManifest> {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(await readFile(path.join(bundleDir, "manifest.json"), "utf8")) as unknown;
-	} catch (error) {
-		throw new Error(`Failed to read thread bundle manifest: ${errorMessage(error)}`);
-	}
-	return validateManifest(parsed);
-}
-
-function validateManifest(value: unknown): ThreadBundleManifest {
-	const manifest = objectValue(value);
-	if (!manifest) {
-		throw new Error("Thread bundle manifest must be an object");
-	}
-	if (manifest.schemaVersion !== 1) {
-		throw new Error("Thread bundle manifest schemaVersion must be 1");
-	}
-	if (manifest.kind !== bundleKind) {
-		throw new Error(`Thread bundle manifest kind must be ${bundleKind}`);
-	}
-	const threadId = requiredManifestString(manifest.threadId, "threadId");
-	const createdAt = requiredManifestString(manifest.createdAt, "createdAt");
-	const source = objectValue(manifest.source);
-	if (!source) {
-		throw new Error("Thread bundle manifest source must be an object");
-	}
-	const originalRelativePath = requiredManifestString(
-		source.originalRelativePath,
-		"source.originalRelativePath",
-	);
-	assertSafeRelativePath(originalRelativePath);
-	const cwd = typeof source.cwd === "string" && source.cwd ? source.cwd : undefined;
-	if (!Array.isArray(manifest.files) || manifest.files.length !== 1) {
-		throw new Error("Thread bundle manifest files must contain exactly one rollout file");
-	}
-	const files = manifest.files.map(validateManifestFile);
-	const rollout = files[0];
-	if (!rollout) {
-		throw new Error("Thread bundle manifest files must contain exactly one rollout file");
-	}
-	if (rollout.relativePath !== originalRelativePath) {
-		throw new Error("Thread bundle manifest source path must match the rollout file path");
-	}
-	return {
-		schemaVersion: 1,
-		kind: bundleKind,
-		threadId,
-		createdAt,
-		source: {
-			originalRelativePath,
-			...(cwd ? { cwd } : {}),
-		},
-		files,
-	};
-}
-
-function validateManifestFile(value: unknown): ThreadBundleManifestFile {
-	const file = objectValue(value);
-	if (!file) {
-		throw new Error("Thread bundle manifest file entry must be an object");
-	}
-	if (file.role !== "rollout") {
-		throw new Error("Thread bundle manifest file role must be rollout");
-	}
-	const relativePath = requiredManifestString(file.relativePath, "files[].relativePath");
-	assertSafeRelativePath(relativePath);
-	const bytes = file.bytes;
-	if (typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes < 0) {
-		throw new Error("Thread bundle manifest file bytes must be a non-negative integer");
-	}
-	const sha256 = requiredManifestString(file.sha256, "files[].sha256");
-	if (!checksumPattern.test(sha256)) {
-		throw new Error("Thread bundle manifest file sha256 must be a lowercase sha256 hex digest");
-	}
-	return {
-		role: "rollout",
-		relativePath,
-		bytes,
-		sha256,
-	};
-}
-
-async function assertOutputDirectoryAvailable(outputDir: string): Promise<void> {
-	let info;
-	try {
-		info = await stat(outputDir);
-	} catch {
-		await mkdir(outputDir, { recursive: true });
-		return;
-	}
-	if (!info.isDirectory()) {
-		throw new Error(`Output path exists and is not a directory: ${outputDir}`);
-	}
-	const entries = await readdir(outputDir);
-	if (entries.length > 0) {
-		throw new Error(`Output directory must be empty: ${outputDir}`);
-	}
 }
 
 function safeResolve(root: string, relativePath: string): string {
@@ -583,6 +444,12 @@ function safeResolve(root: string, relativePath: string): string {
 		throw new Error(`Path escapes root: ${relativePath}`);
 	}
 	return resolved;
+}
+
+function isInsideRoot(root: string, filePath: string): boolean {
+	const rootPath = path.resolve(root);
+	const resolved = path.resolve(filePath);
+	return resolved === rootPath || resolved.startsWith(`${rootPath}${path.sep}`);
 }
 
 function assertSafeRelativePath(relativePath: string): void {
@@ -644,15 +511,4 @@ function requiredNonEmpty(value: string | undefined, label: string): string {
 		throw new Error(`${label} is required`);
 	}
 	return value;
-}
-
-function requiredManifestString(value: unknown, label: string): string {
-	if (typeof value !== "string" || !value) {
-		throw new Error(`Thread bundle manifest ${label} must be a non-empty string`);
-	}
-	return value;
-}
-
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }

@@ -151,35 +151,28 @@ describe("codex-flows CLI args", () => {
 				codexHome: "/source",
 				json: true,
 			});
-		expect(parseArgs([
-			"threads",
-			"export",
-			"thread-1",
-			"--codex-home=/source",
-			"--output",
-			"/bundle",
-		], {})).toEqual({
-			type: "threads-export",
-			threadId: "thread-1",
-			codexHome: "/source",
-			outputDir: "/bundle",
-			json: false,
-		});
-		expect(parseArgs(["threads", "inspect", "/bundle", "--json"], {})).toEqual({
+		expect(parseArgs(["threads", "inspect", "thread-1", "--codex-home=/source", "--json"], {}))
+			.toEqual({
+				type: "threads-inspect",
+				threadIdOrPath: "thread-1",
+				codexHome: "/source",
+				json: true,
+			});
+		expect(parseArgs(["threads", "inspect", "/rollout.jsonl", "--json"], {})).toEqual({
 			type: "threads-inspect",
-			bundleDir: "/bundle",
+			threadIdOrPath: "/rollout.jsonl",
 			json: true,
 		});
 		expect(parseArgs([
 			"threads",
-			"import",
-			"/bundle",
+			"install-rollout",
+			"/rollout.jsonl",
 			"--codex-home",
 			"/target",
 			"--replace",
 		], {})).toEqual({
-			type: "threads-import",
-			bundleDir: "/bundle",
+			type: "threads-install-rollout",
+			rolloutPath: "/rollout.jsonl",
 			codexHome: "/target",
 			replace: true,
 			json: false,
