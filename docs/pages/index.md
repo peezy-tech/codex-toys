@@ -50,7 +50,7 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/actions`: Actions-mode workspace helpers
 - `@peezy.tech/codex-flows/memories`: stable Codex memory artifact helpers
 - `@peezy.tech/codex-flows/workbench`: transport-neutral thread UX reducers and request descriptors
-- `@peezy.tech/codex-flows/threads`: raw rollout bundle import/export helpers
+- `@peezy.tech/codex-flows/threads`: raw rollout transplant and bundle helpers
 - `@peezy.tech/codex-flows/workspace-backend`: workspace backend protocol helpers and capability primitives
 - `@peezy.tech/codex-flows/flow-runtime`: local flow runtime, clients, and Bun helpers
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
@@ -133,14 +133,13 @@ Thread transplant moves one Codex thread rollout between Codex homes:
 
 ```bash
 codex-flows threads locate <thread-id> --codex-home ~/.codex
-codex-flows threads export <thread-id> --codex-home ~/.codex --output ./thread-bundle
-codex-flows threads inspect ./thread-bundle
-codex-flows threads import ./thread-bundle --codex-home ./workspace/.codex
+codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./workspace/.codex
 ```
 
-The bundle is a directory containing `manifest.json` and the original
-`sessions/.../rollout-*.jsonl` file. Import preserves the thread id and fails on
-conflicts unless `--replace` is provided.
+Transplant preserves the thread id, rollout bytes, checksum, and original
+`sessions/.../rollout-*.jsonl` path. It fails on conflicts unless `--replace`
+is provided. Export/import bundle commands remain available for archival
+workflows that need a `manifest.json`.
 
 ## Pack Install In One Screen
 

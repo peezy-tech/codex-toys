@@ -77,7 +77,7 @@ bun packages/codex-client/src/cli/index.ts --help
 codex-flows fetch
 codex-flows workspace doctor
 codex-flows memories transplant global-to-workspace
-codex-flows threads export <thread-id> --output ./thread-bundle
+codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
 codex-flows pack inspect owner/repo
 ```
 

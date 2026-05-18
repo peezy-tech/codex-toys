@@ -89,6 +89,26 @@ export type ImportThreadBundleResult = {
 	imported: ImportedThreadBundleFile[];
 };
 
+export type TransplantThreadRolloutOptions = {
+	threadId: string;
+	fromCodexHome?: string;
+	toCodexHome?: string;
+	replace?: boolean;
+};
+
+export type TransplantedThreadRollout = ThreadBundleManifestFile & {
+	path: string;
+	backupPath?: string;
+};
+
+export type TransplantThreadRolloutResult = {
+	threadId: string;
+	fromCodexHome: string;
+	toCodexHome: string;
+	source: ThreadRolloutLocation;
+	transplanted: TransplantedThreadRollout;
+};
+
 type CandidateRollout = ThreadRolloutLocation;
 
 const bundleKind = "codex-flows.thread-bundle";
@@ -223,33 +243,22 @@ export async function importThreadBundle(
 	const codexHome = resolveCodexHome(options.codexHome);
 	const imported: ImportedThreadBundleFile[] = [];
 	for (const file of inspected.files) {
-		const destinationPath = safeResolve(codexHome, file.relativePath);
-		const destinationExists = await exists(destinationPath);
-		let backup: string | undefined;
-		if (destinationExists) {
-			if (!options.replace) {
-				throw new Error(`Target rollout already exists: ${destinationPath}`);
-			}
-			backup = await nextBackupPath(destinationPath);
-			await copyFile(destinationPath, backup);
-		}
-		await mkdir(path.dirname(destinationPath), { recursive: true });
-		await copyFile(file.path, destinationPath);
-		const copiedInfo = await stat(destinationPath);
-		if (copiedInfo.size !== file.bytes) {
-			throw new Error(`Imported rollout byte length mismatch: ${file.relativePath}`);
-		}
-		const copiedSha256 = await sha256File(destinationPath);
-		if (copiedSha256 !== file.sha256) {
-			throw new Error(`Imported rollout checksum mismatch: ${file.relativePath}`);
-		}
+		const copied = await copyVerifiedRollout({
+			sourcePath: file.path,
+			targetCodexHome: codexHome,
+			relativePath: file.relativePath,
+			bytes: file.bytes,
+			sha256: file.sha256,
+			replace: options.replace,
+			verb: "Imported",
+		});
 		imported.push({
 			role: file.role,
 			relativePath: file.relativePath,
 			bytes: file.bytes,
 			sha256: file.sha256,
-			path: destinationPath,
-			...(backup ? { backupPath: backup } : {}),
+			path: copied.path,
+			...(copied.backupPath ? { backupPath: copied.backupPath } : {}),
 		});
 	}
 	return {
@@ -257,6 +266,39 @@ export async function importThreadBundle(
 		bundleDir: inspected.bundleDir,
 		manifest: inspected.manifest,
 		imported,
+	};
+}
+
+export async function transplantThreadRollout(
+	options: TransplantThreadRolloutOptions,
+): Promise<TransplantThreadRolloutResult> {
+	const source = await locateThreadRollout({
+		threadId: options.threadId,
+		codexHome: options.fromCodexHome,
+	});
+	const toCodexHome = resolveCodexHome(options.toCodexHome);
+	const copied = await copyVerifiedRollout({
+		sourcePath: source.path,
+		targetCodexHome: toCodexHome,
+		relativePath: source.relativePath,
+		bytes: source.bytes,
+		sha256: source.sha256,
+		replace: options.replace,
+		verb: "Transplanted",
+	});
+	return {
+		threadId: source.threadId,
+		fromCodexHome: source.codexHome,
+		toCodexHome,
+		source,
+		transplanted: {
+			role: "rollout",
+			relativePath: source.relativePath,
+			bytes: source.bytes,
+			sha256: source.sha256,
+			path: copied.path,
+			...(copied.backupPath ? { backupPath: copied.backupPath } : {}),
+		},
 	};
 }
 
@@ -317,6 +359,59 @@ export function formatThreadBundleImport(result: ImportThreadBundleResult): stri
 		}
 	}
 	return `${lines.join("\n")}\n`;
+}
+
+export function formatThreadRolloutTransplant(result: TransplantThreadRolloutResult): string {
+	const lines = [
+		`thread id          ${result.threadId}`,
+		`from codex home    ${result.fromCodexHome}`,
+		`to codex home      ${result.toCodexHome}`,
+		`rollout            ${result.transplanted.relativePath}`,
+		`bytes              ${result.transplanted.bytes}`,
+		`sha256             ${result.transplanted.sha256}`,
+	];
+	if (result.transplanted.backupPath) {
+		lines.push(`backup             ${result.transplanted.backupPath}`);
+	}
+	return `${lines.join("\n")}\n`;
+}
+
+async function copyVerifiedRollout(options: {
+	sourcePath: string;
+	targetCodexHome: string;
+	relativePath: string;
+	bytes: number;
+	sha256: string;
+	replace?: boolean;
+	verb: "Imported" | "Transplanted";
+}): Promise<{ path: string; backupPath?: string }> {
+	const destinationPath = safeResolve(options.targetCodexHome, options.relativePath);
+	if (path.resolve(options.sourcePath) === destinationPath) {
+		throw new Error(`Source and target rollout are the same file: ${destinationPath}`);
+	}
+	const destinationExists = await exists(destinationPath);
+	let backup: string | undefined;
+	if (destinationExists) {
+		if (!options.replace) {
+			throw new Error(`Target rollout already exists: ${destinationPath}`);
+		}
+		backup = await nextBackupPath(destinationPath);
+		await copyFile(destinationPath, backup);
+	}
+	await mkdir(path.dirname(destinationPath), { recursive: true });
+	await copyFile(options.sourcePath, destinationPath);
+	const copiedInfo = await stat(destinationPath);
+	if (copiedInfo.size !== options.bytes) {
+		throw new Error(`${options.verb} rollout byte length mismatch: ${options.relativePath}`);
+	}
+	const copiedSha256 = await sha256File(destinationPath);
+	if (copiedSha256 !== options.sha256) {
+		throw new Error(`${options.verb} rollout checksum mismatch: ${options.relativePath}`);
+	}
+	return {
+		path: destinationPath,
+		...(backup ? { backupPath: backup } : {}),
+	};
 }
 
 function resolveCodexHome(codexHome: string | undefined): string {

@@ -12,14 +12,28 @@ target Codex home can resume the same thread id from disk.
 
 ```bash
 codex-flows threads locate <thread-id> --codex-home ~/.codex
-codex-flows threads export <thread-id> --codex-home ~/.codex --output ./thread-bundle
-codex-flows threads inspect ./thread-bundle
-codex-flows threads import ./thread-bundle --codex-home ./workspace/.codex
+codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./workspace/.codex
 ```
+
+`transplant` is the normal home-to-home path. It locates the rollout under the
+source home, copies it byte-for-byte to the same
+`sessions/<YYYY>/<MM>/<DD>/<rollout-file>.jsonl` path under the target home,
+then verifies byte length and sha256.
+
+To replace an existing rollout, opt in explicitly:
+
+```bash
+codex-flows threads transplant <thread-id> --from-codex-home <source> --to-codex-home <target> --replace
+```
+
+`--replace` writes a timestamped backup beside the existing target rollout
+before copying the source file.
 
 ## Bundle Format
 
-A thread bundle is a directory, not an archive:
+Bundles are optional archival artifacts for CI systems or manual transfer. A
+thread bundle is a directory, not an archive:
+
 
 ```text
 manifest.json
@@ -85,7 +99,10 @@ copying the imported file.
 
 Thread transplant is for local or backend environments that can resume threads
 from Codex rollout files. It is not app-server-native import, not a general
-Codex home sync, and not a fork/id-rewrite tool. Cross-home resume or fork is
-done by exporting from one `CODEX_HOME`, importing into another, then using the
-existing Codex/app-server thread resume or fork behavior with the preserved
-thread id.
+Codex home sync, and not a fork/id-rewrite tool. Cross-home resume or fork
+preserves the original thread id by copying the native rollout into the target
+home, then using the existing Codex/app-server thread resume or fork behavior.
+
+Raw rollout JSONL can include prompts, model output, tool calls, command output,
+file paths, and any sensitive text the agent saw. Only transplant or commit
+rollouts you deliberately trust as durable history.

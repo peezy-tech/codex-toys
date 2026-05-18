@@ -116,7 +116,7 @@
     },
     "packages/codex-client": {
       "name": "@peezy.tech/codex-flows",
-      "version": "0.3.5",
+      "version": "0.3.6",
       "bin": {
         "codex-flows": "./dist/cli/index.js",
         "codex-app": "./dist/bin/codex-app.js",

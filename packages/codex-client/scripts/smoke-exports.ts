@@ -6,7 +6,10 @@ const checks = [
 	["@peezy.tech/codex-flows/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
 	["@peezy.tech/codex-flows/memories", ["listCodexMemoryArtifacts"]],
 	["@peezy.tech/codex-flows/workbench", ["createThreadSnapshot", "turnStartDescriptor"]],
-	["@peezy.tech/codex-flows/threads", ["locateThreadRollout", "exportThreadBundle"]],
+	[
+		"@peezy.tech/codex-flows/threads",
+		["locateThreadRollout", "exportThreadBundle", "transplantThreadRollout"],
+	],
 	["@peezy.tech/codex-flows/workspace-backend", ["CodexWorkspaceBackendClient"]],
 	["@peezy.tech/codex-flows/flow-runtime", ["discoverFlows", "runFlowStep"]],
 	["@peezy.tech/codex-flows/flow-runtime/client", ["createFlowClient"]],

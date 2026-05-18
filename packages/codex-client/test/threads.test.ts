@@ -14,6 +14,7 @@ import {
 	importThreadBundle,
 	inspectThreadBundle,
 	locateThreadRollout,
+	transplantThreadRollout,
 	type ThreadBundleManifest,
 } from "../src/threads.ts";
 
@@ -130,6 +131,47 @@ describe("thread transplant", () => {
 		expect(imported.imported[0]?.backupPath).toBeDefined();
 		expect(await readFile(imported.imported[0]?.backupPath ?? "", "utf8"))
 			.toBe("existing rollout\n");
+	});
+
+	test("transplants directly between Codex homes with checksum validation and backups", async () => {
+		const sourceHome = await codexHome();
+		const targetHome = await codexHome();
+		const rollout = await writeRollout(sourceHome, threadId, {
+			cwd: "/workspace/source",
+			body: "direct transplant payload\n",
+		});
+		const sourceBytes = await readFile(rollout);
+
+		const first = await transplantThreadRollout({
+			threadId,
+			fromCodexHome: sourceHome,
+			toCodexHome: targetHome,
+		});
+
+		expect(first.threadId).toBe(threadId);
+		expect(first.fromCodexHome).toBe(sourceHome);
+		expect(first.toCodexHome).toBe(targetHome);
+		expect(first.transplanted.relativePath).toBe(first.source.relativePath);
+		expect(await readFile(first.transplanted.path)).toEqual(sourceBytes);
+
+		await expect(transplantThreadRollout({
+			threadId,
+			fromCodexHome: sourceHome,
+			toCodexHome: targetHome,
+		})).rejects.toThrow("already exists");
+
+		await writeFile(first.transplanted.path, "existing target\n");
+		const replaced = await transplantThreadRollout({
+			threadId,
+			fromCodexHome: sourceHome,
+			toCodexHome: targetHome,
+			replace: true,
+		});
+
+		expect(await readFile(replaced.transplanted.path)).toEqual(sourceBytes);
+		expect(replaced.transplanted.backupPath).toBeDefined();
+		expect(await readFile(replaced.transplanted.backupPath ?? "", "utf8"))
+			.toBe("existing target\n");
 	});
 
 	test("rejects missing manifests, checksum mismatches, and unsafe paths", async () => {

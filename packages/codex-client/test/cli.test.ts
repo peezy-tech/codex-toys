@@ -184,6 +184,23 @@ describe("codex-flows CLI args", () => {
 			replace: true,
 			json: false,
 		});
+		expect(parseArgs([
+			"threads",
+			"transplant",
+			"thread-1",
+			"--from-codex-home",
+			"/source",
+			"--to-codex-home=/target",
+			"--replace",
+			"--json",
+		], {})).toEqual({
+			type: "threads-transplant",
+			threadId: "thread-1",
+			fromCodexHome: "/source",
+			toCodexHome: "/target",
+			replace: true,
+			json: true,
+		});
 	});
 
 	test("parses pack commands", () => {

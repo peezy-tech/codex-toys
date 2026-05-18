@@ -54,9 +54,11 @@ import {
 	formatThreadBundleImport,
 	formatThreadBundleInspection,
 	formatThreadRolloutLocation,
+	formatThreadRolloutTransplant,
 	importThreadBundle,
 	inspectThreadBundle,
 	locateThreadRollout,
+	transplantThreadRollout,
 } from "../threads.ts";
 import {
 	collectWorkspaceDoctorInfo,
@@ -335,6 +337,13 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
 			: formatThreadBundleImport(result));
+		return;
+	}
+	if (parsed.type === "threads-transplant") {
+		const result = await transplantThreadRollout(parsed);
+		write(parsed.json
+			? `${JSON.stringify(result, null, 2)}\n`
+			: formatThreadRolloutTransplant(result));
 		return;
 	}
 	if (parsed.type === "pack-inspect") {
@@ -937,6 +946,7 @@ Usage:
   codex-flows threads export <thread-id> --output <bundle-dir> [--codex-home <home>]
   codex-flows threads inspect <bundle-dir>
   codex-flows threads import <bundle-dir> [--codex-home <home>] [--replace]
+  codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
 
   codex-flows pack inspect <source> [--json]
   codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]
@@ -971,6 +981,8 @@ Options:
   --global-codex-home <path>                 Global Codex home for memories transplant.
   --workspace-codex-home <path>              Workspace Codex home for memories transplant.
   --codex-home <path>                        Codex home for thread transplant.
+  --from-codex-home <path>                   Source Codex home for direct thread transplant.
+  --to-codex-home <path>                     Target Codex home for direct thread transplant.
   --output <path>                            Output bundle directory for threads export.
   --apply                                    Apply memory transplant changes.
   --overwrite                                Replace destination memory files after backup.
@@ -1003,6 +1015,7 @@ Examples:
   codex-flows memories transplant global-to-workspace
   codex-flows threads export 019e3654-1492-70d0-9b01-46b17d6444a9 --output ./thread-bundle
   codex-flows threads import ./thread-bundle --codex-home ./.codex
+  codex-flows threads transplant 019e3654-1492-70d0-9b01-46b17d6444a9 --from-codex-home ~/.codex --to-codex-home ./.codex
   codex-flows pack inspect owner/repo
   codex-flows pack add ./capability-pack --apply
   codex-flows flow events --limit 20

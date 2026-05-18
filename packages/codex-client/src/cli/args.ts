@@ -183,6 +183,14 @@ export type ParsedCli =
 			json: boolean;
 	  }
 	| {
+			type: "threads-transplant";
+			threadId: string;
+			fromCodexHome?: string;
+			toCodexHome?: string;
+			replace: boolean;
+			json: boolean;
+	  }
+	| {
 			type: "pack-inspect";
 			source: string;
 			ref?: string;
@@ -241,6 +249,8 @@ export function parseArgs(
 	let globalCodexHome: string | undefined;
 	let workspaceCodexHome: string | undefined;
 	let codexHome: string | undefined;
+	let fromCodexHome: string | undefined;
+	let toCodexHome: string | undefined;
 	let outputDir: string | undefined;
 	let apply = false;
 	let overwrite = false;
@@ -371,6 +381,22 @@ export function parseArgs(
 		}
 		if (arg.startsWith("--codex-home=")) {
 			codexHome = arg.slice("--codex-home=".length);
+			continue;
+		}
+		if (arg === "--from-codex-home") {
+			fromCodexHome = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--from-codex-home=")) {
+			fromCodexHome = arg.slice("--from-codex-home=".length);
+			continue;
+		}
+		if (arg === "--to-codex-home") {
+			toCodexHome = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--to-codex-home=")) {
+			toCodexHome = arg.slice("--to-codex-home=".length);
 			continue;
 		}
 		if (arg === "--output") {
@@ -836,7 +862,21 @@ export function parseArgs(
 				json,
 			};
 		}
-		throw new Error("threads requires locate, export, inspect, or import");
+		if (subcommand === "transplant") {
+			return {
+				type: "threads-transplant",
+				threadId: requiredPositional(positionals, 2, "threads transplant requires <thread-id>"),
+				fromCodexHome,
+				toCodexHome: toCodexHome ?? requiredPositional(
+					positionals,
+					3,
+					"threads transplant requires --to-codex-home <home>",
+				),
+				replace,
+				json,
+			};
+		}
+		throw new Error("threads requires locate, export, inspect, import, or transplant");
 	}
 	if (command === "pack") {
 		const subcommand = positionals[1];

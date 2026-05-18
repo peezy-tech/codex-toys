@@ -65,6 +65,7 @@ const requiredCliLines = [
 	"codex-flows threads export <thread-id> --output <bundle-dir> [--codex-home <home>]",
 	"codex-flows threads inspect <bundle-dir>",
 	"codex-flows threads import <bundle-dir> [--codex-home <home>] [--replace]",
+	"codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]",
 	"codex-flows pack inspect <source> [--json]",
 	"codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]",
 	"codex-flows pack doctor [--json]",
@@ -135,7 +136,7 @@ await expectIncludes("docs/pages/guides/install-pack-repos.md", "[features].plug
 
 await expectIncludes("packages/codex-client/README.md", "codex-flows workspace doctor");
 await expectIncludes("packages/codex-client/README.md", "codex-flows memories transplant global-to-workspace");
-await expectIncludes("packages/codex-client/README.md", "codex-flows threads export <thread-id> --output ./thread-bundle");
+await expectIncludes("packages/codex-client/README.md", "codex-flows threads transplant <thread-id>");
 await expectIncludes("packages/codex-client/README.md", "codex-flows pack inspect owner/repo");
 
 if (failures.length > 0) {
