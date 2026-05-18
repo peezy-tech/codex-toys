@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "required": ["repo", "ref"],
+  "properties": {
+    "provider": { "type": "string" },
+    "repo": { "type": "string", "enum": ["openai/codex"] },
+    "repoOwner": { "type": "string" },
+    "repoName": { "type": "string" },
+    "ref": { "type": "string" },
+    "sha": { "type": "string" },
+    "url": { "type": "string" },
+    "publishedAt": { "type": "string" },
+    "sourceId": { "type": "string" },
+    "entryId": { "type": "string" }
+  }
+}

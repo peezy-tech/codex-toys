@@ -4,9 +4,13 @@ description = "Regenerate @peezy.tech/codex-flows bindings from a canonical open
 
 [config]
 package_name = "@peezy.tech/codex-flows"
+codex_flows_repo_env = "PEEZY_CODEX_FLOWS_REPO"
+codex_flows_repo = "/home/peezy/meta-workspace/codex-flows"
 generated_dir = "packages/codex-client/src/app-server/generated"
 package_json = "packages/codex-client/package.json"
 commit = true
+followup_turn = true
+followup_thread_json = ".codex/flow-artifacts/openai-codex-bindings-thread.json"
 push = false
 publish = false
 github_repo = "peezy-tech/codex-flows"

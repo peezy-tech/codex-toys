@@ -1,14 +1,21 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 type FlowContext = {
 	flow: {
+		name?: string;
+		root?: string;
+		step?: string;
 		config?: Record<string, unknown>;
 		event: {
 			id: string;
 			type: string;
 			payload: Record<string, unknown>;
 		};
+	};
+	runtime?: {
+		workspaceBackendUrl?: string;
 	};
 };
 
@@ -23,7 +30,7 @@ type CommandResult = {
 
 const context = JSON.parse(await Bun.stdin.text()) as FlowContext;
 const config = context.flow.config ?? {};
-const repoRoot = process.cwd();
+const repoRoot = path.resolve(envConfig(stringConfig("codex_flows_repo_env", "")) || stringConfig("codex_flows_repo", process.cwd()));
 const commands: CommandResult[] = [];
 
 try {
@@ -52,15 +59,20 @@ try {
 
 	await updatePackageVersion(packageJsonPath, version);
 	await run("refresh Bun lockfile", ["bun", "install"]);
+
+	const changedStatus = await run("changed file status", ["git", "status", "--short"]);
+	if (!changedStatus.stdout.trim()) {
+		finish("skipped", `No generated binding changes for ${tag}.`, { version, tag });
+	}
+
+	const followupTurn = await maybeRunFollowupTurn({ tag, version, changedStatus: changedStatus.stdout });
+
 	await run("codex-flows package release check", ["bun", "run", "--filter", packageName, "release:check"]);
 	await run("workspace typecheck", ["bun", "run", "check:types"]);
 	await run("workspace tests", ["bun", "run", "test"]);
 	await run("git diff check", ["git", "diff", "--check"]);
 
 	const status = await run("final git status", ["git", "status", "--short"]);
-	if (!status.stdout.trim()) {
-		finish("skipped", `No generated binding changes for ${tag}.`, { version, tag });
-	}
 
 	if (enabled("commit", true)) {
 		await run("stage binding update", ["git", "add", "--", generatedDir, packageJsonPath, path.join(repoRoot, "bun.lock")]);
@@ -96,6 +108,7 @@ try {
 		committed: enabled("commit", true),
 		pushed: enabled("push", false),
 		published: enabled("publish", false),
+		followupTurn,
 	});
 } catch (error) {
 	finish("failed", error instanceof Error ? error.message : String(error));
@@ -125,6 +138,89 @@ async function updatePackageVersion(packageJsonPath: string, version: string): P
 	const parsed = JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<string, unknown>;
 	parsed.version = version;
 	await writeFile(packageJsonPath, `${JSON.stringify(parsed, null, "\t")}\n`);
+}
+
+async function maybeRunFollowupTurn(input: {
+	tag: string;
+	version: string;
+	changedStatus: string;
+}): Promise<Record<string, unknown> | undefined> {
+	if (!enabled("followup_turn", true)) {
+		return undefined;
+	}
+	const runCodexAgentTurnFromFlow = await loadRunCodexAgentTurnFromFlow();
+	const threadJson = stringConfig("followup_thread_json", ".codex/flow-artifacts/openai-codex-bindings-thread.json");
+	const prompt = [
+		`OpenAI Codex ${input.tag} regenerated app-server TypeScript bindings for @peezy.tech/codex-flows ${input.version}.`,
+		"",
+		"Review the changed files and make any source, test, or export updates needed so the package still builds against the regenerated bindings.",
+		"Keep changes focused on codex-flows compatibility with the regenerated app-server surface.",
+		"Do not push, publish, or edit release metadata beyond what this flow already changed.",
+		"",
+		"Current changed files:",
+		input.changedStatus.trim(),
+	].join("\n");
+	const turn = await runCodexAgentTurnFromFlow(
+		{
+			flow: {
+				name: context.flow.name ?? "openai-codex-bindings",
+				root: repoRoot,
+				step: context.flow.step ?? "regenerate-bindings",
+				event: context.flow.event,
+			},
+			runtime: context.runtime,
+		},
+		{
+			prompt,
+			cwd: repoRoot,
+			approvalPolicy: "never",
+			sandbox: "danger-full-access",
+			appServerUrl: process.env.CODEX_APP_SERVER_URL,
+			requestTimeoutMs: numberConfig("followup_request_timeout_ms", 900000),
+			wait: {
+				timeoutMs: numberConfig("followup_wait_timeout_ms", 900000),
+				throwOnFailure: true,
+			},
+			exportThreadJson: threadJson || false,
+		},
+	) as {
+		artifacts?: Record<string, unknown>;
+		threadId?: string;
+		turnId?: string;
+		threadJsonPath?: string;
+	};
+	return {
+		threadId: turn.threadId,
+		turnId: turn.turnId,
+		threadJsonPath: turn.threadJsonPath,
+		...(turn.artifacts ?? {}),
+	};
+}
+
+async function loadRunCodexAgentTurnFromFlow(): Promise<(
+	context: unknown,
+	options: Record<string, unknown>,
+) => Promise<unknown>> {
+	const candidates = [
+		"@peezy.tech/codex-flows/flows",
+		pathToFileURL(path.join(repoRoot, "packages/codex-client/src/app-server/flows.ts")).href,
+	];
+	const errors: string[] = [];
+	for (const candidate of candidates) {
+		try {
+			const module = await import(candidate) as { runCodexAgentTurnFromFlow?: unknown };
+			if (typeof module.runCodexAgentTurnFromFlow === "function") {
+				return module.runCodexAgentTurnFromFlow as (
+					context: unknown,
+					options: Record<string, unknown>,
+				) => Promise<unknown>;
+			}
+			errors.push(`${candidate}: runCodexAgentTurnFromFlow is not exported`);
+		} catch (error) {
+			errors.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	throw new Error(`Could not load codex-flows follow-up turn helper:\n${errors.join("\n")}`);
 }
 
 async function run(
@@ -171,9 +267,21 @@ function enabled(name: string, fallback: boolean): boolean {
 	return typeof value === "boolean" ? value : fallback;
 }
 
+function envConfig(name: string): string | undefined {
+	return name.trim() ? process.env[name]?.trim() || undefined : undefined;
+}
+
 function stringConfig(name: string, fallback: string): string {
 	const value = config[name];
 	return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function numberConfig(name: string, fallback: number): number {
+	const envName = `CODEX_FLOW_${name.toUpperCase()}`;
+	const envValue = process.env[envName];
+	const raw = envValue !== undefined ? envValue : config[name];
+	const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : fallback;
+	return Number.isFinite(value) ? value : fallback;
 }
 
 function stringValue(value: unknown, name: string): string {

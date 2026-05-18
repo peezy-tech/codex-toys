@@ -67,7 +67,28 @@ test("bundled Codex release flows match one generic upstream release event", asy
 
 	expect(matches.map(({ flow, step }) => `${flow.manifest.name}/${step.name}`)).toEqual([
 		"openai-codex-bindings/regenerate-bindings",
-		"peezy-codex-fork/rebase-patch-stack",
+		"peezy-codex-fork/release-cycle",
+	]);
+});
+
+test("bundled Codex fork flow matches upstream main branch updates", async () => {
+	const root = path.resolve(import.meta.dir, "..", "..", "..");
+	const flows = await discoverFlows({ cwd: root });
+	const event: FlowEvent = {
+		id: "event-branch",
+		type: "upstream.branch_update",
+		receivedAt: "2026-05-13T00:00:00.000Z",
+		payload: {
+			repo: "openai/codex",
+			ref: "refs/heads/main",
+			sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+	};
+
+	const matches = await matchingSteps(flows, event);
+
+	expect(matches.map(({ flow, step }) => `${flow.manifest.name}/${step.name}`)).toEqual([
+		"peezy-codex-fork/main-branch-update",
 	]);
 });
 
@@ -75,7 +96,7 @@ test("bundled Code Mode flow remains gated by the feature flag", async () => {
 	const root = path.resolve(import.meta.dir, "..", "..", "..");
 	const flows = await discoverFlows({ cwd: root });
 	const flow = flows.find((entry) => entry.manifest.name === "peezy-codex-fork");
-	const step = flow?.manifest.steps.find((entry) => entry.name === "rebase-patch-stack");
+	const step = flow?.manifest.steps.find((entry) => entry.name === "release-cycle");
 	if (!flow || !step) {
 		throw new Error("expected bundled peezy-codex-fork flow");
 	}

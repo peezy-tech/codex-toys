@@ -1,26 +1,30 @@
 name = "peezy-codex-fork"
 version = 1
-description = "Rebase the Peezy Codex fork patch stack onto a canonical openai/codex release."
+description = "Maintain the Peezy Codex fork patch workspace from openai/codex releases and main updates."
 
 [config]
 package_name = "@peezy.tech/codex"
 codex_repo_env = "PEEZY_CODEX_REPO"
 codex_repo = "/home/peezy/meta-workspace/codex"
 target_branch_env = "PEEZY_CODEX_TARGET_BRANCH"
-target_branch = "code-mode-exec-hooks"
+target_branch = "main"
+upstream_branch = "upstream"
+patch_prefix = "patch/"
 upstream_remote = "upstream"
+upstream_main_ref = "main"
 upstream_repo_url = "https://github.com/openai/codex.git"
 cargo_target_dir_env = "PEEZY_CODEX_CARGO_TARGET_DIR"
 cargo_target_dir = "/tmp/peezy-codex-flow-target"
-squash_patch_stack = true
+stage_npm_wrapper = true
+link_local_package = false
 push = false
 publish = false
 
 [guidance]
-skills = ["jojo-development-flow"]
+skills = ["jojo-development-flow", "code-mode-flow-author"]
 
 [[steps]]
-name = "rebase-patch-stack"
+name = "release-cycle"
 runner = "code-mode"
 script = "exec/update-fork.code-mode.js"
 timeout_ms = 3600000
@@ -28,3 +32,13 @@ timeout_ms = 3600000
 [steps.trigger]
 type = "upstream.release"
 schema = "schemas/upstream-release.schema.json"
+
+[[steps]]
+name = "main-branch-update"
+runner = "code-mode"
+script = "exec/update-fork.code-mode.js"
+timeout_ms = 3600000
+
+[steps.trigger]
+type = "upstream.branch_update"
+schema = "schemas/upstream-branch-update.schema.json"
