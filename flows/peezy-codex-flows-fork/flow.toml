@@ -1,0 +1,33 @@
+name = "peezy-codex-flows-fork"
+version = 1
+description = "Build a local fork release of codex-flows when Peezy Codex or codex-flows releases."
+
+[config]
+package_name = "@peezy.tech/codex-flows"
+codex_package_name = "@peezy.tech/codex"
+codex_version_env = "PEEZY_CODEX_VERSION"
+codex_flows_repo_env = "PEEZY_CODEX_FLOWS_REPO"
+codex_flows_repo = "/home/peezy/meta-workspace/codex-flows"
+source_branch = "main"
+fork_branch = "fork"
+fork_dist_tag = "fork"
+fork_version_prefix = "peezy"
+worktree_dir = ".codex/flow-artifacts/codex-flows-fork-worktree"
+artifact_dir = ".codex/flow-artifacts/codex-flows-fork-release"
+commit = true
+push = false
+publish = false
+link_local_package = false
+
+[guidance]
+skills = ["jojo-development-flow", "bun-flow-author"]
+
+[[steps]]
+name = "release-fork"
+runner = "bun"
+script = "exec/release-fork.ts"
+timeout_ms = 1200000
+
+[steps.trigger]
+type = "downstream.release"
+schema = "schemas/downstream-release.schema.json"

@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "required": ["packageName", "version"],
+  "properties": {
+    "packageName": {
+      "type": "string",
+      "enum": ["@peezy.tech/codex", "@peezy.tech/codex-flows"]
+    },
+    "version": { "type": "string" },
+    "tag": { "type": "string" },
+    "repo": {
+      "type": "string",
+      "enum": ["peezy-tech/codex", "peezy-tech/codex-flows"]
+    },
+    "provider": { "type": "string" },
+    "sourceId": { "type": "string" },
+    "entryId": { "type": "string" },
+    "publishedAt": { "type": "string" },
+    "url": { "type": "string" }
+  }
+}

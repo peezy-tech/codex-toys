@@ -36,8 +36,13 @@ dispatch it through the shared flow client or HTTP backend.
   commits when changed, and can push or trigger trusted publishing when
   configured.
 - `peezy-codex-fork`: Code Mode runner. Rebases the Peezy fork patch stack onto
-  the upstream release tag, optionally squashes the patch stack, verifies the
-  fork, and can push or tag to trigger the fork release flow when configured.
+  the upstream release tag, verifies the fork, and can push or tag to trigger
+  the fork release flow when configured. It also accepts `upstream.branch_update`
+  for upstream main movement.
+- `peezy-codex-flows-fork`: Bun runner. Accepts `downstream.release` events for
+  `@peezy.tech/codex` and `@peezy.tech/codex-flows`, materializes a local
+  `fork` branch from `main`, applies the fork defaults, runs the
+  `@peezy.tech/codex-flows` release check, and packs a local fork tarball.
 
 ## Publishing gates
 
@@ -56,6 +61,17 @@ Equivalent flow config fields can enable the same behavior:
 push = true
 publish = true
 ```
+
+The codex-flows fork release flow also supports:
+
+```bash
+CODEX_FLOW_LINK_LOCAL_PACKAGE=1
+PEEZY_CODEX_VERSION=0.130.0
+```
+
+`CODEX_FLOW_LINK_LOCAL_PACKAGE=1` links the fork package locally after packing.
+`PEEZY_CODEX_VERSION` pins the Codex fork dependency when the triggering event
+is a codex-flows release rather than a Codex release.
 
 ## Safe verification
 

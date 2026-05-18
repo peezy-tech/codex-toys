@@ -92,6 +92,42 @@ test("bundled Codex fork flow matches upstream main branch updates", async () =>
 	]);
 });
 
+test("bundled codex-flows fork flow matches downstream Peezy releases", async () => {
+	const root = path.resolve(import.meta.dir, "..", "..", "..");
+	const flows = await discoverFlows({ cwd: root });
+	const codexRelease: FlowEvent = {
+		id: "event-codex",
+		type: "downstream.release",
+		receivedAt: "2026-05-17T00:00:00.000Z",
+		payload: {
+			packageName: "@peezy.tech/codex",
+			version: "0.130.0",
+			repo: "peezy-tech/codex",
+		},
+	};
+	const codexFlowsRelease: FlowEvent = {
+		id: "event-codex-flows",
+		type: "downstream.release",
+		receivedAt: "2026-05-17T00:00:00.000Z",
+		payload: {
+			packageName: "@peezy.tech/codex-flows",
+			version: "0.4.0",
+			repo: "peezy-tech/codex-flows",
+		},
+	};
+
+	expect((await matchingSteps(flows, codexRelease)).map(({ flow, step }) => `${flow.manifest.name}/${step.name}`)).toEqual([
+		"peezy-codex-flows-fork/release-fork",
+	]);
+	expect((await matchingSteps(flows, codexFlowsRelease)).map(({ flow, step }) => `${flow.manifest.name}/${step.name}`)).toEqual([
+		"peezy-codex-flows-fork/release-fork",
+	]);
+	expect(await matchingSteps(flows, {
+		...codexRelease,
+		payload: { packageName: "@example/other", version: "1.0.0" },
+	})).toEqual([]);
+});
+
 test("bundled Code Mode flow remains gated by the feature flag", async () => {
 	const root = path.resolve(import.meta.dir, "..", "..", "..");
 	const flows = await discoverFlows({ cwd: root });
