@@ -4,12 +4,12 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { WebSocketServer, type RawData, type WebSocket as WsSocket } from "ws";
+import { CodexEventEmitter } from "@peezy.tech/codex-flows";
 import {
 	CodexWorkspaceBackendProtocolServer,
 	type CodexWorkspaceBackendAppServer,
 	type CodexWorkspaceBackendPeer,
 } from "@peezy.tech/codex-flows/workspace-backend";
-import { CodexEventEmitter } from "../../../packages/codex-client/src/app-server/events.ts";
 import { readConfig } from "../src/flow/config.ts";
 import { handleNodeHttpRequest, WorkspaceFlowCapability } from "../src/flow/server.ts";
 

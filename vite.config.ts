@@ -26,6 +26,26 @@ export default defineConfig({
 				replacement: path.join(codexClientSrc, "app-server/flows.ts"),
 			},
 			{
+				find: /^@peezy\.tech\/codex-flows\/auth$/,
+				replacement: path.join(codexClientSrc, "auth.ts"),
+			},
+			{
+				find: /^@peezy\.tech\/codex-flows\/actions$/,
+				replacement: path.join(codexClientSrc, "actions.ts"),
+			},
+			{
+				find: /^@peezy\.tech\/codex-flows\/memories$/,
+				replacement: path.join(codexClientSrc, "memories.ts"),
+			},
+			{
+				find: /^@peezy\.tech\/codex-flows\/workbench$/,
+				replacement: path.join(codexClientSrc, "workbench.ts"),
+			},
+			{
+				find: /^@peezy\.tech\/codex-flows\/threads$/,
+				replacement: path.join(codexClientSrc, "threads.ts"),
+			},
+			{
 				find: /^@peezy\.tech\/codex-flows\/generated$/,
 				replacement: path.join(codexClientSrc, "app-server/generated/index.ts"),
 			},
@@ -40,10 +60,6 @@ export default defineConfig({
 			{
 				find: /^@peezy\.tech\/codex-flows\/workspace-backend$/,
 				replacement: path.join(codexClientSrc, "workspace-backend/index.ts"),
-			},
-			{
-				find: /^@peezy\.tech\/codex-flows\/(.+)$/,
-				replacement: path.join(codexClientSrc, "$1.ts"),
 			},
 			{
 				find: /^@peezy\.tech\/codex-flows$/,

@@ -27,7 +27,7 @@ Full documentation lives in the repo docs site:
 
 | Export | Purpose |
 |--------|---------|
-| `@peezy.tech/codex-flows` | Node app-server client, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
+| `@peezy.tech/codex-flows` | Node app-server client, event emitter base, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
 | `@peezy.tech/codex-flows/browser` | Browser-safe app-server client and WebSocket transport. |
 | `@peezy.tech/codex-flows/flows` | Helpers for starting Codex-backed flow work. |
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |

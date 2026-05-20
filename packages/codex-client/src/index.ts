@@ -1,4 +1,7 @@
 export {
+	CodexEventEmitter,
+} from "./app-server/events.ts";
+export {
 	CodexAppServerClient,
 	type CodexAppServerClientOptions,
 	type CodexAppServerTransport,

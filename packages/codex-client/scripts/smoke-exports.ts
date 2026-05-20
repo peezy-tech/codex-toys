@@ -1,5 +1,5 @@
 const checks = [
-	["@peezy.tech/codex-flows", ["CodexAppServerClient"]],
+	["@peezy.tech/codex-flows", ["CodexAppServerClient", "CodexEventEmitter"]],
 	["@peezy.tech/codex-flows/browser", ["CodexAppServerClient"]],
 	["@peezy.tech/codex-flows/flows", ["CodexFlowClient", "createCodexFlowClient"]],
 	["@peezy.tech/codex-flows/auth", ["CodexAuthClient", "createCodexAuthClient"]],
