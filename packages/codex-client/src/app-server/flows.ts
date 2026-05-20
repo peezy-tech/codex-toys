@@ -81,7 +81,7 @@ export type StartCodexFlowParams = {
 	approvalPolicy?: v2.AskForApproval | null;
 	approvalsReviewer?: v2.ApprovalsReviewer | null;
 	sandbox?: v2.SandboxMode | null;
-	permissions?: v2.PermissionProfileSelectionParams | null;
+	permissions?: v2.ThreadStartParams["permissions"];
 	config?: ThreadConfig | ThreadResumeConfig | null;
 	baseInstructions?: string | null;
 	developerInstructions?: string | null;
