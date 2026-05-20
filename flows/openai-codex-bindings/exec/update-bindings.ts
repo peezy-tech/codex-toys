@@ -75,13 +75,7 @@ try {
 	const status = await run("final git status", ["git", "status", "--short"]);
 
 	if (enabled("commit", true)) {
-		await run("stage binding update", ["git", "add", "--", generatedDir, packageJsonPath, path.join(repoRoot, "bun.lock")]);
-		await run("commit binding update", [
-			"git",
-			"commit",
-			"-m",
-			`flow: update codex-flows for openai codex ${version}`,
-		]);
+		await commitRemainingChanges({ version, generatedDir, packageJsonPath });
 	}
 
 	if (enabled("push", false)) {
@@ -155,6 +149,8 @@ async function maybeRunFollowupTurn(input: {
 		"",
 		"Review the changed files and make any source, test, or export updates needed so the package still builds against the regenerated bindings.",
 		"Keep changes focused on codex-flows compatibility with the regenerated app-server surface.",
+		"If you make source, test, export, or generated-file changes, commit them before finishing.",
+		`Use a focused commit message such as "flow: update codex-flows for openai codex ${input.version}".`,
 		"Do not push, publish, or edit release metadata beyond what this flow already changed.",
 		"",
 		"Current changed files:",
@@ -195,6 +191,38 @@ async function maybeRunFollowupTurn(input: {
 		threadJsonPath: turn.threadJsonPath,
 		...(turn.artifacts ?? {}),
 	};
+}
+
+async function commitRemainingChanges(input: {
+	version: string;
+	generatedDir: string;
+	packageJsonPath: string;
+}): Promise<CommandResult | undefined> {
+	const status = await run("dirty check before release commit", ["git", "status", "--porcelain=v1"]);
+	if (!status.stdout.trim()) {
+		return undefined;
+	}
+	await run("stage release update", [
+		"git",
+		"add",
+		"--",
+		input.generatedDir,
+		input.packageJsonPath,
+		path.join(repoRoot, "bun.lock"),
+		path.join(repoRoot, "packages/codex-client/src"),
+		path.join(repoRoot, "packages/codex-client/test"),
+		path.join(repoRoot, "packages/codex-client/scripts"),
+	]);
+	const staged = await run("staged release update status", ["git", "diff", "--cached", "--quiet"], { allowFailure: true });
+	if (staged.exitCode === 0) {
+		return undefined;
+	}
+	return await run("commit release update", [
+		"git",
+		"commit",
+		"-m",
+		`flow: update codex-flows for openai codex ${input.version}`,
+	]);
 }
 
 async function loadRunCodexAgentTurnFromFlow(): Promise<(

@@ -1,10 +1,20 @@
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
 type FlowContext = {
   flow: {
+    name?: string;
+    root?: string;
+    step?: string;
     config?: Record<string, unknown>;
     event: {
+      id?: string;
       type: string;
       payload?: Record<string, unknown>;
     };
+  };
+  runtime?: {
+    workspaceBackendUrl?: string;
   };
 };
 
@@ -47,8 +57,10 @@ let codexRepo = "";
 let codexRustDir = "";
 let codexBinary = "";
 let flowFlagOverrides: Record<string, boolean | undefined> = {};
+let flowContext: FlowContext;
 
 export default async function updateFork(context: FlowContext): Promise<FlowResult> {
+  flowContext = context;
   config = context.flow.config ?? {};
   payload = context.flow.event.payload ?? {};
   eventType = String(context.flow.event.type || "");
@@ -176,7 +188,7 @@ async function collectConflictContext(params) {
       { max_output_tokens: 16000, textLimit: 12000 }
     )
     : undefined;
-  return {
+  const context = {
     beforeSha: params.beforeSha,
     baseRef: params.baseRef,
     baseSha: params.baseSha,
@@ -194,6 +206,133 @@ async function collectConflictContext(params) {
       "After resolving conflicts, continue the cherry-pick, update main to the rebuilt HEAD, switch back to main, and run the configured verification commands."
     ].join(" ")
   };
+  return {
+    ...context,
+    interventionTurn: await maybeRunInterventionTurn(context)
+  };
+}
+
+async function maybeRunInterventionTurn(conflictContext) {
+  if (!enabled("intervention_turn", true)) {
+    return undefined;
+  }
+  try {
+    const runCodexAgentTurnFromFlow = await loadRunCodexAgentTurnFromFlow();
+    const threadJson = cfg("intervention_thread_json", ".codex/flow-artifacts/peezy-codex-fork-intervention-thread.json");
+    const prompt = interventionPrompt(conflictContext);
+    const turn = await runCodexAgentTurnFromFlow(
+      {
+        flow: {
+          name: flowContext.flow.name ?? "peezy-codex-fork",
+          root: flowContext.flow.root ?? codexRepo,
+          step: flowContext.flow.step ?? operation,
+          event: flowContext.flow.event,
+        },
+        runtime: flowContext.runtime,
+      },
+      {
+        prompt,
+        cwd: codexRepo,
+        approvalPolicy: "never",
+        sandbox: "danger-full-access",
+        appServerUrl: process.env.CODEX_APP_SERVER_URL,
+        requestTimeoutMs: numberConfig("intervention_request_timeout_ms", 900000),
+        wait: {
+          timeoutMs: numberConfig("intervention_wait_timeout_ms", 900000),
+          throwOnFailure: false,
+        },
+        exportThreadJson: threadJson || false,
+      },
+    ) as {
+      artifacts?: Record<string, unknown>;
+      threadId?: string;
+      turnId?: string;
+      threadJsonPath?: string;
+    };
+    return {
+      threadId: turn.threadId,
+      turnId: turn.turnId,
+      threadJsonPath: turn.threadJsonPath,
+      ...(turn.artifacts ?? {}),
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function interventionPrompt(conflictContext) {
+  const failedPatch = conflictContext.failedPatch?.name;
+  const failedPatchLabel = failedPatch ?? "the failed patch branch";
+  const branchRefresh = failedPatch
+    ? "After resolving this cherry-pick, run `git cherry-pick --continue`, update the failed patch branch to the new commit with `git branch -f " + failedPatch + " HEAD`, then continue applying any remaining ordered patch/* branches."
+    : "After resolving this cherry-pick, run `git cherry-pick --continue`, identify the corresponding patch/* branch, update it to the new commit, then continue applying any remaining ordered patch/* branches.";
+  const unmerged = Array.isArray(conflictContext.unmergedFiles) && conflictContext.unmergedFiles.length
+    ? conflictContext.unmergedFiles.map((file) => "- " + file).join("\n")
+    : "- none recorded";
+  return [
+    "The peezy-codex-fork release flow stopped during a Git patch-stack rebuild.",
+    "",
+    "Repository:",
+    codexRepo,
+    "",
+    "Release event:",
+    releaseTag ? "openai/codex " + releaseTag : "openai/codex upstream branch update",
+    "",
+    "Paused operation:",
+    "A cherry-pick of " + failedPatchLabel + " is in progress and needs conflict resolution.",
+    "",
+    "Unmerged files:",
+    unmerged,
+    "",
+    "Required outcome:",
+    "Resolve the cherry-pick in this checkout without aborting it.",
+    "Preserve the patch-stack model: each patch/* branch remains one logical patch commit, and main is rebuilt from the upstream release/base plus the ordered patch branches.",
+    branchRefresh,
+    "When all patch commits are applied, update `main` to the rebuilt HEAD and switch back to `main`.",
+    "Run the configured verification checks for this release flow before finishing.",
+    "",
+    "Important constraints:",
+    "Do not push, publish, delete unrelated branches, or revert unrelated user changes.",
+    "If you cannot complete the rebuild safely, leave the repository in its current paused state and explain the blocker.",
+    "",
+    "Conflict context:",
+    conflictContext.statusOutput || "",
+    "",
+    "Conflict diff:",
+    conflictContext.conflictDiff || "",
+  ].join("\n");
+}
+
+async function loadRunCodexAgentTurnFromFlow() {
+  const candidates = [
+    "@peezy.tech/codex-flows/flows",
+    flowContext.flow.root
+      ? pathToFileURL(path.resolve(flowContext.flow.root, "../..", "packages/codex-client/src/app-server/flows.ts")).href
+      : undefined,
+  ].filter(Boolean);
+  const errors: string[] = [];
+  for (const candidate of candidates) {
+    try {
+      const module = await import(String(candidate)) as { runCodexAgentTurnFromFlow?: unknown };
+      if (typeof module.runCodexAgentTurnFromFlow === "function") {
+        return module.runCodexAgentTurnFromFlow as (context: unknown, options: Record<string, unknown>) => Promise<unknown>;
+      }
+      errors.push(String(candidate) + ": runCodexAgentTurnFromFlow is not exported");
+    } catch (error) {
+      errors.push(String(candidate) + ": " + (error instanceof Error ? error.message : String(error)));
+    }
+  }
+  throw new Error("Could not load codex-flows follow-up turn helper:\n" + errors.join("\n"));
+}
+
+function numberConfig(name, fallback) {
+  const envName = "CODEX_FLOW_" + name.toUpperCase();
+  const envValue = process.env[envName];
+  const raw = envValue !== undefined ? envValue : config[name];
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : fallback;
+  return Number.isFinite(value) ? value : fallback;
 }
 
 async function requireCleanWorktree() {
@@ -212,11 +351,13 @@ async function requireNoPausedGitOperation() {
     { max_output_tokens: 4000 }
   );
   if (cherryPick.exit_code === 0) {
+    const failedPatch = await currentCherryPickPatchBranch();
     const context = await collectConflictContext({
       beforeSha: undefined,
       baseRef: undefined,
       baseSha: undefined,
       rebuildOutput: "A cherry-pick was already in progress before this flow started.",
+      failedPatch,
       applied: []
     });
     finish("blocked", "A cherry-pick is already in progress in the Codex checkout.", context);
@@ -232,6 +373,18 @@ async function requireNoPausedGitOperation() {
       statusOutput: (await run("rebase status", "git status --short --branch", { max_output_tokens: 12000 })).output
     });
   }
+}
+
+async function currentCherryPickPatchBranch() {
+  const head = await run("resolve paused cherry-pick commit", "git rev-parse --verify CHERRY_PICK_HEAD", {
+    max_output_tokens: 4000
+  });
+  if (!ok(head)) {
+    return undefined;
+  }
+  const sha = trim(head.output);
+  const patches = await listPatchBranches();
+  return patches.find((patch) => patch.sha === sha);
 }
 
 async function ensureUpstreamRemote() {

@@ -19,6 +19,8 @@ stage_npm_wrapper = true
 link_local_package = false
 push = false
 publish = false
+intervention_turn = true
+intervention_thread_json = ".codex/flow-artifacts/peezy-codex-fork-intervention-thread.json"
 
 [guidance]
 skills = ["jojo-development-flow", "bun-flow-author"]
