@@ -247,13 +247,14 @@ async function ensureUpstreamRemote() {
 
 async function fetchUpstreamMainAndTags() {
   const refspec = "+refs/heads/" + upstreamMainRef + ":refs/remotes/" + upstreamRemote + "/" + upstreamMainRef;
+  const tagRefspec = releaseTag ? " " + q("+refs/tags/" + releaseTag + ":refs/tags/" + releaseTag) : "";
   const fetch = await run(
-    "fetch upstream main and tags",
-    "git fetch " + q(upstreamRemote) + " --tags --prune " + q(refspec),
+    releaseTag ? "fetch upstream main and release tag" : "fetch upstream main",
+    "git fetch " + q(upstreamRemote) + " --no-tags --prune " + q(refspec) + tagRefspec,
     { max_output_tokens: 20000, textLimit: 16000 }
   );
   if (!ok(fetch)) {
-    finish("failed", "Could not fetch upstream main and release tags.", { fetchOutput: fetch.output });
+    finish("failed", releaseTag ? "Could not fetch upstream main and release tag." : "Could not fetch upstream main.", { fetchOutput: fetch.output });
   }
   const remoteMain = await run(
     "resolve upstream main",
