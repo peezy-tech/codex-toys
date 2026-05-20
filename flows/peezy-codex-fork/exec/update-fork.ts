@@ -1,7 +1,72 @@
-const config = flow.config || {};
-const payload = flow.event.payload || {};
-const eventType = String(flow.event.type || "");
-const commands = [];
+type FlowContext = {
+  flow: {
+    config?: Record<string, unknown>;
+    event: {
+      type: string;
+      payload?: Record<string, unknown>;
+    };
+  };
+};
+
+type FlowResult = {
+  status: "skipped" | "completed" | "changed" | "needs_intervention" | "blocked" | "failed";
+  message?: string;
+  artifacts?: Record<string, unknown>;
+};
+
+type CommandRecord = {
+  label: string;
+  cmd: string;
+  workdir: string;
+  exit_code: number;
+  output: string;
+};
+
+class FlowStop extends Error {
+  constructor(readonly value: FlowResult) {
+    super(value.message ?? value.status);
+  }
+}
+
+let config: Record<string, unknown> = {};
+let payload: Record<string, unknown> = {};
+let eventType = "";
+let commands: CommandRecord[] = [];
+let operation = "";
+let releaseTag = "";
+let version = "";
+let packageName = "";
+let targetBranch = "";
+let upstreamBranch = "";
+let patchPrefix = "";
+let upstreamRemote = "";
+let upstreamMainRef = "";
+let upstreamRepoUrl = "";
+let cargoTargetDir = "";
+let codexRepo = "";
+let codexRustDir = "";
+let codexBinary = "";
+let flowFlagOverrides: Record<string, boolean | undefined> = {};
+
+export default async function updateFork(context: FlowContext): Promise<FlowResult> {
+  config = context.flow.config ?? {};
+  payload = context.flow.event.payload ?? {};
+  eventType = String(context.flow.event.type || "");
+  commands = [];
+
+  try {
+    return await runFlow();
+  } catch (error) {
+    if (error instanceof FlowStop) {
+      return error.value;
+    }
+    return {
+      status: "failed",
+      message: error instanceof Error ? error.message : String(error),
+      artifacts: { commands },
+    };
+  }
+}
 
 function q(value) {
   return "'" + String(value).replaceAll("'", "'\\''") + "'";
@@ -17,23 +82,6 @@ function truncate(value, max) {
     return textValue;
   }
   return textValue.slice(0, max) + "\n...[truncated " + String(textValue.length - max) + " chars]";
-}
-
-function outputOf(result) {
-  if (typeof result?.output === "string") {
-    return result.output;
-  }
-  return JSON.stringify(result ?? {});
-}
-
-function exitCodeOf(result) {
-  if (typeof result?.exit_code === "number") {
-    return result.exit_code;
-  }
-  if (typeof result?.exitCode === "number") {
-    return result.exitCode;
-  }
-  return null;
 }
 
 function ok(result) {
@@ -60,16 +108,7 @@ function versionFromTag(tag) {
 }
 
 async function env(name) {
-  if (!name) {
-    return "";
-  }
-  const result = await tools.exec_command({
-    cmd: "printf %s \"${" + name + ":-}\"",
-    workdir: flow.root,
-    yield_time_ms: 1000,
-    max_output_tokens: 2000
-  });
-  return trim(outputOf(result));
+  return name ? trim(process.env[name] ?? "") : "";
 }
 
 async function envFlag(name) {
@@ -82,27 +121,32 @@ async function envFlag(name) {
 
 async function run(label, cmd, options = {}) {
   const workdir = options.workdir || codexRepo;
-  text("\n### " + label + "\n$ " + cmd + "\n");
-  const raw = await tools.exec_command({
-    cmd,
-    workdir,
-    yield_time_ms: options.yield_time_ms || 1000,
-    max_output_tokens: options.max_output_tokens || 12000
+  process.stderr.write("\n### " + label + "\n$ " + cmd + "\n");
+  const proc = Bun.spawn(["bash", "-lc", cmd], {
+    cwd: workdir,
+    stdout: "pipe",
+    stderr: "pipe"
   });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited
+  ]);
+  const output = stdout + stderr;
   const command = {
     label,
     cmd,
     workdir,
-    exit_code: exitCodeOf(raw),
-    output: outputOf(raw)
+    exit_code: exitCode,
+    output
   };
   commands.push({ ...command, output: truncate(command.output, 4000) });
-  text("exit_code=" + String(command.exit_code) + "\n" + truncate(command.output, options.textLimit || 12000) + "\n");
+  process.stderr.write("exit_code=" + String(command.exit_code) + "\n" + truncate(command.output, options.textLimit || 12000) + "\n");
   return command;
 }
 
 function finish(status, message, artifacts = {}) {
-  result({
+  throw new FlowStop({
     status,
     message,
     artifacts: {
@@ -608,117 +652,119 @@ function candidateRef(afterSha, pushed) {
   };
 }
 
-const flowFlagOverrides = {
-  force: await envFlag("CODEX_FLOW_FORCE"),
-  push: await envFlag("CODEX_FLOW_PUSH"),
-  publish: await envFlag("CODEX_FLOW_PUBLISH"),
-  stage_npm_wrapper: await envFlag("CODEX_FLOW_STAGE_NPM_WRAPPER"),
-  link_local_package: await envFlag("CODEX_FLOW_LINK_LOCAL_PACKAGE")
-};
-const releaseTag = eventType === "upstream.release" ? String(payload.tag || "") : "";
-const version = releaseTag ? versionFromTag(releaseTag) : "";
-const operation = eventType === "upstream.release" ? "release-cycle" : "main-branch-update";
-const packageName = cfg("package_name", "@peezy.tech/codex");
-const targetBranch = (await env(cfg("target_branch_env", ""))) || cfg("target_branch", "main");
-const upstreamBranch = cfg("upstream_branch", "upstream");
-const patchPrefix = cfg("patch_prefix", "patch/");
-const upstreamRemote = cfg("upstream_remote", "upstream");
-const upstreamMainRef = cfg("upstream_main_ref", "main");
-const upstreamRepoUrl = cfg("upstream_repo_url", "https://github.com/openai/codex.git");
-const cargoTargetDir = (await env(cfg("cargo_target_dir_env", ""))) || cfg("cargo_target_dir", "/tmp/peezy-codex-flow-target");
-const codexRepo = (await env(cfg("codex_repo_env", ""))) || cfg("codex_repo", "");
-const codexRustDir = codexRepo + "/codex-rs";
-const codexBinary = cargoTargetDir + "/debug/codex";
+async function runFlow(): Promise<FlowResult> {
+  flowFlagOverrides = {
+    force: await envFlag("CODEX_FLOW_FORCE"),
+    push: await envFlag("CODEX_FLOW_PUSH"),
+    publish: await envFlag("CODEX_FLOW_PUBLISH"),
+    stage_npm_wrapper: await envFlag("CODEX_FLOW_STAGE_NPM_WRAPPER"),
+    link_local_package: await envFlag("CODEX_FLOW_LINK_LOCAL_PACKAGE")
+  };
+  releaseTag = eventType === "upstream.release" ? String(payload.tag || "") : "";
+  version = releaseTag ? versionFromTag(releaseTag) : "";
+  operation = eventType === "upstream.release" ? "release-cycle" : "main-branch-update";
+  packageName = cfg("package_name", "@peezy.tech/codex");
+  targetBranch = (await env(cfg("target_branch_env", ""))) || cfg("target_branch", "main");
+  upstreamBranch = cfg("upstream_branch", "upstream");
+  patchPrefix = cfg("patch_prefix", "patch/");
+  upstreamRemote = cfg("upstream_remote", "upstream");
+  upstreamMainRef = cfg("upstream_main_ref", "main");
+  upstreamRepoUrl = cfg("upstream_repo_url", "https://github.com/openai/codex.git");
+  cargoTargetDir = (await env(cfg("cargo_target_dir_env", ""))) || cfg("cargo_target_dir", "/tmp/peezy-codex-flow-target");
+  codexRepo = (await env(cfg("codex_repo_env", ""))) || cfg("codex_repo", "");
+  codexRustDir = codexRepo + "/codex-rs";
+  codexBinary = cargoTargetDir + "/debug/codex";
 
-if (eventType !== "upstream.release" && eventType !== "upstream.branch_update") {
-  finish("failed", "Unsupported event type " + eventType + ".");
-}
-if (String(payload.repo || "") !== "openai/codex") {
-  finish("skipped", "Ignoring upstream event for " + String(payload.repo || "unknown") + ".");
-}
-if (eventType === "upstream.release" && !releaseTag) {
-  finish("failed", "Release payload is missing tag.");
-}
-if (eventType === "upstream.release" && !version) {
-  finish("failed", "Could not infer semantic version from release tag " + releaseTag + ".");
-}
-if (!codexRepo) {
-  finish("blocked", "No Codex fork checkout configured. Set codex_repo or codex_repo_env in flow.toml.");
-}
+  if (eventType !== "upstream.release" && eventType !== "upstream.branch_update") {
+    finish("failed", "Unsupported event type " + eventType + ".");
+  }
+  if (String(payload.repo || "") !== "openai/codex") {
+    finish("skipped", "Ignoring upstream event for " + String(payload.repo || "unknown") + ".");
+  }
+  if (eventType === "upstream.release" && !releaseTag) {
+    finish("failed", "Release payload is missing tag.");
+  }
+  if (eventType === "upstream.release" && !version) {
+    finish("failed", "Could not infer semantic version from release tag " + releaseTag + ".");
+  }
+  if (!codexRepo) {
+    finish("blocked", "No Codex fork checkout configured. Set codex_repo or codex_repo_env in flow.toml.");
+  }
 
-text([
-  "Peezy Codex fork update flow",
-  "",
-  "Event type: " + eventType,
-  "Operation: " + operation,
-  releaseTag ? "Release: " + releaseTag : "Upstream ref: " + String(payload.ref || "refs/heads/" + upstreamMainRef),
-  version ? "Version: " + version : undefined,
-  "Target branch: " + targetBranch,
-  "Upstream branch: " + upstreamBranch,
-  "Patch prefix: " + patchPrefix,
-  "Codex repo: " + codexRepo,
-  "Upstream remote: " + upstreamRemote + " -> " + upstreamRepoUrl,
-  "Cargo target dir: " + cargoTargetDir
-].filter(Boolean).join("\n") + "\n");
+  process.stderr.write([
+    "Peezy Codex fork update flow",
+    "",
+    "Event type: " + eventType,
+    "Operation: " + operation,
+    releaseTag ? "Release: " + releaseTag : "Upstream ref: " + String(payload.ref || "refs/heads/" + upstreamMainRef),
+    version ? "Version: " + version : undefined,
+    "Target branch: " + targetBranch,
+    "Upstream branch: " + upstreamBranch,
+    "Patch prefix: " + patchPrefix,
+    "Codex repo: " + codexRepo,
+    "Upstream remote: " + upstreamRemote + " -> " + upstreamRepoUrl,
+    "Cargo target dir: " + cargoTargetDir
+  ].filter(Boolean).join("\n") + "\n");
 
-if (eventType === "upstream.release") {
-  const published = await run("published fork package check", "npm view " + q(packageName + "@" + version) + " version --json", {
+  if (eventType === "upstream.release") {
+    const published = await run("published fork package check", "npm view " + q(packageName + "@" + version) + " version --json", {
+      max_output_tokens: 4000
+    });
+    if (ok(published) && !enabled("force", false)) {
+      finish("skipped", packageName + "@" + version + " is already published.");
+    }
+  }
+
+  const repoCheck = await run("verify codex repo", "git rev-parse --show-toplevel");
+  if (!ok(repoCheck)) {
+    finish("failed", "Codex repo is not a git checkout.", { repoCheck: repoCheck.output });
+  }
+
+  const rustWorkspaceCheck = await run("verify codex Rust workspace", "test -f " + q(codexRustDir + "/Cargo.toml"), {
     max_output_tokens: 4000
   });
-  if (ok(published) && !enabled("force", false)) {
-    finish("skipped", packageName + "@" + version + " is already published.");
+  if (!ok(rustWorkspaceCheck)) {
+    finish("failed", "Codex Rust workspace was not found at the expected codex-rs path.", {
+      codexRustDir,
+      rustWorkspaceCheck: rustWorkspaceCheck.output
+    });
   }
+
+  await run("codex status before update", "git status --short --branch", { max_output_tokens: 12000 });
+  await requireCleanWorktree();
+  await requireNoPausedGitOperation();
+  await ensureUpstreamRemote();
+  const upstreamMainSha = await fetchUpstreamMainAndTags();
+  const baseSha = eventType === "upstream.release" ? await resolveReleaseBase() : upstreamMainSha;
+  const baseRef = eventType === "upstream.release" ? releaseTag : upstreamBranch;
+  const beforeSha = await resolveCommit(targetBranch);
+  const rebuild = await rebuildMainFromBase(baseRef, baseSha, beforeSha);
+
+  const verificationArtifacts = eventType === "upstream.release"
+    ? await verifyReleaseCandidate(rebuild)
+    : await verifyBranchUpdateCandidate(rebuild).then(() => ({}));
+  const pushed = await maybePushTargetBranch(rebuild.afterSha);
+  const published = eventType === "upstream.release" ? await maybePublishReleaseTag() : false;
+  const finalStatus = await run("final codex status", "git status --short --branch", { max_output_tokens: 12000 });
+  const status = rebuild.changed ? "changed" : "completed";
+  finish(
+    status,
+    eventType === "upstream.release"
+      ? "Peezy Codex fork rebuilt from upstream release and verified."
+      : "Peezy Codex fork main rebuilt from upstream/main and verified.",
+    {
+      beforeSha: rebuild.beforeSha,
+      afterSha: rebuild.afterSha,
+      rebuiltSha: rebuild.rebuiltSha,
+      baseRef,
+      baseSha,
+      upstreamMainSha,
+      applied: rebuild.applied,
+      finalStatus: finalStatus.output,
+      pushed,
+      published,
+      candidateRefs: [candidateRef(rebuild.afterSha, pushed)],
+      ...verificationArtifacts
+    }
+  );
 }
-
-const repoCheck = await run("verify codex repo", "git rev-parse --show-toplevel");
-if (!ok(repoCheck)) {
-  finish("failed", "Codex repo is not a git checkout.", { repoCheck: repoCheck.output });
-}
-
-const rustWorkspaceCheck = await run("verify codex Rust workspace", "test -f " + q(codexRustDir + "/Cargo.toml"), {
-  max_output_tokens: 4000
-});
-if (!ok(rustWorkspaceCheck)) {
-  finish("failed", "Codex Rust workspace was not found at the expected codex-rs path.", {
-    codexRustDir,
-    rustWorkspaceCheck: rustWorkspaceCheck.output
-  });
-}
-
-await run("codex status before update", "git status --short --branch", { max_output_tokens: 12000 });
-await requireCleanWorktree();
-await requireNoPausedGitOperation();
-await ensureUpstreamRemote();
-const upstreamMainSha = await fetchUpstreamMainAndTags();
-const baseSha = eventType === "upstream.release" ? await resolveReleaseBase() : upstreamMainSha;
-const baseRef = eventType === "upstream.release" ? releaseTag : upstreamBranch;
-const beforeSha = await resolveCommit(targetBranch);
-const rebuild = await rebuildMainFromBase(baseRef, baseSha, beforeSha);
-
-const verificationArtifacts = eventType === "upstream.release"
-  ? await verifyReleaseCandidate(rebuild)
-  : await verifyBranchUpdateCandidate(rebuild).then(() => ({}));
-const pushed = await maybePushTargetBranch(rebuild.afterSha);
-const published = eventType === "upstream.release" ? await maybePublishReleaseTag() : false;
-const finalStatus = await run("final codex status", "git status --short --branch", { max_output_tokens: 12000 });
-const status = rebuild.changed ? "changed" : "completed";
-finish(
-  status,
-  eventType === "upstream.release"
-    ? "Peezy Codex fork rebuilt from upstream release and verified."
-    : "Peezy Codex fork main rebuilt from upstream/main and verified.",
-  {
-    beforeSha: rebuild.beforeSha,
-    afterSha: rebuild.afterSha,
-    rebuiltSha: rebuild.rebuiltSha,
-    baseRef,
-    baseSha,
-    upstreamMainSha,
-    applied: rebuild.applied,
-    finalStatus: finalStatus.output,
-    pushed,
-    published,
-    candidateRefs: [candidateRef(rebuild.afterSha, pushed)],
-    ...verificationArtifacts
-  }
-);

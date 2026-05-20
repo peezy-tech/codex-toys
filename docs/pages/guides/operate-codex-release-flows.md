@@ -35,7 +35,7 @@ dispatch it through the shared flow client or HTTP backend.
   regenerates `@peezy.tech/codex-flows` app-server bindings, runs checks,
   commits when changed, and can push or trigger trusted publishing when
   configured.
-- `peezy-codex-fork`: Code Mode runner. Rebases the Peezy fork patch stack onto
+- `peezy-codex-fork`: Bun runner. Rebases the Peezy fork patch stack onto
   the upstream release tag, verifies the fork, and can push or tag to trigger
   the fork release flow when configured. It also accepts `upstream.branch_update`
   for upstream main movement.

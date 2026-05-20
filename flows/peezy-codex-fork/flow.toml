@@ -21,12 +21,12 @@ push = false
 publish = false
 
 [guidance]
-skills = ["jojo-development-flow", "code-mode-flow-author"]
+skills = ["jojo-development-flow", "bun-flow-author"]
 
 [[steps]]
 name = "release-cycle"
-runner = "code-mode"
-script = "exec/update-fork.code-mode.js"
+runner = "bun"
+script = "exec/update-fork.ts"
 timeout_ms = 3600000
 
 [steps.trigger]
@@ -35,8 +35,8 @@ schema = "schemas/upstream-release.schema.json"
 
 [[steps]]
 name = "main-branch-update"
-runner = "code-mode"
-script = "exec/update-fork.code-mode.js"
+runner = "bun"
+script = "exec/update-fork.ts"
 timeout_ms = 3600000
 
 [steps.trigger]

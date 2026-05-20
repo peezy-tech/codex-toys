@@ -128,7 +128,7 @@ test("bundled codex-flows fork flow matches downstream Peezy releases", async ()
 	})).toEqual([]);
 });
 
-test("bundled Code Mode flow remains gated by the feature flag", async () => {
+test("bundled Codex fork flow uses the deterministic Bun runner", async () => {
 	const root = path.resolve(import.meta.dir, "..", "..", "..");
 	const flows = await discoverFlows({ cwd: root });
 	const flow = flows.find((entry) => entry.manifest.name === "peezy-codex-fork");
@@ -137,19 +137,33 @@ test("bundled Code Mode flow remains gated by the feature flag", async () => {
 		throw new Error("expected bundled peezy-codex-fork flow");
 	}
 
-	await expect(
-		runFlowStep({
-			flow,
-			step,
-			event: {
-				id: "event-1",
-				type: "upstream.release",
-				receivedAt: "2026-05-13T00:00:00.000Z",
-				payload: { repo: "openai/codex", tag: "rust-v1.2.3" },
-			},
-			env: {},
-		}),
-	).rejects.toThrow("requires CODEX_FLOWS_ENABLE_CODE_MODE=1");
+	expect(step.runner).toBe("bun");
+	expect(step.script).toBe("exec/update-fork.ts");
+});
+
+test("bundled Codex fork Bun step returns FLOW_RESULT without Code Mode", async () => {
+	const root = path.resolve(import.meta.dir, "..", "..", "..");
+	const flows = await discoverFlows({ cwd: root });
+	const flow = flows.find((entry) => entry.manifest.name === "peezy-codex-fork");
+	const step = flow?.manifest.steps.find((entry) => entry.name === "release-cycle");
+	if (!flow || !step) {
+		throw new Error("expected bundled peezy-codex-fork flow");
+	}
+
+	await expect(runFlowStep({
+		flow,
+		step,
+		event: {
+			id: "event-1",
+			type: "upstream.release",
+			receivedAt: "2026-05-13T00:00:00.000Z",
+			payload: { repo: "example/other", tag: "rust-v1.2.3" },
+		},
+		env: {},
+	})).resolves.toMatchObject({
+		status: "skipped",
+		message: "Ignoring upstream event for example/other.",
+	});
 });
 
 test("CODEX_FLOWS_MODE=code-mode enables Code Mode flow steps", () => {
