@@ -14,6 +14,14 @@ vp run test
 vp run release:check
 ```
 
+Pull requests get a lightweight `pr-policy` check first. That check runs from
+trusted target-branch code with `pull_request_target` and does not check out or
+execute PR code. Full CI runs through the `trusted-ci` workflow after a
+maintainer applies the one-shot `ci:run-full` label; the workflow consumes that
+label before checking out the approved PR head, so new commits need another
+maintainer run. PRs that change `.forgejo/workflows` need the
+maintainer-applied `ci:reviewed-workflow` label before the policy check passes.
+
 This is a Node 24 + pnpm + VitePlus monorepo. Keep changes scoped to the smallest package, app, flow,
 or docs surface that solves the problem:
 
