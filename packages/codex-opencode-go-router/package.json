@@ -1,6 +1,6 @@
 {
   "name": "@peezy.tech/codex-opencode-go-router",
-  "version": "0.1.0",
+  "version": "0.132.1",
   "private": true,
   "type": "module",
   "description": "Responses API router that lets Codex use OpenCode Go chat completions.",

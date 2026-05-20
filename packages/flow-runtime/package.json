@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/flow-runtime",
-	"version": "0.4.1",
+	"version": "0.132.1",
 	"description": "Generic flow package loader and runner primitives.",
 	"type": "module",
 	"license": "Apache-2.0",

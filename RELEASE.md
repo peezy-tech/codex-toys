@@ -96,8 +96,13 @@ single-package platform migration:
 
 The GitHub publish workflow checks whether each package version already exists
 on npm. It publishes new versions and skips versions that are already present.
-For a stack release, bump all changed packages together. For a package-specific
-release, bump only the changed package and let the workflow skip the others.
+Version numbers intentionally track the upstream Codex release line rather than
+strict semantic-versioning meaning. For example, if the current Codex-aligned
+line is `0.132.x`, a breaking codex-flows stack release should usually advance
+to `0.132.1` rather than `0.133.0`. Keep public package versions aligned across
+the stack, including packages that previously had lower independent versions
+such as `@peezy.tech/flow-runtime`.
+
 New public core runtime surfaces should be exported through
 `@peezy.tech/codex-flows` first, including reusable protocol helpers and
 runnable local backend bins. Product- or channel-specific gateways, such as
@@ -116,7 +121,8 @@ git diff --check
 
 To publish through GitHub trusted publishing:
 
-1. Bump the package version or versions being released.
+1. Bump all public package versions in the stack to the same Codex-aligned
+   version.
 2. Commit and push to jojo.
 3. Confirm the Codeberg mirror has received the commit.
 4. Push the same commit to GitHub.
