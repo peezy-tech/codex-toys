@@ -216,6 +216,34 @@ test("keeps summary/commentary progress separate and does not expose final early
 	expect(pendingProgressMessages(delivered, { mode: "summary" })).toEqual([]);
 });
 
+test("preserves current app-server thread goal statuses", () => {
+	for (const status of ["blocked", "usageLimited"] satisfies v2.ThreadGoalStatus[]) {
+		const snapshot = reduceThreadNotification(
+			createThreadSnapshot("thread-1", { now: fixedNow }),
+			{
+				method: "thread/goal/updated",
+				params: {
+					threadId: "thread-1",
+					turnId: null,
+					goal: {
+						threadId: "thread-1",
+						objective: `Goal is ${status}`,
+						status,
+						tokenBudget: null,
+						tokensUsed: 0,
+						timeUsedSeconds: 0,
+						createdAt: 1,
+						updatedAt: 2,
+					},
+				},
+			},
+			{ now: fixedNow },
+		);
+
+		expect(snapshot.goal).toMatchObject({ status });
+	}
+});
+
 test("derives snapshots from completed thread payloads", () => {
 	const snapshot = snapshotFromThread(thread("thread-1", [
 		turn("turn-1", "completed", [

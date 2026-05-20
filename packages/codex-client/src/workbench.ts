@@ -939,6 +939,8 @@ function planStepStatus(value: unknown): WorkbenchPlanStep["status"] {
 function threadGoalStatus(value: unknown): v2.ThreadGoalStatus | undefined {
 	return value === "active" ||
 		value === "paused" ||
+		value === "blocked" ||
+		value === "usageLimited" ||
 		value === "budgetLimited" ||
 		value === "complete"
 		? value

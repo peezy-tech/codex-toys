@@ -201,6 +201,12 @@ export class CodexAppServerClient extends CodexEventEmitter {
 		return this.request<v2.PluginListResponse>("plugin/list", params);
 	}
 
+	installedPlugins(
+		params: v2.PluginInstalledParams,
+	): Promise<v2.PluginInstalledResponse> {
+		return this.request<v2.PluginInstalledResponse>("plugin/installed", params);
+	}
+
 	readPlugin(params: v2.PluginReadParams): Promise<v2.PluginReadResponse> {
 		return this.request<v2.PluginReadResponse>("plugin/read", params);
 	}
