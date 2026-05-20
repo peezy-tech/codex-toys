@@ -1,5 +1,6 @@
 import path from "node:path";
 import { CodexAppServerClient } from "@peezy.tech/codex-flows";
+import type { FlowProgressSink } from "../client-types.ts";
 import { stepScriptPath } from "../manifest.ts";
 import { parseFlowResult } from "../result.ts";
 import type { FlowEvent, FlowResult, FlowStep, LoadedFlow } from "../types.ts";
@@ -11,6 +12,7 @@ export type RunCodeModeStepOptions = {
 	codexCommand?: string;
 	codexHome?: string;
 	stream?: boolean;
+	progress?: FlowProgressSink;
 };
 
 export async function runCodeModeStep(options: RunCodeModeStepOptions): Promise<FlowResult> {
@@ -42,7 +44,19 @@ export async function runCodeModeStep(options: RunCodeModeStepOptions): Promise<
 			if (delta) {
 				output.push(delta);
 				if (options.stream) {
-					process.stdout.write(delta);
+					if (options.progress) {
+						options.progress({
+							kind: "stdout",
+							createdAt: new Date().toISOString(),
+							eventId: options.event.id,
+							flowName: options.flow.manifest.name,
+							stepName: options.step.name,
+							runner: options.step.runner,
+							text: delta,
+						});
+					} else {
+						process.stdout.write(delta);
+					}
 				}
 			}
 		}
@@ -65,6 +79,15 @@ export async function runCodeModeStep(options: RunCodeModeStepOptions): Promise<
 			persistExtendedHistory: true,
 		});
 		threadId = started.thread.id;
+		options.progress?.({
+			kind: "stderr",
+			createdAt: new Date().toISOString(),
+			eventId: options.event.id,
+			flowName: options.flow.manifest.name,
+			stepName: options.step.name,
+			runner: options.step.runner,
+			text: `[flow] thread ${threadId}\n`,
+		});
 		await client.request("thread/codeMode/execute", {
 			threadId,
 			source,

@@ -17,6 +17,8 @@ import type {
 	FlowListRunsOptions,
 	FlowOutputView,
 	FlowProcessStatus,
+	FlowProgressEvent,
+	FlowProgressSink,
 	FlowReplayOptions,
 	FlowReplayResult,
 	FlowRunList,
@@ -46,6 +48,7 @@ export type LocalFlowClientOptions = {
 		dataDir?: string;
 	};
 	codex?: LocalFlowCodexOptions;
+	progress?: FlowProgressSink;
 };
 
 type StoredEvent = {
@@ -82,6 +85,7 @@ export class LocalFlowClient implements FlowClient {
 	#roots: string[] | undefined;
 	#env: Record<string, string | undefined>;
 	#codex: LocalFlowCodexOptions | undefined;
+	#progress: FlowProgressSink | undefined;
 	#state: LocalFlowMemoryState | undefined;
 
 	constructor(options: LocalFlowClientOptions) {
@@ -91,6 +95,7 @@ export class LocalFlowClient implements FlowClient {
 		);
 		this.#env = options.env ?? process.env;
 		this.#codex = options.codex;
+		this.#progress = options.progress;
 		this.#state = localState(options.state, this.#cwd);
 	}
 
@@ -209,6 +214,17 @@ export class LocalFlowClient implements FlowClient {
 			options.replayNonce,
 		);
 		const startedAt = new Date().toISOString();
+		const progressBase = {
+			eventId: options.event.id,
+			runId,
+			flowName: options.flow.manifest.name,
+			stepName: options.step.name,
+			runner: options.step.runner,
+		};
+		this.#emitProgress({
+			kind: "run_start",
+			...progressBase,
+		});
 		try {
 			const result = await runFlowStep({
 				flow: options.flow,
@@ -228,8 +244,17 @@ export class LocalFlowClient implements FlowClient {
 					codexHome: this.#codex?.codexHome ?? this.#env.CODEX_HOME,
 					stream: this.#codex?.stream ?? true,
 				},
+				progress: (event) => this.#emitProgress({
+					...progressBase,
+					...event,
+				}),
 			});
 			const completedAt = new Date().toISOString();
+			this.#emitProgress({
+				kind: "run_complete",
+				...progressBase,
+				status: result.status,
+			});
 			return localRunView({
 				runId,
 				event: options.event,
@@ -242,6 +267,12 @@ export class LocalFlowClient implements FlowClient {
 			});
 		} catch (error) {
 			const completedAt = new Date().toISOString();
+			this.#emitProgress({
+				kind: "run_complete",
+				...progressBase,
+				status: "failed",
+				text: error instanceof Error ? error.message : String(error),
+			});
 			return localRunView({
 				runId,
 				event: options.event,
@@ -253,6 +284,13 @@ export class LocalFlowClient implements FlowClient {
 				completedAt,
 			});
 		}
+	}
+
+	#emitProgress(event: Omit<FlowProgressEvent, "createdAt"> & { createdAt?: string }): void {
+		this.#progress?.({
+			...event,
+			createdAt: event.createdAt ?? new Date().toISOString(),
+		});
 	}
 
 	#requireState(operation: string): LocalFlowMemoryState {

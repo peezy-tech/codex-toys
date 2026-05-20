@@ -27,6 +27,8 @@ export type {
 	FlowListRunsOptions,
 	FlowOutputView,
 	FlowProcessStatus,
+	FlowProgressEvent,
+	FlowProgressSink,
 	FlowReplayOptions,
 	FlowReplayResult,
 	FlowRunList,

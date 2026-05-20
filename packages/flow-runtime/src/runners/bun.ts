@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { FlowProgressSink } from "../client-types.ts";
 import { stepScriptPath } from "../manifest.ts";
 import { parseFlowResult } from "../result.ts";
 import type {
@@ -17,6 +18,7 @@ export type RunBunStepOptions = {
 	event: FlowEvent;
 	env?: Record<string, string | undefined>;
 	runtime?: FlowRunRuntimeInput;
+	progress?: FlowProgressSink;
 };
 
 export async function runBunStep(options: RunBunStepOptions): Promise<FlowResult> {
@@ -42,14 +44,49 @@ export async function runBunStep(options: RunBunStepOptions): Promise<FlowResult
 	subprocess.stdin.end();
 	const timer = setTimeout(() => subprocess.kill("SIGTERM"), options.step.timeoutMs);
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(subprocess.stdout).text(),
-		new Response(subprocess.stderr).text(),
+		collectText(subprocess.stdout),
+		collectText(subprocess.stderr, (text) => {
+			options.progress?.({
+				kind: "stderr",
+				createdAt: new Date().toISOString(),
+				eventId: options.event.id,
+				runId: options.runtime?.runId,
+				flowName: options.flow.manifest.name,
+				stepName: options.step.name,
+				runner: options.step.runner,
+				text,
+			});
+		}),
 		subprocess.exited,
 	]).finally(() => clearTimeout(timer));
 	if (exitCode !== 0) {
 		throw new Error(`Bun flow step ${options.flow.manifest.name}/${options.step.name} failed:\n${stderr || stdout}`);
 	}
 	return parseFlowResult(stdout);
+}
+
+async function collectText(
+	stream: ReadableStream<Uint8Array>,
+	onText?: (text: string) => void,
+): Promise<string> {
+	const reader = stream.getReader();
+	const decoder = new TextDecoder();
+	let output = "";
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) {
+			break;
+		}
+		const text = decoder.decode(value, { stream: true });
+		output += text;
+		onText?.(text);
+	}
+	const tail = decoder.decode();
+	if (tail) {
+		output += tail;
+		onText?.(tail);
+	}
+	return output;
 }
 
 async function bunCommandPath(scriptPath: string): Promise<string[]> {

@@ -149,10 +149,10 @@ test("local file state persists events and runs across client instances", async 
 });
 
 test("local client marks semantic attention statuses from FLOW_RESULT", async () => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-local-client-"));
-	try {
-		await writeFlow(directory, "flows/demo", "demo");
-		const client = createLocalFlowClient({ cwd: directory, env: {} });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "flow-local-client-"));
+  try {
+    await writeFlow(directory, "flows/demo", "demo");
+    const client = createLocalFlowClient({ cwd: directory, env: {} });
 
 		const result = await client.dispatchEvent({
 			id: "event-blocked",
@@ -169,12 +169,51 @@ test("local client marks semantic attention statuses from FLOW_RESULT", async ()
 		});
 	} finally {
 		await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("local client emits run progress and streams Bun stderr", async () => {
+	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-local-client-"));
+	try {
+		await writeFlow(directory, "flows/demo", "demo");
+		const progress: Array<{ kind: string; text?: string; status?: string; runId?: string }> = [];
+		const client = createLocalFlowClient({
+			cwd: directory,
+			env: {},
+			progress: (event) => progress.push(event),
+		});
+
+		const result = await client.dispatchEvent({
+			id: "event-progress",
+			type: "demo.event",
+			receivedAt: "2026-05-15T00:00:00.000Z",
+			payload: { name: "Ada", stderr: "working\\n" },
+		});
+
+		expect(result.runs[0]?.effectiveStatus).toBe("completed");
+		expect(progress.map((event) => event.kind)).toEqual(["run_start", "stderr", "run_complete"]);
+		expect(progress[0]).toMatchObject({
+			kind: "run_start",
+			runId: result.runIds[0],
+		});
+		expect(progress[1]).toMatchObject({
+			kind: "stderr",
+			runId: result.runIds[0],
+			text: "working\\n",
+		});
+		expect(progress[2]).toMatchObject({
+			kind: "run_complete",
+			runId: result.runIds[0],
+			status: "completed",
+		});
+	} finally {
+		await rm(directory, { recursive: true, force: true });
 	}
 });
 
 test("local client keeps Code Mode flow steps gated", async () => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-local-client-"));
-	try {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "flow-local-client-"));
+  try {
 		await writeFlow(directory, "flows/demo", "demo", "code-mode");
 		const client = createLocalFlowClient({ cwd: directory, env: {} });
 
@@ -252,6 +291,7 @@ async function writeFlow(
 			required: ["name"],
 			properties: {
 				name: { type: "string" },
+				stderr: { type: "string" },
 				status: { enum: ["completed", "changed", "blocked", "needs_intervention", "failed"] },
 			},
 		}),
@@ -263,6 +303,7 @@ async function writeFlow(
 			"const payload = context.flow.event.payload;",
 			`const label = ${JSON.stringify(label)};`,
 			"const status = payload.status ?? 'completed';",
+			"if (payload.stderr) process.stderr.write(payload.stderr);",
 			"console.log(`FLOW_RESULT ${JSON.stringify({ status, message: `${label} ${payload.name}` })}`);",
 			"",
 		].join("\n"),

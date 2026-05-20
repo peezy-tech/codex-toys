@@ -29,6 +29,20 @@ export type FlowReplayOptions = {
 	wait?: boolean;
 };
 
+export type FlowProgressEvent = {
+	kind: "run_start" | "run_complete" | "stderr" | "stdout";
+	createdAt: string;
+	eventId?: string;
+	runId?: string;
+	flowName?: string;
+	stepName?: string;
+	runner?: string;
+	status?: FlowEffectiveStatus;
+	text?: string;
+};
+
+export type FlowProgressSink = (event: FlowProgressEvent) => void;
+
 export type FlowOutputView = {
 	kind: string;
 	text: string;

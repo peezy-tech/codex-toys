@@ -1,6 +1,7 @@
 import { codexFlowsCodeModeEnabled } from "@peezy.tech/codex-flows";
 import { runBunStep } from "./runners/bun.ts";
 import { runCodeModeStep, type RunCodeModeStepOptions } from "./runners/code-mode.ts";
+import type { FlowProgressSink } from "./client-types.ts";
 import type {
 	FlowEvent,
 	FlowResult,
@@ -16,6 +17,7 @@ export type RunFlowStepOptions = {
 	env?: Record<string, string | undefined>;
 	runtime?: FlowRunRuntimeInput;
 	codeMode?: Pick<RunCodeModeStepOptions, "codexCommand" | "codexHome" | "stream">;
+	progress?: FlowProgressSink;
 };
 
 export async function runFlowStep(options: RunFlowStepOptions): Promise<FlowResult> {
@@ -32,6 +34,7 @@ export async function runFlowStep(options: RunFlowStepOptions): Promise<FlowResu
 		step: options.step,
 		event: options.event,
 		...options.codeMode,
+		progress: options.progress,
 	});
 }
 
