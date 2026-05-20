@@ -546,7 +546,25 @@ async function rebuildMainFromBase(baseRef, baseSha, beforeSha) {
       }
       finish("needs_intervention", "Patch workspace rebuild paused on " + patch.name + ".", context);
     }
-    applied.push(patch);
+    const appliedSha = await run("resolve rebuilt " + patch.name, "git rev-parse --verify HEAD", {
+      max_output_tokens: 4000
+    });
+    if (!ok(appliedSha)) {
+      finish("failed", "Could not resolve rebuilt patch commit for " + patch.name + ".", {
+        patch,
+        appliedShaOutput: appliedSha.output
+      });
+    }
+    const refreshed = await run("refresh patch branch " + patch.name, "git branch -f " + q(patch.name) + " HEAD", {
+      max_output_tokens: 12000
+    });
+    if (!ok(refreshed)) {
+      finish("failed", "Could not refresh patch branch " + patch.name + " after cherry-pick.", {
+        patch,
+        refreshOutput: refreshed.output
+      });
+    }
+    applied.push({ ...patch, sha: trim(appliedSha.output) });
   }
 
   const afterHead = await run("rebuilt head", "git rev-parse HEAD", { max_output_tokens: 4000 });
@@ -645,7 +663,7 @@ async function rebuildResultFromIntervention(input) {
     beforeSha: input.beforeSha,
     afterSha,
     rebuiltSha: afterSha,
-    applied: input.patches,
+    applied: await listPatchBranches(),
     interventionTurn: turn
   };
 }
