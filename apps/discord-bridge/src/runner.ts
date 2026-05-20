@@ -1880,10 +1880,7 @@ function permissionProfileLabel(
 	if (!permissions) {
 		return "default";
 	}
-	if (typeof permissions === "object" && "id" in permissions) {
-		return String(permissions.id);
-	}
-	return "custom";
+	return permissions;
 }
 
 function turnStatus(

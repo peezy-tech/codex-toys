@@ -20,7 +20,7 @@ export type DiscordBridgeConfig = {
 	summary?: ReasoningSummary;
 	approvalPolicy?: v2.AskForApproval;
 	sandbox?: v2.SandboxMode;
-	permissions?: v2.PermissionProfileSelectionParams;
+	permissions?: v2.ThreadStartParams["permissions"];
 	typingIntervalMs?: number;
 	reconcileIntervalMs?: number;
 	hookSpoolDir?: string;

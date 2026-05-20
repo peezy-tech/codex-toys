@@ -167,9 +167,7 @@ export function parseConfig(argv: string[], env: NodeJS.ProcessEnv): ParsedConfi
 			logLevel,
 			approvalPolicy,
 			sandbox,
-			permissions: permissionsProfile
-				? { type: "profile", id: permissionsProfile }
-				: undefined,
+			permissions: permissionsProfile,
 			hookSpoolDir: resolveHomeDir(
 				stringFlag(args, "hook-spool-dir") ??
 					env.CODEX_DISCORD_HOOK_SPOOL_DIR,
