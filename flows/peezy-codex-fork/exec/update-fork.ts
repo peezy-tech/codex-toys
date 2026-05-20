@@ -119,6 +119,31 @@ function versionFromTag(tag) {
   return match ? match[0] : "";
 }
 
+export function upstreamReleaseTagRef(tagName: string) {
+  return "refs/codex-flow/upstream-release-tags/" + tagName;
+}
+
+export function parseRemoteTagRef(output: string, tagName: string) {
+  const tagRef = "refs/tags/" + tagName;
+  let objectSha = "";
+  let commitSha = "";
+  for (const line of String(output || "").split(/\r?\n/)) {
+    const [sha, ref] = line.trim().split(/\s+/);
+    if (!sha || !ref) {
+      continue;
+    }
+    if (ref === tagRef) {
+      objectSha = sha;
+      if (!commitSha) {
+        commitSha = sha;
+      }
+    } else if (ref === tagRef + "^{}") {
+      commitSha = sha;
+    }
+  }
+  return objectSha ? { objectSha, commitSha } : undefined;
+}
+
 async function env(name) {
   return name ? trim(process.env[name] ?? "") : "";
 }
@@ -400,7 +425,7 @@ async function ensureUpstreamRemote() {
 
 async function fetchUpstreamMainAndTags() {
   const refspec = "+refs/heads/" + upstreamMainRef + ":refs/remotes/" + upstreamRemote + "/" + upstreamMainRef;
-  const tagRefspec = releaseTag ? " " + q("+refs/tags/" + releaseTag + ":refs/tags/" + releaseTag) : "";
+  const tagRefspec = releaseTag ? " " + q("+refs/tags/" + releaseTag + ":" + upstreamReleaseTagRef(releaseTag)) : "";
   const fetch = await run(
     releaseTag ? "fetch upstream main and release tag" : "fetch upstream main",
     "git fetch " + q(upstreamRemote) + " --no-tags --prune " + q(refspec) + tagRefspec,
@@ -446,14 +471,16 @@ async function fetchUpstreamMainAndTags() {
 }
 
 async function resolveReleaseBase() {
+  const releaseRef = upstreamReleaseTagRef(releaseTag);
   const release = await run(
     "resolve release tag",
-    "git rev-parse --verify " + q("refs/tags/" + releaseTag + "^{commit}"),
+    "git rev-parse --verify " + q(releaseRef + "^{commit}"),
     { max_output_tokens: 4000 }
   );
   if (!ok(release)) {
     finish("failed", "Could not resolve upstream release tag after fetch.", {
       releaseTag,
+      releaseRef,
       resolveOutput: release.output
     });
   }
@@ -859,29 +886,56 @@ async function maybePushTargetBranch(afterSha) {
   return true;
 }
 
-async function maybePublishReleaseTag() {
+async function maybePublishReleaseTag(afterSha) {
   if (!enabled("publish", false)) {
-    return false;
+    return undefined;
   }
   const tagName = "rust-v" + version;
-  const existing = await run("check release tag", "git rev-parse --verify " + q("refs/tags/" + tagName), {
-    max_output_tokens: 4000
+  const remote = await run("check remote release tag", "git ls-remote --tags origin " + q("refs/tags/" + tagName), {
+    max_output_tokens: 12000
   });
-  if (existing.exit_code !== 0) {
-    const tag = await run("create release tag", "git tag -a " + q(tagName) + " -m " + q("Release " + version), {
-      max_output_tokens: 12000
-    });
-    if (!ok(tag)) {
-      finish("failed", "Could not create release tag.", { tagOutput: tag.output });
-    }
+  if (!ok(remote)) {
+    finish("failed", "Could not check remote release tag.", { remoteTagOutput: remote.output });
   }
-  const pushTag = await run("push release tag", "git push origin " + q(tagName), {
+  const remoteTag = parseRemoteTagRef(remote.output, tagName);
+  if (remoteTag && remoteTag.commitSha !== afterSha) {
+    process.stderr.write(
+      "Release tag " + tagName + " currently points at " + remoteTag.commitSha +
+      " on origin; updating it to rebuilt fork commit " + afterSha + ".\n"
+    );
+  }
+
+  const tag = await run(
+    "create release tag",
+    "git tag -f -a " + q(tagName) + " " + q(afterSha) + " -m " + q("Release " + version),
+    { max_output_tokens: 12000 }
+  );
+  if (!ok(tag)) {
+    finish("failed", "Could not create release tag.", { tagOutput: tag.output });
+  }
+
+  const pushCommand = remoteTag
+    ? "git push origin --force-with-lease=" + q("refs/tags/" + tagName + ":" + remoteTag.objectSha) + " " + q("refs/tags/" + tagName + ":refs/tags/" + tagName)
+    : "git push origin " + q("refs/tags/" + tagName + ":refs/tags/" + tagName);
+  const pushTag = await run("push release tag", pushCommand, {
     max_output_tokens: 20000
   });
   if (!ok(pushTag)) {
-    finish("failed", "Could not push release tag.", { pushTagOutput: pushTag.output });
+    finish("failed", "Could not push release tag.", {
+      tagName,
+      afterSha,
+      remoteTag,
+      pushTagOutput: pushTag.output
+    });
   }
-  return true;
+  return {
+    tagName,
+    ref: "refs/tags/" + tagName,
+    sha: afterSha,
+    pushed: true,
+    previousRemoteSha: remoteTag?.commitSha,
+    previousRemoteObjectSha: remoteTag?.objectSha
+  };
 }
 
 function candidateRef(afterSha, pushed) {
@@ -892,6 +946,17 @@ function candidateRef(afterSha, pushed) {
     ref: "refs/heads/" + targetBranch,
     sha: afterSha,
     pushed
+  };
+}
+
+function releaseCandidateRef(tagPublish) {
+  return {
+    kind: "tag",
+    repo: "peezy-tech/codex",
+    remote: tagPublish.pushed ? "origin" : "local",
+    ref: tagPublish.ref,
+    sha: tagPublish.sha,
+    pushed: tagPublish.pushed
   };
 }
 
@@ -987,7 +1052,12 @@ async function runFlow(): Promise<FlowResult> {
     ? await verifyReleaseCandidate(rebuild)
     : await verifyBranchUpdateCandidate(rebuild).then(() => ({}));
   const pushed = await maybePushTargetBranch(rebuild.afterSha);
-  const published = eventType === "upstream.release" ? await maybePublishReleaseTag() : false;
+  const tagPublish = eventType === "upstream.release" ? await maybePublishReleaseTag(rebuild.afterSha) : undefined;
+  const published = Boolean(tagPublish);
+  const candidateRefs = [candidateRef(rebuild.afterSha, pushed)];
+  if (tagPublish) {
+    candidateRefs.push(releaseCandidateRef(tagPublish));
+  }
   const finalStatus = await run("final codex status", "git status --short --branch", { max_output_tokens: 12000 });
   const status = rebuild.changed ? "changed" : "completed";
   finish(
@@ -1006,7 +1076,8 @@ async function runFlow(): Promise<FlowResult> {
       finalStatus: finalStatus.output,
       pushed,
       published,
-      candidateRefs: [candidateRef(rebuild.afterSha, pushed)],
+      releaseTagPublish: tagPublish,
+      candidateRefs,
       ...verificationArtifacts
     }
   );

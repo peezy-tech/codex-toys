@@ -17,6 +17,11 @@ import {
 import { codeModeEnabled } from "../src/run.ts";
 import type { FlowEvent } from "../src/index.ts";
 
+type CodexForkFlowHelpers = {
+	parseRemoteTagRef(output: string, tagName: string): { objectSha: string; commitSha: string } | undefined;
+	upstreamReleaseTagRef(tagName: string): string;
+};
+
 test("discovers installed flows before source flows", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
 	try {
@@ -165,6 +170,46 @@ test("bundled Codex fork Bun step returns FLOW_RESULT without Code Mode", async 
 		message: "Ignoring upstream event for example/other.",
 	});
 });
+
+test("Codex fork flow stores upstream release tags outside local release tags", async () => {
+	const { upstreamReleaseTagRef } = await codexForkFlowHelpers();
+
+	expect(upstreamReleaseTagRef("rust-v1.2.3")).toBe("refs/codex-flow/upstream-release-tags/rust-v1.2.3");
+});
+
+test("Codex fork flow parses remote release tag refs", async () => {
+	const { parseRemoteTagRef } = await codexForkFlowHelpers();
+
+	expect(parseRemoteTagRef([
+		"1111111111111111111111111111111111111111\trefs/tags/rust-v1.2.3",
+		"2222222222222222222222222222222222222222\trefs/tags/rust-v1.2.3^{}",
+	].join("\n"), "rust-v1.2.3")).toEqual({
+		objectSha: "1111111111111111111111111111111111111111",
+		commitSha: "2222222222222222222222222222222222222222",
+	});
+
+	expect(parseRemoteTagRef(
+		"3333333333333333333333333333333333333333\trefs/tags/rust-v1.2.3\n",
+		"rust-v1.2.3",
+	)).toEqual({
+		objectSha: "3333333333333333333333333333333333333333",
+		commitSha: "3333333333333333333333333333333333333333",
+	});
+});
+
+async function codexForkFlowHelpers(): Promise<CodexForkFlowHelpers> {
+	const modulePath = pathToFileURL(path.resolve(
+		import.meta.dir,
+		"..",
+		"..",
+		"..",
+		"flows",
+		"peezy-codex-fork",
+		"exec",
+		"update-fork.ts",
+	)).href;
+	return await import(modulePath) as CodexForkFlowHelpers;
+}
 
 test("CODEX_FLOWS_MODE=code-mode enables Code Mode flow steps", () => {
 	expect(codeModeEnabled({})).toBe(false);
