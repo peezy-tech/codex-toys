@@ -18,9 +18,6 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - name: Consume full CI label
-        run: node scripts/ci/consume-pr-label.mjs ci:run-full
-
       - name: Checkout approved PR head
         uses: actions/checkout@v4
         with:
