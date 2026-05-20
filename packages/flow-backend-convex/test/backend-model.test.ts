@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vite-plus/test";
 import {
 	acceptedDispatchResult,
 	duplicateDispatchResult,
@@ -31,7 +31,7 @@ test("matches synced manifest steps by event type", () => {
 				steps: [
 					{
 						name: "generate",
-						runner: "bun",
+						runner: "node",
 						script: "exec/generate.ts",
 						timeoutMs: 1000,
 						trigger: { type: "pet-game.player_asset_generation.requested" },

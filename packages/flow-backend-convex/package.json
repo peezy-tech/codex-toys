@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/flow-backend-convex",
-	"version": "0.4.1",
+	"version": "0.132.1",
 	"description": "Reusable Convex component for durable codex-flow event, run, lease, and result state.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -43,20 +43,19 @@
 		}
 	},
 	"scripts": {
-		"build": "bun run --filter @peezy.tech/codex-flows build && bun run clean && tsc -p tsconfig.build.json",
+		"build": "vp run --filter @peezy.tech/codex-flows build && vp run clean && tsc -p tsconfig.build.json",
 		"check:types": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"pack:dry-run": "npm pack --dry-run --json",
-		"prepack": "bun run build",
-		"release:check": "bun run test && bun run check:types && bun run build && bun run pack:dry-run",
-		"test": "bun test test/*.test.ts"
+		"prepack": "vp run build",
+		"release:check": "vp run test && vp run check:types && vp run build && vp run pack:dry-run",
+		"test": "vp test run --root ../.. packages/flow-backend-convex/test"
 	},
 	"dependencies": {
-		"@peezy.tech/codex-flows": "^0.132.0",
+		"@peezy.tech/codex-flows": "workspace:*",
 		"convex": "^1.38.0"
 	},
 	"devDependencies": {
-		"@types/bun": "catalog:",
 		"@types/node": "catalog:",
 		"typescript": "catalog:"
 	}

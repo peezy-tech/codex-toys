@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "bun";
+import { spawn } from "node:child_process";
 import { discoverWorkspaceRoot } from "./workspace-autonomy.ts";
 
 export type MemoryTransplantDirection = "global-to-workspace" | "workspace-to-global";
@@ -221,15 +221,11 @@ async function mergeMemoryFile(sourcePath: string, destinationPath: string): Pro
 		"--- source ---",
 		source,
 	].join("\n");
-	const proc = spawn({
-		cmd: [process.env.CODEX_APP_SERVER_CODEX_COMMAND ?? "codex", "exec", prompt],
-		stdout: "pipe",
-		stderr: "pipe",
-	});
+	const proc = spawn(process.env.CODEX_APP_SERVER_CODEX_COMMAND ?? "codex", ["exec", prompt]);
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
 	if (exitCode !== 0) {
 		throw new Error(`Codex memory merge failed (${exitCode}): ${stderr || stdout}`);
@@ -244,6 +240,29 @@ async function exists(file: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		if (!stream) {
+			resolve(output);
+			return;
+		}
+		stream.setEncoding("utf8");
+		stream.on("data", (chunk: string) => {
+			output += chunk;
+		});
+		stream.once("error", reject);
+		stream.once("end", () => resolve(output));
+	});
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }
 
 function backupPath(file: string): string {

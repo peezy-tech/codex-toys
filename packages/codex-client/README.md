@@ -4,7 +4,7 @@ Codex app-server client APIs, workspace backend helpers, flow tooling, and
 runnable local backend CLIs.
 
 ```bash
-bun add @peezy.tech/codex-flows
+pnpm add @peezy.tech/codex-flows
 ```
 
 or:
@@ -27,7 +27,7 @@ Full documentation lives in the repo docs site:
 
 | Export | Purpose |
 |--------|---------|
-| `@peezy.tech/codex-flows` | Node/Bun app-server client, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
+| `@peezy.tech/codex-flows` | Node app-server client, event emitter base, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
 | `@peezy.tech/codex-flows/browser` | Browser-safe app-server client and WebSocket transport. |
 | `@peezy.tech/codex-flows/flows` | Helpers for starting Codex-backed flow work. |
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |
@@ -35,7 +35,7 @@ Full documentation lives in the repo docs site:
 | `@peezy.tech/codex-flows/threads` | Raw Codex rollout locate, inspect, install, and transplant helpers. |
 | `@peezy.tech/codex-flows/workspace-backend` | Workspace backend protocol server/client helpers and capability primitives. |
 | `@peezy.tech/codex-flows/flow-runtime` | Flow package discovery, trigger matching, local execution, and flow result helpers. |
-| `@peezy.tech/codex-flows/flow-runtime/*` | Flow runtime client, local-client, backend-client, Bun helper, and runner subpaths. |
+| `@peezy.tech/codex-flows/flow-runtime/*` | Flow runtime client, local-client, backend-client, Node helper, and runner subpaths. |
 | `@peezy.tech/codex-flows/rpc` | JSON-RPC message types and parsing helpers. |
 | `@peezy.tech/codex-flows/generated` | Generated Codex app-server protocol types. |
 | `@peezy.tech/codex-flows/generated/*` | Generated per-type modules. |
@@ -163,11 +163,11 @@ being bundled into the core package.
 ## Development Scripts
 
 ```bash
-bun run --filter @peezy.tech/codex-flows build
-bun run --filter @peezy.tech/codex-flows check:types
-bun run --filter @peezy.tech/codex-flows test
-bun run --filter @peezy.tech/codex-flows pack:dry-run
-bun run --filter @peezy.tech/codex-flows release:check
+vp run --filter @peezy.tech/codex-flows build
+vp run --filter @peezy.tech/codex-flows check:types
+vp run --filter @peezy.tech/codex-flows test
+vp run --filter @peezy.tech/codex-flows pack:dry-run
+vp run --filter @peezy.tech/codex-flows release:check
 ```
 
 `build` emits ESM JavaScript, source maps, and declaration files into `dist`.

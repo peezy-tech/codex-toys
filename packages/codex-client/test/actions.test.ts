@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -138,7 +138,7 @@ async function writeSmokeFlow(root: string): Promise<void> {
 			"",
 			"[[steps]]",
 			'name = "smoke"',
-			'runner = "bun"',
+			'runner = "node"',
 			'script = "exec/smoke.ts"',
 			"timeout_ms = 30000",
 			"",
@@ -150,13 +150,18 @@ async function writeSmokeFlow(root: string): Promise<void> {
 	await writeFile(
 		path.join(flowRoot, "exec", "smoke.ts"),
 		[
-			"const context = JSON.parse(await Bun.stdin.text());",
-			"const name = context.flow.event.payload.name;",
-			"console.log('FLOW_RESULT ' + JSON.stringify({",
-			"  status: 'completed',",
-			"  message: `actions smoke ${name}`,",
-			"  artifacts: { codexHome: process.env.CODEX_HOME },",
-			"}));",
+			"async function main() {",
+			"  const chunks = [];",
+			"  for await (const chunk of process.stdin) chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);",
+			"  const context = JSON.parse(Buffer.concat(chunks).toString('utf8'));",
+			"  const name = context.flow.event.payload.name;",
+			"  console.log('FLOW_RESULT ' + JSON.stringify({",
+			"    status: 'completed',",
+			"    message: `actions smoke ${name}`,",
+			"    artifacts: { codexHome: process.env.CODEX_HOME },",
+			"  }));",
+			"}",
+			"void main();",
 			"",
 		].join("\n"),
 	);

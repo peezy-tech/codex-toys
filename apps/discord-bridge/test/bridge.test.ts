@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
 import type { JsonRpcNotification, JsonRpcRequest } from "@peezy.tech/codex-flows/rpc";
 import type { v2 } from "@peezy.tech/codex-flows/generated";
 import type { FlowBackendClient } from "@peezy.tech/codex-flows/flow-runtime/backend-client";
@@ -3313,7 +3313,7 @@ describe("DiscordCodexBridge", () => {
 				item: {
 					type: "commandExecution",
 					id: "command-1",
-					command: "bun test test/*.test.ts",
+					command: "vp test test/*.test.ts",
 					cwd: "/workspace",
 					processId: "process-1",
 					source: "agent",
@@ -3336,7 +3336,7 @@ describe("DiscordCodexBridge", () => {
 		expect(statusText).toContain("- `completed` Inspect current bridge");
 		expect(statusText).toContain("- `inProgress` Implement pinned status");
 		expect(statusText).toContain("**Running Commands**\nnone");
-		expect(statusText).not.toContain("bun test test/*.test.ts");
+		expect(statusText).not.toContain("vp test test/*.test.ts");
 
 		now = new Date("2026-05-11T00:00:05.000Z");
 		client.emitNotification({
@@ -3349,10 +3349,10 @@ describe("DiscordCodexBridge", () => {
 			},
 		});
 		await waitFor(() =>
-			statusMessageText(transport).includes("bun test test/*.test.ts")
+			statusMessageText(transport).includes("vp test test/*.test.ts")
 		);
 		statusText = statusMessageText(transport);
-		expect(statusText).toContain("- `bun test test/*.test.ts`");
+		expect(statusText).toContain("- `vp test test/*.test.ts`");
 
 		client.emitNotification({
 			method: "item/completed",
@@ -3362,7 +3362,7 @@ describe("DiscordCodexBridge", () => {
 				item: {
 					type: "commandExecution",
 					id: "command-1",
-					command: "bun test test/*.test.ts",
+					command: "vp test test/*.test.ts",
 					cwd: "/workspace",
 					processId: "process-1",
 					source: "agent",
@@ -3374,7 +3374,7 @@ describe("DiscordCodexBridge", () => {
 				},
 			},
 		});
-		await waitFor(() => !statusMessageText(transport).includes("bun test"));
+		await waitFor(() => !statusMessageText(transport).includes("vp test"));
 		statusText = statusMessageText(transport);
 		expect(statusText).toContain("**Running Commands**\nnone");
 

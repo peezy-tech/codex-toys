@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -214,7 +214,7 @@ function replayCommand(options: {
 	timeoutMs: number;
 }) {
 	const command = [
-		"bun",
+		"tsx",
 		shellQuote(options.cliPath),
 		"--url",
 		"stdio://",
@@ -602,14 +602,14 @@ function printHelp() {
 			"Run a saved Code Mode candidate in a new Codex thread without starting a model turn.",
 			"",
 			"Usage:",
-			"  bun scripts/run-code-mode-in-new-thread.ts <candidate.mjs> [options]",
+			"  tsx scripts/run-code-mode-in-new-thread.ts <candidate.mjs> [options]",
 			"",
 			"Options:",
 			"  --cwd <dir>                 Thread cwd. Defaults to candidate sidecar cwd, then process cwd.",
 			"  --codex-command <path>      Codex binary for both app-server and replay.",
 			"                              Defaults to CODEX_APP_SERVER_CODEX_COMMAND.",
 			"                              With CODEX_FLOWS_MODE=code-mode, falls back to",
-			"                              bunx @peezy.tech/codex.",
+			"                              vp dlx @peezy.tech/codex.",
 			"  --codex-home <dir>          CODEX_HOME for the spawned app-server, useful for prepared MCP config.",
 			"  --native                   Use native thread/codeMode/execute replay. This is the default.",
 			"  --shim                     Use the older TypeScript shell-command shim fallback.",

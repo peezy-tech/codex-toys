@@ -1,3 +1,4 @@
+import http from "node:http";
 import path from "node:path";
 import type { FlowBackendConfig } from "./config.ts";
 import { dispatchFlowEvent, normalizeFlowEvent, replayFlowEvent } from "./backend.ts";
@@ -145,15 +146,82 @@ export class WorkspaceFlowCapability {
 	}
 }
 
-export function serveFlowBackend(config: FlowBackendConfig): ReturnType<typeof Bun.serve> {
+export function serveFlowBackend(config: FlowBackendConfig): http.Server {
 	const flow = new WorkspaceFlowCapability({ config });
-	return Bun.serve({
-		hostname: config.host,
-		port: config.port,
-		async fetch(request) {
-			return await flow.handleHttp(request) ?? json({ error: "not found" }, 404);
-		},
+	const server = http.createServer((request, response) => {
+		void handleNodeHttpRequest(request, response, config, async (webRequest) =>
+			await flow.handleHttp(webRequest) ?? json({ error: "not found" }, 404),
+		);
 	});
+	server.listen(config.port, config.host);
+	server.once("close", () => flow.close());
+	return server;
+}
+
+export async function handleNodeHttpRequest(
+	request: http.IncomingMessage,
+	response: http.ServerResponse,
+	config: Pick<FlowBackendConfig, "host" | "port">,
+	handler: (request: Request) => Promise<Response>,
+): Promise<void> {
+	try {
+		const webResponse = await handler(await toWebRequest(request, config));
+		await writeWebResponse(response, webResponse);
+	} catch (error) {
+		await writeWebResponse(response, json({
+			error: error instanceof Error ? error.message : String(error),
+		}, 500));
+	}
+}
+
+async function toWebRequest(
+	request: http.IncomingMessage,
+	config: Pick<FlowBackendConfig, "host" | "port">,
+): Promise<Request> {
+	const host = request.headers.host ?? `${config.host}:${config.port}`;
+	const url = new URL(request.url ?? "/", `http://${host}`);
+	const body = request.method === "GET" || request.method === "HEAD"
+		? undefined
+		: await collectBody(request);
+	return new Request(url, {
+		method: request.method,
+		headers: nodeHeaders(request.headers),
+		body,
+	});
+}
+
+async function writeWebResponse(
+	response: http.ServerResponse,
+	webResponse: Response,
+): Promise<void> {
+	response.statusCode = webResponse.status;
+	for (const [name, value] of webResponse.headers) {
+		response.setHeader(name, value);
+	}
+	const body = Buffer.from(await webResponse.arrayBuffer());
+	response.end(body);
+}
+
+function nodeHeaders(headers: http.IncomingHttpHeaders): Headers {
+	const result = new Headers();
+	for (const [name, value] of Object.entries(headers)) {
+		if (Array.isArray(value)) {
+			for (const entry of value) {
+				result.append(name, entry);
+			}
+		} else if (value !== undefined) {
+			result.set(name, value);
+		}
+	}
+	return result;
+}
+
+async function collectBody(request: http.IncomingMessage): Promise<Buffer> {
+	const chunks: Buffer[] = [];
+	for await (const chunk of request) {
+		chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+	}
+	return Buffer.concat(chunks);
 }
 
 function validSignature(config: FlowBackendConfig, body: string, headers: Headers): boolean {

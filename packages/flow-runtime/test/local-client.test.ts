@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { expect, test } from "vite-plus/test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createLocalFlowClient } from "../src/local-client.ts";
@@ -88,7 +88,7 @@ test("local memory state dedupes normal dispatch and replays new attempts", asyn
 		expect(replay.status).toBe("accepted");
 		expect(replay.runIds).toHaveLength(1);
 		expect(replay.runIds[0]).not.toBe(first.runIds[0]);
-		expect(replay.runIds[0]).toEndWith("_replay");
+		expect(replay.runIds[0]?.endsWith("_replay")).toBe(true);
 
 		const eventView = await client.getEvent("event-1");
 		expect(eventView.runIds).toEqual([...first.runIds, ...replay.runIds]);
@@ -132,7 +132,7 @@ test("local file state persists events and runs across client instances", async 
 		});
 
 		const replay = await secondClient.replayEvent("event-1");
-		expect(replay.runIds[0]).toEndWith("_replay");
+		expect(replay.runIds[0]?.endsWith("_replay")).toBe(true);
 
 		const thirdClient = createLocalFlowClient({
 			cwd: directory,
@@ -172,7 +172,7 @@ test("local client marks semantic attention statuses from FLOW_RESULT", async ()
   }
 });
 
-test("local client emits run progress and streams Bun stderr", async () => {
+test("local client emits run progress and streams Node stderr", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-local-client-"));
 	try {
 		await writeFlow(directory, "flows/demo", "demo");
@@ -260,12 +260,12 @@ async function writeFlow(
 	root: string,
 	relative: string,
 	label: string,
-	runner: "bun" | "code-mode" = "bun",
+	runner: "node" | "code-mode" = "node",
 ): Promise<void> {
 	const flowRoot = path.join(root, relative);
 	await mkdir(path.join(flowRoot, "exec"), { recursive: true });
 	await mkdir(path.join(flowRoot, "schemas"), { recursive: true });
-	await Bun.write(
+	await writeFile(
 		path.join(flowRoot, "flow.toml"),
 		[
 			'name = "demo"',
@@ -284,7 +284,7 @@ async function writeFlow(
 			"",
 		].join("\n"),
 	);
-	await Bun.write(
+	await writeFile(
 		path.join(flowRoot, "schemas/demo-event.schema.json"),
 		JSON.stringify({
 			type: "object",
@@ -296,16 +296,21 @@ async function writeFlow(
 			},
 		}),
 	);
-	await Bun.write(
-		path.join(flowRoot, "exec/hello.ts"),
-		[
-			"const context = JSON.parse(await Bun.stdin.text());",
-			"const payload = context.flow.event.payload;",
-			`const label = ${JSON.stringify(label)};`,
-			"const status = payload.status ?? 'completed';",
-			"if (payload.stderr) process.stderr.write(payload.stderr);",
-			"console.log(`FLOW_RESULT ${JSON.stringify({ status, message: `${label} ${payload.name}` })}`);",
-			"",
-		].join("\n"),
-	);
-}
+		await writeFile(
+			path.join(flowRoot, "exec/hello.ts"),
+			[
+				"async function main() {",
+				"  const chunks = [];",
+				"  for await (const chunk of process.stdin) chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);",
+				"  const context = JSON.parse(Buffer.concat(chunks).toString('utf8'));",
+				"  const payload = context.flow.event.payload;",
+				`  const label = ${JSON.stringify(label)};`,
+				"  const status = payload.status ?? 'completed';",
+				"  if (payload.stderr) process.stderr.write(payload.stderr);",
+				"  console.log(`FLOW_RESULT ${JSON.stringify({ status, message: `${label} ${payload.name}` })}`);",
+				"}",
+				"void main();",
+				"",
+			].join("\n"),
+		);
+	}

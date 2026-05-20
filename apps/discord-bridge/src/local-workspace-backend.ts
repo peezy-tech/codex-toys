@@ -154,7 +154,7 @@ export class LocalCodexWorkspaceBackend implements CodexWorkspaceBackend {
 	#logger: DiscordBridgeLogger;
 	#consoleOutput: DiscordConsoleOutput | undefined;
 	#workspaceStopHookWatcher: FSWatcher | undefined;
-	#workspaceStopHookDrainTimer: Timer | undefined;
+	#workspaceStopHookDrainTimer: ReturnType<typeof setTimeout> | undefined;
 	#workspaceStopHookDrainChain: Promise<void> = Promise.resolve();
 	#flowBackendClient: FlowBackendClient | undefined;
 	#transportStarted = false;

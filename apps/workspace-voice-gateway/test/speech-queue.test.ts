@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { SpeechQueue } from "../src/speech-queue.ts";
 import type { Logger, Speaker } from "../src/types.ts";

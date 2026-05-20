@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export type FlowBackendExecutor = "direct" | "systemd-run";
 
@@ -9,7 +10,7 @@ export type FlowBackendConfig = {
 	port: number;
 	secret?: string;
 	executor: FlowBackendExecutor;
-	bunCommand: string;
+	nodeCommand: string;
 	flowRunnerPath: string;
 	forwardEnv: string[];
 	workspaceBackendUrl?: string;
@@ -40,7 +41,7 @@ export function readConfig(
 			? { secret: overrides.secret ?? env.CODEX_FLOW_BACKEND_SECRET }
 			: {}),
 		executor: overrides.executor ?? executorEnv(env.CODEX_FLOW_BACKEND_EXECUTOR),
-		bunCommand: overrides.bunCommand ?? env.CODEX_FLOW_BACKEND_BUN ?? process.execPath,
+		nodeCommand: overrides.nodeCommand ?? env.CODEX_FLOW_BACKEND_NODE ?? process.execPath,
 		flowRunnerPath: path.resolve(
 			overrides.flowRunnerPath ?? env.CODEX_FLOW_RUNNER_PATH ?? defaultFlowRunnerPath(),
 		),
@@ -63,7 +64,7 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 	let port: number | undefined;
 	let secret: string | undefined;
 	let executor: FlowBackendExecutor | undefined;
-	let bunCommand: string | undefined;
+	let nodeCommand: string | undefined;
 	let flowRunnerPath: string | undefined;
 	let workspaceBackendUrl: string | undefined;
 	let wait = false;
@@ -103,8 +104,8 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 			executor = executorEnv(required(rest, ++index, arg));
 			continue;
 		}
-		if (arg === "--bun") {
-			bunCommand = required(rest, ++index, arg);
+		if (arg === "--node") {
+			nodeCommand = required(rest, ++index, arg);
 			continue;
 		}
 		if (arg === "--flow-runner") {
@@ -185,7 +186,7 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 		...(port !== undefined ? { port } : {}),
 		...(secret ? { secret } : {}),
 		...(executor ? { executor } : {}),
-		...(bunCommand ? { bunCommand } : {}),
+		...(nodeCommand ? { nodeCommand } : {}),
 		...(flowRunnerPath ? { flowRunnerPath } : {}),
 		...(workspaceBackendUrl ? { workspaceBackendUrl } : {}),
 	});
@@ -217,7 +218,15 @@ export function parseCli(argv: string[], env: Record<string, string | undefined>
 }
 
 export function defaultFlowRunnerPath(): string {
-	return path.resolve(import.meta.dir, "..", "..", "..", "flow-runner", "src", "index.ts");
+	return path.resolve(
+		path.dirname(fileURLToPath(import.meta.url)),
+		"..",
+		"..",
+		"..",
+		"flow-runner",
+		"src",
+		"index.ts",
+	);
 }
 
 export function helpText(): string {
@@ -271,7 +280,7 @@ function forwardEnv(value: string | undefined): string[] {
 		"CODEX_FLOW_SQUASH_PATCH_STACK",
 		"CODEX_APP_SERVER_CODEX_COMMAND",
 		"CODEX_APP_SERVER_CODEX_PACKAGE",
-		"CODEX_APP_SERVER_BUNX_COMMAND",
+		"CODEX_APP_SERVER_DLX_COMMAND",
 		"CODEX_FLOW_ATTEMPT_ID",
 		"CODEX_HOME",
 		"CODEX_FLOW_EVENT_ID",

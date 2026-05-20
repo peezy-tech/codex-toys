@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -79,7 +79,7 @@ home_channel_id = "1"
 id = "daily"
 enabled = true
 kind = "command"
-command = ["bun", "--version"]
+command = ["node", "--version"]
 schedule = "* * * * *"
 
 [[workspace.tasks]]
@@ -119,7 +119,7 @@ name = "demo"
 id = "hello"
 enabled = true
 kind = "command"
-command = ["bun", "-e", "console.log('hello')"]
+command = ["node", "-e", "console.log('hello')"]
 `);
 		const context = await createWorkspaceContext({
 			workspaceRoot: root,
@@ -265,7 +265,7 @@ name = "demo"
 id = "disabled"
 enabled = false
 kind = "command"
-command = ["bun", "--version"]
+command = ["node", "--version"]
 `);
 		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
 		const run = await runWorkspaceTaskById(context, "disabled", {
@@ -286,7 +286,7 @@ name = "demo"
 id = "watched"
 enabled = true
 kind = "command"
-command = ["bun", "--version"]
+command = ["node", "--version"]
 
 [[workspace.reactive]]
 id = "repair"
@@ -327,7 +327,7 @@ name = "demo"
 [[workspace.tasks]]
 id = "bad id"
 kind = "command"
-command = ["bun", "--version"]
+command = ["node", "--version"]
 schedule = "not-cron"
 `);
 		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
@@ -351,7 +351,7 @@ name = "demo"
 [[workspace.tasks]]
 id = "bad-schedule"
 kind = "command"
-command = ["bun", "--version"]
+command = ["node", "--version"]
 schedule = "not-cron"
 `);
 		await expect(loadWorkspaceConfig(await createWorkspaceContext({ workspaceRoot: badSchedule, mode: "local", env: {} })))

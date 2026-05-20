@@ -1,5 +1,7 @@
-import { chmod, mkdir, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { chmod, mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 type BinBuild = {
 	name: string;
@@ -7,8 +9,9 @@ type BinBuild = {
 	external?: string[];
 };
 
-const repoRoot = path.resolve(import.meta.dir, "../../..");
-const packageRoot = path.resolve(import.meta.dir, "..");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "../../..");
+const packageRoot = path.resolve(__dirname, "..");
 const outDir = path.join(packageRoot, "dist", "bin");
 
 const selfExternals = ["@peezy.tech/codex-flows", "@peezy.tech/codex-flows/*"];
@@ -36,26 +39,27 @@ await mkdir(outDir, { recursive: true });
 
 for (const build of builds) {
 	const outfile = path.join(outDir, `${build.name}.js`);
+	const packOutDir = path.join(outDir, `.pack-${build.name}`);
 	const args = [
-		"build",
+		"pack",
 		build.entry,
-		"--target=bun",
-		"--outfile",
-		outfile,
+		"--platform=node",
+		"--format=esm",
+		"--target=node24",
+		"--out-dir",
+		packOutDir,
 	];
 	for (const external of build.external ?? []) {
-		args.push("--external", external);
+		args.push("--deps.never-bundle", external);
 	}
 
-	const proc = Bun.spawn(["bun", ...args], {
+	const proc = spawn("vp", args, {
 		cwd: repoRoot,
-		stdout: "pipe",
-		stderr: "pipe",
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
 
 	if (exitCode !== 0) {
@@ -64,6 +68,41 @@ for (const build of builds) {
 		process.exit(exitCode);
 	}
 
+	await movePackOutput(packOutDir, outfile);
+	await rm(packOutDir, { recursive: true, force: true });
 	await chmod(outfile, 0o755);
 	process.stderr.write(`built ${path.relative(packageRoot, outfile)}\n`);
+}
+
+async function movePackOutput(packDir: string, entryOutfile: string): Promise<void> {
+	await rename(path.join(packDir, "index.mjs"), entryOutfile);
+	for (const entry of await readdir(packDir, { withFileTypes: true })) {
+		if (!entry.isFile()) {
+			continue;
+		}
+		await rename(path.join(packDir, entry.name), path.join(outDir, entry.name));
+	}
+}
+
+function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		if (!stream) {
+			resolve(output);
+			return;
+		}
+		stream.setEncoding("utf8");
+		stream.on("data", (chunk: string) => {
+			output += chunk;
+		});
+		stream.once("error", reject);
+		stream.once("end", () => resolve(output));
+	});
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }

@@ -34,7 +34,7 @@ Set `CODEX_FLOW_BACKEND_EXECUTOR=systemd-run` to wrap each step in a transient
 suitable when the backend service itself is already managed by systemd.
 
 The backend passes run metadata to steps through both CLI flags and environment
-variables. Module-style Bun steps receive the same values under `ctx.runtime`,
+variables. Module-style Node steps receive the same values under `ctx.runtime`,
 including `workspaceBackendUrl`, so trusted steps can call back into the
 launching workspace backend and its app-server pass-through.
 

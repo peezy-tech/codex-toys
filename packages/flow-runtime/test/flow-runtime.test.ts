@@ -1,15 +1,15 @@
-import { expect, test } from "bun:test";
-import { mkdtemp, rm, mkdir } from "node:fs/promises";
+import { expect, test } from "vite-plus/test";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
 	discoverFlows,
 	createCodexFlowClientFromContext,
 	createWorkspaceBackendClientFromContext,
 	matchingSteps,
 	readFlowContext,
-	runBunStep,
+	runNodeStep,
 	runFlowStep,
 	validateJsonSchema,
 	workspaceBackendUrlFromContext,
@@ -21,6 +21,9 @@ type CodexForkFlowHelpers = {
 	parseRemoteTagRef(output: string, tagName: string): { objectSha: string; commitSha: string } | undefined;
 	upstreamReleaseTagRef(tagName: string): string;
 };
+
+const testDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(testDir, "..", "..", "..");
 
 test("discovers installed flows before source flows", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
@@ -59,7 +62,7 @@ test("matches flow steps by event type and payload schema", async () => {
 });
 
 test("bundled Codex release flows match one generic upstream release event", async () => {
-	const root = path.resolve(import.meta.dir, "..", "..", "..");
+	const root = repoRoot;
 	const flows = await discoverFlows({ cwd: root });
 	const event: FlowEvent = {
 		id: "event-1",
@@ -77,7 +80,7 @@ test("bundled Codex release flows match one generic upstream release event", asy
 });
 
 test("bundled Codex fork flow matches upstream main branch updates", async () => {
-	const root = path.resolve(import.meta.dir, "..", "..", "..");
+	const root = repoRoot;
 	const flows = await discoverFlows({ cwd: root });
 	const event: FlowEvent = {
 		id: "event-branch",
@@ -98,7 +101,7 @@ test("bundled Codex fork flow matches upstream main branch updates", async () =>
 });
 
 test("bundled codex-flows fork flow matches downstream Peezy releases", async () => {
-	const root = path.resolve(import.meta.dir, "..", "..", "..");
+	const root = repoRoot;
 	const flows = await discoverFlows({ cwd: root });
 	const codexRelease: FlowEvent = {
 		id: "event-codex",
@@ -133,8 +136,8 @@ test("bundled codex-flows fork flow matches downstream Peezy releases", async ()
 	})).toEqual([]);
 });
 
-test("bundled Codex fork flow uses the deterministic Bun runner", async () => {
-	const root = path.resolve(import.meta.dir, "..", "..", "..");
+test("bundled Codex fork flow uses the deterministic Node runner", async () => {
+	const root = repoRoot;
 	const flows = await discoverFlows({ cwd: root });
 	const flow = flows.find((entry) => entry.manifest.name === "peezy-codex-fork");
 	const step = flow?.manifest.steps.find((entry) => entry.name === "release-cycle");
@@ -142,12 +145,12 @@ test("bundled Codex fork flow uses the deterministic Bun runner", async () => {
 		throw new Error("expected bundled peezy-codex-fork flow");
 	}
 
-	expect(step.runner).toBe("bun");
+	expect(step.runner).toBe("node");
 	expect(step.script).toBe("exec/update-fork.ts");
 });
 
-test("bundled Codex fork Bun step returns FLOW_RESULT without Code Mode", async () => {
-	const root = path.resolve(import.meta.dir, "..", "..", "..");
+test("bundled Codex fork Node step returns FLOW_RESULT without Code Mode", async () => {
+	const root = repoRoot;
 	const flows = await discoverFlows({ cwd: root });
 	const flow = flows.find((entry) => entry.manifest.name === "peezy-codex-fork");
 	const step = flow?.manifest.steps.find((entry) => entry.name === "release-cycle");
@@ -199,7 +202,7 @@ test("Codex fork flow parses remote release tag refs", async () => {
 
 async function codexForkFlowHelpers(): Promise<CodexForkFlowHelpers> {
 	const modulePath = pathToFileURL(path.resolve(
-		import.meta.dir,
+		testDir,
 		"..",
 		"..",
 		"..",
@@ -234,7 +237,7 @@ test("validates simple JSON schema constraints", () => {
 	});
 });
 
-test("runs Bun flow steps and parses FLOW_RESULT", async () => {
+test("runs Node flow steps and parses FLOW_RESULT", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
 	try {
 		await writeFlow(directory, "flows/demo", "source");
@@ -244,7 +247,7 @@ test("runs Bun flow steps and parses FLOW_RESULT", async () => {
 			throw new Error("expected fixture flow");
 		}
 
-		const result = await runBunStep({
+		const result = await runNodeStep({
 			flow,
 			step,
 			event: {
@@ -264,7 +267,7 @@ test("runs Bun flow steps and parses FLOW_RESULT", async () => {
 	}
 });
 
-test("runs module-style Bun flow steps and passes runtime metadata", async () => {
+test("runs module-style Node flow steps and passes runtime metadata", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
 	try {
 		await writeFlow(directory, "flows/demo", "source", [
@@ -290,7 +293,7 @@ test("runs module-style Bun flow steps and passes runtime metadata", async () =>
 			throw new Error("expected fixture flow");
 		}
 
-		const result = await runBunStep({
+		const result = await runNodeStep({
 			flow,
 			step,
 			event: {
@@ -324,13 +327,13 @@ test("runs module-style Bun flow steps and passes runtime metadata", async () =>
 	}
 });
 
-test("runs defineBunFlow module-style Bun flow steps", async () => {
+test("runs defineNodeFlow module-style Node flow steps", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
 	try {
-		const helperUrl = pathToFileURL(path.resolve(import.meta.dir, "../src/bun.ts")).href;
+		const helperUrl = pathToFileURL(path.resolve(testDir, "../src/node.ts")).href;
 		await writeFlow(directory, "flows/demo", "source", [
-			`import { defineBunFlow } from ${JSON.stringify(helperUrl)};`,
-			"export default defineBunFlow(async (context) => ({",
+			`import { defineNodeFlow } from ${JSON.stringify(helperUrl)};`,
+			"export default defineNodeFlow(async (context) => ({",
 			"  status: 'completed',",
 			"  message: `hello ${context.flow.event.payload.name}`",
 			"}));",
@@ -342,7 +345,7 @@ test("runs defineBunFlow module-style Bun flow steps", async () => {
 			throw new Error("expected fixture flow");
 		}
 
-		const result = await runBunStep({
+		const result = await runNodeStep({
 			flow,
 			step,
 			event: {
@@ -362,7 +365,7 @@ test("runs defineBunFlow module-style Bun flow steps", async () => {
 	}
 });
 
-test("Bun flow helpers read context and create workspace-backed Codex clients", async () => {
+test("Node flow helpers read context and create workspace-backed Codex clients", async () => {
 	const context = await readFlowContext(JSON.stringify({
 		flow: {
 			name: "demo",
@@ -472,7 +475,7 @@ async function writeFlow(
 	const flowRoot = path.join(root, relative);
 	await mkdir(path.join(flowRoot, "exec"), { recursive: true });
 	await mkdir(path.join(flowRoot, "schemas"), { recursive: true });
-	await Bun.write(
+	await writeFile(
 		path.join(flowRoot, "flow.toml"),
 		[
 			'name = "demo"',
@@ -481,7 +484,7 @@ async function writeFlow(
 			"",
 			"[[steps]]",
 			'name = "hello"',
-			'runner = "bun"',
+			'runner = "node"',
 			'script = "exec/hello.ts"',
 			"timeout_ms = 30000",
 			"",
@@ -491,7 +494,7 @@ async function writeFlow(
 			"",
 		].join("\n"),
 	);
-	await Bun.write(
+	await writeFile(
 		path.join(flowRoot, "schemas/demo-event.schema.json"),
 		JSON.stringify({
 			type: "object",
@@ -501,16 +504,21 @@ async function writeFlow(
 			},
 		}),
 	);
-	await Bun.write(
-		path.join(flowRoot, "exec/hello.ts"),
-		script ?? [
-			"const context = JSON.parse(await Bun.stdin.text());",
-			"const name = context.flow.event.payload.name;",
-			"console.log(`FLOW_RESULT ${JSON.stringify({ status: 'completed', message: `hello ${name}` })}`);",
-			"",
-		].join("\n"),
-	);
-}
+		await writeFile(
+			path.join(flowRoot, "exec/hello.ts"),
+			script ?? [
+				"async function main() {",
+				"  const chunks = [];",
+				"  for await (const chunk of process.stdin) chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);",
+				"  const context = JSON.parse(Buffer.concat(chunks).toString('utf8'));",
+				"  const name = context.flow.event.payload.name;",
+				"  console.log(`FLOW_RESULT ${JSON.stringify({ status: 'completed', message: `hello ${name}` })}`);",
+				"}",
+				"void main();",
+				"",
+			].join("\n"),
+		);
+	}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

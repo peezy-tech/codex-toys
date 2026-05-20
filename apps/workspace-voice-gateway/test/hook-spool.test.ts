@@ -1,7 +1,7 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 import {
 	announcementFromHookEvent,
 	HookSpoolObserver,
@@ -31,7 +31,7 @@ describe("hook spool announcements", () => {
 				sessionId: "thread-1",
 				turnId: "turn-1",
 				cwd: "/home/peezy/meta-workspace/codex-flows",
-				lastAssistantMessage: "Done. `bun test` passed.",
+				lastAssistantMessage: "Done. `vp test` passed.",
 				createdAt: new Date().toISOString(),
 			})}\n`,
 		);
@@ -51,9 +51,9 @@ describe("hook spool announcements", () => {
 		expect(announcements).toHaveLength(1);
 		expect(announcements[0]?.source).toBe("codex-hook-spool");
 		expect(announcements[0]?.text).toBe(
-			"Hey, about codex-flows. I just finished: Done. bun test passed.",
+			"Hey, about codex-flows. I just finished: Done. vp test passed.",
 		);
-		expect(await Bun.file(filePath).exists()).toBe(true);
+		expect(await exists(filePath)).toBe(true);
 	});
 
 	test("uses a conversational fallback when there is no final text", () => {
@@ -84,10 +84,18 @@ describe("hook spool announcements", () => {
 });
 
 async function mkTempDir(): Promise<string> {
-	const dir = await Bun.$`mktemp -d ${path.join(os.tmpdir(), "voice-hook-spool-XXXXXX")}`.text();
-	const trimmed = dir.trim();
-	tempDirs.push(trimmed);
-	return trimmed;
+	const dir = await mkdtemp(path.join(os.tmpdir(), "voice-hook-spool-"));
+	tempDirs.push(dir);
+	return dir;
+}
+
+async function exists(filePath: string): Promise<boolean> {
+	try {
+		await stat(filePath);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 const testLogger = {

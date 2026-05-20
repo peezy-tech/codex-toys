@@ -48,7 +48,7 @@ that should depend on `@peezy.tech/codex-flows`.
 
 ## Package Boundary
 
-The package should keep browser-safe exports separate from Bun/Node-only
+The package should keep browser-safe exports separate from Node-only
 process code:
 
 - browser-safe clients stay under `@peezy.tech/codex-flows/browser` and similar

@@ -1,5 +1,6 @@
-#!/usr/bin/env bun
-import { $ } from "bun";
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -60,7 +61,7 @@ const defaultNpmRegistry =
 	process.env.CODEX_UPDATE_NPM_REGISTRY ?? "https://registry.npmjs.org/";
 
 async function main() {
-	const args = parseArgs(Bun.argv.slice(2));
+	const args = parseArgs(process.argv.slice(2));
 	const release = await latestRelease(args);
 	const handledRelease = await latestHandledNpmRelease(args, release);
 
@@ -93,9 +94,10 @@ async function main() {
 async function latestRelease(args: Args): Promise<ReleaseInfo> {
 	const fields = "tagName,name,publishedAt,url,body,targetCommitish";
 	try {
-		const release = args.releaseTag
-			? await $`gh release view ${args.releaseTag} --repo ${args.upstreamRepo} --json ${fields}`.json()
-			: await $`gh release view --repo ${args.upstreamRepo} --json ${fields}`.json();
+		const command = args.releaseTag
+			? ["gh", "release", "view", args.releaseTag, "--repo", args.upstreamRepo, "--json", fields]
+			: ["gh", "release", "view", "--repo", args.upstreamRepo, "--json", fields];
+		const release = await runJson(command);
 		return requireReleaseInfo(release);
 	} catch (error) {
 		throw new Error(`Failed to read ${args.upstreamRepo} release: ${errorMessage(error)}`);
@@ -114,12 +116,14 @@ async function latestHandledNpmRelease(
 		throw new Error(`Could not normalize release tag to an npm version: ${release.tagName}`);
 	}
 	const spec = `${args.handledNpmPackage}@${version}`;
-	const result = await $`npm view ${spec} version --registry ${args.npmRegistry} --json`.nothrow().quiet();
+	const result = await runCommand(["npm", "view", spec, "version", "--registry", args.npmRegistry, "--json"], {
+		allowFailure: true,
+	});
 	if (result.exitCode !== 0) {
 		return undefined;
 	}
 	try {
-		const parsed = JSON.parse(result.stdout.toString()) as unknown;
+		const parsed = JSON.parse(result.stdout) as unknown;
 		if (parsed !== version) {
 			throw new Error(`expected ${version}, got ${String(parsed)}`);
 		}
@@ -279,9 +283,10 @@ async function updateCodeModeSource(args: Args, release: ReleaseInfo): Promise<s
 		upstreamRepoUrl: `https://github.com/${args.upstreamRepo}.git`,
 	};
 	const configSource = `const config = ${JSON.stringify(config, null, 2)};\n`;
-	const bodySource = await Bun.file(
+	const bodySource = await readFile(
 		path.join(serviceRoot, "scripts", "codex-release-update.code-mode.js"),
-	).text();
+		"utf8",
+	);
 	return configSource + bodySource;
 }
 
@@ -304,7 +309,7 @@ function updateContextText(
 		"- codex-flows repo: " + args.serviceRepo,
 		"- cargo target dir: " + args.cargoTargetDir,
 		"- app-server command for this thread: " +
-			(args.codexCommand ?? "bunx @peezy.tech/codex"),
+			(args.codexCommand ?? "vp dlx @peezy.tech/codex"),
 		args.handledNpmPackage
 			? "- handled npm package: " + args.handledNpmPackage
 			: "- handled npm package: disabled",
@@ -397,11 +402,73 @@ async function ensureCodexCommandExists(codexCommand: string | undefined) {
 			`Codex command must be an explicit local fork binary path, not a PATH lookup: ${codexCommand}`,
 		);
 	}
-	const file = Bun.file(codexCommand);
-	if (!(await file.exists())) {
+	if (!(await fileExists(codexCommand))) {
 		throw new Error(
 			`Codex command does not exist: ${codexCommand}. Build the fork binary first or pass --codex-command.`,
 		);
+	}
+}
+
+type LocalCommandResult = {
+	exitCode: number | null;
+	stdout: string;
+	stderr: string;
+};
+
+async function runJson(command: string[]): Promise<unknown> {
+	const result = await runCommand(command);
+	try {
+		return JSON.parse(result.stdout) as unknown;
+	} catch (error) {
+		throw new Error(`Failed to parse JSON from ${command.join(" ")}: ${errorMessage(error)}`);
+	}
+}
+
+async function runCommand(
+	command: string[],
+	options: { allowFailure?: boolean } = {},
+): Promise<LocalCommandResult> {
+	const child = spawn(command[0] ?? "", command.slice(1), {
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	const [stdout, stderr, exitCode] = await Promise.all([
+		collectText(child.stdout),
+		collectText(child.stderr),
+		exitCodeFor(child),
+	]);
+	if (exitCode !== 0 && !options.allowFailure) {
+		throw new Error(`${command.join(" ")} failed with exit ${exitCode}:\n${stderr || stdout}`);
+	}
+	return { exitCode, stdout, stderr };
+}
+
+async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	let output = "";
+	if (!stream) {
+		return output;
+	}
+	for await (const chunk of stream) {
+		output += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+	}
+	return output;
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+	try {
+		await access(filePath);
+		return true;
+	} catch (error) {
+		if (isRecord(error) && error.code === "ENOENT") {
+			return false;
+		}
+		throw error;
 	}
 }
 
@@ -706,7 +773,7 @@ function printHelp() {
 			"Run the openai/codex release update flow inside a native Code Mode thread.",
 			"",
 			"Usage:",
-			"  bun scripts/run-codex-release-update-thread.ts [options]",
+			"  tsx scripts/run-codex-release-update-thread.ts [options]",
 			"",
 			"Options:",
 			"  --release-tag <tag>          Use a specific openai/codex release tag instead of latest.",
@@ -726,7 +793,7 @@ function printHelp() {
 			"  --codex-command <path>       Explicit fork Codex binary used to start app-server.",
 			"                               Defaults to CODEX_APP_SERVER_CODEX_COMMAND.",
 			"                               With CODEX_FLOWS_MODE=code-mode, falls back to",
-			"                               bunx @peezy.tech/codex.",
+			"                               vp dlx @peezy.tech/codex.",
 			"  --codex-home <dir>           CODEX_HOME for the spawned app-server.",
 			"  --timeout-ms <ms>            App-server request and flow timeout. Defaults to 1800000.",
 			"  --name <text>                Thread name.",

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -28,7 +29,7 @@ type CommandResult = {
 	stderr: string;
 };
 
-const context = JSON.parse(await Bun.stdin.text()) as FlowContext;
+const context = JSON.parse(await readStdinText()) as FlowContext;
 const config = context.flow.config ?? {};
 const repoRoot = path.resolve(envConfig(stringConfig("codex_flows_repo_env", "")) || stringConfig("codex_flows_repo", process.cwd()));
 const commands: CommandResult[] = [];
@@ -58,7 +59,7 @@ try {
 	]);
 
 	await updatePackageVersion(packageJsonPath, version);
-	await run("refresh Bun lockfile", ["bun", "install"]);
+	await run("refresh dependencies", ["vp", "install"]);
 
 	const changedStatus = await run("changed file status", ["git", "status", "--short"]);
 	if (!changedStatus.stdout.trim()) {
@@ -67,9 +68,9 @@ try {
 
 	const followupTurn = await maybeRunFollowupTurn({ tag, version, changedStatus: changedStatus.stdout });
 
-	await run("codex-flows package release check", ["bun", "run", "--filter", packageName, "release:check"]);
-	await run("workspace typecheck", ["bun", "run", "check:types"]);
-	await run("workspace tests", ["bun", "run", "test"]);
+	await run("codex-flows package release check", ["vp", "run", "--filter", packageName, "release:check"]);
+	await run("workspace typecheck", ["vp", "run", "check:types"]);
+	await run("workspace tests", ["vp", "run", "test"]);
 	await run("git diff check", ["git", "diff", "--check"]);
 
 	const status = await run("final git status", ["git", "status", "--short"]);
@@ -208,7 +209,7 @@ async function commitRemainingChanges(input: {
 		"--",
 		input.generatedDir,
 		input.packageJsonPath,
-		path.join(repoRoot, "bun.lock"),
+		path.join(repoRoot, "pnpm-lock.yaml"),
 		path.join(repoRoot, "packages/codex-client/src"),
 		path.join(repoRoot, "packages/codex-client/test"),
 		path.join(repoRoot, "packages/codex-client/scripts"),
@@ -256,16 +257,15 @@ async function run(
 	cmd: string[],
 	options: { allowFailure?: boolean; cwd?: string } = {},
 ): Promise<CommandResult> {
-	const child = Bun.spawn(cmd, {
+	const child = spawn(cmd[0] ?? "", cmd.slice(1), {
 		cwd: options.cwd ?? repoRoot,
 		env: process.env,
-		stdout: "pipe",
-		stderr: "pipe",
+		stdio: ["ignore", "pipe", "pipe"],
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		child.stdout.text(),
-		child.stderr.text(),
-		child.exited,
+		collectText(child.stdout),
+		collectText(child.stderr),
+		exitCodeFor(child),
 	]);
 	const result = { label, cmd, cwd: options.cwd ?? repoRoot, exitCode, stdout, stderr };
 	commands.push(result);
@@ -329,4 +329,30 @@ function versionFromTag(tag: string): string {
 
 function truncate(value: string, max = 4000): string {
 	return value.length <= max ? value : `${value.slice(0, max)}\n...[truncated ${value.length - max} chars]`;
+}
+
+async function readStdinText(): Promise<string> {
+	const chunks: Uint8Array[] = [];
+	for await (const chunk of process.stdin) {
+		chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+	}
+	return Buffer.concat(chunks).toString("utf8");
+}
+
+async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	let output = "";
+	if (!stream) {
+		return output;
+	}
+	for await (const chunk of stream) {
+		output += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+	}
+	return output;
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }

@@ -20,11 +20,11 @@ publish = false
 link_local_package = false
 
 [guidance]
-skills = ["jojo-development-flow", "bun-flow-author"]
+skills = ["jojo-development-flow", "flow-package-author"]
 
 [[steps]]
 name = "release-fork"
-runner = "bun"
+runner = "node"
 script = "exec/release-fork.ts"
 timeout_ms = 1200000
 

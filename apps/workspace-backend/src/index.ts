@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import {
 	CodexAppServerClient,
 	CodexStdioTransport,
@@ -9,7 +9,9 @@ import {
 	type CodexWorkspaceBackendPeer,
 } from "@peezy.tech/codex-flows/workspace-backend";
 
+import http from "node:http";
 import path from "node:path";
+import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { parseArgs, type WorkspaceBackendCliArgs } from "./args.ts";
 import { dispatchFlowEvent, readFlowEvent, replayFlowEvent } from "./flow/backend.ts";
 import {
@@ -20,13 +22,13 @@ import {
 	type FlowBackendConfig,
 	type FlowBackendExecutor,
 } from "./flow/config.ts";
-import { WorkspaceFlowCapability } from "./flow/server.ts";
+import { handleNodeHttpRequest, WorkspaceFlowCapability } from "./flow/server.ts";
 import { FlowBackendStore, type FlowRunStatus } from "./flow/store.ts";
 
 const defaultAppServerUrl = "ws://127.0.0.1:3585";
 
 async function main(): Promise<void> {
-	const argv = Bun.argv.slice(2);
+	const argv = process.argv.slice(2);
 	if (isFlowCommand(argv[0])) {
 		await runFlowCli(parseFlowCli(argv, process.env));
 		return;
@@ -57,15 +59,10 @@ async function main(): Promise<void> {
 		flowInspection: true,
 		methods: flowMethodHandlers(flow),
 	});
-	const peers = new WeakMap<Bun.ServerWebSocket<unknown>, CodexWorkspaceBackendPeer>();
-	const server = Bun.serve({
-		hostname: parsed.hostname,
-		port: parsed.port,
-		async fetch(request, bunServer) {
-			if (bunServer.upgrade(request)) {
-				return undefined;
-			}
-			const flowResponse = await flow.handleHttp(request);
+	const peers = new WeakMap<WebSocket, CodexWorkspaceBackendPeer>();
+	const server = http.createServer((request, response) => {
+		void handleNodeHttpRequest(request, response, flow.config, async (webRequest) => {
+			const flowResponse = await flow.handleHttp(webRequest);
 			if (flowResponse) {
 				return flowResponse;
 			}
@@ -73,41 +70,46 @@ async function main(): Promise<void> {
 				status: 426,
 				headers: { "content-type": "text/plain; charset=utf-8" },
 			});
-		},
-		websocket: {
-			open(socket) {
-				const peer: CodexWorkspaceBackendPeer = {
-					send: (message) => socket.send(message),
-				};
-				peers.set(socket, peer);
-				workspaceBackend.addPeer(peer);
-			},
-			message(socket, message) {
-				const peer = peers.get(socket);
-				if (!peer) {
-					return;
-				}
-				void workspaceBackend.handleMessage(peer, websocketMessageToString(message))
-					.catch((error: unknown) => {
-						workspaceBackend.sendWorkspaceBackendEvent(peer, {
-							type: "appServer.error",
-							at: new Date().toISOString(),
-							message: errorMessage(error),
-						});
-					});
-			},
-			close(socket) {
-				const peer = peers.get(socket);
-				if (peer) {
-					workspaceBackend.removePeer(peer);
-					peers.delete(socket);
-				}
-			},
-		},
+		});
 	});
+	const wss = new WebSocketServer({ noServer: true });
+	server.on("upgrade", (request, socket, head) => {
+		wss.handleUpgrade(request, socket, head, (webSocket) => {
+			wss.emit("connection", webSocket, request);
+		});
+	});
+	wss.on("connection", (socket) => {
+		const peer: CodexWorkspaceBackendPeer = {
+			send: (message) => socket.send(message),
+		};
+		peers.set(socket, peer);
+		workspaceBackend.addPeer(peer);
+		socket.on("message", (message) => {
+			const currentPeer = peers.get(socket);
+			if (!currentPeer) {
+				return;
+			}
+			void workspaceBackend.handleMessage(currentPeer, websocketMessageToString(message))
+				.catch((error: unknown) => {
+					workspaceBackend.sendWorkspaceBackendEvent(currentPeer, {
+						type: "appServer.error",
+						at: new Date().toISOString(),
+						message: errorMessage(error),
+					});
+				});
+		});
+		socket.on("close", () => {
+			const currentPeer = peers.get(socket);
+			if (currentPeer) {
+				workspaceBackend.removePeer(currentPeer);
+				peers.delete(socket);
+			}
+		});
+	});
+	await listen(server, parsed.port, parsed.hostname);
 
 	process.stdout.write(
-		`codex-workspace-backend-local listening on ws://${server.hostname}:${server.port}\n`,
+		`codex-workspace-backend-local listening on ws://${parsed.hostname}:${serverPort(server, parsed.port)}\n`,
 	);
 	process.stdout.write(
 		`codex-workspace-backend-local app-server ${
@@ -119,7 +121,7 @@ async function main(): Promise<void> {
 		}\n`,
 	);
 
-	await waitForShutdown(server, client, flow);
+	await waitForShutdown(server, wss, client, flow);
 }
 
 function createAppServerClient(
@@ -155,7 +157,7 @@ function workspaceFlowConfig(
 		...(args.dataDir ? { dataDir: args.dataDir } : {}),
 		...(args.secret ? { secret: args.secret } : {}),
 		...(args.executor ? { executor: requireFlowExecutor(args.executor) } : {}),
-		...(args.bunCommand ? { bunCommand: args.bunCommand } : {}),
+		...(args.nodeCommand ? { nodeCommand: args.nodeCommand } : {}),
 		...(args.flowRunnerPath ? { flowRunnerPath: args.flowRunnerPath } : {}),
 		workspaceBackendUrl: localWorkspaceBackendUrl(args.hostname, args.port),
 	});
@@ -205,12 +207,16 @@ function localAppServerArgs(): string[] {
 	];
 }
 
-function websocketMessageToString(message: string | Buffer): string {
+function websocketMessageToString(message: RawData): string {
+	if (Array.isArray(message)) {
+		return Buffer.concat(message).toString("utf8");
+	}
 	return typeof message === "string" ? message : message.toString("utf8");
 }
 
 function waitForShutdown(
-	server: Bun.Server<unknown>,
+	server: http.Server,
+	wss: WebSocketServer,
 	client: CodexAppServerClient,
 	flow: WorkspaceFlowCapability,
 ): Promise<void> {
@@ -218,7 +224,8 @@ function waitForShutdown(
 		const shutdown = () => {
 			process.off("SIGINT", shutdown);
 			process.off("SIGTERM", shutdown);
-			server.stop(true);
+			wss.close();
+			server.close();
 			client.close();
 			flow.close();
 			resolve();
@@ -226,6 +233,21 @@ function waitForShutdown(
 		process.once("SIGINT", shutdown);
 		process.once("SIGTERM", shutdown);
 	});
+}
+
+function listen(server: http.Server, port: number, hostname: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(port, hostname, () => {
+			server.off("error", reject);
+			resolve();
+		});
+	});
+}
+
+function serverPort(server: http.Server, fallback: number): number {
+	const address = server.address();
+	return typeof address === "object" && address ? address.port : fallback;
 }
 
 async function runFlowCli(cli: FlowBackendCli): Promise<void> {

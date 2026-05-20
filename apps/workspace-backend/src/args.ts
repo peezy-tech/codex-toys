@@ -9,7 +9,7 @@ export type WorkspaceBackendCliArgs =
 			dataDir?: string;
 			secret?: string;
 			executor?: string;
-			bunCommand?: string;
+			nodeCommand?: string;
 			flowRunnerPath?: string;
 	  }
 	| {
@@ -47,7 +47,7 @@ export function parseArgs(
 		dataDir: stringFlag(argv, "data-dir"),
 		secret: stringFlag(argv, "secret"),
 		executor: stringFlag(argv, "executor"),
-		bunCommand: stringFlag(argv, "bun"),
+		nodeCommand: stringFlag(argv, "node"),
 		flowRunnerPath: stringFlag(argv, "flow-runner"),
 	};
 }
@@ -104,7 +104,7 @@ Options:
   --data-dir <dir>           Durable flow backend state directory.
   --secret <secret>          Optional HMAC secret for HTTP flow dispatch.
   --executor <executor>      Flow executor: direct or systemd-run.
-  --bun <path>               Bun command for flow execution.
+  --node <path>               Node command for flow execution.
   --flow-runner <path>       Flow runner script path.
   --help, -h                 Show this help.
 

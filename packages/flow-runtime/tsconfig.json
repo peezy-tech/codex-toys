@@ -14,12 +14,12 @@
 		"verbatimModuleSyntax": true,
 		"forceConsistentCasingInFileNames": true,
 		"noEmit": true,
-		"types": ["node", "bun"],
+		"types": ["node"],
 		"baseUrl": ".",
 		"paths": {
 			"@peezy.tech/codex-flows": ["../codex-client/src/index.ts"],
 			"@peezy.tech/codex-flows/flows": ["../codex-client/src/app-server/flows.ts"],
-			"@peezy.tech/codex-flows/*": ["../codex-client/src/*"]
+			"@peezy.tech/codex-flows/workspace-backend": ["../codex-client/src/workspace-backend/index.ts"]
 		}
 	},
 	"include": ["src/**/*.ts", "test/**/*.ts"]

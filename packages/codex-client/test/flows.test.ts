@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vite-plus/test";
 import type { v2 } from "../src/app-server/generated/index.ts";
 import {
 	CodexFlowClient,

@@ -1,5 +1,5 @@
 const checks = [
-	["@peezy.tech/codex-flows", ["CodexAppServerClient"]],
+	["@peezy.tech/codex-flows", ["CodexAppServerClient", "CodexEventEmitter"]],
 	["@peezy.tech/codex-flows/browser", ["CodexAppServerClient"]],
 	["@peezy.tech/codex-flows/flows", ["CodexFlowClient", "createCodexFlowClient"]],
 	["@peezy.tech/codex-flows/auth", ["CodexAuthClient", "createCodexAuthClient"]],
@@ -22,8 +22,8 @@ const checks = [
 		["createFlowBackendHttpClient", "FlowBackendHttpClient"],
 	],
 	[
-		"@peezy.tech/codex-flows/flow-runtime/bun",
-		["defineBunFlow", "readFlowContext"],
+		"@peezy.tech/codex-flows/flow-runtime/node",
+		["defineNodeFlow", "readFlowContext"],
 	],
 	["@peezy.tech/codex-flows/rpc", ["JsonRpcError"]],
 	["@peezy.tech/codex-flows/generated", ["v2"]],

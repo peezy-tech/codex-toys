@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 import { CodexTurnAnnouncer } from "./announcer.ts";
 import { parseCli } from "./config.ts";
 import { DiscordVoiceSpeaker } from "./discord-voice.ts";
@@ -9,7 +10,7 @@ import { TtsWorkerClient } from "./tts-client.ts";
 import { consoleLogger } from "./types.ts";
 
 async function main(): Promise<void> {
-	const parsed = parseCli(Bun.argv.slice(2), process.env);
+	const parsed = parseCli(process.argv.slice(2), process.env);
 	if (parsed.type === "help") {
 		process.stdout.write(parsed.text);
 		return;
@@ -78,7 +79,7 @@ function waitForShutdown(gateway: WorkspaceVoiceGateway): Promise<void> {
 	});
 }
 
-const isDirectRun = import.meta.path === Bun.main;
+const isDirectRun = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
 if (isDirectRun) {
 	main().catch((error) => {
 		console.error(errorMessage(error));

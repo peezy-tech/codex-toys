@@ -1,6 +1,6 @@
 ---
 title: Build your first flow
-description: Create a minimal Bun-backed flow package and run it locally.
+description: Create a minimal Node-backed flow package and run it locally.
 ---
 
 # Build your first flow
@@ -29,7 +29,7 @@ description = "Greets a person from a demo event."
 
 [[steps]]
 name = "hello"
-runner = "bun"
+runner = "node"
 script = "exec/hello.ts"
 timeout_ms = 30000
 
@@ -53,9 +53,9 @@ schema = "schemas/hello.schema.json"
 ## 4. Implement the step
 
 ```ts
-import { defineBunFlow } from "@peezy.tech/codex-flows/flow-runtime/bun";
+import { defineNodeFlow } from "@peezy.tech/codex-flows/flow-runtime/node";
 
-export default defineBunFlow(async (ctx) => {
+export default defineNodeFlow(async (ctx) => {
   const name = ctx.flow.event.payload.name;
   return {
     status: "completed",

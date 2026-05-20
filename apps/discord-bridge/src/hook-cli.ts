@@ -5,7 +5,7 @@ import path from "node:path";
 import { writeHookSpoolEvent } from "./stop-hook-spool.ts";
 
 const defaultHookCommand = "codex-discord-bridge hook event";
-const defaultBunxPackage = "@peezy.tech/codex-discord-bridge";
+const defaultDlxPackage = "@peezy.tech/codex-discord-bridge";
 const workspaceHookEvents = [
 	"SessionStart",
 	"UserPromptSubmit",
@@ -17,8 +17,8 @@ const workspaceHookEvents = [
 
 export type HookInstallOptions = {
 	command?: string;
-	useBunx?: boolean;
-	bunxPackage?: string;
+	useDlx?: boolean;
+	dlxPackage?: string;
 	configPath?: string;
 	hooksPath?: string;
 	dryRun?: boolean;
@@ -55,7 +55,7 @@ export async function handleHookCommand(argv: string[]): Promise<boolean> {
 export async function runHookEvent(): Promise<void> {
 	let input = "";
 	try {
-		input = await new Response(Bun.stdin.stream()).text();
+		input = await readStdinText();
 		const parsed = JSON.parse(input);
 		const event = await writeHookSpoolEvent(parsed);
 		if (eventSupportsContinueOutput(event.eventName)) {
@@ -70,6 +70,14 @@ export async function runHookEvent(): Promise<void> {
 }
 
 export const runStopHook = runHookEvent;
+
+async function readStdinText(): Promise<string> {
+	const chunks: Uint8Array[] = [];
+	for await (const chunk of process.stdin) {
+		chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+	}
+	return Buffer.concat(chunks).toString("utf8");
+}
 
 export async function installStopHook(
 	options: HookInstallOptions = {},
@@ -149,8 +157,8 @@ function parseInstallArgs(argv: string[]): HookInstallOptions {
 			options.dryRun = true;
 			continue;
 		}
-		if (arg === "--bunx") {
-			options.useBunx = true;
+		if (arg === "--dlx") {
+			options.useDlx = true;
 			continue;
 		}
 		if (arg === "--command") {
@@ -161,14 +169,14 @@ function parseInstallArgs(argv: string[]): HookInstallOptions {
 			options.command = arg.slice("--command=".length);
 			continue;
 		}
-		if (arg === "--bunx-package") {
-			options.useBunx = true;
-			options.bunxPackage = requiredNext(argv, ++index, arg);
+		if (arg === "--dlx-package") {
+			options.useDlx = true;
+			options.dlxPackage = requiredNext(argv, ++index, arg);
 			continue;
 		}
-		if (arg.startsWith("--bunx-package=")) {
-			options.useBunx = true;
-			options.bunxPackage = arg.slice("--bunx-package=".length);
+		if (arg.startsWith("--dlx-package=")) {
+			options.useDlx = true;
+			options.dlxPackage = arg.slice("--dlx-package=".length);
 			continue;
 		}
 		if (arg === "--config-path") {
@@ -193,14 +201,14 @@ function parseInstallArgs(argv: string[]): HookInstallOptions {
 }
 
 function hookCommand(options: HookInstallOptions): string {
-	if (options.command && options.useBunx) {
-		throw new Error("Cannot set both --command and --bunx.");
+	if (options.command && options.useDlx) {
+		throw new Error("Cannot set both --command and --dlx.");
 	}
 	if (options.command) {
 		return options.command;
 	}
-	if (options.useBunx || options.bunxPackage) {
-		return `bunx --package ${options.bunxPackage ?? defaultBunxPackage} ${defaultHookCommand}`;
+	if (options.useDlx || options.dlxPackage) {
+		return `vp dlx ${options.dlxPackage ?? defaultDlxPackage} ${defaultHookCommand}`;
 	}
 	return defaultHookCommand;
 }
@@ -234,7 +242,7 @@ function isWorkspaceStopHookHandler(input: unknown): boolean {
 	return command.includes("codex-discord-bridge hook stop") ||
 		command.includes("codex-discord-bridge hook event") ||
 		command.includes("codex-discord-workspace-stop-hook") ||
-		command.includes("apps/discord-bridge/src/stop-hook.ts");
+		/apps\/discord-bridge\/(?:dist\/index\.js|src\/(?:index|stop-hook)\.ts)\s+hook\s+(?:event|stop)\b/.test(command);
 }
 
 function eventSupportsContinueOutput(eventName: string): boolean {
@@ -308,8 +316,8 @@ Usage:
 
 Options:
   --command <cmd>          Hook command to write. Defaults to "codex-discord-bridge hook event".
-  --bunx                  Write a bunx command instead of the global binary command.
-  --bunx-package <pkg>    Package for bunx --package. Defaults to @peezy.tech/codex-discord-bridge.
+  --dlx                   Write a VitePlus package-on-demand command instead of the global binary command.
+  --dlx-package <pkg>     Package for vp dlx. Defaults to @peezy.tech/codex-discord-bridge.
   --config-path <path>    Codex config.toml path.
   --hooks-path <path>     Codex hooks.json path.
   --dry-run               Print the planned install result without writing files.

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -159,15 +160,14 @@ async function envFlag(name) {
 async function run(label, cmd, options = {}) {
   const workdir = options.workdir || codexRepo;
   process.stderr.write("\n### " + label + "\n$ " + cmd + "\n");
-  const proc = Bun.spawn(["bash", "-lc", cmd], {
+  const proc = spawn("bash", ["-lc", cmd], {
     cwd: workdir,
-    stdout: "pipe",
-    stderr: "pipe"
+    stdio: ["ignore", "pipe", "pipe"]
   });
   const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited
+    collectText(proc.stdout),
+    collectText(proc.stderr),
+    exitCodeFor(proc)
   ]);
   const output = stdout + stderr;
   const command = {
@@ -858,12 +858,12 @@ async function stageLocalNpmWrapper() {
   const match = stage.output.match(/STAGED_PACKAGE=(.+)/);
   const stagedPackage = match ? trim(match[1]) : "";
   if (enabled("link_local_package", false) && stagedPackage) {
-    const link = await run("link local npm wrapper with Bun", "bun pm link", {
+    const link = await run("link local npm wrapper", "pnpm link --global", {
       workdir: stagedPackage,
       max_output_tokens: 12000
     });
     if (!ok(link)) {
-      finish("failed", "Bun link of local Codex package failed.", { linkOutput: link.output, stagedPackage });
+      finish("failed", "Local Codex package link failed.", { linkOutput: link.output, stagedPackage });
     }
   }
   return {
@@ -958,6 +958,24 @@ function releaseCandidateRef(tagPublish) {
     sha: tagPublish.sha,
     pushed: tagPublish.pushed
   };
+}
+
+async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+  let output = "";
+  if (!stream) {
+    return output;
+  }
+  for await (const chunk of stream) {
+    output += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+  }
+  return output;
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code));
+  });
 }
 
 async function runFlow(): Promise<FlowResult> {

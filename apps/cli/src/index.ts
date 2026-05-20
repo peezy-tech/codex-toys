@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { CodexAppServerClient } from "@peezy.tech/codex-flows";
 
 import { APP_SERVER_ACTIONS } from "./actions.ts";
@@ -11,7 +11,7 @@ import {
 
 async function main() {
 	try {
-		const parsed = parseArgs(Bun.argv.slice(2), process.env);
+		const parsed = parseArgs(process.argv.slice(2), process.env);
 		switch (parsed.type) {
 			case "help":
 				write(helpText());
@@ -142,7 +142,7 @@ Options:
   --codex-command <path>      Codex binary for run-code-mode with --url stdio://
                               Defaults to CODEX_APP_SERVER_CODEX_COMMAND.
                               With CODEX_FLOWS_MODE=code-mode, falls back to
-                              bunx @peezy.tech/codex.
+                              vp dlx @peezy.tech/codex.
   --compact                   Print compact JSON
   --pretty                    Print pretty JSON
   -h, --help                  Show this help

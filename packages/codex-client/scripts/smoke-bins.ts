@@ -1,7 +1,10 @@
+import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const packageRoot = path.resolve(import.meta.dir, "..");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const packageRoot = path.resolve(__dirname, "..");
 
 const checks = [
 	{ name: "codex-flows", path: "dist/cli/index.js" },
@@ -16,15 +19,13 @@ const checks = [
 for (const check of checks) {
 	const binPath = path.join(packageRoot, check.path);
 	await access(binPath);
-	const proc = Bun.spawn(["bun", binPath, "--help"], {
+	const proc = spawn(process.execPath, [binPath, "--help"], {
 		cwd: packageRoot,
-		stdout: "pipe",
-		stderr: "pipe",
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
 
 	if (exitCode !== 0) {
@@ -39,3 +40,26 @@ for (const check of checks) {
 }
 
 console.log("bin smoke test passed");
+
+function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		if (!stream) {
+			resolve(output);
+			return;
+		}
+		stream.setEncoding("utf8");
+		stream.on("data", (chunk: string) => {
+			output += chunk;
+		});
+		stream.once("error", reject);
+		stream.once("end", () => resolve(output));
+	});
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
+}

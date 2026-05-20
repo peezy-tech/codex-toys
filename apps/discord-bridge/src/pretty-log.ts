@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import type { DiscordBridgeLogLevel } from "./logger.ts";
 
 type PrettyLogOptions = {
@@ -213,7 +213,7 @@ function trimTrailingCarriageReturn(line: string): string {
 
 if (import.meta.main) {
 	try {
-		await runPrettyLogCli(Bun.argv.slice(2), process.stdin, process.stdout);
+		await runPrettyLogCli(process.argv.slice(2), process.stdin, process.stdout);
 	} catch (error) {
 		process.stderr.write(
 			`pretty-log failed: ${

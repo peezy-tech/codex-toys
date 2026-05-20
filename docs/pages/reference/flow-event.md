@@ -50,13 +50,13 @@ The workspace backend passes matching environment variables to direct and
 
 ## Result status
 
-Raw Bun scripts print one final line:
+Raw Node scripts print one final line:
 
 ```text
 FLOW_RESULT {"status":"completed","message":"done"}
 ```
 
-Module-style Bun steps return the same object directly from their default
+Module-style Node steps return the same object directly from their default
 export. Backends store the normalized result payload either way.
 
 Known semantic statuses:

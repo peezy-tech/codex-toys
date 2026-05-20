@@ -1,9 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
+import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "../src/cli/args.ts";
 import { formatFetchInfo, type FetchInfo } from "../src/cli/fetch.ts";
+
+const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 describe("codex-flows CLI args", () => {
 	test("parses direct app-server calls", () => {
@@ -262,7 +266,7 @@ describe("codex-flows CLI args", () => {
 		const info: FetchInfo = {
 			package: "@peezy.tech/codex-flows",
 			version: "0.3.1",
-			runtime: "bun 1.3.11",
+			runtime: "node 24.15.0",
 			node: "24.0.0",
 			platform: "linux",
 			arch: "x64",
@@ -314,19 +318,40 @@ async function runCli(
 	args: string[],
 	env: Record<string, string | undefined> = {},
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-	const proc = Bun.spawn({
-		cmd: [process.execPath, path.resolve(import.meta.dir, "../src/cli/index.ts"), ...args],
+	const proc = spawn(process.execPath, [
+		"--import",
+		import.meta.resolve("tsx"),
+		path.resolve(testDir, "../src/cli/index.ts"),
+		...args,
+	], {
 		env: {
 			...process.env,
 			...env,
 		},
-		stdout: "pipe",
-		stderr: "pipe",
+		stdio: ["ignore", "pipe", "pipe"],
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
-	return { exitCode, stdout, stderr };
+	return { exitCode: exitCode ?? 1, stdout, stderr };
+}
+
+async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	let output = "";
+	if (!stream) {
+		return output;
+	}
+	for await (const chunk of stream) {
+		output += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+	}
+	return output;
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }

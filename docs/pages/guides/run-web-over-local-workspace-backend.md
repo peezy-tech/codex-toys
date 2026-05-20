@@ -31,7 +31,7 @@ The backend listens on `ws://127.0.0.1:3586` by default. Override it with
 ## Start the browser UI
 
 ```sh
-bun run dev:web
+vp run dev:web
 ```
 
 The Vite dev server proxies `ws://<web-host>/__codex-workspace-backend` to

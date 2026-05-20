@@ -6,25 +6,25 @@ the consolidated core export at `@peezy.tech/codex-flows/flow-runtime`.
 Generic runtime primitives for Codex flow packages.
 
 This package loads `flow.toml` manifests, matches generic events to flow steps,
-validates JSON-schema payloads, and runs steps with the Bun or feature-flagged
+validates JSON-schema payloads, and runs steps with the Node or feature-flagged
 Code Mode runners.
 
 ```ts
 import { discoverFlows, matchingSteps, runFlowStep } from "@peezy.tech/flow-runtime";
 ```
 
-## Bun Step Helpers
+## Node Step Helpers
 
-`runner = "bun"` still supports raw scripts that read JSON from stdin and print
+`runner = "node"` still supports raw scripts that read JSON from stdin and print
 `FLOW_RESULT`. The recommended authoring shape is a module default export:
 
 ```ts
 import {
-	defineBunFlow,
+	defineNodeFlow,
 	createCodexFlowClientFromContext,
-} from "@peezy.tech/flow-runtime/bun";
+} from "@peezy.tech/flow-runtime/node";
 
-export default defineBunFlow(async (ctx) => {
+export default defineNodeFlow(async (ctx) => {
 	const codex = createCodexFlowClientFromContext(ctx);
 	try {
 		const turn = await codex.startFlow({

@@ -8,7 +8,7 @@ procs:
       set +a
       backend_url="${CODEX_VOICE_WORKSPACE_BACKEND_WS_URL:-${CODEX_WORKSPACE_BACKEND_WS_URL:-${CODEX_GATEWAY_BACKEND_URL:-ws://127.0.0.1:3586}}}"
       backend_port="$(node -e "const url = new URL(process.argv[1]); console.log(url.port || (url.protocol === \"https:\" || url.protocol === \"wss:\" ? \"443\" : \"80\"));" "$backend_url")"
-      bun run workspace:backend --local-app-server --port "$backend_port"'
+      vp run workspace:backend --local-app-server --port "$backend_port"'
     autostart: true
     autorestart: true
 
@@ -56,7 +56,7 @@ procs:
         echo "waiting for TTS worker at $tts_url"
         sleep 2
       done
-      bun ./apps/workspace-voice-gateway/src/index.ts \
+      tsx ./apps/workspace-voice-gateway/src/index.ts \
         --workspace-backend-url "$backend_url" \
         --tts-worker-url "$tts_url" \
         --discord-voice-channel-id "$voice_channel_id"'

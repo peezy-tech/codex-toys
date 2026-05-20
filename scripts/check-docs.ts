@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const checks: string[] = [];
@@ -13,8 +15,7 @@ async function read(relativePath: string): Promise<string> {
 	if (cached !== undefined) {
 		return cached;
 	}
-	const file = Bun.file(new URL(relativePath, root));
-	const text = await file.text();
+	const text = await readFile(new URL(relativePath, root), "utf8");
 	textFiles.set(relativePath, text);
 	return text;
 }
@@ -35,16 +36,15 @@ async function expectExcludes(file: string, needle: string, label?: string): Pro
 	}
 }
 
-const helpProc = Bun.spawn([process.execPath, "packages/codex-client/src/cli/index.ts", "--help"], {
-	cwd: rootPath,
-	stdout: "pipe",
-	stderr: "pipe",
-});
-const [help, helpError, helpExit] = await Promise.all([
-	new Response(helpProc.stdout).text(),
-	new Response(helpProc.stderr).text(),
-	helpProc.exited,
-]);
+async function main(): Promise<void> {
+	const helpProc = spawn(process.execPath, ["--import", "tsx", "packages/codex-client/src/cli/index.ts", "--help"], {
+		cwd: rootPath,
+	});
+	const [help, helpError, helpExit] = await Promise.all([
+		collectText(helpProc.stdout),
+		collectText(helpProc.stderr),
+		exitCodeFor(helpProc),
+	]);
 
 if (helpExit !== 0) {
 	process.stderr.write(helpError);
@@ -146,4 +146,33 @@ if (failures.length > 0) {
 	process.exit(1);
 }
 
-console.log(`docs check passed (${checks.length} conditions)`);
+	console.log(`docs check passed (${checks.length} conditions)`);
+}
+
+function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		if (!stream) {
+			resolve(output);
+			return;
+		}
+		stream.setEncoding("utf8");
+		stream.on("data", (chunk: string) => {
+			output += chunk;
+		});
+		stream.once("error", reject);
+		stream.once("end", () => resolve(output));
+	});
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
+}
+
+void main().catch((error) => {
+	console.error(error instanceof Error ? error.message : String(error));
+	process.exit(1);
+});

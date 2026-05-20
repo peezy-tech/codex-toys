@@ -1,7 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
+import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	applyPackAdd,
 	collectPackDoctor,
@@ -10,7 +12,8 @@ import {
 	planPackAdd,
 } from "../src/cli/pack.ts";
 
-const fixtureRoot = path.join(import.meta.dir, "fixtures", "example-pack");
+const testDir = path.dirname(fileURLToPath(import.meta.url));
+const fixtureRoot = path.join(testDir, "fixtures", "example-pack");
 
 describe("pack installer", () => {
 	test("inspects a manifest-backed pack and honors item names", async () => {
@@ -270,7 +273,7 @@ describe("pack installer", () => {
 			"version = 1",
 			"[[steps]]",
 			'name = "check"',
-			'runner = "bun"',
+			'runner = "node"',
 			'script = "check.ts"',
 		].join("\n"));
 		await writeFixtureFile(sourceRoot, "plugins/demo-plugin/.codex-plugin/plugin.json", '{"name":"demo-plugin"}');
@@ -312,21 +315,37 @@ async function writeMarketplace(root: string, plugins: Array<Record<string, unkn
 }
 
 async function runGit(args: string[], cwd: string): Promise<string> {
-	const proc = Bun.spawn({
-		cmd: ["git", ...args],
+	const proc = spawn("git", args, {
 		cwd,
-		stdout: "pipe",
-		stderr: "pipe",
+		stdio: ["ignore", "pipe", "pipe"],
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
 	if (exitCode !== 0) {
 		throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`);
 	}
 	return stdout;
+}
+
+async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	let output = "";
+	if (!stream) {
+		return output;
+	}
+	for await (const chunk of stream) {
+		output += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+	}
+	return output;
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }
 
 async function exists(filePath: string): Promise<boolean> {

@@ -1,6 +1,6 @@
 {
   "name": "@peezy.tech/codex-opencode-go-router",
-  "version": "0.1.0",
+  "version": "0.132.1",
   "private": true,
   "type": "module",
   "description": "Responses API router that lets Codex use OpenCode Go chat completions.",
@@ -8,13 +8,13 @@
     "codex-opencode-go-router": "./src/router.mjs"
   },
   "scripts": {
-    "build": "bun run check",
-    "start": "bun ./src/router.mjs",
+    "build": "vp run check",
+    "start": "node ./src/router.mjs",
     "check": "node --check ./src/router.mjs && node --check ./test/selftest.mjs",
-    "check:types": "bun run check",
-    "test": "bun ./test/selftest.mjs"
+    "check:types": "vp run check",
+    "test": "node ./test/selftest.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.0.0 <25"
   }
 }

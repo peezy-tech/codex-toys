@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { Database } from "bun:sqlite";
+import { DatabaseSync } from "node:sqlite";
 import type { FlowEvent } from "@peezy.tech/codex-flows/flow-runtime";
 
 export type FlowRunStatus = "queued" | "running" | "completed" | "failed";
@@ -49,12 +49,12 @@ export type ListEventsOptions = {
 
 export class FlowBackendStore {
 	readonly dbPath: string;
-	#db: Database;
+	#db: DatabaseSync;
 
 	constructor(dbPath: string) {
 		this.dbPath = dbPath;
 		mkdirSync(path.dirname(dbPath), { recursive: true });
-		this.#db = new Database(dbPath);
+		this.#db = new DatabaseSync(dbPath);
 		this.#db.exec(`
 			create table if not exists flow_events (
 				id text primary key,
@@ -93,7 +93,7 @@ export class FlowBackendStore {
 
 	insertEvent(event: FlowEvent): boolean {
 		const result = this.#db
-			.query(
+			.prepare(
 				`insert or ignore into flow_events
 					(id, type, source, occurred_at, received_at, payload_json, raw_json, created_at)
 					values ($id, $type, $source, $occurredAt, $receivedAt, $payloadJson, $rawJson, $createdAt)`,
@@ -113,7 +113,7 @@ export class FlowBackendStore {
 
 	createRun(record: FlowRunRecord): void {
 		this.#db
-			.query(
+			.prepare(
 				`insert into flow_runs
 					(id, event_id, flow_name, step_name, status, backend, executor, unit, event_path,
 						command_json, result_json, stdout, stderr, error, created_at, started_at, completed_at)
@@ -126,7 +126,7 @@ export class FlowBackendStore {
 
 	markRunRunning(id: string, commandJson: string, unit?: string): void {
 		this.#db
-			.query(
+			.prepare(
 				`update flow_runs
 					set status = 'running', started_at = $startedAt, command_json = $commandJson, unit = $unit
 					where id = $id`,
@@ -141,7 +141,7 @@ export class FlowBackendStore {
 
 	markRunCompleted(id: string, values: { status: FlowRunStatus; resultJson?: string; stdout: string; stderr: string; error?: string }): void {
 		this.#db
-			.query(
+			.prepare(
 				`update flow_runs
 					set status = $status, completed_at = $completedAt, result_json = $resultJson,
 						stdout = $stdout, stderr = $stderr, error = $error
@@ -177,13 +177,13 @@ export class FlowBackendStore {
 		}
 		const where = clauses.length > 0 ? `where ${clauses.join(" and ")}` : "";
 		return this.#db
-			.query(`select * from flow_runs ${where} order by created_at desc, id desc limit $limit`)
+			.prepare(`select * from flow_runs ${where} order by created_at desc, id desc limit $limit`)
 			.all(params)
 			.map(rowToRunRecord);
 	}
 
 	getRun(id: string): FlowRunRecord | undefined {
-		const row = this.#db.query("select * from flow_runs where id = $id").get({ $id: id });
+		const row = this.#db.prepare("select * from flow_runs where id = $id").get({ $id: id });
 		return row ? rowToRunRecord(row) : undefined;
 	}
 
@@ -198,13 +198,13 @@ export class FlowBackendStore {
 		}
 		const where = clauses.length > 0 ? `where ${clauses.join(" and ")}` : "";
 		return this.#db
-			.query(`select * from flow_events ${where} order by created_at desc, id desc limit $limit`)
+			.prepare(`select * from flow_events ${where} order by created_at desc, id desc limit $limit`)
 			.all(params)
 			.map(rowToEventRecord);
 	}
 
 	getEvent(id: string): FlowEventRecord | undefined {
-		const row = this.#db.query("select * from flow_events where id = $id").get({ $id: id });
+		const row = this.#db.prepare("select * from flow_events where id = $id").get({ $id: id });
 		return row ? rowToEventRecord(row) : undefined;
 	}
 

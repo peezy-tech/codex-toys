@@ -29,7 +29,6 @@
 			"@peezy.tech/codex-flows/generated": ["../../packages/codex-client/src/app-server/generated/index.ts"],
 			"@peezy.tech/codex-flows/generated/*": ["../../packages/codex-client/src/app-server/generated/*"],
 			"@peezy.tech/codex-flows/rpc": ["../../packages/codex-client/src/app-server/rpc.ts"],
-			"@peezy.tech/codex-flows/*": ["../../packages/codex-client/src/*"],
 			"@workspace/ui/*": ["../../packages/ui/src/*"]
 		}
 	},

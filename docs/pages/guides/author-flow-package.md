@@ -32,7 +32,7 @@ commit = true
 
 [[steps]]
 name = "do-work"
-runner = "bun"
+runner = "node"
 script = "exec/do-work.ts"
 timeout_ms = 300000
 
@@ -46,7 +46,7 @@ in the schema and event payload, not in the generic runner.
 
 ## Step input
 
-Bun steps receive a JSON context. The raw ABI is still JSON on stdin, and the
+Node steps receive a JSON context. The raw ABI is still JSON on stdin, and the
 recommended authoring shape is a module default export that receives the same
 context as its first argument:
 
@@ -71,7 +71,7 @@ context as its first argument:
 ```
 
 `runtime.workspaceBackendUrl` is set by the local workspace backend when it
-launches a run. Trusted Bun steps can use it to call back into the same
+launches a run. Trusted Node steps can use it to call back into the same
 workspace backend and its app-server pass-through.
 
 ## Step output
@@ -79,9 +79,9 @@ workspace backend and its app-server pass-through.
 Module-style steps return a `FlowResult`:
 
 ```ts
-import { defineBunFlow } from "@peezy.tech/codex-flows/flow-runtime/bun";
+import { defineNodeFlow } from "@peezy.tech/codex-flows/flow-runtime/node";
 
-export default defineBunFlow(async (ctx) => {
+export default defineNodeFlow(async (ctx) => {
   return {
     status: "completed",
     message: `handled ${ctx.flow.event.id}`,
@@ -93,29 +93,37 @@ The runner still supports raw scripts that read stdin and print a final
 `FLOW_RESULT` line:
 
 ```ts
-const ctx = JSON.parse(await Bun.stdin.text());
+async function main() {
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  const ctx = JSON.parse(Buffer.concat(chunks).toString("utf8"));
 
-console.log(`FLOW_RESULT ${JSON.stringify({
-  status: "completed",
-  message: `handled ${ctx.flow.event.id}`,
-})}`);
+  console.log(`FLOW_RESULT ${JSON.stringify({
+    status: "completed",
+    message: `handled ${ctx.flow.event.id}`,
+  })}`);
+}
+
+void main();
 ```
 
 Use `blocked` or `needs_intervention` when a human or external condition is
 required. Clients and backends mark those statuses as needing attention.
 
-## Calling Codex from Bun
+## Calling Codex from Node
 
-Bun orchestration can start or continue Codex threads through the same workspace
+Node orchestration can start or continue Codex threads through the same workspace
 backend that launched the flow run:
 
 ```ts
 import {
   createCodexFlowClientFromContext,
-  defineBunFlow,
-} from "@peezy.tech/codex-flows/flow-runtime/bun";
+  defineNodeFlow,
+} from "@peezy.tech/codex-flows/flow-runtime/node";
 
-export default defineBunFlow(async (ctx) => {
+export default defineNodeFlow(async (ctx) => {
   const codex = createCodexFlowClientFromContext(ctx);
   try {
     const result = await codex.startFlow({

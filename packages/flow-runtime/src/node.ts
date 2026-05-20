@@ -9,19 +9,19 @@ import {
 } from "@peezy.tech/codex-flows/flows";
 import type { FlowResult, FlowRunContext } from "./types.ts";
 
-export type BunFlowHandler<TContext extends FlowRunContext = FlowRunContext> = (
+export type NodeFlowHandler<TContext extends FlowRunContext = FlowRunContext> = (
 	context: TContext,
 ) => FlowResult | Promise<FlowResult>;
 
-export function defineBunFlow<TContext extends FlowRunContext = FlowRunContext>(
-	handler: BunFlowHandler<TContext>,
-): BunFlowHandler<TContext> {
+export function defineNodeFlow<TContext extends FlowRunContext = FlowRunContext>(
+	handler: NodeFlowHandler<TContext>,
+): NodeFlowHandler<TContext> {
 	return handler;
 }
 
 export async function readFlowContext(input?: string | Uint8Array): Promise<FlowRunContext> {
 	const text = input === undefined
-		? await Bun.stdin.text()
+		? await readStdinText()
 		: typeof input === "string"
 			? input
 			: new TextDecoder().decode(input);
@@ -54,8 +54,8 @@ export function createWorkspaceBackendClientFromContext(
 	const workspaceBackendUrl = url ?? workspaceBackendUrlFromContext(context, optionEnv ?? process.env);
 	return new CodexWorkspaceBackendClient({
 		...clientOptions,
-		clientName: clientOptions.clientName ?? "codex-flow-bun-step",
-		clientTitle: clientOptions.clientTitle ?? `Bun Flow ${context.flow.name}/${context.flow.step}`,
+		clientName: clientOptions.clientName ?? "codex-flow-node-step",
+		clientTitle: clientOptions.clientTitle ?? `Node Flow ${context.flow.name}/${context.flow.step}`,
 		webSocketTransportOptions: clientOptions.transport
 			? undefined
 			: {
@@ -90,8 +90,8 @@ export function createCodexFlowClientFromContext(
 		url: workspaceBackendUrl,
 		requestTimeoutMs,
 		env,
-		clientName: codexOptions.clientName ?? "codex-flow-bun-step",
-		clientTitle: codexOptions.clientTitle ?? `Bun Flow ${context.flow.name}/${context.flow.step}`,
+		clientName: codexOptions.clientName ?? "codex-flow-node-step",
+		clientTitle: codexOptions.clientTitle ?? `Node Flow ${context.flow.name}/${context.flow.step}`,
 		clientVersion: codexOptions.clientVersion,
 	});
 	return createCodexFlowClient({
@@ -114,4 +114,12 @@ function requireWorkspaceBackendUrl(value: string | undefined): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function readStdinText(): Promise<string> {
+	const chunks: Uint8Array[] = [];
+	for await (const chunk of process.stdin) {
+		chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+	}
+	return Buffer.concat(chunks).toString("utf8");
 }

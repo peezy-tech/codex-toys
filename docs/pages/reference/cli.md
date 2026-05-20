@@ -274,8 +274,8 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_FLOW_BACKEND_SECRET` | Shared HMAC secret for HTTP flow dispatch. |
 | `CODEX_FLOW_BACKEND_EXECUTOR` | `direct` or `systemd-run`. |
 | `CODEX_FLOW_BACKEND_DATA_DIR` | Durable backend state directory. |
-| `CODEX_FLOW_EVENT_ID` | Event id passed to running Bun steps. |
-| `CODEX_FLOW_RUN_ID` | Run id passed to running Bun steps. |
-| `CODEX_FLOW_ATTEMPT_ID` | Attempt identity passed to running Bun steps. |
+| `CODEX_FLOW_EVENT_ID` | Event id passed to running Node steps. |
+| `CODEX_FLOW_RUN_ID` | Run id passed to running Node steps. |
+| `CODEX_FLOW_ATTEMPT_ID` | Attempt identity passed to running Node steps. |
 | `CODEX_FLOW_REPLAY` | `1` when the current execution is a replay. |
 | `CODEX_FLOW_LAUNCHED_BY` | Runner or backend identity that launched the step. |

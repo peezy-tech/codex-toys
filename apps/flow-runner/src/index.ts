@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
 	discoverFlows,
@@ -29,7 +30,7 @@ await main().catch((error) => {
 });
 
 async function main(): Promise<void> {
-	const cli = parseArgs(Bun.argv.slice(2));
+	const cli = parseArgs(process.argv.slice(2));
 	if (cli.kind === "help") {
 		process.stdout.write(helpText());
 		return;
@@ -101,7 +102,7 @@ async function runAndReport(
 }
 
 async function readEvent(eventPath: string): Promise<FlowEvent> {
-	const parsed = JSON.parse(await Bun.file(path.resolve(eventPath)).text()) as unknown;
+	const parsed = JSON.parse(await readFile(path.resolve(eventPath), "utf8")) as unknown;
 	if (!isRecord(parsed) || typeof parsed.id !== "string" || typeof parsed.type !== "string") {
 		throw new Error("event file must contain at least string id and type");
 	}

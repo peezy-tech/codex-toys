@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FlowProgressSink } from "../client-types.ts";
@@ -12,7 +14,7 @@ import type {
 	LoadedFlow,
 } from "../types.ts";
 
-export type RunBunStepOptions = {
+export type RunNodeStepOptions = {
 	flow: LoadedFlow;
 	step: FlowStep;
 	event: FlowEvent;
@@ -21,27 +23,23 @@ export type RunBunStepOptions = {
 	progress?: FlowProgressSink;
 };
 
-export async function runBunStep(options: RunBunStepOptions): Promise<FlowResult> {
+export async function runNodeStep(options: RunNodeStepOptions): Promise<FlowResult> {
 	const scriptPath = stepScriptPath(options.flow, options.step);
 	const cwd = options.step.cwd
 		? path.resolve(options.flow.root, options.step.cwd)
 		: options.flow.root;
 	const context = runContext(options);
-	const commandPath = await bunCommandPath(scriptPath);
-	const subprocess = Bun.spawn({
-		cmd: commandPath,
+	const commandPath = await nodeCommandPath(scriptPath);
+	const subprocess = spawn(commandPath[0] ?? process.execPath, commandPath.slice(1), {
 		cwd,
 		env: {
 			...process.env,
 			...options.env,
 			...runtimeEnv(context),
 		},
-		stdin: "pipe",
-		stdout: "pipe",
-		stderr: "pipe",
+		stdio: ["pipe", "pipe", "pipe"],
 	});
-	subprocess.stdin.write(`${JSON.stringify(context, null, 2)}\n`);
-	subprocess.stdin.end();
+	subprocess.stdin.end(`${JSON.stringify(context, null, 2)}\n`);
 	const timer = setTimeout(() => subprocess.kill("SIGTERM"), options.step.timeoutMs);
 	const [stdout, stderr, exitCode] = await Promise.all([
 		collectText(subprocess.stdout),
@@ -55,52 +53,45 @@ export async function runBunStep(options: RunBunStepOptions): Promise<FlowResult
 				stepName: options.step.name,
 				runner: options.step.runner,
 				text,
-			});
+				});
 		}),
-		subprocess.exited,
+		exitCodeFor(subprocess),
 	]).finally(() => clearTimeout(timer));
 	if (exitCode !== 0) {
-		throw new Error(`Bun flow step ${options.flow.manifest.name}/${options.step.name} failed:\n${stderr || stdout}`);
+		throw new Error(`Node flow step ${options.flow.manifest.name}/${options.step.name} failed:\n${stderr || stdout}`);
 	}
 	return parseFlowResult(stdout);
 }
 
 async function collectText(
-	stream: ReadableStream<Uint8Array>,
+	stream: NodeJS.ReadableStream | null,
 	onText?: (text: string) => void,
 ): Promise<string> {
-	const reader = stream.getReader();
-	const decoder = new TextDecoder();
 	let output = "";
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) {
-			break;
-		}
-		const text = decoder.decode(value, { stream: true });
+	if (!stream) {
+		return output;
+	}
+	for await (const chunk of stream) {
+		const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
 		output += text;
 		onText?.(text);
-	}
-	const tail = decoder.decode();
-	if (tail) {
-		output += tail;
-		onText?.(tail);
 	}
 	return output;
 }
 
-async function bunCommandPath(scriptPath: string): Promise<string[]> {
+async function nodeCommandPath(scriptPath: string): Promise<string[]> {
+	const tsxLoader = import.meta.resolve("tsx");
 	if (await isModuleStyleScript(scriptPath)) {
-		return [process.execPath, siblingRuntimePath("bun-module-runner"), scriptPath];
+		return [process.execPath, "--import", tsxLoader, siblingRuntimePath("node-module-runner"), scriptPath];
 	}
-	return [process.execPath, scriptPath];
+	return [process.execPath, "--import", tsxLoader, scriptPath];
 }
 
 async function isModuleStyleScript(scriptPath: string): Promise<boolean> {
-	const source = await Bun.file(scriptPath).text();
+	const source = await readFile(scriptPath, "utf8");
 	return /\bexport\s+default\b/.test(source) ||
 		/\bas\s+default\b/.test(source) ||
-		/\bdefineBunFlow\s*\(/.test(source);
+		/\bdefineNodeFlow\s*\(/.test(source);
 }
 
 function siblingRuntimePath(basename: string): string {
@@ -109,7 +100,7 @@ function siblingRuntimePath(basename: string): string {
 	return path.join(path.dirname(currentPath), `${basename}${extension}`);
 }
 
-function runContext(options: RunBunStepOptions): FlowRunContext {
+function runContext(options: RunNodeStepOptions): FlowRunContext {
 	const env = options.env ?? process.env;
 	const runtime = {
 		eventId: options.runtime?.eventId ?? env.CODEX_FLOW_EVENT_ID ?? options.event.id,
@@ -165,4 +156,11 @@ function compactStringEnv(value: Record<string, string | undefined>): Record<str
 		}
 	}
 	return result;
+}
+
+function exitCodeFor(subprocess: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		subprocess.once("error", reject);
+		subprocess.once("exit", (code) => resolve(code));
+	});
 }

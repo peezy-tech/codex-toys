@@ -4,7 +4,7 @@ description = "Check release readiness."
 
 [[steps]]
 name = "check"
-runner = "bun"
+runner = "node"
 script = "exec/check.ts"
 
 [steps.trigger]

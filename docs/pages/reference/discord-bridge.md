@@ -23,7 +23,7 @@ Use it when a team wants to:
 Install the gateway package:
 
 ```bash
-bun add @peezy.tech/codex-discord-bridge
+pnpm add @peezy.tech/codex-discord-bridge
 ```
 
 The bridge can connect to an existing app-server WebSocket or start a local
@@ -130,8 +130,8 @@ codex-discord-bridge hook install
 For package-on-demand installs:
 
 ```bash
-codex-discord-bridge hook install --bunx
-codex-discord-bridge hook install --bunx-package @peezy.tech/codex-discord-bridge
+codex-discord-bridge hook install --dlx
+codex-discord-bridge hook install --dlx-package @peezy.tech/codex-discord-bridge
 ```
 
 The hook command is intentionally dumb. It writes lifecycle-event files to the

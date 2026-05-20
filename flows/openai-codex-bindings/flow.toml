@@ -18,7 +18,7 @@ github_publish_workflow = "publish-codex-flows.yml"
 
 [[steps]]
 name = "regenerate-bindings"
-runner = "bun"
+runner = "node"
 script = "exec/update-bindings.ts"
 cwd = "../.."
 timeout_ms = 1200000
