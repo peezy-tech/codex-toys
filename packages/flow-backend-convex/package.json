@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/flow-backend-convex",
-	"version": "0.4.0",
+	"version": "0.4.1",
 	"description": "Reusable Convex component for durable codex-flow event, run, lease, and result state.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -52,7 +52,7 @@
 		"test": "bun test test/*.test.ts"
 	},
 	"dependencies": {
-		"@peezy.tech/codex-flows": "^0.3.4",
+		"@peezy.tech/codex-flows": "^0.132.0",
 		"convex": "^1.38.0"
 	},
 	"devDependencies": {

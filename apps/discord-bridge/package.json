@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/codex-discord-bridge",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Long-lived Discord sidecar for bridging Discord threads to Codex app-server threads.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -38,7 +38,7 @@
 		"test": "bun test test/*.test.ts"
 	},
 	"dependencies": {
-		"@peezy.tech/codex-flows": "^0.3.4",
+		"@peezy.tech/codex-flows": "^0.132.0",
 		"discord.js": "^14.22.1"
 	},
 	"devDependencies": {

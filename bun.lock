@@ -22,12 +22,12 @@
     },
     "apps/discord-bridge": {
       "name": "@peezy.tech/codex-discord-bridge",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "bin": {
         "codex-discord-bridge": "./dist/index.js",
       },
       "dependencies": {
-        "@peezy.tech/codex-flows": "^0.3.4",
+        "@peezy.tech/codex-flows": "^0.132.0",
         "discord.js": "^14.22.1",
       },
       "devDependencies": {
@@ -88,13 +88,13 @@
     },
     "apps/workspace-voice-gateway": {
       "name": "@peezy.tech/codex-workspace-voice-gateway",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "bin": {
         "codex-workspace-voice-gateway": "./dist/index.js",
       },
       "dependencies": {
         "@discordjs/voice": "^0.19.2",
-        "@peezy.tech/codex-flows": "^0.3.4",
+        "@peezy.tech/codex-flows": "^0.132.0",
         "discord.js": "^14.22.1",
         "opusscript": "^0.1.1",
       },
@@ -116,7 +116,7 @@
     },
     "packages/codex-client": {
       "name": "@peezy.tech/codex-flows",
-      "version": "0.4.0",
+      "version": "0.132.0",
       "bin": {
         "codex-flows": "./dist/cli/index.js",
         "codex-app": "./dist/bin/codex-app.js",
@@ -138,9 +138,9 @@
     },
     "packages/flow-backend-convex": {
       "name": "@peezy.tech/flow-backend-convex",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
-        "@peezy.tech/codex-flows": "^0.3.4",
+        "@peezy.tech/codex-flows": "^0.132.0",
         "convex": "^1.38.0",
       },
       "devDependencies": {
@@ -151,9 +151,9 @@
     },
     "packages/flow-runtime": {
       "name": "@peezy.tech/flow-runtime",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
-        "@peezy.tech/codex-flows": "^0.3.1",
+        "@peezy.tech/codex-flows": "^0.132.0",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -1762,14 +1762,6 @@
     "@mdx-js/rollup/source-map": ["source-map@0.7.6", "", {}, "sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ=="],
 
     "@mswjs/interceptors/@open-draft/deferred-promise": ["@open-draft/deferred-promise@2.2.0", "", {}, "sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA=="],
-
-    "@peezy.tech/codex-discord-bridge/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
-
-    "@peezy.tech/codex-workspace-voice-gateway/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
-
-    "@peezy.tech/flow-backend-convex/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
-
-    "@peezy.tech/flow-runtime/@peezy.tech/codex-flows": ["@peezy.tech/codex-flows@0.3.6", "", { "bin": { "codex-flows": "dist/cli/index.js", "codex-app": "dist/bin/codex-app.js", "codex-flow-runner": "dist/bin/codex-flow-runner.js", "codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js" } }, "sha512-Iz9xGr4NP9eB9uMohvWAeiiKDkorJ9pwp3fwIshoDDFg9h5ggf+qxyWDS5Azb6hemdwafdzPWMLUbB5qg4cFOQ=="],
 
     "@rollup/pluginutils/estree-walker": ["estree-walker@2.0.2", "", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
 
