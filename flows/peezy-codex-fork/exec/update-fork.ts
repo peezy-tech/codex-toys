@@ -536,6 +536,14 @@ async function rebuildMainFromBase(baseRef, baseSha, beforeSha) {
         failedPatch: patch,
         applied
       });
+      const resolved = await rebuildResultFromIntervention({
+        beforeSha,
+        patches,
+        context
+      });
+      if (resolved) {
+        return resolved;
+      }
       finish("needs_intervention", "Patch workspace rebuild paused on " + patch.name + ".", context);
     }
     applied.push(patch);
@@ -576,6 +584,69 @@ async function rebuildMainFromBase(baseRef, baseSha, beforeSha) {
     afterSha,
     rebuiltSha: afterSha,
     applied
+  };
+}
+
+async function rebuildResultFromIntervention(input) {
+  const turn = input.context.interventionTurn;
+  if (!turn || turn.error) {
+    return undefined;
+  }
+
+  if (turn.turnStatus && turn.turnStatus !== "completed") {
+    return undefined;
+  }
+
+  const cherryPick = await run(
+    "post-intervention cherry-pick state",
+    "test -f \"$(git rev-parse --git-path CHERRY_PICK_HEAD)\"",
+    { max_output_tokens: 4000 }
+  );
+  if (cherryPick.exit_code === 0) {
+    return undefined;
+  }
+
+  const rebase = await run(
+    "post-intervention rebase state",
+    "test -d \"$(git rev-parse --git-path rebase-merge)\" -o -d \"$(git rev-parse --git-path rebase-apply)\"",
+    { max_output_tokens: 4000 }
+  );
+  if (rebase.exit_code === 0) {
+    return undefined;
+  }
+
+  const branch = await currentBranch();
+  if (branch !== targetBranch) {
+    const switched = await run("post-intervention switch target branch", "git switch " + q(targetBranch), {
+      max_output_tokens: 12000
+    });
+    if (!ok(switched)) {
+      return undefined;
+    }
+  }
+
+  const dirty = await run("post-intervention dirty check", "git status --porcelain=v1", {
+    max_output_tokens: 12000
+  });
+  if (trim(dirty.output)) {
+    return undefined;
+  }
+
+  const afterHead = await run("post-intervention target head", "git rev-parse --verify " + q(targetBranch + "^{commit}"), {
+    max_output_tokens: 4000
+  });
+  const afterSha = trim(afterHead.output);
+  if (!ok(afterHead) || !afterSha) {
+    return undefined;
+  }
+
+  return {
+    changed: input.beforeSha !== afterSha,
+    beforeSha: input.beforeSha,
+    afterSha,
+    rebuiltSha: afterSha,
+    applied: input.patches,
+    interventionTurn: turn
   };
 }
 
