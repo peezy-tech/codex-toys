@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { parse as parseToml } from "smol-toml";
 
 import type {
 	ReasoningEffort,
@@ -441,7 +442,7 @@ function workspaceWorkspaceSurfaceConfig(
 	}
 	let parsed: unknown;
 	try {
-		parsed = Bun.TOML.parse(readFileSync(configPath, "utf8"));
+		parsed = parseToml(readFileSync(configPath, "utf8"));
 	} catch (error) {
 		throw new Error(
 			`Invalid workspace config TOML at ${configPath}: ${errorMessage(error)}`,

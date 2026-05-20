@@ -170,10 +170,10 @@ where a full skill or flow would be unnecessary.
 
 ```toml
 [[workspace.tasks]]
-id = "bun-version"
+id = "node-version"
 enabled = true
 kind = "command"
-command = ["bun", "--version"]
+command = ["node", "--version"]
 schedule = "0 * * * *"
 ```
 

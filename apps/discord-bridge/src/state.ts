@@ -1,4 +1,4 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -30,11 +30,10 @@ export class JsonFileStateStore implements DiscordBridgeStateStore {
 	}
 
 	async load(): Promise<DiscordBridgeState> {
-		const file = Bun.file(this.path);
-		if (!(await file.exists())) {
+		if (!(await exists(this.path))) {
 			return emptyState();
 		}
-		const parsed = JSON.parse(await file.text()) as unknown;
+		const parsed = JSON.parse(await readFile(this.path, "utf8")) as unknown;
 		return parseState(parsed);
 	}
 
@@ -44,6 +43,15 @@ export class JsonFileStateStore implements DiscordBridgeStateStore {
 		const tempPath = `${this.path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
 		await writeFile(tempPath, `${JSON.stringify(state, null, 2)}\n`);
 		await rename(tempPath, this.path);
+	}
+}
+
+async function exists(pathValue: string): Promise<boolean> {
+	try {
+		await stat(pathValue);
+		return true;
+	} catch {
+		return false;
 	}
 }
 

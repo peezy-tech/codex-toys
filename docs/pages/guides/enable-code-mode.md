@@ -9,10 +9,10 @@ description: Gate Code Mode steps explicitly and configure the Codex executor.
 `thread/codeMode/execute` method. Code Mode remains opt-in because it executes
 Codex work with repository access and tool permissions.
 
-Do not enable Code Mode just because a Bun flow step needs to ask Codex to do
-work. Trusted `runner = "bun"` steps can use
+Do not enable Code Mode just because a Node flow step needs to ask Codex to do
+work. Trusted `runner = "node"` steps can use
 `createCodexFlowClientFromContext(ctx)` from
-`@peezy.tech/codex-flows/flow-runtime/bun` to call the workspace backend and its
+`@peezy.tech/codex-flows/flow-runtime/node` to call the workspace backend and its
 app-server pass-through. That is normal flow orchestration and does not require
 the fork-only Code Mode method.
 
@@ -25,7 +25,7 @@ CODEX_FLOWS_MODE=code-mode
 That mode also makes stdio app-server launches default to:
 
 ```bash
-bunx @peezy.tech/codex app-server
+vp dlx @peezy.tech/codex app-server
 ```
 
 Use `CODEX_APP_SERVER_CODEX_COMMAND` when a specific local binary should run

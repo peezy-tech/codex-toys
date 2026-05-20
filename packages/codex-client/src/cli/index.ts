@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import {
 	CodexAppServerClient,
 	CodexWebSocketTransport,
@@ -75,7 +76,7 @@ await main().catch((error) => {
 });
 
 async function main(): Promise<void> {
-	const parsed = parseArgs(Bun.argv.slice(2), process.env);
+	const parsed = parseArgs(process.argv.slice(2), process.env);
 	if (parsed.type === "help") {
 		write(helpText());
 		return;
@@ -198,7 +199,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "flow-dispatch") {
-		const event = JSON.parse(await Bun.file(parsed.eventPath).text()) as unknown;
+		const event = JSON.parse(await readFile(parsed.eventPath, "utf8")) as unknown;
 		writeJson(await callWorkspaceBackend("flow.dispatch", { event }, parsed), parsed.pretty);
 		return;
 	}
@@ -279,7 +280,7 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			mode: "actions",
 		});
-		const event = JSON.parse(await Bun.file(parsed.eventPath).text()) as unknown;
+		const event = JSON.parse(await readFile(parsed.eventPath, "utf8")) as unknown;
 		writeJson(await dispatchActionsFlowEvent({
 			workspaceRoot: context.repoRoot,
 			event,

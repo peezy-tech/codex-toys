@@ -1,13 +1,13 @@
 ---
 title: Code Mode
-description: Why Code Mode is gated and how it relates to normal Bun runners.
+description: Why Code Mode is gated and how it relates to normal Node runners.
 ---
 
 # Code Mode
 
-Most flow steps should use `runner = "bun"`. Bun runners are plain scripts:
+Most flow steps should use `runner = "node"`. Node runners are plain scripts:
 they receive flow context, perform deterministic work, and produce
-`FLOW_RESULT`. Module-style Bun steps can also call the workspace backend that
+`FLOW_RESULT`. Module-style Node steps can also call the workspace backend that
 launched them and use app-server pass-through to start, resume, read, and wait
 for Codex turns.
 
@@ -15,9 +15,9 @@ Use `runner = "code-mode"` when the step needs Codex to operate inside the
 repository. Code Mode calls a fork-only app-server method,
 `thread/codeMode/execute`, so it is intentionally gated.
 
-Bun+Codex orchestration is different from Code Mode. A Bun step may ask the
+Node+Codex orchestration is different from Code Mode. A Node step may ask the
 workspace backend to start a Codex turn and record the returned thread and turn
-ids; the step itself still runs as a normal trusted Bun subprocess. Code Mode
+ids; the step itself still runs as a normal trusted Node subprocess. Code Mode
 executes saved Code Mode source inside the Codex runtime and therefore depends
 on the Peezy Codex fork surface.
 

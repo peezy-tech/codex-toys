@@ -17,13 +17,13 @@ This router adapts:
 
 ## Requirements
 
-- Node.js 22+ or Bun.
+- Node.js 24 LTS.
 - `OPENCODE_GO_API_KEY` in the environment, or in `~/.env`.
 
 ## Run
 
 ```bash
-bun run --filter @peezy.tech/codex-opencode-go-router start
+vp run --filter @peezy.tech/codex-opencode-go-router start
 ```
 
 Default endpoint:
@@ -60,8 +60,8 @@ systemctl --user enable --now opencode-go-responses-proxy.service
 ## Test
 
 ```bash
-bun run --filter @peezy.tech/codex-opencode-go-router check
-bun run --filter @peezy.tech/codex-opencode-go-router test
+vp run --filter @peezy.tech/codex-opencode-go-router check
+vp run --filter @peezy.tech/codex-opencode-go-router test
 ```
 
 The self-test starts a fake OpenCode Go upstream and verifies plain messages, function calls, namespace calls, custom/freeform calls, local shell calls, tool-search calls, DeepSeek reasoning replay, and history replay.

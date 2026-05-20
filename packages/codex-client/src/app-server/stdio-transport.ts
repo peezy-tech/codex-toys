@@ -1,3 +1,4 @@
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { CodexEventEmitter } from "./events.ts";
 import {
 	type JsonRpcId,
@@ -22,7 +23,7 @@ type PendingRequest = {
 	timer: ReturnType<typeof setTimeout>;
 };
 
-type AppServerProcess = Bun.PipedSubprocess;
+type AppServerProcess = ChildProcessWithoutNullStreams;
 
 export type CodexStdioTransportOptions = {
 	codexCommand?: string;
@@ -70,32 +71,29 @@ export class CodexStdioTransport extends CodexEventEmitter {
 			return;
 		}
 
-		const child = Bun.spawn({
-			cmd: [this.#codexCommand, ...this.#args],
+		const child = spawn(this.#codexCommand, this.#args, {
 			cwd: this.#cwd,
 			env: { ...process.env, ...this.#env },
 			detached: process.platform !== "win32",
-			stdin: "pipe",
-			stdout: "pipe",
-			stderr: "pipe",
-			onExit: (subprocess, code, signal, error) => {
-				if (this.#child === subprocess) {
-					this.#child = undefined;
-				}
-				const exitError =
-					error instanceof Error
-						? error
-						: new Error(
-								`codex app-server exited with ${code ?? signal ?? "unknown"}`,
-							);
-				this.#rejectAll(exitError);
-				if (error) {
-					this.emit("error", exitError);
-				}
-				this.emit("close", code, signal);
-			},
 		});
 		this.#child = child;
+		child.once("exit", (code, signal) => {
+			if (this.#child === child) {
+				this.#child = undefined;
+			}
+			const exitError = new Error(
+				`codex app-server exited with ${code ?? signal ?? "unknown"}`,
+			);
+			this.#rejectAll(exitError);
+			this.emit("close", code, signal);
+		});
+		child.once("error", (error) => {
+			if (this.#child === child) {
+				this.#child = undefined;
+			}
+			this.#rejectAll(error);
+			this.emit("error", error);
+		});
 
 		void readLines(child.stdout, (line) => this.#handleLine(line)).catch((error) =>
 			this.emit("error", error),
@@ -160,7 +158,6 @@ export class CodexStdioTransport extends CodexEventEmitter {
 			throw new Error("codex app-server transport is not running");
 		}
 		child.stdin.write(stringifyJsonRpc(message));
-		child.stdin.flush();
 	}
 
 	#handleLine(line: string): void {
@@ -225,8 +222,15 @@ export function resolveCodexStdioCommand(
 
 	const packageName = env.CODEX_APP_SERVER_CODEX_PACKAGE?.trim();
 	if (packageName || codexFlowsMode(env) === CODEX_FLOWS_CODE_MODE) {
+		const dlxCommand = env.CODEX_APP_SERVER_DLX_COMMAND?.trim();
+		if (!dlxCommand) {
+			return {
+				command: "vp",
+				args: ["dlx", packageName || DEFAULT_CODE_MODE_CODEX_PACKAGE, ...args],
+			};
+		}
 		return {
-			command: env.CODEX_APP_SERVER_BUNX_COMMAND?.trim() || "bunx",
+			command: dlxCommand,
 			args: [packageName || DEFAULT_CODE_MODE_CODEX_PACKAGE, ...args],
 		};
 	}
@@ -251,24 +255,13 @@ function killChildProcessGroup(
 }
 
 async function readLines(
-	stream: ReadableStream<Uint8Array>,
+	stream: NodeJS.ReadableStream,
 	onLine: (line: string) => void,
 ): Promise<void> {
-	const reader = stream.getReader();
-	const decoder = new TextDecoder();
 	let buffer = "";
-
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) {
-			buffer += decoder.decode();
-			if (buffer.length > 0) {
-				onLine(buffer.replace(/\r$/, ""));
-			}
-			return;
-		}
-
-		buffer += decoder.decode(value, { stream: true });
+	stream.setEncoding("utf8");
+	for await (const chunk of stream) {
+		buffer += String(chunk);
 		let lineEnd = buffer.indexOf("\n");
 		while (lineEnd !== -1) {
 			const line = buffer.slice(0, lineEnd).replace(/\r$/, "");
@@ -276,6 +269,9 @@ async function readLines(
 			onLine(line);
 			lineEnd = buffer.indexOf("\n");
 		}
+	}
+	if (buffer.length > 0) {
+		onLine(buffer.replace(/\r$/, ""));
 	}
 }
 

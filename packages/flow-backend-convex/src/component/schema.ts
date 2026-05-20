@@ -3,7 +3,7 @@ import { v } from "convex/values";
 
 const flowStep = v.object({
 	name: v.string(),
-	runner: v.union(v.literal("bun"), v.literal("code-mode")),
+	runner: v.union(v.literal("node"), v.literal("code-mode")),
 	script: v.string(),
 	timeoutMs: v.number(),
 	cwd: v.optional(v.string()),
@@ -58,7 +58,7 @@ export default defineSchema({
 		flowName: v.string(),
 		flowVersion: v.number(),
 		stepName: v.string(),
-		runner: v.union(v.literal("bun"), v.literal("code-mode")),
+		runner: v.union(v.literal("node"), v.literal("code-mode")),
 		status: v.union(
 			v.literal("queued"),
 			v.literal("running"),

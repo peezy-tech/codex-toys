@@ -7,7 +7,7 @@ description: Use the CLI or local client to discover, match, and execute flow st
 
 Local execution is the simplest path for development and product CLIs. It uses
 the same `FlowEvent` and normalized flow result contract as backend execution.
-Raw Bun scripts can still emit `FLOW_RESULT`; module-style Bun steps return the
+Raw Node scripts can still emit `FLOW_RESULT`; module-style Node steps return the
 result object directly.
 
 ## List flows

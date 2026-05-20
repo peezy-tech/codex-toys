@@ -1,5 +1,6 @@
-import { readdir } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseToml } from "smol-toml";
 import type { FlowManifest, FlowStep, LoadedFlow } from "./types.ts";
 
 export type DiscoverFlowsOptions = {
@@ -9,7 +10,7 @@ export type DiscoverFlowsOptions = {
 
 export async function loadFlow(root: string): Promise<LoadedFlow> {
 	const manifestPath = path.join(root, "flow.toml");
-	const parsed = Bun.TOML.parse(await Bun.file(manifestPath).text()) as unknown;
+	const parsed = parseToml(await readFile(manifestPath, "utf8")) as unknown;
 	const manifest = normalizeManifest(parsed, manifestPath);
 	return { root, manifestPath, manifest };
 }
@@ -24,7 +25,7 @@ export async function discoverFlows(options: DiscoverFlowsOptions): Promise<Load
 	for (const root of roots) {
 		for (const directory of await childDirectories(root)) {
 			const manifestPath = path.join(directory, "flow.toml");
-			if (!(await Bun.file(manifestPath).exists())) {
+			if (!(await exists(manifestPath))) {
 				continue;
 			}
 			const flow = await loadFlow(directory);
@@ -94,8 +95,8 @@ function normalizeStep(value: unknown, index: number, manifestPath: string): Flo
 		throw new Error(`steps[${index}] must be a table: ${manifestPath}`);
 	}
 	const runner = requiredString(value.runner, `steps[${index}].runner`, manifestPath);
-	if (runner !== "bun" && runner !== "code-mode") {
-		throw new Error(`steps[${index}].runner must be bun or code-mode: ${manifestPath}`);
+	if (runner !== "node" && runner !== "code-mode") {
+		throw new Error(`steps[${index}].runner must be node or code-mode: ${manifestPath}`);
 	}
 	return {
 		name: requiredString(value.name, `steps[${index}].name`, manifestPath),
@@ -134,4 +135,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isErrno(error: unknown, code: string): boolean {
 	return isRecord(error) && error.code === code;
+}
+
+async function exists(pathValue: string): Promise<boolean> {
+	try {
+		await access(pathValue);
+		return true;
+	} catch (error) {
+		if (isErrno(error, "ENOENT")) {
+			return false;
+		}
+		throw error;
+	}
 }

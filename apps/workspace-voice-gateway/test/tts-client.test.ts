@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
+import http from "node:http";
 
 import { createStreamingPcmResource, wavToDiscordPcm } from "../src/discord-voice.ts";
 import { TtsWorkerClient } from "../src/tts-client.ts";
@@ -6,9 +7,8 @@ import { TtsWorkerClient } from "../src/tts-client.ts";
 describe("TtsWorkerClient", () => {
 	test("checks health and requests streaming synthesis with reference voice config", async () => {
 		let receivedPayload: Record<string, unknown> | undefined;
-		const server = Bun.serve({
-			port: 0,
-			async fetch(request) {
+		const server = await createHttpTestServer(
+			async (request) => {
 				const url = new URL(request.url);
 				if (url.pathname === "/health") {
 					return Response.json({ status: "ok", engine: "test" });
@@ -25,10 +25,10 @@ describe("TtsWorkerClient", () => {
 				}
 				return new Response("not found", { status: 404 });
 			},
-		});
+		);
 		try {
 			const client = new TtsWorkerClient({
-				workerUrl: `http://127.0.0.1:${server.port}`,
+				workerUrl: server.url,
 				referenceAudioPath: "references/jo.wav",
 				referenceTextPath: "references/jo.txt",
 			});
@@ -43,15 +43,14 @@ describe("TtsWorkerClient", () => {
 				reference_text_path: "references/jo.txt",
 			});
 		} finally {
-			server.stop(true);
+			await server.close();
 		}
 	});
 
 	test("requests file synthesis with an explicit output path", async () => {
 		let receivedPayload: Record<string, unknown> | undefined;
-		const server = Bun.serve({
-			port: 0,
-			async fetch(request) {
+		const server = await createHttpTestServer(
+			async (request) => {
 				const url = new URL(request.url);
 				if (url.pathname === "/health") {
 					return Response.json({ status: "ok", engine: "test" });
@@ -70,10 +69,10 @@ describe("TtsWorkerClient", () => {
 				}
 				return new Response("not found", { status: 404 });
 			},
-		});
+		);
 		try {
 			const client = new TtsWorkerClient({
-				workerUrl: `http://127.0.0.1:${server.port}`,
+				workerUrl: server.url,
 				referenceAudioPath: "references/jo.wav",
 				referenceTextPath: "references/jo.txt",
 			});
@@ -91,7 +90,7 @@ describe("TtsWorkerClient", () => {
 				reference_text_path: "references/jo.txt",
 			});
 		} finally {
-			server.stop(true);
+			await server.close();
 		}
 	});
 });
@@ -142,6 +141,76 @@ function pcmStream(): ReadableStream<Uint8Array> {
 			controller.close();
 		},
 	});
+}
+
+async function createHttpTestServer(
+	handler: (request: Request) => Response | Promise<Response>,
+): Promise<{ url: string; close: () => Promise<void> }> {
+	const server = http.createServer((request, response) => {
+		void (async () => {
+			const webResponse = await handler(await toWebRequest(request));
+			response.statusCode = webResponse.status;
+			for (const [name, value] of webResponse.headers) {
+				response.setHeader(name, value);
+			}
+			response.end(Buffer.from(await webResponse.arrayBuffer()));
+		})().catch((error: unknown) => {
+			response.statusCode = 500;
+			response.end(error instanceof Error ? error.message : String(error));
+		});
+	});
+	await new Promise<void>((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			server.off("error", reject);
+			resolve();
+		});
+	});
+	const address = server.address();
+	if (typeof address !== "object" || !address) {
+		throw new Error("test server did not start");
+	}
+	return {
+		url: `http://127.0.0.1:${address.port}`,
+		close: () => new Promise((resolve, reject) => {
+			server.close((error) => error ? reject(error) : resolve());
+		}),
+	};
+}
+
+async function toWebRequest(request: http.IncomingMessage): Promise<Request> {
+	const host = request.headers.host ?? "127.0.0.1";
+	const url = new URL(request.url ?? "/", `http://${host}`);
+	const body = request.method === "GET" || request.method === "HEAD"
+		? undefined
+		: await collectBody(request);
+	return new Request(url, {
+		method: request.method,
+		headers: nodeHeaders(request.headers),
+		body,
+	});
+}
+
+function nodeHeaders(headers: http.IncomingHttpHeaders): Headers {
+	const result = new Headers();
+	for (const [name, value] of Object.entries(headers)) {
+		if (Array.isArray(value)) {
+			for (const entry of value) {
+				result.append(name, entry);
+			}
+		} else if (value !== undefined) {
+			result.set(name, value);
+		}
+	}
+	return result;
+}
+
+async function collectBody(request: http.IncomingMessage): Promise<Buffer> {
+	const chunks: Buffer[] = [];
+	for await (const chunk of request) {
+		chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+	}
+	return Buffer.concat(chunks);
 }
 
 function pcmWav(input: {

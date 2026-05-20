@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { expect, test } from "vite-plus/test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -8,14 +8,14 @@ import {
 	resolveCodexStdioCommand,
 } from "../src/app-server/stdio-transport.ts";
 
-test("round-trips JSON-RPC over Bun stdio transport", async () => {
+test("round-trips JSON-RPC over Node stdio transport", async () => {
 	const directory = await mkdtemp(path.join(os.tmpdir(), "codex-stdio-"));
 	const serverPath = path.join(directory, "fake-app-server.ts");
-	await Bun.write(serverPath, fakeAppServerSource());
+	await writeFile(serverPath, fakeAppServerSource());
 
 	const transport = new CodexStdioTransport({
 		codexCommand: process.execPath,
-		args: [serverPath],
+		args: ["--import", import.meta.resolve("tsx"), serverPath],
 		requestTimeoutMs: 1_000,
 	});
 	const stderrLine = new Promise<string>((resolve) => {
@@ -38,8 +38,9 @@ test("resolves default stdio command from codex-flows mode", () => {
 		args: ["app-server", "--listen", "stdio://", "--enable", "apps", "--enable", "hooks"],
 	});
 	expect(resolveCodexStdioCommand({}, { CODEX_FLOWS_MODE: "code-mode" })).toEqual({
-		command: "bunx",
+		command: "vp",
 		args: [
+			"dlx",
 			DEFAULT_CODEX_NPM_PACKAGE,
 			"app-server",
 			"--listen",
@@ -63,8 +64,8 @@ test("resolves default stdio command from codex-flows mode", () => {
 			},
 		),
 	).toEqual({
-		command: "bunx",
-		args: ["@example/codex", "app-server", "--listen", "stdio://", "--enable", "code_mode"],
+		command: "vp",
+		args: ["dlx", "@example/codex", "app-server", "--listen", "stdio://", "--enable", "code_mode"],
 	});
 });
 
@@ -87,18 +88,22 @@ console.error("fake-ready");
 const decoder = new TextDecoder();
 let buffer = "";
 
-for await (const chunk of Bun.stdin.stream()) {
-  buffer += decoder.decode(chunk, { stream: true });
-  let lineEnd = buffer.indexOf("\\n");
-  while (lineEnd !== -1) {
-    const line = buffer.slice(0, lineEnd).trim();
-    buffer = buffer.slice(lineEnd + 1);
-    if (line) {
-      handleLine(line);
+async function main() {
+  for await (const chunk of process.stdin) {
+    buffer += decoder.decode(typeof chunk === "string" ? Buffer.from(chunk) : chunk, { stream: true });
+    let lineEnd = buffer.indexOf("\\n");
+    while (lineEnd !== -1) {
+      const line = buffer.slice(0, lineEnd).trim();
+      buffer = buffer.slice(lineEnd + 1);
+      if (line) {
+        handleLine(line);
+      }
+      lineEnd = buffer.indexOf("\\n");
     }
-    lineEnd = buffer.indexOf("\\n");
   }
 }
+
+void main();
 
 function handleLine(line) {
   const message = JSON.parse(line);

@@ -31,15 +31,15 @@ dispatch it through the shared flow client or HTTP backend.
 
 ## Packaged steps
 
-- `openai-codex-bindings`: Bun runner. Uses canonical `@openai/codex@version`,
+- `openai-codex-bindings`: Node runner. Uses canonical `@openai/codex@version`,
   regenerates `@peezy.tech/codex-flows` app-server bindings, runs checks,
   commits when changed, and can push or trigger trusted publishing when
   configured.
-- `peezy-codex-fork`: Bun runner. Rebases the Peezy fork patch stack onto
+- `peezy-codex-fork`: Node runner. Rebases the Peezy fork patch stack onto
   the upstream release tag, verifies the fork, and can push or tag to trigger
   the fork release flow when configured. It also accepts `upstream.branch_update`
   for upstream main movement.
-- `peezy-codex-flows-fork`: Bun runner. Accepts `downstream.release` events for
+- `peezy-codex-flows-fork`: Node runner. Accepts `downstream.release` events for
   `@peezy.tech/codex` and `@peezy.tech/codex-flows`, materializes a local
   `fork` branch from `main`, applies the fork defaults, runs the
   `@peezy.tech/codex-flows` release check, and packs a local fork tarball.

@@ -71,10 +71,10 @@ fj --host jojo.build auth list
 The CI workflow runs:
 
 ```bash
-bun install --frozen-lockfile
-bun run check:types
-bun run test
-bun run release:check
+vp install --frozen-lockfile
+vp run check:types
+vp run test
+vp run release:check
 ```
 
 ## Releases
@@ -107,10 +107,10 @@ Discord text or voice packages, should publish separately and depend on
 Before publishing:
 
 ```bash
-bun run release:check
-bun run check:types
-bun run test
-bun run docs:build
+vp run release:check
+vp run check:types
+vp run test
+vp run docs:build
 git diff --check
 ```
 

@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { expect, test } from "vite-plus/test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { dispatchFlowEvent, replayFlowEvent } from "../src/flow/backend.ts";
@@ -31,7 +31,7 @@ test("dispatches matching flow steps and records runs", async () => {
 				cwd: directory,
 				dataDir: path.join(directory, ".codex", "flow-backend"),
 				executor: "direct",
-				bunCommand: process.execPath,
+				nodeCommand: process.execPath,
 			},
 		);
 		const store = new FlowBackendStore(path.join(config.dataDir, "flow-backend.sqlite"));
@@ -124,7 +124,7 @@ test("builds systemd-run commands without executing them", () => {
 	const config = readConfig({}, {
 		cwd: "/tmp/project",
 		executor: "systemd-run",
-		bunCommand: "/usr/bin/bun",
+		nodeCommand: "/usr/bin/node",
 		workspaceBackendUrl: "ws://127.0.0.1:3586",
 	});
 	const command = flowCommand({
@@ -156,7 +156,7 @@ test("builds systemd-run commands without executing them", () => {
 	expect(command.args).toContain("--setenv=CODEX_FLOW_ATTEMPT_ID=attempt-1");
 	expect(command.args).toContain("--setenv=CODEX_FLOW_REPLAY=1");
 	expect(command.args).toContain("--setenv=CODEX_WORKSPACE_BACKEND_WS_URL=ws://127.0.0.1:3586");
-	expect(command.args).toContain("/usr/bin/bun");
+	expect(command.args).toContain("/usr/bin/node");
 	expect(command.args).toContain("--run-id");
 	expect(command.args).toContain("run_123");
 	expect(command.args).toContain("--attempt-id");
@@ -170,7 +170,7 @@ test("always forwards generated flow runtime env even with custom forwardEnv", (
 	const config = readConfig({}, {
 		cwd: "/tmp/project",
 		executor: "systemd-run",
-		bunCommand: "/usr/bin/bun",
+		nodeCommand: "/usr/bin/node",
 		forwardEnv: ["PATH"],
 		workspaceBackendUrl: "ws://127.0.0.1:3586",
 	});
@@ -192,7 +192,7 @@ async function writeFlow(root: string): Promise<void> {
 	const flowRoot = path.join(root, "flows", "demo");
 	await mkdir(path.join(flowRoot, "exec"), { recursive: true });
 	await mkdir(path.join(flowRoot, "schemas"), { recursive: true });
-	await Bun.write(
+	await writeFile(
 		path.join(flowRoot, "flow.toml"),
 		[
 			'name = "demo"',
@@ -200,7 +200,7 @@ async function writeFlow(root: string): Promise<void> {
 			"",
 			"[[steps]]",
 			'name = "hello"',
-			'runner = "bun"',
+			'runner = "node"',
 			'script = "exec/hello.ts"',
 			"timeout_ms = 30000",
 			"",
@@ -210,7 +210,7 @@ async function writeFlow(root: string): Promise<void> {
 			"",
 		].join("\n"),
 	);
-	await Bun.write(
+	await writeFile(
 		path.join(flowRoot, "schemas/demo-event.schema.json"),
 		JSON.stringify({
 			type: "object",
@@ -218,13 +218,18 @@ async function writeFlow(root: string): Promise<void> {
 			properties: { name: { type: "string" } },
 		}),
 	);
-	await Bun.write(
-		path.join(flowRoot, "exec/hello.ts"),
-		[
-			"const context = JSON.parse(await Bun.stdin.text());",
-			"const name = context.flow.event.payload.name;",
-			"console.log(`FLOW_RESULT ${JSON.stringify({ status: 'completed', message: `hello ${name}` })}`);",
-			"",
-		].join("\n"),
-	);
-}
+		await writeFile(
+			path.join(flowRoot, "exec/hello.ts"),
+			[
+				"async function main() {",
+				"  const chunks = [];",
+				"  for await (const chunk of process.stdin) chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);",
+				"  const context = JSON.parse(Buffer.concat(chunks).toString('utf8'));",
+				"  const name = context.flow.event.payload.name;",
+				"  console.log(`FLOW_RESULT ${JSON.stringify({ status: 'completed', message: `hello ${name}` })}`);",
+				"}",
+				"void main();",
+				"",
+			].join("\n"),
+		);
+	}

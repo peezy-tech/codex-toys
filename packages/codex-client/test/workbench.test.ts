@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vite-plus/test";
 import type { v2 } from "../src/app-server/generated/index.ts";
 import {
 	createThreadSnapshot,
@@ -54,7 +54,7 @@ test("derives goal, plan, running command, activity, and final answer state", ()
 		params: {
 			threadId: "thread-1",
 			turnId: "turn-1",
-			item: commandItem("cmd-1", "bun test", "inProgress"),
+			item: commandItem("cmd-1", "vp test", "inProgress"),
 			startedAtMs: fixedNow.getTime(),
 		},
 	}, { now: fixedNow });
@@ -72,7 +72,7 @@ test("derives goal, plan, running command, activity, and final answer state", ()
 		params: {
 			threadId: "thread-1",
 			turn: turn("turn-1", "completed", [
-				commandItem("cmd-1", "bun test", "completed", "ok"),
+				commandItem("cmd-1", "vp test", "completed", "ok"),
 				agentMessage("answer-1", "Done.", "final_answer"),
 			]),
 		},

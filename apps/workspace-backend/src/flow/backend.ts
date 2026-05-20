@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
 	discoverFlows,
@@ -97,7 +97,7 @@ export async function replayFlowEvent(options: Omit<DispatchFlowEventOptions, "e
 }
 
 export async function readFlowEvent(pathValue: string): Promise<FlowEvent> {
-	return normalizeFlowEvent(JSON.parse(await Bun.file(path.resolve(pathValue)).text()) as unknown);
+	return normalizeFlowEvent(JSON.parse(await readFile(path.resolve(pathValue), "utf8")) as unknown);
 }
 
 export function normalizeFlowEvent(value: unknown): FlowEvent {
@@ -196,7 +196,7 @@ async function writeEventFile(dataDir: string, event: FlowEvent, suffix?: string
 	const directory = path.join(dataDir, "events");
 	await mkdir(directory, { recursive: true });
 	const filePath = path.join(directory, `${safeFileName(suffix ? `${event.id}:${suffix}:${Date.now()}` : event.id)}.json`);
-	await Bun.write(filePath, JSON.stringify(event, null, 2));
+	await writeFile(filePath, `${JSON.stringify(event, null, 2)}\n`);
 	return filePath;
 }
 

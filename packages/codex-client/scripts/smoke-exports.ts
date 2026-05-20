@@ -22,8 +22,8 @@ const checks = [
 		["createFlowBackendHttpClient", "FlowBackendHttpClient"],
 	],
 	[
-		"@peezy.tech/codex-flows/flow-runtime/bun",
-		["defineBunFlow", "readFlowContext"],
+		"@peezy.tech/codex-flows/flow-runtime/node",
+		["defineNodeFlow", "readFlowContext"],
 	],
 	["@peezy.tech/codex-flows/rpc", ["JsonRpcError"]],
 	["@peezy.tech/codex-flows/generated", ["v2"]],

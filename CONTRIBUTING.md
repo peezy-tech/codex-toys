@@ -3,18 +3,18 @@
 Install dependencies from the repository root:
 
 ```bash
-bun install
+vp install
 ```
 
 Run the checks that match the area you touched. For broad changes, use:
 
 ```bash
-bun run check:types
-bun run test
-bun run release:check
+vp run check:types
+vp run test
+vp run release:check
 ```
 
-This is a Bun monorepo. Keep changes scoped to the smallest package, app, flow,
+This is a Node 24 + pnpm + VitePlus monorepo. Keep changes scoped to the smallest package, app, flow,
 or docs surface that solves the problem:
 
 - `packages/codex-client` owns the public `@peezy.tech/codex-flows` package,

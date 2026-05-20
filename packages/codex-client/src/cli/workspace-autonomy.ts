@@ -2,7 +2,8 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "bun";
+import { spawn } from "node:child_process";
+import { parse as parseToml } from "smol-toml";
 
 export type WorkspaceModeInput = "auto" | "local" | "actions";
 export type WorkspaceMode = "local" | "actions";
@@ -203,7 +204,7 @@ export async function createWorkspaceContext(options: {
 
 export async function loadWorkspaceConfig(context: WorkspaceContext): Promise<WorkspaceConfig> {
 	const text = await readFile(context.configPath, "utf8");
-	const parsed = Bun.TOML.parse(text) as unknown;
+	const parsed = parseToml(text) as unknown;
 	if (!isRecord(parsed)) {
 		throw new Error(`workspace.toml must contain a table: ${context.configPath}`);
 	}
@@ -240,7 +241,7 @@ export async function migrateWorkspaceConfig(context: WorkspaceContext): Promise
 	if (!text.includes("[[discord.gateway.surfaces]]") || text.includes("[workspace]")) {
 		return false;
 	}
-	const parsed = Bun.TOML.parse(text) as unknown;
+	const parsed = parseToml(text) as unknown;
 	if (!isRecord(parsed) || !isRecord(parsed.discord) || !isRecord(parsed.discord.gateway) ||
 		!Array.isArray(parsed.discord.gateway.surfaces)) {
 		return false;
@@ -545,17 +546,14 @@ async function runCommand(command: string[], context: WorkspaceContext) {
 		CODEX_WORKSPACE_MODE: context.mode,
 		CODEX_HOME: context.runtimeCodexHome,
 	};
-	const proc = spawn({
-		cmd: [cmd, ...args],
+	const proc = spawn(cmd, args, {
 		cwd: context.repoRoot,
 		env,
-		stdout: "pipe",
-		stderr: "pipe",
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
 	if (exitCode !== 0) {
 		throw new Error(`Command failed (${exitCode}): ${stderr || stdout}`);
@@ -564,21 +562,41 @@ async function runCommand(command: string[], context: WorkspaceContext) {
 }
 
 async function runGit(cwd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
-	const proc = spawn({
-		cmd: ["git", ...args],
+	const proc = spawn("git", args, {
 		cwd,
-		stdout: "pipe",
-		stderr: "pipe",
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
 	if (exitCode !== 0) {
 		throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`);
 	}
 	return { stdout, stderr };
+}
+
+function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		if (!stream) {
+			resolve(output);
+			return;
+		}
+		stream.setEncoding("utf8");
+		stream.on("data", (chunk: string) => {
+			output += chunk;
+		});
+		stream.once("error", reject);
+		stream.once("end", () => resolve(output));
+	});
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }
 
 async function persistRun(context: WorkspaceContext, run: WorkspaceRunRecord, output: unknown): Promise<void> {
@@ -817,7 +835,7 @@ function codexConfigTemplate(): string {
 
 function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 	const checkout = provider === "github" ? "actions/checkout@v4" : "actions/checkout@v4";
-	const setupBun = provider === "github" ? "oven-sh/setup-bun@v2" : "oven-sh/setup-bun@v2";
+	const setupNode = provider === "github" ? "actions/setup-node@v4" : "actions/setup-node@v4";
 	return [
 		"name: Codex Flows Actions",
 		"",
@@ -833,15 +851,18 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 		"      contents: write",
 		"    steps:",
 		`      - uses: ${checkout}`,
-		`      - uses: ${setupBun}`,
-		"      - run: bunx @peezy.tech/codex-flows actions prepare-auth",
+		`      - uses: ${setupNode}`,
+		"        with:",
+		"          node-version: 24",
+		"      - run: npm install -g vite-plus",
+		"      - run: vp dlx @peezy.tech/codex-flows actions prepare-auth",
 		"        env:",
 		"          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}",
 		"          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}",
 		"          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
-		"      - run: bunx @peezy.tech/codex-flows workspace tick --mode actions",
+		"      - run: vp dlx @peezy.tech/codex-flows workspace tick --mode actions",
 		"      - if: always()",
-		"        run: bunx @peezy.tech/codex-flows actions cleanup",
+		"        run: vp dlx @peezy.tech/codex-flows actions cleanup",
 		"      - if: always()",
 		"        run: |",
 		"          git add .codex/memories .codex/workspace/actions",
@@ -862,7 +883,7 @@ function smokeFlowToml(): string {
 		"",
 		"[[steps]]",
 		'name = "smoke"',
-		'runner = "bun"',
+		'runner = "node"',
 		'script = "exec/smoke.ts"',
 		"timeout_ms = 30000",
 		"",
@@ -874,7 +895,9 @@ function smokeFlowToml(): string {
 
 function smokeFlowScript(): string {
 	return [
-		"const context = JSON.parse(await Bun.stdin.text());",
+		'import { readFlowContext } from "@peezy.tech/codex-flows/flow-runtime/node";',
+		"",
+		"const context = await readFlowContext();",
 		"console.log('FLOW_RESULT ' + JSON.stringify({",
 		"  status: 'completed',",
 		"  message: 'actions smoke completed',",
@@ -892,11 +915,11 @@ function agentTurnFlowToml(): string {
 	return [
 		'name = "actions-agent-turn"',
 		"version = 1",
-		'description = "Run one Codex agent turn from a Bun flow step."',
+		'description = "Run one Codex agent turn from a Node flow step."',
 		"",
 		"[[steps]]",
 		'name = "agent-turn"',
-		'runner = "bun"',
+		'runner = "node"',
 		'script = "exec/agent-turn.ts"',
 		"cwd = \"../../..\"",
 		"timeout_ms = 900000",
@@ -909,7 +932,7 @@ function agentTurnFlowToml(): string {
 
 function agentTurnFlowScript(): string {
 	return [
-		'import { readFlowContext } from "@peezy.tech/codex-flows/flow-runtime/bun";',
+		'import { readFlowContext } from "@peezy.tech/codex-flows/flow-runtime/node";',
 		'import { runCodexAgentTurnFromFlow } from "@peezy.tech/codex-flows/flows";',
 		"",
 		"const context = await readFlowContext();",

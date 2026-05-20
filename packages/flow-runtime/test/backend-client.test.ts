@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vite-plus/test";
 import {
 	FlowBackendHttpClient,
 	normalizeRun,
@@ -198,7 +198,7 @@ test("constructs dispatch, replay, and cancel requests with auth headers", async
 		expect(request.headers.get("x-api-key")).toBe("api-key");
 		expect(request.headers.get("x-extra")).toBe("yes");
 		expect(request.headers.get("content-type")).toBe("application/json");
-		expect(request.headers.get("x-flow-signature-256")).toStartWith("sha256=");
+		expect(request.headers.get("x-flow-signature-256")?.startsWith("sha256=")).toBe(true);
 		expect(request.body.length).toBeGreaterThan(0);
 	}
 	expect(JSON.parse(requests[1]?.body ?? "{}")).toEqual({ wait: true });

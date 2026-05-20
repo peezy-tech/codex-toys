@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
 
 import {
 	enableHooksFeature,
@@ -38,7 +38,7 @@ describe("discord workspace hook CLI", () => {
 								{
 									type: "command",
 									command:
-										"bun /home/peezy/codex-fork-workspace/codex-flows/apps/discord-bridge/src/stop-hook.ts",
+										"node /home/peezy/codex-fork-workspace/codex-flows/apps/discord-bridge/dist/index.js hook event",
 								},
 								{ type: "command", command: "echo other-stop" },
 							],
@@ -137,12 +137,12 @@ describe("discord workspace hook CLI", () => {
 			const result = await installStopHook({
 				configPath,
 				hooksPath,
-				useBunx: true,
+				useDlx: true,
 			});
 
 			expect(result).toEqual({
 				command:
-					"bunx --package @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
+					"vp dlx @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
 				configPath,
 				hooksPath,
 				dryRun: false,
@@ -158,7 +158,7 @@ describe("discord workspace hook CLI", () => {
 								hooks: [
 									expect.objectContaining({
 										command:
-											"bunx --package @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
+											"vp dlx @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
 									}),
 								],
 							},
@@ -168,7 +168,7 @@ describe("discord workspace hook CLI", () => {
 								hooks: [
 									expect.objectContaining({
 										command:
-											"bunx --package @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
+											"vp dlx @peezy.tech/codex-discord-bridge codex-discord-bridge hook event",
 									}),
 								],
 							},

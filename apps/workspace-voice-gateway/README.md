@@ -3,7 +3,7 @@
 Broadcast-only Discord voice gateway for Codex workspace backend updates.
 
 ```bash
-bun add @peezy.tech/codex-workspace-voice-gateway
+pnpm add @peezy.tech/codex-workspace-voice-gateway
 ```
 
 Run it beside a workspace backend and a TTS worker:

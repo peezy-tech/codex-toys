@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { CodexEventEmitter } from "@peezy.tech/codex-flows/app-server/events";
 import type { JsonRpcNotification } from "@peezy.tech/codex-flows/rpc";

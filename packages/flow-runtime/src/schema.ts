@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 type JsonSchema = {
 	type?: string | string[];
 	required?: string[];
@@ -10,7 +12,7 @@ export type SchemaValidationResult =
 	| { ok: false; errors: string[] };
 
 export async function readJsonSchema(path: string): Promise<JsonSchema> {
-	const parsed = JSON.parse(await Bun.file(path).text()) as unknown;
+	const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
 	if (!isRecord(parsed)) {
 		throw new Error(`Schema must be a JSON object: ${path}`);
 	}

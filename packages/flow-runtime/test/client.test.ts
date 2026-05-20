@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vite-plus/test";
 import { createFlowClient } from "../src/client.ts";
 
 test("client factory creates an HTTP backend client with auth handling", async () => {
@@ -34,7 +34,7 @@ test("client factory creates an HTTP backend client with auth handling", async (
 		runIds: ["run-1"],
 		matched: 1,
 	});
-	expect(requests[0]?.headers.get("x-flow-signature-256")).toStartWith("sha256=");
+	expect(requests[0]?.headers.get("x-flow-signature-256")?.startsWith("sha256=")).toBe(true);
 });
 
 test("client factory creates a local client", async () => {

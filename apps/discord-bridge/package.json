@@ -26,23 +26,23 @@
 		"access": "public"
 	},
 	"scripts": {
-		"build": "bun run clean && bun run scripts/build-package.ts",
+		"build": "vp run clean && tsx scripts/build-package.ts",
 		"check:types": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"pack:dry-run": "npm pack --dry-run --json",
-		"pretty-log": "bun ./src/pretty-log.ts",
-		"prepack": "bun run build",
-		"release:check": "bun run test && bun run check:types && bun run build && bun run smoke:bin && bun run pack:dry-run",
-		"smoke:bin": "bun run scripts/smoke-bin.ts",
-		"start:debug:commentary": "bun ./src/index.ts --local-app-server --debug --progress-mode commentary",
-		"test": "bun test test/*.test.ts"
+		"pretty-log": "tsx ./src/pretty-log.ts",
+		"prepack": "vp run build",
+		"release:check": "vp run test && vp run check:types && vp run build && vp run smoke:bin && vp run pack:dry-run",
+		"smoke:bin": "tsx scripts/smoke-bin.ts",
+		"start:debug:commentary": "tsx ./src/index.ts --local-app-server --debug --progress-mode commentary",
+		"test": "vp test run --root ../.. apps/discord-bridge/test"
 	},
 	"dependencies": {
-		"@peezy.tech/codex-flows": "^0.132.0",
-		"discord.js": "^14.22.1"
+		"@peezy.tech/codex-flows": "workspace:*",
+		"discord.js": "^14.22.1",
+		"smol-toml": "catalog:"
 	},
 	"devDependencies": {
-		"@types/bun": "catalog:",
 		"@types/node": "catalog:",
 		"typescript": "catalog:"
 	}

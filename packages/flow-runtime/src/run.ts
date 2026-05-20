@@ -1,5 +1,5 @@
 import { codexFlowsCodeModeEnabled } from "@peezy.tech/codex-flows";
-import { runBunStep } from "./runners/bun.ts";
+import { runNodeStep } from "./runners/node.ts";
 import { runCodeModeStep, type RunCodeModeStepOptions } from "./runners/code-mode.ts";
 import type { FlowProgressSink } from "./client-types.ts";
 import type {
@@ -21,8 +21,8 @@ export type RunFlowStepOptions = {
 };
 
 export async function runFlowStep(options: RunFlowStepOptions): Promise<FlowResult> {
-	if (options.step.runner === "bun") {
-		return runBunStep(options);
+	if (options.step.runner === "node") {
+		return runNodeStep(options);
 	}
 	if (!codeModeEnabled(options.env ?? process.env)) {
 		throw new Error(

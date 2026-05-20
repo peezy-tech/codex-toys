@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -103,7 +104,7 @@ export async function collectFetchInfo(
 	return {
 		package: packageJson.name,
 		version: packageJson.version,
-		runtime: bunVersion(),
+		runtime: nodeRuntime(),
 		node: process.versions.node,
 		platform: os.platform(),
 		arch: os.arch(),
@@ -244,18 +245,15 @@ function compactId(id: string): string {
 
 async function readPackageJson(): Promise<{ name: string; version: string }> {
 	const packageUrl = new URL("../../package.json", import.meta.url);
-	const parsed = JSON.parse(await Bun.file(packageUrl).text()) as unknown;
+	const parsed = JSON.parse(await readFile(packageUrl, "utf8")) as unknown;
 	if (!isRecord(parsed) || typeof parsed.name !== "string" || typeof parsed.version !== "string") {
 		return { name: "@peezy.tech/codex-flows", version: "unknown" };
 	}
 	return { name: parsed.name, version: parsed.version };
 }
 
-function bunVersion(): string {
-	const maybeBun = globalThis as typeof globalThis & {
-		Bun?: { version?: string };
-	};
-	return maybeBun.Bun?.version ? `bun ${maybeBun.Bun.version}` : "unknown";
+function nodeRuntime(): string {
+	return `node ${process.versions.node}`;
 }
 
 function defaultCodexHome(): string {

@@ -23,7 +23,7 @@ export type FlowResult = {
 	[key: string]: unknown;
 };
 
-export type FlowStepRunner = "bun" | "code-mode";
+export type FlowStepRunner = "node" | "code-mode";
 
 export type FlowStepTrigger = {
 	type: string;

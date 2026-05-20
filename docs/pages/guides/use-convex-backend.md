@@ -7,7 +7,7 @@ description: Install the generic Convex control plane and keep execution in app-
 
 `@peezy.tech/flow-backend-convex` is a durable control-plane component. It
 stores generic events, runs, attempts, leases, output chunks, and final result
-payloads. It does not execute shell, Bun, Git, Cargo, or Codex work.
+payloads. It does not execute shell, Git, Cargo, or Codex work.
 
 ## Install the component
 

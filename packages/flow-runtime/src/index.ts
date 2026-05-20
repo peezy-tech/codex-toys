@@ -1,7 +1,7 @@
 export { discoverFlows, loadFlow, stepSchemaPath, stepScriptPath } from "./manifest.ts";
 export { parseFlowResult, stringifyFlowResult } from "./result.ts";
 export { runFlowStep } from "./run.ts";
-export { runBunStep } from "./runners/bun.ts";
+export { runNodeStep } from "./runners/node.ts";
 export { runCodeModeStep } from "./runners/code-mode.ts";
 export { readJsonSchema, validateJsonSchema } from "./schema.ts";
 export { matchingSteps, stepMatchesEvent } from "./triggers.ts";
@@ -10,10 +10,10 @@ export { createLocalFlowClient, LocalFlowClient } from "./local-client.ts";
 export {
 	createCodexFlowClientFromContext,
 	createWorkspaceBackendClientFromContext,
-	defineBunFlow,
+	defineNodeFlow,
 	readFlowContext,
 	workspaceBackendUrlFromContext,
-} from "./bun.ts";
+} from "./node.ts";
 export type {
 	FlowAttemptView,
 	FlowCancelResult,
@@ -38,10 +38,10 @@ export type {
 	FlowClientOptions,
 } from "./client.ts";
 export type {
-	BunFlowHandler,
 	CodexFlowClientFromContextOptions,
+	NodeFlowHandler,
 	WorkspaceBackendClientFromContextOptions,
-} from "./bun.ts";
+} from "./node.ts";
 export type {
 	LocalFlowClientOptions,
 	LocalFlowCodexOptions,

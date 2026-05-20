@@ -25,7 +25,7 @@ credentials, domain state, release policy, and final side effects.
 
 | Goal | Start with |
 |------|------------|
-| Call Codex app-server from TypeScript or Bun | [Packages](reference/packages) |
+| Call Codex app-server from TypeScript | [Packages](reference/packages) |
 | Inspect or call app-server and workspace backend methods from a terminal | [CLI reference](reference/cli) |
 | Build a first reusable flow | [Build your first flow](tutorials/first-flow) |
 | Dispatch and replay generic events | [Dispatch and replay events](guides/dispatch-and-replay-events) |
@@ -43,7 +43,7 @@ credentials, domain state, release policy, and final side effects.
 
 `@peezy.tech/codex-flows` publishes:
 
-- `@peezy.tech/codex-flows`: Node/Bun app-server client and transports
+- `@peezy.tech/codex-flows`: Node app-server client and transports
 - `@peezy.tech/codex-flows/browser`: browser-safe WebSocket app-server client
 - `@peezy.tech/codex-flows/flows`: Codex-backed flow helpers
 - `@peezy.tech/codex-flows/auth`: privacy-preserving account status and login helpers
@@ -52,7 +52,7 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/workbench`: transport-neutral thread UX reducers and request descriptors
 - `@peezy.tech/codex-flows/threads`: raw rollout locate, inspect, install, and transplant helpers
 - `@peezy.tech/codex-flows/workspace-backend`: workspace backend protocol helpers and capability primitives
-- `@peezy.tech/codex-flows/flow-runtime`: local flow runtime, clients, and Bun helpers
+- `@peezy.tech/codex-flows/flow-runtime`: local flow runtime, clients, and Node helpers
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
 - `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
@@ -179,7 +179,7 @@ Products dispatch generic events:
 ```
 
 Flow packages match events with `flow.toml` and JSON Schema. Steps run through a
-Bun runner or a gated Code Mode runner. Bun steps can be raw
+Node runner or a gated Code Mode runner. Node steps can be raw
 stdin/`FLOW_RESULT` scripts or module-style handlers that return a result object
 and, when trusted, call the launching workspace backend to orchestrate Codex
 turns.

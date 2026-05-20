@@ -39,11 +39,11 @@ export class DiscordThreadRunner {
 	#context: ThreadRunnerContext;
 	#mailbox: Promise<void> = Promise.resolve();
 	#stopped = false;
-	#retryTimers = new Map<string, Timer>();
-	#typingTimer: Timer | undefined;
+	#retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	#typingTimer: ReturnType<typeof setTimeout> | undefined;
 	#typingTurnKey: string | undefined;
-	#reconcileTimer: Timer | undefined;
-	#runningCommandStatusTimers = new Map<string, Timer>();
+	#reconcileTimer: ReturnType<typeof setTimeout> | undefined;
+	#runningCommandStatusTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	#finalAssistantText = new Map<string, string>();
 	#agentMessageBuffers = new Map<string, string>();
 	#completedAgentMessages = new Set<string>();

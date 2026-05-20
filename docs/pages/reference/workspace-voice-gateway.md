@@ -18,7 +18,7 @@ text bridge.
 Install the gateway package:
 
 ```bash
-bun add @peezy.tech/codex-workspace-voice-gateway
+pnpm add @peezy.tech/codex-workspace-voice-gateway
 ```
 
 Start the TTS worker from the sibling speech repo:
@@ -45,7 +45,7 @@ codex-workspace-voice-gateway \
 Or run the local persistent stack through `mprocs` from the repo root:
 
 ```bash
-bun run voice:up
+vp run voice:up
 ```
 
 Required Discord configuration:

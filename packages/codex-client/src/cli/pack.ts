@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import {
 	cp,
 	mkdir,
@@ -11,6 +12,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { discoverWorkspaceRoot } from "./workspace-autonomy.ts";
 
 export type PackKind = "skill" | "flow" | "plugin" | "hook";
@@ -684,7 +686,7 @@ async function discoverPackFromManifest(
 	manifestPath: string,
 ): Promise<Omit<PackInspection, "source">> {
 	const warnings: string[] = [];
-	const parsed = record(Bun.TOML.parse(await readFile(manifestPath, "utf8")) as unknown);
+	const parsed = record(parseToml(await readFile(manifestPath, "utf8")) as unknown);
 	const pack = record(parsed.pack);
 	const metadata: PackMetadata = {
 		name: stringValue(pack.name) ?? path.basename(root),
@@ -1068,15 +1070,11 @@ async function gitCommit(root: string): Promise<string | undefined> {
 }
 
 async function runGit(args: string[]): Promise<string> {
-	const proc = Bun.spawn({
-		cmd: ["git", ...args],
-		stdout: "pipe",
-		stderr: "pipe",
-	});
+	const proc = spawn("git", args);
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
 	]);
 	if (exitCode !== 0) {
 		throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`);
@@ -1094,11 +1092,34 @@ function gitUrl(source: string): boolean {
 
 async function readFlowName(flowTomlPath: string): Promise<string | undefined> {
 	try {
-		const parsed = record(Bun.TOML.parse(await readFile(flowTomlPath, "utf8")) as unknown);
+		const parsed = record(parseToml(await readFile(flowTomlPath, "utf8")) as unknown);
 		return stringValue(parsed.name);
 	} catch {
 		return undefined;
 	}
+}
+
+function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		if (!stream) {
+			resolve(output);
+			return;
+		}
+		stream.setEncoding("utf8");
+		stream.on("data", (chunk: string) => {
+			output += chunk;
+		});
+		stream.once("error", reject);
+		stream.once("end", () => resolve(output));
+	});
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }
 
 async function hashDirectory(root: string): Promise<{ hash: string; bytes: number }> {

@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import type { DiscordCodexBridge } from "./bridge.ts";
 import { handleHookCommand } from "./hook-cli.ts";
 import { parseConfig } from "./config.ts";
@@ -7,7 +7,7 @@ import { createDiscordBridgeLogger } from "./logger.ts";
 async function main(): Promise<void> {
 	let logger = createDiscordBridgeLogger();
 	try {
-		const argv = Bun.argv.slice(2);
+		const argv = process.argv.slice(2);
 		if (await handleHookCommand(argv)) {
 			return;
 		}

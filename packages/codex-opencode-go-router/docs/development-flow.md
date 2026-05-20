@@ -10,15 +10,15 @@ only for the monorepo's npm trusted publishing workflow.
 Run the package-local checks:
 
 ```bash
-bun run --filter @peezy.tech/codex-opencode-go-router check
-bun run --filter @peezy.tech/codex-opencode-go-router test
+vp run --filter @peezy.tech/codex-opencode-go-router check
+vp run --filter @peezy.tech/codex-opencode-go-router test
 ```
 
 Run the monorepo gates that include this package:
 
 ```bash
-bun run check:types
-bun run test
+vp run check:types
+vp run test
 git diff --check
 ```
 

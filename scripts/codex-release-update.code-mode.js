@@ -283,19 +283,19 @@ const generatedStatus = await run(
   { workdir: config.serviceRepo, max_output_tokens: 12000 }
 );
 
-const bunInstall = await run("refresh service dependencies", "bun install --frozen-lockfile", {
+const dependencyInstall = await run("refresh service dependencies", "vp install --frozen-lockfile", {
   workdir: config.serviceRepo,
   max_output_tokens: 20000
 });
-if (!ok(bunInstall)) {
-  finish("failed", "bun install --frozen-lockfile failed in codex-flows", {
+if (!ok(dependencyInstall)) {
+  finish("failed", "vp install --frozen-lockfile failed in codex-flows", {
     beforeSha: trim(beforeHead.output),
     afterSha: trim(afterHead.output),
-    bunInstallOutput: bunInstall.output
+    dependencyInstallOutput: dependencyInstall.output
   });
 }
 
-const serviceTypes = await run("service typecheck", "bun run check:types", {
+const serviceTypes = await run("service typecheck", "vp run check:types", {
   workdir: config.serviceRepo,
   max_output_tokens: 30000,
   textLimit: 20000
@@ -308,7 +308,7 @@ if (!ok(serviceTypes)) {
   });
 }
 
-const serviceTests = await run("service tests", "bun run test", {
+const serviceTests = await run("service tests", "vp run test", {
   workdir: config.serviceRepo,
   max_output_tokens: 30000,
   textLimit: 20000

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { CodexAppServerClient } from "@peezy.tech/codex-flows";
 import type { FlowProgressSink } from "../client-types.ts";
@@ -108,7 +109,7 @@ export async function runCodeModeStep(options: RunCodeModeStepOptions): Promise<
 }
 
 async function codeModeSource(options: RunCodeModeStepOptions): Promise<string> {
-	const body = await Bun.file(stepScriptPath(options.flow, options.step)).text();
+	const body = await readFile(stepScriptPath(options.flow, options.step), "utf8");
 	const flow = {
 		name: options.flow.manifest.name,
 		version: options.flow.manifest.version,

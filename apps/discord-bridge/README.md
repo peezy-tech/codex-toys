@@ -4,7 +4,7 @@ Long-lived Discord gateway for connecting Discord to Codex app-server threads
 through `@peezy.tech/codex-flows`.
 
 ```bash
-bun add @peezy.tech/codex-discord-bridge
+pnpm add @peezy.tech/codex-discord-bridge
 ```
 
 ## Workspace Mode
@@ -250,11 +250,11 @@ The installer also registers `PreToolUse`, `PermissionRequest`, and
 observed-thread metadata such as status, current tool, or waiting reason; they
 do not create Discord messages.
 
-For package-on-demand installs, write a `bunx` command instead:
+For package-on-demand installs, write a `vp dlx` command instead:
 
 ```bash
-codex-discord-bridge hook install --bunx
-codex-discord-bridge hook install --bunx-package @peezy.tech/codex-discord-bridge
+codex-discord-bridge hook install --dlx
+codex-discord-bridge hook install --dlx-package @peezy.tech/codex-discord-bridge
 ```
 
 The hook is intentionally dumb: it does not read workspace state or call the

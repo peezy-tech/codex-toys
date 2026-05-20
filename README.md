@@ -27,7 +27,7 @@ instead of being bundled into it. The full user documentation lives in the Tome 
   transports, workspace backend helpers, CLI, auth helpers, workbench reducers,
   and generated app-server protocol types.
 - `packages/flow-runtime`: generic `FlowEvent` runtime, manifest loading,
-  local execution, backend clients, and Bun or gated Code Mode step runners.
+  local execution, backend clients, and Node or gated Code Mode step runners.
 - `packages/flow-backend-convex`: reusable Convex component for generic flow
   events, runs, attempts, leases, output, and result payloads.
 - `apps/workspace-backend`: local workspace backend process with browser/control
@@ -46,34 +46,34 @@ instead of being bundled into it. The full user documentation lives in the Tome 
 Install dependencies:
 
 ```bash
-bun install
+vp install
 ```
 
 Run checks:
 
 ```bash
-bun run check:types
-bun run test
-bun run docs:build
+vp run check:types
+vp run test
+vp run docs:build
 ```
 
 Run the local backend and web app:
 
 ```bash
-bun run workspace:backend --local-app-server
-bun run dev
+vp run workspace:backend --local-app-server
+vp run dev
 ```
 
 Run the local voice broadcast stack:
 
 ```bash
-bun run voice:up
+vp run voice:up
 ```
 
 Inspect the CLI:
 
 ```bash
-bun packages/codex-client/src/cli/index.ts --help
+tsx packages/codex-client/src/cli/index.ts --help
 codex-flows fetch
 codex-flows workspace doctor
 codex-flows memories transplant global-to-workspace

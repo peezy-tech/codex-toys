@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -18,7 +19,7 @@ type CommandResult = {
   stderr: string;
 };
 
-const context = JSON.parse(await Bun.stdin.text()) as FlowContext;
+const context = JSON.parse(await readStdinText()) as FlowContext;
 const config = context.flow.config ?? {};
 const payload = context.flow.event.payload ?? {};
 
@@ -74,8 +75,8 @@ try {
     forkVersion,
   });
 
-  await runChecked("install fork package dependency", ["bun", "install"], worktreeDir);
-  await runChecked("fork release check", ["bun", "run", "--filter", packageName, "release:check"], worktreeDir);
+  await runChecked("install fork package dependency", ["vp", "install"], worktreeDir);
+  await runChecked("fork release check", ["vp", "run", "--filter", packageName, "release:check"], worktreeDir);
 
   await rm(artifactDir, { recursive: true, force: true });
   await mkdir(artifactDir, { recursive: true });
@@ -88,7 +89,7 @@ try {
   const tarballPath = tarball ? path.join(artifactDir, tarball) : undefined;
 
   if (linkLocalPackage) {
-    await runChecked("link fork release package", ["bun", "pm", "link"], path.join(worktreeDir, "packages/codex-client"));
+    await runChecked("link fork release package", ["pnpm", "link", "--global"], path.join(worktreeDir, "packages/codex-client"));
   }
 
   const status = await runChecked("read fork diff", ["git", "status", "--porcelain"], worktreeDir);
@@ -98,7 +99,7 @@ try {
       "git",
       "add",
       "--",
-      "bun.lock",
+      "pnpm-lock.yaml",
       "packages/codex-client/package.json",
       "packages/codex-client/src/mode.ts",
       "packages/codex-client/src/app-server/stdio-transport.ts",
@@ -241,8 +242,10 @@ async function applyForkOverlay(input: {
     "return { command: DEFAULT_CODEX_COMMAND, args };",
     [
       "return {",
-      "\t\tcommand: env.CODEX_APP_SERVER_BUNX_COMMAND?.trim() || \"bunx\",",
-      "\t\targs: [DEFAULT_CODE_MODE_CODEX_PACKAGE, ...args],",
+      "\t\tcommand: env.CODEX_APP_SERVER_DLX_COMMAND?.trim() || \"vp\",",
+      "\t\targs: env.CODEX_APP_SERVER_DLX_COMMAND?.trim()",
+      "\t\t\t? [DEFAULT_CODE_MODE_CODEX_PACKAGE, ...args]",
+      "\t\t\t: [\"dlx\", DEFAULT_CODE_MODE_CODEX_PACKAGE, ...args],",
       "\t};",
     ].join("\n"),
   );
@@ -257,8 +260,9 @@ async function applyForkOverlay(input: {
 \t\targs: ["app-server", "--listen", "stdio://", "--enable", "apps", "--enable", "hooks"],
 \t});`,
     `expect(resolveCodexStdioCommand({}, {})).toEqual({
-\t\tcommand: "bunx",
+\t\tcommand: "vp",
 \t\targs: [
+\t\t\t"dlx",
 \t\t\tDEFAULT_CODEX_NPM_PACKAGE,
 \t\t\t"app-server",
 \t\t\t"--listen",
@@ -278,8 +282,9 @@ async function applyForkOverlay(input: {
 \t\targs: ["app-server", "--listen", "stdio://", "--enable", "apps", "--enable", "hooks"],
 \t});`,
     `expect(resolveCodexStdioCommand({}, { CODEX_FLOWS_ENABLE_CODE_MODE: "1" })).toEqual({
-\t\tcommand: "bunx",
+\t\tcommand: "vp",
 \t\targs: [
+\t\t\t"dlx",
 \t\t\tDEFAULT_CODEX_NPM_PACKAGE,
 \t\t\t"app-server",
 \t\t\t"--listen",
@@ -342,15 +347,14 @@ async function runChecked(label: string, command: string[], cwd: string): Promis
 
 async function run(label: string, command: string[], cwd: string): Promise<CommandResult> {
   process.stderr.write(`+ ${label}: ${command.join(" ")}\n`);
-  const proc = Bun.spawn(command, {
+  const proc = spawn(command[0] ?? "", command.slice(1), {
     cwd,
-    stdout: "pipe",
-    stderr: "pipe",
+    stdio: ["ignore", "pipe", "pipe"],
   });
   const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
+    collectText(proc.stdout),
+    collectText(proc.stderr),
+    exitCodeFor(proc),
   ]);
   if (stdout) process.stderr.write(stdout);
   if (stderr) process.stderr.write(stderr);
@@ -395,4 +399,30 @@ function sortRecord(value: Record<string, unknown>): Record<string, unknown> {
 function booleanValue(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+async function readStdinText(): Promise<string> {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+  let output = "";
+  if (!stream) {
+    return output;
+  }
+  for await (const chunk of stream) {
+    output += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+  }
+  return output;
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code));
+  });
 }

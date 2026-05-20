@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import type { FlowBackendConfig } from "./config.ts";
 
 const flowRuntimeEnvNames = [
@@ -47,16 +48,14 @@ export async function executeCommand(
 	config: FlowBackendConfig,
 	env: Record<string, string | undefined> = process.env,
 ): Promise<Omit<ExecuteFlowRunResult, "command">> {
-	const child = Bun.spawn([command.command, ...command.args], {
+	const child = spawn(command.command, command.args, {
 		cwd: config.cwd,
 		env: forwardedEnv(config, env),
-		stdout: "pipe",
-		stderr: "pipe",
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(child.stdout).text(),
-		new Response(child.stderr).text(),
-		child.exited,
+		collectText(child.stdout),
+		collectText(child.stderr),
+		exitCodeFor(child),
 	]);
 	return { exitCode, stdout, stderr };
 }
@@ -84,7 +83,7 @@ export function flowCommand(options: ExecuteFlowRunOptions): FlowCommandSpec {
 		runnerArgs.push("--replay");
 	}
 	if (options.config.executor === "direct") {
-		return { command: options.config.bunCommand, args: runnerArgs };
+		return { command: options.config.nodeCommand, args: runnerArgs };
 	}
 	const unit = `codex-flow-${safeUnit(options.runId)}`;
 	return {
@@ -97,7 +96,7 @@ export function flowCommand(options: ExecuteFlowRunOptions): FlowCommandSpec {
 			`--unit=${unit}`,
 			`--working-directory=${options.config.cwd}`,
 			...systemdSetEnvArgs(options.config, flowRunExecutionEnv(options)),
-			options.config.bunCommand,
+			options.config.nodeCommand,
 			...runnerArgs,
 		],
 	};
@@ -152,4 +151,27 @@ function systemdSetEnvArgs(config: FlowBackendConfig, env: Record<string, string
 function safeUnit(value: string): string {
 	const hash = createHash("sha256").update(value).digest("hex").slice(0, 10);
 	return `${value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48)}-${hash}`;
+}
+
+function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		if (!stream) {
+			resolve(output);
+			return;
+		}
+		stream.setEncoding("utf8");
+		stream.on("data", (chunk: string) => {
+			output += chunk;
+		});
+		stream.once("error", reject);
+		stream.once("end", () => resolve(output));
+	});
+}
+
+function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("exit", (code) => resolve(code));
+	});
 }

@@ -8,7 +8,7 @@ EnvironmentFile=%h/.env
 Environment=OPENCODE_GO_PROXY_HOST=127.0.0.1
 Environment=OPENCODE_GO_PROXY_PORT=61973
 Environment=OPENCODE_GO_PROXY_DUMP_DIR=%h/.codex/opencode-go-proxy/dumps
-ExecStart=%h/.bun/bin/bun %h/codex-flows-public/packages/codex-opencode-go-router/src/router.mjs
+ExecStart=/usr/bin/env node %h/codex-flows-public/packages/codex-opencode-go-router/src/router.mjs
 Restart=on-failure
 RestartSec=2
 

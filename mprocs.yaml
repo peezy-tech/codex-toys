@@ -12,7 +12,7 @@ procs:
         --enable apps \
         --enable hooks \
         --enable remote_control \
-        2>&1 | bun ./apps/discord-bridge/src/pretty-log.ts --name codex-remote-control'
+        2>&1 | tsx ./apps/discord-bridge/src/pretty-log.ts --name codex-remote-control'
     autostart: true
     autorestart: false
 
@@ -30,13 +30,13 @@ procs:
         echo "waiting for codex app-server at $app_server_url" >&2
         sleep 1
       done
-      bun ./apps/discord-bridge/src/index.ts \
+      tsx ./apps/discord-bridge/src/index.ts \
         --log-level "${CODEX_DISCORD_LOG_LEVEL:-warn}" \
         --console-output messages \
         --approval-policy never \
         --sandbox danger-full-access \
         --progress-mode commentary \
         --app-server-url "$app_server_url" \
-        2> >(bun ./apps/discord-bridge/src/pretty-log.ts --name discord-bridge >&2)'
+        2> >(tsx ./apps/discord-bridge/src/pretty-log.ts --name discord-bridge >&2)'
     autostart: true
     autorestart: false

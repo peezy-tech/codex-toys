@@ -14,7 +14,7 @@
 		"verbatimModuleSyntax": true,
 		"forceConsistentCasingInFileNames": true,
 		"noEmit": true,
-		"types": ["node", "bun"],
+		"types": ["node"],
 		"baseUrl": ".",
 		"paths": {
 			"@peezy.tech/codex-flows": ["../../packages/codex-client/src/index.ts"],

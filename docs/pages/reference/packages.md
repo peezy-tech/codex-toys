@@ -39,8 +39,8 @@ Runtime package for:
 - loading `flow.toml`
 - discovering `.codex/flows/*` before `flows/*`
 - matching events with trigger type and JSON Schema
-- running Bun and gated Code Mode steps
-- module-style Bun step helpers under `@peezy.tech/codex-flows/flow-runtime/bun`
+- running Node and gated Code Mode steps
+- module-style Node step helpers under `@peezy.tech/codex-flows/flow-runtime/node`
 - local and HTTP flow clients
 - backend response normalization
 

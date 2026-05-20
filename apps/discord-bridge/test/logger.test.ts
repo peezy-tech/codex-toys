@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { createDiscordBridgeLogger } from "../src/logger.ts";
 import { formatPrettyLogLine } from "../src/pretty-log.ts";
