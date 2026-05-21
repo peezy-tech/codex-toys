@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/codex-discord-bridge",
-	"version": "0.132.1",
+	"version": "0.132.2",
 	"description": "Long-lived Discord sidecar for bridging Discord threads to Codex app-server threads.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -16,7 +16,7 @@
 		"gateway"
 	],
 	"bin": {
-		"codex-discord-bridge": "./dist/index.js"
+		"codex-discord-bridge": "dist/index.js"
 	},
 	"files": [
 		"dist",

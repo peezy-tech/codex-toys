@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/codex-workspace-voice-gateway",
-	"version": "0.132.1",
+	"version": "0.132.2",
 	"description": "Broadcast-only Discord voice gateway for Codex workspace backend updates.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -16,7 +16,7 @@
 		"gateway"
 	],
 	"bin": {
-		"codex-workspace-voice-gateway": "./dist/index.js"
+		"codex-workspace-voice-gateway": "dist/index.js"
 	},
 	"files": [
 		"dist",

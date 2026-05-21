@@ -96,6 +96,9 @@ single-package platform migration:
 
 The GitHub publish workflow checks whether each package version already exists
 on npm. It publishes new versions and skips versions that are already present.
+Published packages are packed with `pnpm pack` and then handed to `npm publish`
+so workspace and catalog dependency specifiers are converted before the npm
+registry sees the package while GitHub provenance still comes from npm.
 Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
 line is `0.132.x`, a breaking codex-flows stack release should usually advance
@@ -112,6 +115,7 @@ Discord text or voice packages, should publish separately and depend on
 Before publishing:
 
 ```bash
+pnpm exec tsx scripts/check-publish-metadata.ts
 vp run release:check
 vp run check:types
 vp run test

@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/codex-flows",
-	"version": "0.132.1",
+	"version": "0.132.2",
 	"description": "Codex app-server clients, flow runtime, workspace backend helpers, and runnable local backend bins.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -18,10 +18,10 @@
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"bin": {
-		"codex-flows": "./dist/cli/index.js",
-		"codex-app": "./dist/bin/codex-app.js",
-		"codex-flow-runner": "./dist/bin/codex-flow-runner.js",
-		"codex-workspace-backend-local": "./dist/bin/codex-workspace-backend-local.js"
+		"codex-flows": "dist/cli/index.js",
+		"codex-app": "dist/bin/codex-app.js",
+		"codex-flow-runner": "dist/bin/codex-flow-runner.js",
+		"codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js"
 	},
 	"files": [
 		"dist",

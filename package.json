@@ -1,6 +1,6 @@
 {
 	"name": "codex-flows-monorepo",
-	"version": "0.132.1",
+	"version": "0.132.2",
 	"description": "Codex app-server clients, flow automation, workspace backend tools, and repo-native workspace operations.",
 	"private": true,
 	"license": "Apache-2.0",
@@ -26,7 +26,7 @@
 		"start": "vp run --filter web preview",
 		"start:discord:debug:commentary": "vp run --filter @peezy.tech/codex-discord-bridge start:debug:commentary",
 		"test": "vp run --filter @peezy.tech/codex-flows test && vp run --filter @peezy.tech/flow-runtime test && vp run --filter @peezy.tech/flow-backend-convex test && vp run --filter @peezy.tech/codex-opencode-go-router test && vp run --filter codex-workspace-backend-local test && vp run --filter @peezy.tech/codex-workspace-voice-gateway test && vp run --filter codex-flow-runner test && vp run --filter codex-app-cli test && vp run --filter @peezy.tech/codex-discord-bridge test && vp run --filter web test",
-		"release:check": "vp run --filter @peezy.tech/codex-flows release:check && vp run --filter @peezy.tech/codex-discord-bridge release:check && vp run --filter @peezy.tech/codex-workspace-voice-gateway release:check && vp run --filter @peezy.tech/flow-runtime release:check && vp run --filter @peezy.tech/flow-backend-convex release:check"
+		"release:check": "tsx scripts/check-publish-metadata.ts && vp run --filter @peezy.tech/codex-flows release:check && vp run --filter @peezy.tech/codex-discord-bridge release:check && vp run --filter @peezy.tech/codex-workspace-voice-gateway release:check && vp run --filter @peezy.tech/flow-runtime release:check && vp run --filter @peezy.tech/flow-backend-convex release:check"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
