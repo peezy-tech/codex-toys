@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,8 +19,8 @@ const checks = [
 
 for (const check of checks) {
 	const binPath = path.join(packageRoot, check.path);
-	await access(binPath);
-	const proc = spawn(process.execPath, [binPath, "--help"], {
+	await access(binPath, constants.X_OK);
+	const proc = spawn(binPath, ["--help"], {
 		cwd: packageRoot,
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([

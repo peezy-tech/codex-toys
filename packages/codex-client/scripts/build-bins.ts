@@ -12,6 +12,7 @@ type BinBuild = {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../../..");
 const packageRoot = path.resolve(__dirname, "..");
+const cliBin = path.join(packageRoot, "dist", "cli", "index.js");
 const outDir = path.join(packageRoot, "dist", "bin");
 
 const selfExternals = ["@peezy.tech/codex-flows", "@peezy.tech/codex-flows/*"];
@@ -36,6 +37,7 @@ const builds: BinBuild[] = [
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
+await chmod(cliBin, 0o755);
 
 for (const build of builds) {
 	const outfile = path.join(outDir, `${build.name}.js`);

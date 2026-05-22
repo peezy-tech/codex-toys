@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bun Flow Author"
+  short_description: "Write Bun flow steps that consume context and emit FLOW_RESULT."
+  default_prompt: "Author a Bun runner flow step that reads JSON context from stdin, uses Bun APIs or Bun shell safely, handles idempotency, and emits a single FLOW_RESULT line."

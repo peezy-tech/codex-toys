@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flow Package Author"
+  short_description: "Portable flow bundle layout, manifests, schemas, and result contracts."
+  default_prompt: "Use the generic flow package conventions for flow.toml, schemas, exec snippets, fixture events, idempotency, and FLOW_RESULT contracts without encoding project-specific release policy."

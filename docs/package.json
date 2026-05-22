@@ -6,7 +6,7 @@
 	"scripts": {
 		"check:types": "node --check tome.config.js",
 		"dev": "tome dev --host 127.0.0.1",
-		"build": "tome build",
+		"build": "tome build && find out -type d -exec chmod 755 {} + && find out -type f -exec chmod 644 {} +",
 		"deploy": "tome deploy"
 	},
 	"devDependencies": {

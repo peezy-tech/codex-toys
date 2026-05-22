@@ -28,7 +28,7 @@ exports:
   - `codex-workspace-backend-local`
 
 The package is the canonical core install target for building or composing a
-backend plus optional gateway packages. See
+backend plus product-owned presenter surfaces. See
 [Single package platform](../concepts/single-package-platform) for the target
 architecture and release implications.
 
@@ -108,15 +108,8 @@ attempts, leases, output chunks, and final result payloads.
 
 - `codex-flow-runner`: local CLI for listing, firing, and running steps. It is
   exposed as a bin from `@peezy.tech/codex-flows`.
-- `codex-workspace-backend-local`: local workspace backend process with browser
+- `codex-workspace-backend-local`: local workspace backend process with
   control WebSocket and optional flow HTTP routes. It is exposed as a bin from
   `@peezy.tech/codex-flows`.
-- [`@peezy.tech/codex-discord-bridge`](discord-bridge): Discord-to-Codex bridge
-  with workspace delegation and flow inspection tools. It is a Discord gateway
-  package/app that depends on `@peezy.tech/codex-flows`.
-- [`@peezy.tech/codex-workspace-voice-gateway`](workspace-voice-gateway):
-  broadcast-only Discord voice output for selected workspace backend updates. It
-  is a Discord gateway package/app that depends on `@peezy.tech/codex-flows`.
-- `web`: browser UI for Codex threads through the local workspace backend.
 - `codex-app-cli`: JSON-RPC CLI for app-server actions. It is exposed as the
   `codex-app` bin from `@peezy.tech/codex-flows`.

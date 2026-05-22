@@ -1,0 +1,48 @@
+[pack]
+name = "codex-flows"
+description = "Codex flow packages, authoring skills, backend operation skills, and workspace orchestration capabilities."
+
+[[pack.items]]
+name = "bun-flow-author"
+kind = "skill"
+path = "skills/bun-flow-author"
+
+[[pack.items]]
+name = "delegation-orchestrator"
+kind = "skill"
+path = "skills/delegation-orchestrator"
+
+[[pack.items]]
+name = "flow-backend-author"
+kind = "skill"
+path = "skills/flow-backend-author"
+
+[[pack.items]]
+name = "flow-operator"
+kind = "skill"
+path = "skills/flow-operator"
+
+[[pack.items]]
+name = "flow-package-author"
+kind = "skill"
+path = "skills/flow-package-author"
+
+[[pack.items]]
+name = "jojo-development-flow"
+kind = "skill"
+path = ".codex/skills/jojo-development-flow"
+
+[[pack.items]]
+name = "openai-codex-bindings"
+kind = "flow"
+path = "flows/openai-codex-bindings"
+
+[[pack.items]]
+name = "peezy-codex-flows-fork"
+kind = "flow"
+path = "flows/peezy-codex-flows-fork"
+
+[[pack.items]]
+name = "peezy-codex-fork"
+kind = "flow"
+path = "flows/peezy-codex-fork"

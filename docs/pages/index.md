@@ -6,13 +6,13 @@ description: App-server clients, flow automation, workspace autonomy, and memory
 # codex-flows
 
 `codex-flows` is the workspace automation layer around Codex app-server. It has
-four related surfaces:
+these related surfaces:
 
 - app-server clients and transports for direct Codex thread, auth, and protocol
   work
 - generic flow automation built around `FlowEvent`, `flow.toml`, and
   `FLOW_RESULT`
-- workspace backend and Discord operation for long-running workspace control
+- workspace backend operation for long-running workspace control
 - repo-native workspace autonomy and Codex memory/thread transplant tools
 - repo-local pack installation for skills, flows, plugins, and hooks
 
@@ -34,8 +34,6 @@ credentials, domain state, release policy, and final side effects.
 | Move durable Codex memories between global and repo homes | [Memory transplant](guides/memory-transplant) |
 | Move a Codex thread rollout between Codex homes | [Thread transplant](guides/thread-transplant) |
 | Install reusable skills, flows, plugins, and hooks into a workspace | [Install pack repos](guides/install-pack-repos) |
-| Operate Discord over the workspace backend | [Discord bridge](reference/discord-bridge) |
-| Broadcast workspace updates into Discord voice | [Workspace voice gateway](reference/workspace-voice-gateway) |
 | Understand the single-package platform target | [Single package platform](concepts/single-package-platform) |
 | Maintain releases | [Operate Codex release flows](guides/operate-codex-release-flows) and `RELEASE.md` |
 
@@ -61,9 +59,6 @@ credentials, domain state, release policy, and final side effects.
 - `codex-workspace-backend-local`: local workspace backend process
 - `codex-app`: app-server JSON-RPC utility CLI
 - `codex-flow-runner`: local flow runner CLI
-
-Discord text and voice integrations are gateway packages/apps that consume
-`@peezy.tech/codex-flows`; they are not bundled into the core package.
 
 ## Workspace Autonomy In One Screen
 
@@ -194,4 +189,4 @@ workspace backend to orchestrate Codex turns.
 - Thread transplant owns byte-preserving rollout copies under `sessions/` only.
 - Pack install owns repo-local capability copies and `.codex/pack-lock.json`.
 - Products own final domain completion, external credentials, deployment policy,
-  Discord routing policy, and release side effects.
+  operator routing policy, and release side effects.

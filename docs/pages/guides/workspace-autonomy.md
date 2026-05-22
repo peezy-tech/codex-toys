@@ -89,13 +89,6 @@ Workspace control config lives at `.codex/workspace.toml`:
 [workspace]
 name = "meta-workspace"
 
-[[workspace.surfaces]]
-key = "default"
-kind = "discord"
-home_channel_id = "1504547371730862220"
-workspace_forum_channel_id = "1504539961754648706"
-task_threads_channel_id = "1504547308040229025"
-
 [[workspace.tasks]]
 id = "morning-brief"
 enabled = true
@@ -236,10 +229,3 @@ codex-flows actions assert-run --flow actions-smoke --step smoke
 `actions dispatch` writes the event to `.codex/workspace/actions/events` and
 runs matching flows through a file-backed local flow client under
 `.codex/workspace/actions/flow-client`.
-
-## Discord Surfaces
-
-Workspace autonomy reads `[[workspace.surfaces]]` from `.codex/workspace.toml`.
-The current Discord bridge also has bridge-owned surface configuration described
-in [Discord bridge](../reference/discord-bridge). Document and operate the
-surface that the command you are running actually consumes.

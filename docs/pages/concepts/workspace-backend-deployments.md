@@ -10,9 +10,8 @@ presenter, as a local networked process, or behind a future remote transport.
 
 ## Embedded local
 
-Embedded local mode has no browser-facing HTTP surface and no public socket. A
-presenter or transport such as Discord constructs the workspace backend
-in-process with:
+Embedded local mode has no operator-facing HTTP surface and no public socket. A
+presenter or transport constructs the workspace backend in-process with:
 
 - an app-server adapter, often a locally spawned `codex app-server` over stdio
 - a state store
@@ -20,22 +19,18 @@ in-process with:
 - presenter callbacks for output and UI artifacts
 - direct access to delegation, workbench, and flow capabilities
 
-Discord uses this shape today. The Discord wrapper owns bot startup, shutdown,
-command registration, and inbound Discord events. The local workspace backend
-owns Codex app-server lifecycle, thread routing, goals, delegation, workbench
-state, hook-spool draining, flow capability access, and persisted workspace
-state.
+The presenter wrapper owns its own startup, shutdown, command registration, and
+inbound events. The local workspace backend owns Codex app-server lifecycle,
+thread routing, goals, delegation, workbench state, hook-spool draining, flow
+capability access, and persisted workspace state.
 
 ## Networked local
 
 Networked local mode runs `codex-workspace-backend-local` as one process. It can
 connect to an existing app-server or spawn a local stdio app-server, and it can
-mount browser/control WebSocket plus flow HTTP surfaces.
+mount control WebSocket plus flow HTTP surfaces.
 
-In development, the browser can connect through Vite's
-`/__codex-workspace-backend` proxy to the local backend on port `3586`.
-
-The browser protocol has two lanes:
+The control protocol has two lanes:
 
 | Lane | Methods | Owner |
 |------|---------|-------|

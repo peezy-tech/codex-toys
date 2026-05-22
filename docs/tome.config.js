@@ -29,8 +29,6 @@ export default {
 				"guides/operate-workspace-flow-backend",
 				"guides/use-convex-backend",
 				"guides/operate-codex-release-flows",
-				"guides/run-discord-local-backend",
-				"guides/run-web-over-local-workspace-backend",
 			],
 		},
 		{
@@ -41,8 +39,6 @@ export default {
 				"reference/flow-client",
 				"reference/backend-http",
 				"reference/cli",
-				"reference/discord-bridge",
-				"reference/workspace-voice-gateway",
 				"reference/packages",
 			],
 		},

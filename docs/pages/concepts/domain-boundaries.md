@@ -23,7 +23,7 @@ It does not own product-specific completion:
 - pet-game asset registration
 - payment state
 - minting
-- Discord write tools
+- channel-specific write tools
 - workspace backend presenters and arbitrary app-server thread wrappers
 
 Keep domain completion in the consuming app. For example, a pet-game worker can
@@ -33,7 +33,7 @@ mint if needed, and only then complete the generic run.
 This boundary keeps flow packages portable and prevents generic backends from
 depending on app-specific Convex schemas, credentials, or release policy.
 
-The Discord workspace backend follows the same rule. It may inspect generic flow
-runs and events for an operator, but its app-server thread orchestration,
-delegation policy, Discord workbench state, and hook-spool wake behavior are not
-part of the generic codex-flow backend contract.
+Presenter wrappers follow the same rule. They may inspect generic flow runs and
+events for an operator, but their app-server thread orchestration, delegation
+policy, workbench presentation state, and hook-spool wake behavior are not part
+of the generic codex-flow backend contract.

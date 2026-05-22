@@ -6,8 +6,7 @@ repo-native workspace operations.
 This repository is a monorepo. The npm package users should install is
 `@peezy.tech/codex-flows`, which publishes app-server client APIs, flow runtime
 helpers, workspace backend helpers, the `codex-flows` CLI, and runnable local
-backend bins. Gateway packages such as Discord integrations consume this package
-instead of being bundled into it. The full user documentation lives in the Tome docs site under
+backend bins. The full user documentation lives in the Tome docs site under
 [`docs/pages`](docs/pages).
 
 ## Start Here
@@ -30,14 +29,9 @@ instead of being bundled into it. The full user documentation lives in the Tome 
   local execution, backend clients, and Node step runners.
 - `packages/flow-backend-convex`: reusable Convex component for generic flow
   events, runs, attempts, leases, output, and result payloads.
-- `apps/workspace-backend`: local workspace backend process with browser/control
+- `apps/workspace-backend`: local workspace backend process with control
   WebSocket and optional flow HTTP routes.
-- `apps/discord-bridge`: Discord sidecar for Codex app-server threads,
-  workspace delegation, workbench views, and flow inspection.
-- `apps/workspace-voice-gateway`: broadcast-only Discord voice sidecar for
-  selected workspace backend updates via the TTS worker.
 - `apps/flow-runner`: CLI for listing and running local flow packages.
-- `apps/web`: browser UI that talks to the local workspace backend.
 - `docs`: Tome documentation source.
 - `flows`: bundled flow packages.
 
@@ -57,17 +51,10 @@ vp run test
 vp run docs:build
 ```
 
-Run the local backend and web app:
+Run the local backend:
 
 ```bash
 vp run workspace:backend --local-app-server
-vp run dev
-```
-
-Run the local voice broadcast stack:
-
-```bash
-vp run voice:up
 ```
 
 Inspect the CLI:
@@ -88,8 +75,8 @@ docs site:
 
 - Tutorials teach a first successful workflow.
 - Guides cover operational tasks such as workspace autonomy, memory transplant,
-  thread transplant, pack repo install, local backend operation, Discord bridge
-  operation, and release flow operation.
+  thread transplant, pack repo install, local backend operation, and release
+  flow operation.
 - Reference pages define CLI commands, package exports, backend APIs,
   `FlowEvent`, `FLOW_RESULT`, and `flow.toml`.
 - Concepts explain boundaries between app-server clients, flow automation,
@@ -103,11 +90,6 @@ back to the docs site.
 The canonical user-facing package is:
 
 - `@peezy.tech/codex-flows`
-
-Gateway packages are published separately and depend on the core package:
-
-- `@peezy.tech/codex-discord-bridge`
-- `@peezy.tech/codex-workspace-voice-gateway`
 
 The release train still contains compatibility/library packages while the
 single-package platform consolidation continues:

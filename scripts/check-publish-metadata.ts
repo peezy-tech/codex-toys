@@ -17,8 +17,6 @@ type PackageJson = {
 
 const publicPackageJsonPaths = [
 	"packages/codex-client/package.json",
-	"apps/discord-bridge/package.json",
-	"apps/workspace-voice-gateway/package.json",
 	"packages/flow-runtime/package.json",
 	"packages/flow-backend-convex/package.json",
 ];

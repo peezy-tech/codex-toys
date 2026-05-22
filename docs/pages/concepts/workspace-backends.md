@@ -6,7 +6,8 @@ description: Logical Codex workspace capabilities across embedded, local, and re
 # Workspace backends
 
 A Codex workspace backend is the logical runtime behind an operator surface such
-as Discord, the browser UI, or a CLI. It is not necessarily a network server.
+as a CLI, automation host, or product-owned presenter. It is not necessarily a
+network server.
 The backend owns shared workspace capabilities and exposes them through the
 transport shape that fits the deployment.
 

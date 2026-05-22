@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flow Backend Author"
+  short_description: "Design dispatch, local execution, and orchestration backends for flows."
+  default_prompt: "Design or implement a flow backend adapter with generic events, idempotent dispatch, run state, retries, and worker/app-server handoff without encoding project-specific policy."

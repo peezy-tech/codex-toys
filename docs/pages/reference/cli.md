@@ -7,8 +7,7 @@ description: Commands for app-server calls, workspace backend calls, flow inspec
 
 `codex-flows` controls Codex app-server and workspace backend surfaces. The
 same package also publishes focused bins for app-server calls, local flow runs,
-and the local workspace backend. Channel-specific gateways, such as Discord
-integrations, are separate packages/apps that depend on the core package.
+and the local workspace backend.
 
 ```bash
 codex-flows --help
@@ -269,7 +268,7 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_AUTH_JSON` | Raw JSON auth payload consumed by `actions prepare-auth`. |
 | `OPENAI_API_KEY` | API key fallback consumed by `actions prepare-auth`. |
 | `CODEX_APP_SERVER_CODEX_COMMAND` | Overrides the Codex command for stdio app-server launches. |
-| `CODEX_FLOW_BACKEND_URL` | HTTP backend URL for consumers such as Discord bridge inspection. |
+| `CODEX_FLOW_BACKEND_URL` | HTTP backend URL for compatible flow inspection and dispatch clients. |
 | `CODEX_FLOW_BACKEND_SECRET` | Shared HMAC secret for HTTP flow dispatch. |
 | `CODEX_FLOW_BACKEND_EXECUTOR` | `direct` or `systemd-run`. |
 | `CODEX_FLOW_BACKEND_DATA_DIR` | Durable backend state directory. |
