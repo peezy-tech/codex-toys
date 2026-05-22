@@ -47,11 +47,6 @@ async function main(): Promise<void> {
 		const client = createLocalFlowClient({
 			cwd: cli.cwd,
 			env: process.env,
-			codex: {
-				command: process.env.CODEX_APP_SERVER_CODEX_COMMAND,
-				codexHome: process.env.CODEX_HOME,
-				stream: true,
-			},
 		});
 		const dispatch = await client.dispatchEvent(event);
 		const results = dispatch.runs.map((run) => {
@@ -87,11 +82,6 @@ async function runAndReport(
 		runtime: {
 			eventId: event.id,
 			...runtime,
-		},
-		codeMode: {
-			codexCommand: process.env.CODEX_APP_SERVER_CODEX_COMMAND,
-			codexHome: process.env.CODEX_HOME,
-			stream: true,
 		},
 	});
 	return {

@@ -1,6 +1,6 @@
 {
 	"name": "codex-app-cli",
-	"version": "0.132.3",
+	"version": "0.132.4",
 	"description": "CLI for sending JSON-RPC commands to a running Codex app-server.",
 	"type": "module",
 	"private": true,

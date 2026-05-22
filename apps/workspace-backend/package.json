@@ -1,6 +1,6 @@
 {
 	"name": "codex-workspace-backend-local",
-	"version": "0.132.3",
+	"version": "0.132.4",
 	"description": "Local Codex workspace backend with app-server control and flow capabilities.",
 	"type": "module",
 	"private": true,
