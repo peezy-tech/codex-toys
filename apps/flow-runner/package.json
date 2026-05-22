@@ -1,6 +1,6 @@
 {
 	"name": "codex-flow-runner",
-	"version": "0.132.2",
+	"version": "0.132.3",
 	"description": "CLI for listing, firing, and running Codex flow packages.",
 	"type": "module",
 	"private": true,
