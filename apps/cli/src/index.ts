@@ -3,11 +3,6 @@ import { CodexAppServerClient } from "@peezy.tech/codex-flows";
 
 import { APP_SERVER_ACTIONS } from "./actions.ts";
 import { DEFAULT_WS_URL, parseArgs } from "./args.ts";
-import {
-	extractCodeModeCandidates,
-	extractCodeModeToolInputCandidates,
-	runCodeModeCandidate,
-} from "./recipes.ts";
 
 async function main() {
 	try {
@@ -19,15 +14,6 @@ async function main() {
 			case "actions":
 				write(`${APP_SERVER_ACTIONS.join("\n")}\n`);
 				return;
-			case "extract-code-mode":
-				await extractCodeMode(parsed.outputDir);
-				return;
-			case "extract-code-mode-tool-input":
-				await extractCodeModeToolInput(parsed.outputDir);
-				return;
-			case "run-code-mode":
-				write(formatJson(await runCodeModeCandidate(parsed), parsed.pretty));
-				return;
 			case "call":
 				await callAction(parsed);
 				return;
@@ -36,28 +22,6 @@ async function main() {
 		writeError(`${errorMessage(error)}\n`);
 		process.exitCode = 1;
 	}
-}
-
-async function extractCodeMode(outputDir: string | undefined) {
-	const result = await extractCodeModeCandidates({
-		stdin: process.stdin,
-		outputDir,
-	});
-	for (const saved of result.saved) {
-		writeError(`saved ${saved.codePath}\n`);
-	}
-	write(formatJson({ continue: true }, true));
-}
-
-async function extractCodeModeToolInput(outputDir: string | undefined) {
-	const result = await extractCodeModeToolInputCandidates({
-		stdin: process.stdin,
-		outputDir,
-	});
-	for (const saved of result.saved) {
-		writeError(`saved ${saved.codePath}\n`);
-	}
-	write(formatJson({ continue: true }, true));
 }
 
 type CallArgs = Extract<ReturnType<typeof parseArgs>, { type: "call" }>;
@@ -129,20 +93,11 @@ Usage:
   codex-app [options] call <action> [params-json]
   echo '<params-json>' | codex-app [options] <action>
   codex-app actions
-  codex-app extract-code-mode [--output-dir <dir>]
-  codex-app extract-code-mode-tool-input [--output-dir <dir>]
-  codex-app run-code-mode <candidate.mjs> [--cwd <dir>]
 
 Options:
   --url, --ws-url <url>       App-server URL; use stdio:// to spawn a Codex app-server
                               Defaults to CODEX_WORKSPACE_APP_SERVER_WS_URL or ${DEFAULT_WS_URL}
   --timeout-ms <ms>           Request timeout in milliseconds
-  --cwd <dir>                 Working directory for run-code-mode
-  --output-dir <dir>          Candidate output dir for extract-code-mode
-  --codex-command <path>      Codex binary for run-code-mode with --url stdio://
-                              Defaults to CODEX_APP_SERVER_CODEX_COMMAND.
-                              With CODEX_FLOWS_MODE=code-mode, falls back to
-                              vp dlx @peezy.tech/codex.
   --compact                   Print compact JSON
   --pretty                    Print pretty JSON
   -h, --help                  Show this help
@@ -150,9 +105,6 @@ Options:
 Examples:
   codex-app thread/list '{"limit": 20, "sourceKinds": []}'
   echo '{"refreshToken": false}' | codex-app account/read
-  codex-app extract-code-mode < stop-hook-payload.json
-  codex-app extract-code-mode-tool-input < pre-tool-use-hook-payload.json
-  CODEX_FLOWS_MODE=code-mode codex-app --url=stdio:// run-code-mode .codex/code-mode-candidates/turn-a1b2c3.mjs
 `;
 }
 

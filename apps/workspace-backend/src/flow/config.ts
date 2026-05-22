@@ -244,8 +244,6 @@ export function helpText(): string {
 		"  CODEX_FLOW_BACKEND_SECRET       Optional HMAC secret for HTTP dispatches",
 		"  CODEX_FLOW_BACKEND_EXECUTOR     direct or systemd-run",
 		"  CODEX_WORKSPACE_BACKEND_WS_URL  Workspace backend WebSocket URL passed to flow steps",
-		"  CODEX_FLOWS_MODE                Set to code-mode to enable Code Mode and fork defaults",
-		"  CODEX_FLOWS_ENABLE_CODE_MODE    Enables runner = \"code-mode\" steps",
 		"  CODEX_FLOW_PUSH/PUBLISH         Optional release-flow action gates",
 		"",
 	].join("\n");
@@ -271,8 +269,6 @@ function executorEnv(value: string | undefined): FlowBackendExecutor {
 
 function forwardEnv(value: string | undefined): string[] {
 	const defaults = [
-		"CODEX_FLOWS_MODE",
-		"CODEX_FLOWS_ENABLE_CODE_MODE",
 		"CODEX_FLOW_COMMIT",
 		"CODEX_FLOW_PUSH",
 		"CODEX_FLOW_PUBLISH",

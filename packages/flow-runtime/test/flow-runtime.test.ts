@@ -14,7 +14,6 @@ import {
 	validateJsonSchema,
 	workspaceBackendUrlFromContext,
 } from "../src/index.ts";
-import { codeModeEnabled } from "../src/run.ts";
 import type { FlowEvent } from "../src/index.ts";
 
 type CodexForkFlowHelpers = {
@@ -149,7 +148,7 @@ test("bundled Codex fork flow uses the deterministic Node runner", async () => {
 	expect(step.script).toBe("exec/update-fork.ts");
 });
 
-test("bundled Codex fork Node step returns FLOW_RESULT without Code Mode", async () => {
+test("bundled Codex fork Node step returns FLOW_RESULT through the Node runner", async () => {
 	const root = repoRoot;
 	const flows = await discoverFlows({ cwd: root });
 	const flow = flows.find((entry) => entry.manifest.name === "peezy-codex-fork");
@@ -213,12 +212,6 @@ async function codexForkFlowHelpers(): Promise<CodexForkFlowHelpers> {
 	)).href;
 	return await import(modulePath) as CodexForkFlowHelpers;
 }
-
-test("CODEX_FLOWS_MODE=code-mode enables Code Mode flow steps", () => {
-	expect(codeModeEnabled({})).toBe(false);
-	expect(codeModeEnabled({ CODEX_FLOWS_ENABLE_CODE_MODE: "1" })).toBe(true);
-	expect(codeModeEnabled({ CODEX_FLOWS_MODE: "code-mode" })).toBe(true);
-});
 
 test("validates simple JSON schema constraints", () => {
 	const schema = {
@@ -436,34 +429,6 @@ test("Node flow helpers read context and create workspace-backed Codex clients",
 		params: { threadId: "existing-thread" },
 	});
 	codex.close();
-});
-
-test("requires a feature flag before running Code Mode flow steps", async () => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "flow-runtime-"));
-	try {
-		await writeFlow(directory, "flows/demo", "source");
-		const [flow] = await discoverFlows({ cwd: directory });
-		const step = flow?.manifest.steps[0];
-		if (!flow || !step) {
-			throw new Error("expected fixture flow");
-		}
-
-		await expect(
-			runFlowStep({
-				flow,
-				step: { ...step, runner: "code-mode" },
-				event: {
-					id: "event-1",
-					type: "demo.event",
-					receivedAt: "2026-05-13T00:00:00.000Z",
-					payload: { name: "Ada" },
-				},
-				env: {},
-			}),
-		).rejects.toThrow("requires CODEX_FLOWS_ENABLE_CODE_MODE=1");
-	} finally {
-		await rm(directory, { recursive: true, force: true });
-	}
 });
 
 async function writeFlow(

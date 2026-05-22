@@ -3,17 +3,6 @@ import { isAppServerAction, type AppServerAction } from "./actions.ts";
 export type ParsedArgs =
 	| { type: "help" }
 	| { type: "actions" }
-	| { type: "extract-code-mode"; outputDir: string | undefined }
-	| { type: "extract-code-mode-tool-input"; outputDir: string | undefined }
-	| {
-			type: "run-code-mode";
-			file: string;
-			cwd: string | undefined;
-			codexCommand: string | undefined;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
 	| {
 			type: "call";
 			action: AppServerAction;
@@ -31,9 +20,6 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParsedArgs {
 	let url = env.CODEX_WORKSPACE_APP_SERVER_WS_URL ?? DEFAULT_WS_URL;
 	let timeoutMs = defaultTimeoutMs;
 	let pretty = true;
-	let cwd: string | undefined;
-	let outputDir: string | undefined;
-	let codexCommand = env.CODEX_APP_SERVER_CODEX_COMMAND;
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
@@ -81,45 +67,6 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParsedArgs {
 			pretty = true;
 			continue;
 		}
-		if (arg === "--cwd") {
-			const value = argv[index + 1];
-			if (!value) {
-				throw new Error("--cwd requires a path");
-			}
-			cwd = value;
-			index += 1;
-			continue;
-		}
-		if (arg.startsWith("--cwd=")) {
-			cwd = arg.slice("--cwd=".length);
-			continue;
-		}
-		if (arg === "--output-dir") {
-			const value = argv[index + 1];
-			if (!value) {
-				throw new Error("--output-dir requires a path");
-			}
-			outputDir = value;
-			index += 1;
-			continue;
-		}
-		if (arg.startsWith("--output-dir=")) {
-			outputDir = arg.slice("--output-dir=".length);
-			continue;
-		}
-		if (arg === "--codex-command") {
-			const value = argv[index + 1];
-			if (!value) {
-				throw new Error("--codex-command requires a command path");
-			}
-			codexCommand = value;
-			index += 1;
-			continue;
-		}
-		if (arg.startsWith("--codex-command=")) {
-			codexCommand = arg.slice("--codex-command=".length);
-			continue;
-		}
 		if (arg === "--") {
 			positionals.push(...argv.slice(index + 1));
 			break;
@@ -140,33 +87,6 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParsedArgs {
 	if (command === "actions") {
 		return { type: "actions" };
 	}
-	if (command === "extract-code-mode") {
-		return {
-			type: "extract-code-mode",
-			outputDir,
-		};
-	}
-	if (command === "extract-code-mode-tool-input") {
-		return {
-			type: "extract-code-mode-tool-input",
-			outputDir,
-		};
-	}
-	if (command === "run-code-mode") {
-		const file = firstPositional(positionals.slice(1));
-		if (!file) {
-			throw new Error("run-code-mode requires a candidate file");
-		}
-		return {
-			type: "run-code-mode",
-			file,
-			cwd,
-			codexCommand,
-			url,
-			timeoutMs,
-			pretty,
-		};
-	}
 
 	const action = command === "call" ? positionals[1] : command;
 	const paramsParts = command === "call" ? positionals.slice(2) : positionals.slice(1);
@@ -184,10 +104,6 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ParsedArgs {
 		timeoutMs,
 		pretty,
 	};
-}
-
-function firstPositional(values: string[]) {
-	return values.find((value) => !value.startsWith("--"));
 }
 
 function parseTimeout(value: string) {

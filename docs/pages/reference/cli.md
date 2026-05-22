@@ -268,7 +268,6 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_AUTH_JSON_B64` | Base64 JSON auth payload consumed by `actions prepare-auth`. |
 | `CODEX_AUTH_JSON` | Raw JSON auth payload consumed by `actions prepare-auth`. |
 | `OPENAI_API_KEY` | API key fallback consumed by `actions prepare-auth`. |
-| `CODEX_FLOWS_MODE=code-mode` | Enables Code Mode flow steps and Peezy Codex defaults. |
 | `CODEX_APP_SERVER_CODEX_COMMAND` | Overrides the Codex command for stdio app-server launches. |
 | `CODEX_FLOW_BACKEND_URL` | HTTP backend URL for consumers such as Discord bridge inspection. |
 | `CODEX_FLOW_BACKEND_SECRET` | Shared HMAC secret for HTTP flow dispatch. |

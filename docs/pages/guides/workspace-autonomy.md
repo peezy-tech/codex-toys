@@ -235,8 +235,7 @@ codex-flows actions assert-run --flow actions-smoke --step smoke
 
 `actions dispatch` writes the event to `.codex/workspace/actions/events` and
 runs matching flows through a file-backed local flow client under
-`.codex/workspace/actions/flow-client`. Code Mode flow steps launched this way
-also receive `CODEX_HOME=<repo>/.codex`.
+`.codex/workspace/actions/flow-client`.
 
 ## Discord Surfaces
 

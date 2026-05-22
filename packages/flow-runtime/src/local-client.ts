@@ -32,13 +32,6 @@ import type {
 	LoadedFlow,
 } from "./types.ts";
 
-export type LocalFlowCodexOptions = {
-	mode?: "stdio";
-	command?: string;
-	codexHome?: string;
-	stream?: boolean;
-};
-
 export type LocalFlowClientOptions = {
 	cwd: string;
 	roots?: string[];
@@ -47,7 +40,6 @@ export type LocalFlowClientOptions = {
 		kind: "file";
 		dataDir?: string;
 	};
-	codex?: LocalFlowCodexOptions;
 	progress?: FlowProgressSink;
 };
 
@@ -84,7 +76,6 @@ export class LocalFlowClient implements FlowClient {
 	#cwd: string;
 	#roots: string[] | undefined;
 	#env: Record<string, string | undefined>;
-	#codex: LocalFlowCodexOptions | undefined;
 	#progress: FlowProgressSink | undefined;
 	#state: LocalFlowMemoryState | undefined;
 
@@ -94,7 +85,6 @@ export class LocalFlowClient implements FlowClient {
 			path.isAbsolute(root) ? root : path.resolve(this.#cwd, root),
 		);
 		this.#env = options.env ?? process.env;
-		this.#codex = options.codex;
 		this.#progress = options.progress;
 		this.#state = localState(options.state, this.#cwd);
 	}
@@ -238,11 +228,6 @@ export class LocalFlowClient implements FlowClient {
 					replay: options.replayNonce !== undefined,
 					workspaceBackendUrl: this.#env.CODEX_WORKSPACE_BACKEND_WS_URL,
 					launchedBy: "flow-runtime-local-client",
-				},
-				codeMode: {
-					codexCommand: this.#codex?.command ?? this.#env.CODEX_APP_SERVER_CODEX_COMMAND,
-					codexHome: this.#codex?.codexHome ?? this.#env.CODEX_HOME,
-					stream: this.#codex?.stream ?? true,
 				},
 				progress: (event) => this.#emitProgress({
 					...progressBase,

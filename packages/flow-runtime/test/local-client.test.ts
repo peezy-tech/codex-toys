@@ -211,30 +211,6 @@ test("local client emits run progress and streams Node stderr", async () => {
 	}
 });
 
-test("local client keeps Code Mode flow steps gated", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "flow-local-client-"));
-  try {
-		await writeFlow(directory, "flows/demo", "demo", "code-mode");
-		const client = createLocalFlowClient({ cwd: directory, env: {} });
-
-		const result = await client.dispatchEvent({
-			id: "event-code-mode",
-			type: "demo.event",
-			receivedAt: "2026-05-15T00:00:00.000Z",
-			payload: { name: "Ada" },
-		});
-
-		expect(result.runs[0]).toMatchObject({
-			processStatus: "failed",
-			effectiveStatus: "failed",
-			needsAttention: false,
-		});
-		expect(result.runs[0]?.error).toContain("requires CODEX_FLOWS_ENABLE_CODE_MODE=1");
-	} finally {
-		await rm(directory, { recursive: true, force: true });
-	}
-});
-
 test("local client reports unsupported operations when state is disabled", async () => {
 	const client = createLocalFlowClient({
 		cwd: await mkdtemp(path.join(os.tmpdir(), "flow-local-client-")),
@@ -260,7 +236,6 @@ async function writeFlow(
 	root: string,
 	relative: string,
 	label: string,
-	runner: "node" | "code-mode" = "node",
 ): Promise<void> {
 	const flowRoot = path.join(root, relative);
 	await mkdir(path.join(flowRoot, "exec"), { recursive: true });
@@ -274,7 +249,7 @@ async function writeFlow(
 			"",
 			"[[steps]]",
 			'name = "hello"',
-			`runner = "${runner}"`,
+			'runner = "node"',
 			'script = "exec/hello.ts"',
 			"timeout_ms = 30000",
 			"",

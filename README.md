@@ -27,7 +27,7 @@ instead of being bundled into it. The full user documentation lives in the Tome 
   transports, workspace backend helpers, CLI, auth helpers, workbench reducers,
   and generated app-server protocol types.
 - `packages/flow-runtime`: generic `FlowEvent` runtime, manifest loading,
-  local execution, backend clients, and Node or gated Code Mode step runners.
+  local execution, backend clients, and Node step runners.
 - `packages/flow-backend-convex`: reusable Convex component for generic flow
   events, runs, attempts, leases, output, and result payloads.
 - `apps/workspace-backend`: local workspace backend process with browser/control

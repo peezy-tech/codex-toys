@@ -16,7 +16,6 @@ export type FetchInfo = {
 	arch: string;
 	shell?: string;
 	cwd: string;
-	mode: string;
 	codexCommand: string;
 	appServerUrl: string;
 	workspaceBackendUrl: string;
@@ -110,7 +109,6 @@ export async function collectFetchInfo(
 		arch: os.arch(),
 		...(env.SHELL || env.ComSpec ? { shell: env.SHELL ?? env.ComSpec } : {}),
 		cwd: options.cwd ?? process.cwd(),
-		mode: env.CODEX_FLOWS_MODE ?? "default",
 		codexCommand: env.CODEX_APP_SERVER_CODEX_COMMAND ?? "codex",
 		appServerUrl: options.appUrl,
 		workspaceBackendUrl: options.workspaceUrl,
@@ -136,7 +134,6 @@ export function formatFetchInfo(
 		["platform", `${info.platform}/${info.arch}`],
 		["shell", info.shell ?? "unknown"],
 		["cwd", info.cwd],
-		["mode", info.mode],
 		["codex", info.codexCommand],
 		["app-server", info.appServerUrl],
 		["workspace", info.workspaceBackendUrl],

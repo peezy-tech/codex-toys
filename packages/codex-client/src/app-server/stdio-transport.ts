@@ -11,11 +11,6 @@ import {
 	requireJsonRpcResult,
 	stringifyJsonRpc,
 } from "./rpc.ts";
-import {
-	CODEX_FLOWS_CODE_MODE,
-	DEFAULT_CODE_MODE_CODEX_PACKAGE,
-	codexFlowsMode,
-} from "../mode.ts";
 
 type PendingRequest = {
 	resolve: (value: JsonRpcResponse) => void;
@@ -40,7 +35,6 @@ export type ResolvedCodexStdioCommand = {
 };
 
 export const DEFAULT_CODEX_COMMAND = "codex";
-export const DEFAULT_CODEX_NPM_PACKAGE = DEFAULT_CODE_MODE_CODEX_PACKAGE;
 
 export class CodexStdioTransport extends CodexEventEmitter {
 	readonly requestTimeoutMs: number;
@@ -221,17 +215,17 @@ export function resolveCodexStdioCommand(
 	}
 
 	const packageName = env.CODEX_APP_SERVER_CODEX_PACKAGE?.trim();
-	if (packageName || codexFlowsMode(env) === CODEX_FLOWS_CODE_MODE) {
+	if (packageName) {
 		const dlxCommand = env.CODEX_APP_SERVER_DLX_COMMAND?.trim();
 		if (!dlxCommand) {
 			return {
 				command: "vp",
-				args: ["dlx", packageName || DEFAULT_CODE_MODE_CODEX_PACKAGE, ...args],
+				args: ["dlx", packageName, ...args],
 			};
 		}
 		return {
 			command: dlxCommand,
-			args: [packageName || DEFAULT_CODE_MODE_CODEX_PACKAGE, ...args],
+			args: [packageName, ...args],
 		};
 	}
 

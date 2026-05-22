@@ -95,8 +95,8 @@ function normalizeStep(value: unknown, index: number, manifestPath: string): Flo
 		throw new Error(`steps[${index}] must be a table: ${manifestPath}`);
 	}
 	const runner = requiredString(value.runner, `steps[${index}].runner`, manifestPath);
-	if (runner !== "node" && runner !== "code-mode") {
-		throw new Error(`steps[${index}].runner must be node or code-mode: ${manifestPath}`);
+	if (runner !== "node") {
+		throw new Error(`steps[${index}].runner must be node: ${manifestPath}`);
 	}
 	return {
 		name: requiredString(value.name, `steps[${index}].name`, manifestPath),

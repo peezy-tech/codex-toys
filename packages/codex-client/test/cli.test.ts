@@ -272,7 +272,6 @@ describe("codex-flows CLI args", () => {
 			arch: "x64",
 			shell: "/bin/bash",
 			cwd: "/workspace",
-			mode: "code-mode",
 			codexCommand: "/tmp/codex",
 			appServerUrl: "ws://127.0.0.1:3585",
 			workspaceBackendUrl: "ws://127.0.0.1:3586",

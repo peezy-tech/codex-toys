@@ -40,7 +40,7 @@ schema = "schemas/upstream-release.schema.json"
 | Field | Type | Required | Meaning |
 |-------|------|----------|---------|
 | `name` | string | Yes | Step name within the flow. |
-| `runner` | `"node"` or `"code-mode"` | Yes | Execution runner. |
+| `runner` | `"node"` | Yes | Execution runner. |
 | `script` | string | Yes | Path relative to the flow root. |
 | `timeout_ms` | number | Yes | Step timeout. |
 | `cwd` | string | No | Working directory relative to the flow root. |

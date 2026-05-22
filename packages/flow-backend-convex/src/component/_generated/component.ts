@@ -137,7 +137,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           steps: Array<{
             cwd?: string;
             name: string;
-            runner: "node" | "code-mode";
+            runner: "node";
             script: string;
             timeoutMs: number;
             trigger?: { schema?: string; schemaJson?: any; type: string };

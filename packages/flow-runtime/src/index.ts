@@ -2,7 +2,6 @@ export { discoverFlows, loadFlow, stepSchemaPath, stepScriptPath } from "./manif
 export { parseFlowResult, stringifyFlowResult } from "./result.ts";
 export { runFlowStep } from "./run.ts";
 export { runNodeStep } from "./runners/node.ts";
-export { runCodeModeStep } from "./runners/code-mode.ts";
 export { readJsonSchema, validateJsonSchema } from "./schema.ts";
 export { matchingSteps, stepMatchesEvent } from "./triggers.ts";
 export { createFlowClient } from "./client.ts";
@@ -44,7 +43,6 @@ export type {
 } from "./node.ts";
 export type {
 	LocalFlowClientOptions,
-	LocalFlowCodexOptions,
 } from "./local-client.ts";
 export type {
 	FlowEvent,
