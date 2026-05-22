@@ -8,12 +8,22 @@ codex_package_name = "@peezy.tech/codex"
 codex_version_env = "PEEZY_CODEX_VERSION"
 codex_flows_repo_env = "PEEZY_CODEX_FLOWS_REPO"
 codex_flows_repo = "/home/peezy/meta-workspace/codex-flows"
+repo_full_name = "peezy-tech/codex-flows"
+source_remote = "origin"
 source_branch = "main"
+source_ref = "refs/remotes/origin/main"
 fork_branch = "fork"
+patch_prefix = "patch/"
 fork_dist_tag = "fork"
 fork_version_prefix = "peezy"
 worktree_dir = ".codex/flow-artifacts/codex-flows-fork-worktree"
 artifact_dir = ".codex/flow-artifacts/codex-flows-fork-release"
+verify_commands = [
+  "vp install",
+  "vp run --filter @peezy.tech/codex-flows release:check",
+]
+fetch = true
+refresh_patch_branches = true
 commit = true
 push = false
 publish = false

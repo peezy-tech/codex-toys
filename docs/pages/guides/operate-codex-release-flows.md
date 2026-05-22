@@ -40,9 +40,10 @@ dispatch it through the shared flow client or HTTP backend.
   the fork release flow when configured. It also accepts `upstream.branch_update`
   for upstream main movement.
 - `peezy-codex-flows-fork`: Node runner. Accepts `downstream.release` events for
-  `@peezy.tech/codex` and `@peezy.tech/codex-flows`, materializes a local
-  `fork` branch from `main`, applies the fork defaults, runs the
-  `@peezy.tech/codex-flows` release check, and packs a local fork tarball.
+  `@peezy.tech/codex` and `@peezy.tech/codex-flows`, rebuilds a local `fork`
+  branch from `main` plus the ordered `patch/*` branches, applies release
+  package metadata, runs the `@peezy.tech/codex-flows` release check, and packs
+  a local fork tarball.
 
 ## Publishing gates
 
@@ -72,6 +73,11 @@ PEEZY_CODEX_VERSION=0.130.0
 `CODEX_FLOW_LINK_LOCAL_PACKAGE=1` links the fork package locally after packing.
 `PEEZY_CODEX_VERSION` pins the Codex fork dependency when the triggering event
 is a codex-flows release rather than a Codex release.
+
+The codex-flows fork release flow treats Git patch branches as the source of
+truth for fork-only behavior. Code Mode flow support, fork-generated app-server
+bindings, and Peezy Codex defaults belong on ordered `patch/*` branches, not on
+the upstream-compatible `main` branch.
 
 ## Safe verification
 
