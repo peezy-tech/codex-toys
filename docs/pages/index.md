@@ -14,7 +14,8 @@ these related surfaces:
   `FLOW_RESULT`
 - workspace backend operation for long-running workspace control
 - repo-native workspace autonomy and Codex memory/thread transplant tools
-- repo-local pack installation for skills, flows, plugins, and hooks
+- Git-backed Codex plugin install for flow authoring skills and bundled
+  lifecycle hooks
 
 The project keeps product-specific completion outside the generic layer. Flow
 steps can produce results, backends can store and replay runs, and workspace
@@ -33,7 +34,8 @@ credentials, domain state, release policy, and final side effects.
 | Schedule repo-local workspace tasks | [Workspace autonomy](guides/workspace-autonomy) |
 | Move durable Codex memories between global and repo homes | [Memory transplant](guides/memory-transplant) |
 | Move a Codex thread rollout between Codex homes | [Thread transplant](guides/thread-transplant) |
-| Install reusable skills, flows, plugins, and hooks into a workspace | [Install pack repos](guides/install-pack-repos) |
+| Install codex-flows skills and hooks into Codex | [Install the Codex plugin](guides/install-codex-plugin) |
+| Copy flow bundles or direct hooks into a workspace | [Install pack repos](guides/install-pack-repos) |
 | Understand the single-package platform target | [Single package platform](concepts/single-package-platform) |
 | Maintain releases | [Operate Codex release flows](guides/operate-codex-release-flows) and `RELEASE.md` |
 
@@ -55,7 +57,7 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
 - `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
   flow inspection, workspace autonomy, memory transplant, thread transplant,
-  and pack repo install
+  and optional pack repo install
 - `codex-workspace-backend-local`: local workspace backend process
 - `codex-app`: app-server JSON-RPC utility CLI
 - `codex-flow-runner`: local flow runner CLI
@@ -136,25 +138,28 @@ Transplant preserves the thread id, rollout bytes, checksum, and original
 is provided. Native rollout inspect and install commands cover validation and
 loose-file import without introducing a separate bundle format.
 
-## Pack Install In One Screen
+## Plugin Install In One Screen
 
-Pack repos collect reusable Codex capabilities for installation into a workspace
-repo. Inspect first:
-
-```bash
-codex-flows pack inspect owner/repo
-codex-flows pack add owner/repo --include tdd
-```
-
-Apply only after reviewing the dry-run:
+The repository root is a Codex plugin marketplace. Install it from GitHub to
+load codex-flows skills and plugin-bundled lifecycle hooks without copying flow
+packages into your workspace:
 
 ```bash
-codex-flows pack add owner/repo --include tdd --apply
+codex plugin marketplace add peezy-tech/codex-flows --ref main
+codex plugin add codex-flows@codex-flows
 ```
 
-Installs stay repo-local: skills go to `.agents/skills`, flows to
-`.codex/flows`, plugins to `plugins` plus `.agents/plugins/marketplace.json`,
-and direct hooks to `.codex/hooks` plus `.codex/hooks.json`.
+For local development, add the checkout root:
+
+```bash
+codex plugin marketplace add /home/peezy/meta-workspace/codex-flows
+codex plugin add codex-flows@codex-flows
+```
+
+The bundled hooks live at `hooks/hooks.json` and are discovered by Codex as
+plugin hooks. Pack install remains available when a workspace intentionally
+wants file copies, such as pinning a flow bundle into `.codex/flows` or merging
+direct hook config.
 
 ## Flow Automation In One Screen
 
@@ -187,6 +192,7 @@ workspace backend to orchestrate Codex turns.
   under `.codex/workspace`.
 - Memory transplant owns file-based copies under `memories/` only.
 - Thread transplant owns byte-preserving rollout copies under `sessions/` only.
-- Pack install owns repo-local capability copies and `.codex/pack-lock.json`.
+- Plugin install owns Codex-facing skills, bundled hooks, and plugin metadata.
+- Pack install owns optional repo-local file copies and `.codex/pack-lock.json`.
 - Products own final domain completion, external credentials, deployment policy,
   operator routing policy, and release side effects.

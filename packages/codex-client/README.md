@@ -21,7 +21,8 @@ Full documentation lives in the repo docs site:
 - workspace autonomy: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/workspace-autonomy.md>
 - memory transplant: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/memory-transplant.md>
 - thread transplant: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/thread-transplant.md>
-- pack repos: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/install-pack-repos.md>
+- Codex plugin skills and hooks: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/install-codex-plugin.md>
+- optional pack copies: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/install-pack-repos.md>
 
 ## Exports
 
@@ -145,8 +146,6 @@ codex-flows workspace doctor
 codex-flows workspace tick --mode local
 codex-flows memories transplant global-to-workspace
 codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
-codex-flows pack inspect owner/repo
-codex-flows pack add ./engineering-capabilities --apply
 codex-flows flow events --limit 20
 
 codex-app thread/list '{"limit":20,"sourceKinds":[]}'

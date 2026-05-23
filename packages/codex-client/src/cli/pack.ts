@@ -819,6 +819,9 @@ async function discoverHooks(root: string, warnings: string[]): Promise<PackCapa
 			continue;
 		}
 		const sourcePath = path.dirname(file);
+		if (path.resolve(sourcePath) === path.resolve(hooksRoot)) {
+			continue;
+		}
 		const capability = await capabilityFromPath({
 			root,
 			name: path.basename(sourcePath),

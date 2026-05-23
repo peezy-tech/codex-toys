@@ -288,6 +288,16 @@ describe("pack installer", () => {
 			"skill:demo",
 		]);
 	});
+
+	test("does not treat root plugin hooks as direct hook packs", async () => {
+		const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-plugin-source-"));
+		await writeFixtureFile(sourceRoot, ".codex-plugin/plugin.json", '{"name":"demo-plugin"}');
+		await writeFixtureFile(sourceRoot, "hooks/hooks.json", '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo stop"}]}]}}');
+
+		const inspection = await inspectPackSource({ source: sourceRoot });
+
+		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([]);
+	});
 });
 
 async function tempWorkspace(): Promise<string> {

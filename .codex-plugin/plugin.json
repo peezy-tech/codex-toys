@@ -1,0 +1,42 @@
+{
+  "name": "codex-flows",
+  "version": "0.132.4",
+  "description": "Codex flow authoring, backend operation, and workspace orchestration guidance.",
+  "author": {
+    "name": "Peezy",
+    "email": "support@peezy.tech",
+    "url": "https://peezy.tech/"
+  },
+  "homepage": "https://github.com/peezy-tech/codex-flows",
+  "repository": "https://github.com/peezy-tech/codex-flows",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "flows",
+    "workspace-backend",
+    "automation",
+    "skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "codex-flows",
+    "shortDescription": "Author Codex flows and operate workspace backends.",
+    "longDescription": "codex-flows provides Codex skills for writing flow packages, authoring Bun flow steps, operating flow backends, coordinating workspace delegation, and registering passive workspace lifecycle hooks. Flow runtime packages and CLI tools remain available through npm; this plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
+    "developerName": "Peezy",
+    "category": "Coding",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/peezy-tech/codex-flows",
+    "privacyPolicyURL": "https://peezy.tech/privacy",
+    "termsOfServiceURL": "https://peezy.tech/terms",
+    "defaultPrompt": [
+      "Author a reusable Codex flow package.",
+      "Inspect a flow backend run failure.",
+      "Coordinate delegated workspace work."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

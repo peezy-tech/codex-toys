@@ -178,8 +178,9 @@ Delegations support return modes:
 Automatic result return uses `thread/inject_items` to append structured
 delegation results to the main operator thread's model-visible history. Codex
 hooks, not background thread polling, drive automatic result return and passive
-observability. The global hook writes durable lifecycle events into the spool
-directory, and the workspace drains that spool on startup and while running.
+observability. Plugin-bundled Codex hooks write durable lifecycle events into
+the spool directory, and the workspace drains that spool on startup and while
+running.
 Starting a main-thread turn is a separate wake step, so long-running main goals
 are not interrupted; wakes are queued until the main operator thread is idle.
 For sessions that were not created through the workspace, the same hook stream
@@ -187,23 +188,33 @@ updates an observed-thread index used by `/threads`.
 
 ## Codex Hooks
 
-Install the global hooks once for the Codex runtime that backs the workspace:
+Prefer installing the `codex-flows` Codex plugin. The plugin carries
+`hooks/hooks.json` and a self-contained `hooks/hook-event.mjs` command, so Codex
+can discover the lifecycle hooks through the native plugin hook surface instead
+of a global `~/.codex/hooks.json` install.
 
-```bash
-codex-discord-bridge hook install
-```
-
-The bridge and hook default to `~/.codex/discord-bridge/stop-hooks`; override
-both with `CODEX_DISCORD_HOOK_SPOOL_DIR` or `--hook-spool-dir` if needed.
-
-The installer enables the current hooks feature in `~/.codex/config.toml`:
+Enable hooks for the Codex runtime that backs the workspace:
 
 ```toml
 [features]
 hooks = true
+plugin_hooks = true
 ```
 
-It also registers passive observability hooks in `~/.codex/hooks.json`:
+Then install the plugin from the repository marketplace and start a new thread
+or restart the backing Codex runtime:
+
+```bash
+codex plugin marketplace add peezy-tech/codex-flows --ref main
+codex plugin add codex-flows@codex-flows
+```
+
+The bridge and plugin hook default to `~/.codex/discord-bridge/stop-hooks` for
+compatibility. Override the hook writer with `CODEX_FLOWS_HOOK_SPOOL_DIR` or
+`CODEX_DISCORD_HOOK_SPOOL_DIR`, and pass the same directory to the bridge with
+`--hook-spool-dir` when needed.
+
+The plugin registers passive observability hooks equivalent to:
 
 ```json
 {
@@ -213,7 +224,7 @@ It also registers passive observability hooks in `~/.codex/hooks.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "codex-discord-bridge hook event",
+            "command": "node \"${PLUGIN_ROOT}/hooks/hook-event.mjs\"",
             "timeout": 10
           }
         ]
@@ -224,7 +235,7 @@ It also registers passive observability hooks in `~/.codex/hooks.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "codex-discord-bridge hook event",
+            "command": "node \"${PLUGIN_ROOT}/hooks/hook-event.mjs\"",
             "timeout": 10
           }
         ]
@@ -235,7 +246,7 @@ It also registers passive observability hooks in `~/.codex/hooks.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "codex-discord-bridge hook event",
+            "command": "node \"${PLUGIN_ROOT}/hooks/hook-event.mjs\"",
             "timeout": 10
           }
         ]
@@ -245,16 +256,17 @@ It also registers passive observability hooks in `~/.codex/hooks.json`:
 }
 ```
 
-The installer also registers `PreToolUse`, `PermissionRequest`, and
+The plugin also registers `PreToolUse`, `PermissionRequest`, and
 `PostToolUse` with the same command. Those higher-volume events update local
 observed-thread metadata such as status, current tool, or waiting reason; they
 do not create Discord messages.
 
-For package-on-demand installs, write a `vp dlx` command instead:
+The old global hook installer remains available as a manual fallback when plugin
+hooks are unavailable:
 
 ```bash
+codex-discord-bridge hook install
 codex-discord-bridge hook install --dlx
-codex-discord-bridge hook install --dlx-package @peezy.tech/codex-discord-bridge
 ```
 
 The hook is intentionally dumb: it does not read workspace state or call the

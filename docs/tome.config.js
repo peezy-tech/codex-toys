@@ -25,6 +25,7 @@ export default {
 				"guides/workspace-autonomy",
 				"guides/memory-transplant",
 				"guides/thread-transplant",
+				"guides/install-codex-plugin",
 				"guides/install-pack-repos",
 				"guides/operate-workspace-flow-backend",
 				"guides/use-convex-backend",

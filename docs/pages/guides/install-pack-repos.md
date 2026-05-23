@@ -1,18 +1,23 @@
 ---
 title: Install pack repos
-description: Install repo-local skills, flows, plugins, and hooks from capability pack repositories.
+description: Copy repo-local flow bundles, plugins, and hooks from capability pack repositories.
 ---
 
 # Install pack repos
 
-A pack repo is an authoring and presentation repository for reusable Codex
-capabilities. It can look like a curated skills repo, but it may contain more
-than skills: flow packages, Codex plugins, and hook bundles can live in the same
-source tree.
+Prefer Codex plugins for reusable skills and agent guidance. Plugins install
+cleanly from GitHub-backed marketplaces and do not require codex-flows to own a
+parallel distribution model.
+
+Pack repos are the lower-level file-copy path for workspaces that intentionally
+want repo-local copies, such as pinned flow bundles under `.codex/flows`, local
+plugins under `plugins`, or direct hook config under `.codex/hooks`. For
+codex-flows itself, prefer the plugin install because its hooks are bundled in
+the plugin and discovered by Codex without a pack copy.
 
 A workspace repo is the operational target. `codex-flows pack add` installs
 selected capabilities into that repo's Codex-native locations. V1 is repo-local
-only and does not mutate `~/.codex` or `~/.agents`.
+only and does not mutate `~/.codex` or user-global plugin installs.
 
 ## Source layout
 
@@ -22,11 +27,11 @@ Pack repos work without a manifest by scanning conventional folders:
 skills/**/<skill>/SKILL.md
 flows/**/flow.toml
 plugins/**/.codex-plugin/plugin.json
-hooks/**/hooks.json
+hooks/<hook-pack>/hooks.json
 ```
 
-Add `codex-pack.toml` when the repo needs display metadata or explicit item
-names and paths:
+Only add `codex-pack.toml` when the repo needs display metadata or explicit
+item names and paths:
 
 ```toml
 [pack]
@@ -110,9 +115,10 @@ Direct hook packs are workspace policy. Their bundle directory is copied under
 `.codex/hooks/<hook-pack>`, and their hook groups are merged into
 `.codex/hooks.json`.
 
-Plugin-bundled hooks remain inside the plugin. If an installed plugin declares
-hooks, the command reports that `[features].plugin_hooks = true` may be needed;
-it does not enable that feature automatically.
+Plugin-bundled hooks remain inside the plugin. Codex discovers default plugin
+hooks from `hooks/hooks.json` when `[features].plugin_hooks = true`; the pack
+installer reports that requirement when it sees plugin hooks, but it does not
+enable the feature automatically.
 
 ## Inspect installed packs
 

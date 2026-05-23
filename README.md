@@ -16,7 +16,8 @@ backend bins. The full user documentation lives in the Tome docs site under
 - Workspace autonomy: [`docs/pages/guides/workspace-autonomy.md`](docs/pages/guides/workspace-autonomy.md).
 - Memory transplant: [`docs/pages/guides/memory-transplant.md`](docs/pages/guides/memory-transplant.md).
 - Thread transplant: [`docs/pages/guides/thread-transplant.md`](docs/pages/guides/thread-transplant.md).
-- Pack repos: [`docs/pages/guides/install-pack-repos.md`](docs/pages/guides/install-pack-repos.md).
+- Codex plugin: [`docs/pages/guides/install-codex-plugin.md`](docs/pages/guides/install-codex-plugin.md).
+- Optional pack copies: [`docs/pages/guides/install-pack-repos.md`](docs/pages/guides/install-pack-repos.md).
 - Single-package platform: [`docs/pages/concepts/single-package-platform.md`](docs/pages/concepts/single-package-platform.md).
 - Maintainers and release operators: [`RELEASE.md`](RELEASE.md).
 
@@ -65,7 +66,14 @@ codex-flows fetch
 codex-flows workspace doctor
 codex-flows memories transplant global-to-workspace
 codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
-codex-flows pack inspect owner/repo
+```
+
+Install the Codex plugin from GitHub. It loads the Codex-facing skills and the
+plugin-bundled lifecycle hooks:
+
+```bash
+codex plugin marketplace add peezy-tech/codex-flows --ref main
+codex plugin add codex-flows@codex-flows
 ```
 
 ## Documentation Model
@@ -75,8 +83,8 @@ docs site:
 
 - Tutorials teach a first successful workflow.
 - Guides cover operational tasks such as workspace autonomy, memory transplant,
-  thread transplant, pack repo install, local backend operation, and release
-  flow operation.
+  thread transplant, plugin install, optional pack copies, local backend
+  operation, and release flow operation.
 - Reference pages define CLI commands, package exports, backend APIs,
   `FlowEvent`, `FLOW_RESULT`, and `flow.toml`.
 - Concepts explain boundaries between app-server clients, flow automation,

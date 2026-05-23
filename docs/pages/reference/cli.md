@@ -154,7 +154,9 @@ codex-flows pack list [--json]
 
 `pack inspect` discovers skills, flow packages, plugins, and hook bundles from a
 local directory, GitHub shorthand such as `owner/repo`, or a Git URL. Use
-`--ref <ref>` with GitHub shorthand or Git URL sources.
+`--ref <ref>` with GitHub shorthand or Git URL sources. Prefer Codex plugin
+marketplaces for reusable skills; pack commands are for explicit repo-local file
+copies.
 
 `pack add` is dry-run by default and writes only with `--apply`. It installs
 repo-local capabilities into `.agents/skills`, `.codex/flows`, `plugins`,
