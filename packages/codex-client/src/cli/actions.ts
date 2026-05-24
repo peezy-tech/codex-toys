@@ -16,6 +16,9 @@ export const COMMON_APP_SERVER_ACTIONS = [
 	"account/login/start",
 	"account/logout",
 	"model/list",
+	"remoteControl/status/read",
+	"remoteControl/enable",
+	"remoteControl/disable",
 	"mcpServerStatus/list",
 	"mcpServer/tool/call",
 ] as const;

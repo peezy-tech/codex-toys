@@ -1,0 +1,39 @@
+{
+  "name": "codex-flows-author",
+  "version": "0.132.4",
+  "description": "Codex flow package and Bun step authoring skills.",
+  "author": {
+    "name": "Peezy",
+    "email": "support@peezy.tech",
+    "url": "https://peezy.tech/"
+  },
+  "homepage": "https://github.com/peezy-tech/codex-flows",
+  "repository": "https://github.com/peezy-tech/codex-flows",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "flows",
+    "authoring",
+    "skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "codex-flows author",
+    "shortDescription": "Author portable Codex flow packages and Bun steps.",
+    "longDescription": "codex-flows author installs the Codex-facing skills for creating portable flow packages and writing Bun-based flow step scripts. It does not install local backend hooks or start a backend process.",
+    "developerName": "Peezy",
+    "category": "Coding",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/peezy-tech/codex-flows",
+    "privacyPolicyURL": "https://peezy.tech/privacy",
+    "termsOfServiceURL": "https://peezy.tech/terms",
+    "defaultPrompt": [
+      "Author a reusable Codex flow package.",
+      "Write a Bun flow step that emits FLOW_RESULT."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

@@ -15,9 +15,49 @@ HTTP. The routes below are the optional networked surface mounted by
 
 ## Start the backend
 
+For a Codex plugin install, prefer the local workspace setup commands:
+
+```bash
+codex plugin add codex-flows-local-workspace@peezy-tech
+codex-flows workspace backend init local
+codex-flows workspace backend status
+codex-flows workspace backend start
+```
+
+`workspace backend init local` creates `.codex/workspace/backend.local.env` and
+`.codex/workspace/local/hook-spool`. `workspace backend start` keeps the backend
+in the foreground and passes the hook-spool env through to the local app-server
+it spawns.
+
+The lower-level backend binary remains available:
+
 ```bash
 codex-workspace-backend-local serve --cwd /home/peezy/codex-flows-public
 ```
+
+## Operate from a remote Codex App
+
+When the Codex App is on a local machine and this backend is on a VPS reachable
+over Tailscale SSH, keep the backend bound to the VPS loopback interface and
+forward it through SSH:
+
+```bash
+codex-flows remote status
+codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
+codex-flows remote tunnel start --ssh <user@tailscale-host>
+```
+
+In another local terminal, call the tunneled backend:
+
+```bash
+codex-flows remote status --workspace-url ws://127.0.0.1:3586
+codex-flows remote turn start --via workspace --prompt "Check workspace status"
+```
+
+This is the intended path for a Windows Codex App with the
+`codex-flows-remote-control` plugin installed locally. The local plugin is
+hookless; hooks and the backend process belong to the remote workspace when
+that workspace explicitly uses the local workspace plugin.
 
 Useful environment:
 

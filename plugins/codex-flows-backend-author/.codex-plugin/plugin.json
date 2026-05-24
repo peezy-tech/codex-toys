@@ -1,0 +1,39 @@
+{
+  "name": "codex-flows-backend-author",
+  "version": "0.132.4",
+  "description": "Codex flow backend design and implementation guidance.",
+  "author": {
+    "name": "Peezy",
+    "email": "support@peezy.tech",
+    "url": "https://peezy.tech/"
+  },
+  "homepage": "https://github.com/peezy-tech/codex-flows",
+  "repository": "https://github.com/peezy-tech/codex-flows",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "flows",
+    "backend",
+    "skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "codex-flows backend author",
+    "shortDescription": "Design and implement Codex flow backends.",
+    "longDescription": "codex-flows backend author installs guidance for implementing dispatch, run state, retries, local host execution, Convex orchestration, and external worker handoff. It does not install hooks or start a backend process.",
+    "developerName": "Peezy",
+    "category": "Coding",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/peezy-tech/codex-flows",
+    "privacyPolicyURL": "https://peezy.tech/privacy",
+    "termsOfServiceURL": "https://peezy.tech/terms",
+    "defaultPrompt": [
+      "Design a durable Codex flow backend.",
+      "Review a flow backend adapter."
+    ],
+    "brandColor": "#0F766E"
+  }
+}

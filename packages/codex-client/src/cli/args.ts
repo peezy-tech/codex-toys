@@ -12,6 +12,35 @@ export type ParsedCli =
 			color: boolean;
 			json: boolean;
 	  }
+	| {
+			type: "remote-status";
+			appUrl: string;
+			workspaceUrl: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "remote-turn-start";
+			prompt: string;
+			cwd?: string;
+			via: "auto" | "workspace" | "app";
+			appUrl: string;
+			workspaceUrl: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "remote-tunnel-start";
+			sshTarget?: string;
+			localPort?: number;
+			remoteHost?: string;
+			remotePort?: number;
+			dryRun: boolean;
+			json: boolean;
+			pretty: boolean;
+	  }
 	| { type: "app-actions" }
 	| {
 			type: "app-call";
@@ -57,6 +86,29 @@ export type ParsedCli =
 			withSmoke: boolean;
 			withAgentTurn: boolean;
 			overwrite: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-backend-init-local";
+			workspaceRoot?: string;
+			overwrite: boolean;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-backend-status";
+			workspaceRoot?: string;
+			appUrl: string;
+			workspaceUrl: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-backend-start";
+			workspaceRoot?: string;
+			dryRun: boolean;
+			json: boolean;
 			pretty: boolean;
 	  }
 	| {
@@ -255,6 +307,14 @@ export function parseArgs(
 	let github = false;
 	let withSmoke = false;
 	let withAgentTurn = false;
+	let dryRun = false;
+	let prompt: string | undefined;
+	let cwd: string | undefined;
+	let via: "auto" | "workspace" | "app" = "auto";
+	let sshTarget: string | undefined = env.CODEX_FLOWS_REMOTE_SSH_TARGET;
+	let localPort: number | undefined;
+	let remoteHost: string | undefined;
+	let remotePort: number | undefined;
 	const include: string[] = [];
 	const exclude: string[] = [];
 
@@ -350,6 +410,14 @@ export function parseArgs(
 		}
 		if (arg.startsWith("--workspace-root=")) {
 			workspaceRoot = arg.slice("--workspace-root=".length);
+			continue;
+		}
+		if (arg === "--cwd") {
+			cwd = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--cwd=")) {
+			cwd = arg.slice("--cwd=".length);
 			continue;
 		}
 		if (arg === "--global-codex-home") {
@@ -544,6 +612,62 @@ export function parseArgs(
 			withAgentTurn = true;
 			continue;
 		}
+		if (arg === "--dry-run") {
+			dryRun = true;
+			continue;
+		}
+		if (arg === "--prompt") {
+			prompt = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--prompt=")) {
+			prompt = arg.slice("--prompt=".length);
+			continue;
+		}
+		if (arg === "--via") {
+			via = parseRemoteVia(required(argv, ++index, arg));
+			continue;
+		}
+		if (arg.startsWith("--via=")) {
+			via = parseRemoteVia(arg.slice("--via=".length));
+			continue;
+		}
+		if (arg === "--ssh" || arg === "--ssh-target") {
+			sshTarget = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--ssh=")) {
+			sshTarget = arg.slice("--ssh=".length);
+			continue;
+		}
+		if (arg.startsWith("--ssh-target=")) {
+			sshTarget = arg.slice("--ssh-target=".length);
+			continue;
+		}
+		if (arg === "--local-port") {
+			localPort = positiveInteger(required(argv, ++index, arg), arg);
+			continue;
+		}
+		if (arg.startsWith("--local-port=")) {
+			localPort = positiveInteger(arg.slice("--local-port=".length), "--local-port");
+			continue;
+		}
+		if (arg === "--remote-host") {
+			remoteHost = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--remote-host=")) {
+			remoteHost = arg.slice("--remote-host=".length);
+			continue;
+		}
+		if (arg === "--remote-port") {
+			remotePort = positiveInteger(required(argv, ++index, arg), arg);
+			continue;
+		}
+		if (arg.startsWith("--remote-port=")) {
+			remotePort = positiveInteger(arg.slice("--remote-port=".length), "--remote-port");
+			continue;
+		}
 		if (arg === "--") {
 			positionals.push(...argv.slice(index + 1));
 			break;
@@ -567,6 +691,57 @@ export function parseArgs(
 			color,
 			json,
 		};
+	}
+	if (command === "remote") {
+		const subcommand = positionals[1];
+		if (!subcommand || subcommand === "status") {
+			return {
+				type: "remote-status",
+				appUrl,
+				workspaceUrl,
+				timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
+				json,
+				pretty,
+			};
+		}
+		if (subcommand === "turn") {
+			const action = requiredPositional(positionals, 2, "remote turn requires start");
+			if (action !== "start") {
+				throw new Error("remote turn currently supports only start");
+			}
+			return {
+				type: "remote-turn-start",
+				prompt: prompt ?? requiredPositional(
+					positionals,
+					3,
+					"remote turn start requires --prompt <text> or <text>",
+				),
+				cwd,
+				via,
+				appUrl,
+				workspaceUrl,
+				timeoutMs,
+				json,
+				pretty,
+			};
+		}
+		if (subcommand === "tunnel") {
+			const action = requiredPositional(positionals, 2, "remote tunnel requires start");
+			if (action !== "start") {
+				throw new Error("remote tunnel currently supports only start");
+			}
+			return {
+				type: "remote-tunnel-start",
+				sshTarget,
+				localPort,
+				remoteHost,
+				remotePort,
+				dryRun,
+				json,
+				pretty,
+			};
+		}
+		throw new Error("remote requires status, turn, or tunnel");
 	}
 	if (command === "app") {
 		const subcommand = positionals[1];
@@ -639,6 +814,51 @@ export function parseArgs(
 				overwrite,
 				pretty,
 			};
+		}
+		if (subcommand === "backend") {
+			const backendCommand = requiredPositional(
+				positionals,
+				2,
+				"workspace backend requires init, status, or start",
+			);
+			if (backendCommand === "init") {
+				const target = requiredPositional(
+					positionals,
+					3,
+					"workspace backend init requires local",
+				);
+				if (target !== "local") {
+					throw new Error("workspace backend init currently supports only local");
+				}
+				return {
+					type: "workspace-backend-init-local",
+					workspaceRoot,
+					overwrite,
+					json,
+					pretty,
+				};
+			}
+			if (backendCommand === "status") {
+				return {
+					type: "workspace-backend-status",
+					workspaceRoot,
+					appUrl,
+					workspaceUrl,
+					timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
+					json,
+					pretty,
+				};
+			}
+			if (backendCommand === "start") {
+				return {
+					type: "workspace-backend-start",
+					workspaceRoot,
+					dryRun,
+					json,
+					pretty,
+				};
+			}
+			throw new Error("workspace backend requires init, status, or start");
 		}
 		if (subcommand === "app") {
 			const method = requiredPositional(
@@ -903,6 +1123,13 @@ export function parseArgs(
 
 function paramsText(values: string[]): string | undefined {
 	return values.length > 0 ? values.join(" ") : undefined;
+}
+
+function parseRemoteVia(value: string): "auto" | "workspace" | "app" {
+	if (value === "auto" || value === "workspace" || value === "app") {
+		return value;
+	}
+	throw new Error("--via must be auto, workspace, or app");
 }
 
 function required(args: string[], index: number, flag: string): string {

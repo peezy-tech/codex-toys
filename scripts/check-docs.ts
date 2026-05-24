@@ -57,6 +57,9 @@ const requiredCliLines = [
 	"codex-flows fetch [--json] [--no-color]",
 	"codex-flows app <method> [params-json]",
 	"codex-flows workspace doctor [--mode auto|local|actions] [--json]",
+	"codex-flows workspace backend init local [--overwrite] [--json]",
+	"codex-flows workspace backend status [--json]",
+	"codex-flows workspace backend start [--dry-run] [--json]",
 	"codex-flows workspace tick [--mode auto|local|actions]",
 	"codex-flows workspace run <task-id> [--mode auto|local|actions]",
 	"codex-flows memories transplant global-to-workspace [--apply]",
@@ -130,17 +133,25 @@ await expectIncludes("docs/pages/guides/thread-transplant.md", "sessions/<YYYY>/
 await expectIncludes("docs/pages/guides/thread-transplant.md", "--replace");
 await expectIncludes("docs/pages/guides/thread-transplant.md", "not app-server-native import");
 
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin marketplace add peezy-tech/codex-flows --ref main");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows@codex-flows");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin marketplace add peezy-tech/skills --ref main");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows@peezy-tech");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-local-workspace@peezy-tech");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-remote-control@peezy-tech");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "hooks/hooks.json");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "plugin_hooks = true");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_FLOWS_HOOK_SPOOL_DIR");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows workspace backend init local");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote status");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote tunnel start --ssh <user@tailscale-host>");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote turn start --prompt <text>");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "pack repo");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".codex/pack-lock.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".agents/plugins/marketplace.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "[features].plugin_hooks = true");
 
 await expectIncludes("packages/codex-client/README.md", "codex-flows workspace doctor");
+await expectIncludes("packages/codex-client/README.md", "codex-flows workspace backend init local");
+await expectIncludes("packages/codex-client/README.md", "codex-flows remote status");
 await expectIncludes("packages/codex-client/README.md", "codex-flows memories transplant global-to-workspace");
 await expectIncludes("packages/codex-client/README.md", "codex-flows threads transplant <thread-id>");
 await expectIncludes("packages/codex-client/README.md", "guides/install-codex-plugin.md");

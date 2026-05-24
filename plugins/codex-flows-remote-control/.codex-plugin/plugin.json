@@ -1,0 +1,42 @@
+{
+  "name": "codex-flows-remote-control",
+  "version": "0.132.4",
+  "description": "Operate a remote codex-flows backend from a local Codex App install.",
+  "author": {
+    "name": "Peezy",
+    "email": "support@peezy.tech",
+    "url": "https://peezy.tech/"
+  },
+  "homepage": "https://github.com/peezy-tech/codex-flows",
+  "repository": "https://github.com/peezy-tech/codex-flows",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "remote-control",
+    "workspace-backend",
+    "tailscale",
+    "ssh"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "codex-flows remote control",
+    "shortDescription": "Use a local Codex App to reach a remote workspace backend.",
+    "longDescription": "codex-flows remote control installs hookless operator skills for a local Codex App, such as a Windows install, to inspect Codex remote-control status, open an SSH or Tailscale tunnel to a remote workspace backend, and start turns through that backend.",
+    "developerName": "Peezy",
+    "category": "Coding",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/peezy-tech/codex-flows",
+    "privacyPolicyURL": "https://peezy.tech/privacy",
+    "termsOfServiceURL": "https://peezy.tech/terms",
+    "defaultPrompt": [
+      "Check whether my remote codex-flows backend is reachable.",
+      "Set up an SSH tunnel to my Tailscale VPS backend.",
+      "Start a Codex turn on the remote backend."
+    ],
+    "brandColor": "#0F766E"
+  }
+}

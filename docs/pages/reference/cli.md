@@ -26,6 +26,38 @@ workspace, and Codex environment information. With a reachable backend it also
 includes capabilities, recent thread counts, delegation counts, and flow
 run/event counts.
 
+## Remote Control
+
+```bash
+codex-flows remote status [--json]
+codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
+codex-flows remote turn start --prompt <text> [--via auto|workspace|app] [--cwd <path>]
+```
+
+These commands are for the local-Codex-App-to-remote-VPS use case. `remote
+status` probes both the local app-server `remoteControl/status/read` method and
+the configured workspace backend URL. No backend is a valid status result, not a
+fatal setup error. `remote tunnel start` runs an OpenSSH local forward from
+`127.0.0.1:<local-port>` to the remote backend address, defaulting to
+`127.0.0.1:3586` on both sides. `remote turn start` creates a thread and starts
+a turn through the workspace backend tunnel when available.
+
+Useful options and environment:
+
+```bash
+--workspace-url ws://127.0.0.1:3586
+--app-url ws://127.0.0.1:3585
+--ssh <user@tailscale-host>
+--local-port 3586
+--remote-host 127.0.0.1
+--remote-port 3586
+
+CODEX_FLOWS_REMOTE_SSH_TARGET=<user@tailscale-host>
+CODEX_FLOWS_REMOTE_TUNNEL_PORT=3586
+CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
+CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
+```
+
 ## App-Server Calls
 
 ```bash
@@ -59,6 +91,9 @@ The workspace path defaults to `CODEX_WORKSPACE_BACKEND_WS_URL` or
 
 ```bash
 codex-flows workspace doctor [--mode auto|local|actions] [--json]
+codex-flows workspace backend init local [--overwrite] [--json]
+codex-flows workspace backend status [--json]
+codex-flows workspace backend start [--dry-run] [--json]
 codex-flows workspace tick [--mode auto|local|actions]
 codex-flows workspace run <task-id> [--mode auto|local|actions]
 codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-agent-turn]
@@ -66,9 +101,17 @@ codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-a
 
 - `doctor` reports mode, repo root, `.codex/workspace.toml`, runtime
   `CODEX_HOME`, state roots, task counts, due tasks, failing tasks, latest run,
-  memory roots, memory summary presence, invariant errors, and backend
-  reachability. In Actions mode it flags any runner that would use a Codex home
-  outside the repository `.codex` directory.
+  memory roots, memory summary presence, invariant errors, backend reachability,
+  local backend env state, Node version, plugin hook discovery, hook spool
+  state, and a suggested next command. In Actions mode it flags any runner that
+  would use a Codex home outside the repository `.codex` directory.
+- `backend init local` writes `.codex/workspace/backend.local.env`, creates the
+  local hook-spool directories, and adds local runtime paths to `.gitignore`.
+- `backend status` reports the same local backend, Node, plugin-hook, and
+  hook-spool diagnostics without the rest of the workspace autonomy report.
+- `backend start` starts `codex-workspace-backend-local serve` in the foreground
+  using the local env file. Use `--dry-run` to print the command without
+  starting it.
 - `tick` runs due scheduled tasks and reactive rules.
 - `run <task-id>` runs one task immediately.
 - `init actions` scaffolds `.codex/workspace.toml`, `.codex/config.toml`,

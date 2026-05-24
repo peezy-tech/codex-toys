@@ -140,9 +140,15 @@ local backend and utility CLIs:
 
 ```bash
 codex-flows fetch
+codex-flows remote status
+codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
+codex-flows remote turn start --via workspace --prompt "Check workspace status"
 codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace doctor
+codex-flows workspace backend init local
+codex-flows workspace backend status
+codex-flows workspace backend start --dry-run
 codex-flows workspace tick --mode local
 codex-flows memories transplant global-to-workspace
 codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex

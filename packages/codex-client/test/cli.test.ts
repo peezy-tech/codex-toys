@@ -33,6 +33,74 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
+	test("parses workspace backend setup commands", () => {
+		expect(parseArgs(["workspace", "backend", "init", "local", "--overwrite"], {}))
+			.toEqual({
+				type: "workspace-backend-init-local",
+				workspaceRoot: undefined,
+				overwrite: true,
+				json: false,
+				pretty: true,
+			});
+		expect(parseArgs(["workspace", "backend", "status", "--json"], {}))
+			.toMatchObject({
+				type: "workspace-backend-status",
+				json: true,
+				workspaceUrl: "ws://127.0.0.1:3586",
+			});
+		expect(parseArgs(["workspace", "backend", "start", "--dry-run", "--json"], {}))
+			.toMatchObject({
+				type: "workspace-backend-start",
+				dryRun: true,
+				json: true,
+			});
+	});
+
+	test("parses remote backend operator commands", () => {
+		expect(parseArgs(["remote", "status", "--json"], {}))
+			.toMatchObject({
+				type: "remote-status",
+				json: true,
+				workspaceUrl: "ws://127.0.0.1:3586",
+			});
+		expect(parseArgs([
+			"remote",
+			"tunnel",
+			"start",
+			"--ssh",
+			"peezy@vps-tailnet",
+			"--local-port=4596",
+			"--remote-port",
+			"3586",
+			"--dry-run",
+		], {})).toEqual({
+			type: "remote-tunnel-start",
+			sshTarget: "peezy@vps-tailnet",
+			localPort: 4596,
+			remoteHost: undefined,
+			remotePort: 3586,
+			dryRun: true,
+			json: false,
+			pretty: true,
+		});
+		expect(parseArgs([
+			"remote",
+			"turn",
+			"start",
+			"--prompt",
+			"hello remote",
+			"--via",
+			"workspace",
+			"--cwd",
+			"/work",
+		], {})).toMatchObject({
+			type: "remote-turn-start",
+			prompt: "hello remote",
+			via: "workspace",
+			cwd: "/work",
+		});
+	});
+
 	test("parses app-server pass-through through the workspace backend", () => {
 		expect(parseArgs([
 			"workspace",

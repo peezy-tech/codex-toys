@@ -1,7 +1,7 @@
 {
   "name": "codex-flows",
   "version": "0.132.4",
-  "description": "Codex flow authoring, backend operation, and workspace orchestration guidance.",
+  "description": "Full Codex flow authoring, backend setup, backend operation, and workspace orchestration guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -14,6 +14,8 @@
     "codex",
     "flows",
     "workspace-backend",
+    "backend-setup",
+    "remote-control",
     "automation",
     "skills"
   ],
@@ -21,7 +23,7 @@
   "interface": {
     "displayName": "codex-flows",
     "shortDescription": "Author Codex flows and operate workspace backends.",
-    "longDescription": "codex-flows provides Codex skills for writing flow packages, authoring Bun flow steps, operating flow backends, coordinating workspace delegation, and registering passive workspace lifecycle hooks. Flow runtime packages and CLI tools remain available through npm; this plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
+    "longDescription": "codex-flows provides the full compatibility install: Codex skills for writing flow packages, authoring Bun flow steps, setting up local workspace backends, operating remote backends, checking Codex remote-control status, starting remote turns through a workspace backend, coordinating workspace delegation, and registering passive workspace lifecycle hooks. Flow runtime packages and CLI tools remain available through npm; this plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -34,6 +36,8 @@
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
       "Author a reusable Codex flow package.",
+      "Set up the local Codex workspace backend.",
+      "Check whether a remote Codex workspace backend is reachable.",
       "Inspect a flow backend run failure.",
       "Coordinate delegated workspace work."
     ],

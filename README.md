@@ -55,7 +55,8 @@ vp run docs:build
 Run the local backend:
 
 ```bash
-vp run workspace:backend --local-app-server
+codex-flows workspace backend init local
+codex-flows workspace backend start
 ```
 
 Inspect the CLI:
@@ -63,17 +64,23 @@ Inspect the CLI:
 ```bash
 tsx packages/codex-client/src/cli/index.ts --help
 codex-flows fetch
+codex-flows remote status
 codex-flows workspace doctor
+codex-flows workspace backend status
 codex-flows memories transplant global-to-workspace
 codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
 ```
 
-Install the Codex plugin from GitHub. It loads the Codex-facing skills and the
-plugin-bundled lifecycle hooks:
+Install the shared Peezy Tech Codex plugin marketplace from GitHub. Use the
+granular plugin that matches the job, or keep `codex-flows` as the full
+compatibility install:
 
 ```bash
-codex plugin marketplace add peezy-tech/codex-flows --ref main
-codex plugin add codex-flows@codex-flows
+codex plugin marketplace add peezy-tech/skills --ref main
+codex plugin add codex-flows-author@peezy-tech
+codex plugin add codex-flows-local-workspace@peezy-tech
+codex plugin add codex-flows-remote-control@peezy-tech
+codex plugin add codex-flows@peezy-tech
 ```
 
 ## Documentation Model

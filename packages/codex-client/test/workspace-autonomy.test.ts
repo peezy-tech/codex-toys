@@ -13,6 +13,11 @@ import {
 	tickWorkspace,
 	commitActionsWorkspaceState,
 } from "../src/cli/workspace-autonomy.ts";
+import {
+	collectWorkspaceBackendSetupInfo,
+	initLocalWorkspaceBackend,
+	startLocalWorkspaceBackend,
+} from "../src/cli/workspace-backend-setup.ts";
 
 describe("workspace autonomy", () => {
 	test("resolves auto mode from GitHub Actions", () => {
@@ -58,10 +63,57 @@ describe("workspace autonomy", () => {
 			.toMatchObject({ type: "workspace-tick", workspaceRoot: "/tmp/work" });
 		expect(parseArgs(["workspace", "run", "morning-brief"], {}))
 			.toMatchObject({ type: "workspace-run", taskId: "morning-brief" });
+		expect(parseArgs(["workspace", "backend", "init", "local", "--overwrite"], {}))
+			.toMatchObject({ type: "workspace-backend-init-local", overwrite: true });
+		expect(parseArgs(["workspace", "backend", "status", "--json"], {}))
+			.toMatchObject({ type: "workspace-backend-status", json: true });
+		expect(parseArgs(["workspace", "backend", "start", "--dry-run"], {}))
+			.toMatchObject({ type: "workspace-backend-start", dryRun: true });
 		expect(parseArgs(["workspace", "call", "delegation.list"], {}))
 			.toMatchObject({ type: "workspace-call", method: "delegation.list" });
 		expect(parseArgs(["memories", "transplant", "global-to-workspace", "--apply"], {}))
 			.toMatchObject({ type: "memories-transplant", direction: "global-to-workspace", apply: true });
+	});
+
+	test("initializes local backend setup and prepares start command", async () => {
+		const root = await tempWorkspace();
+		const context = await createWorkspaceContext({
+			workspaceRoot: root,
+			mode: "local",
+			env: { CODEX_HOME: path.join(root, "codex-home") },
+		});
+		const init = await initLocalWorkspaceBackend(context);
+		expect(init.action).toBe("created");
+		expect(await readFile(path.join(root, ".codex", "workspace", "backend.local.env"), "utf8"))
+			.toContain("CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER=1");
+		expect(await readFile(path.join(root, ".gitignore"), "utf8"))
+			.toContain(".codex/workspace/local/");
+
+		const info = await collectWorkspaceBackendSetupInfo(context, {});
+		expect(info.envExists).toBe(true);
+		expect(info.workspaceBackendUrl).toBe("ws://127.0.0.1:3586");
+		expect(info.hookSpool.path).toBe(path.join(root, ".codex", "workspace", "local", "hook-spool"));
+
+		const start = await startLocalWorkspaceBackend(context, {
+			dryRun: true,
+			env: {},
+			command: "backend-bin",
+		});
+		expect(start.command).toEqual([
+			"backend-bin",
+			"serve",
+			"--host",
+			"127.0.0.1",
+			"--port",
+			"3586",
+			"--cwd",
+			root,
+			"--local-app-server",
+			"--data-dir",
+			path.join(root, ".codex", "workspace", "local", "flow-backend"),
+			"--executor",
+			"direct",
+		]);
 	});
 
 	test("loads migrated workspace config and validates tasks", async () => {

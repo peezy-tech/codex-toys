@@ -13,6 +13,7 @@ these related surfaces:
 - generic flow automation built around `FlowEvent`, `flow.toml`, and
   `FLOW_RESULT`
 - workspace backend operation for long-running workspace control
+- remote backend control from a local Codex App over SSH/Tailscale tunnels
 - repo-native workspace autonomy and Codex memory/thread transplant tools
 - Git-backed Codex plugin install for flow authoring skills and bundled
   lifecycle hooks
@@ -31,6 +32,7 @@ credentials, domain state, release policy, and final side effects.
 | Build a first reusable flow | [Build your first flow](tutorials/first-flow) |
 | Dispatch and replay generic events | [Dispatch and replay events](guides/dispatch-and-replay-events) |
 | Run a local flow backend | [Operate the workspace flow backend](guides/operate-workspace-flow-backend) |
+| Control a remote backend from a local Codex App | [Install the Codex plugin](guides/install-codex-plugin) and [CLI reference](reference/cli) |
 | Schedule repo-local workspace tasks | [Workspace autonomy](guides/workspace-autonomy) |
 | Move durable Codex memories between global and repo homes | [Memory transplant](guides/memory-transplant) |
 | Move a Codex thread rollout between Codex homes | [Thread transplant](guides/thread-transplant) |
@@ -56,8 +58,8 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
 - `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
-  flow inspection, workspace autonomy, memory transplant, thread transplant,
-  and optional pack repo install
+  remote backend control, flow inspection, workspace autonomy, memory
+  transplant, thread transplant, and optional pack repo install
 - `codex-workspace-backend-local`: local workspace backend process
 - `codex-app`: app-server JSON-RPC utility CLI
 - `codex-flow-runner`: local flow runner CLI
@@ -140,23 +142,30 @@ loose-file import without introducing a separate bundle format.
 
 ## Plugin Install In One Screen
 
-The repository root is a Codex plugin marketplace. Install it from GitHub to
-load codex-flows skills and plugin-bundled lifecycle hooks without copying flow
-packages into your workspace:
+The shared Peezy Tech marketplace is the normal Codex plugin install surface.
+Install it from GitHub to load codex-flows skills without copying flow packages
+into your workspace. Install the local workspace plugin when you want
+plugin-bundled lifecycle hooks:
 
 ```bash
-codex plugin marketplace add peezy-tech/codex-flows --ref main
-codex plugin add codex-flows@codex-flows
+codex plugin marketplace add peezy-tech/skills --ref main
+codex plugin add codex-flows-author@peezy-tech
+codex plugin add codex-flows-local-workspace@peezy-tech
+codex plugin add codex-flows-remote-control@peezy-tech
 ```
 
-For local development, add the checkout root:
+For local development against this product checkout, add the checkout root:
 
 ```bash
 codex plugin marketplace add /home/peezy/meta-workspace/codex-flows
-codex plugin add codex-flows@codex-flows
+codex plugin add codex-flows-local-workspace@codex-flows
 ```
 
-The bundled hooks live at `hooks/hooks.json` and are discovered by Codex as
+Install `codex-flows-remote-control` on a local Codex App when the backend is a
+VPS reached through Tailscale SSH. The compatibility plugin is still available
+as `codex-flows`. Source definitions still live in this repo; release syncs
+the installable bundles into `peezy-tech/skills`. The bundled hooks live at
+`hooks/hooks.json` in the local workspace plugin and are discovered by Codex as
 plugin hooks. Pack install remains available when a workspace intentionally
 wants file copies, such as pinning a flow bundle into `.codex/flows` or merging
 direct hook config.

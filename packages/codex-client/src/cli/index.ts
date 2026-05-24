@@ -50,6 +50,14 @@ import {
 	listInstalledPacks,
 } from "./pack.ts";
 import {
+	collectRemoteStatusInfo,
+	formatRemoteStatusInfo,
+	formatRemoteTunnelPlan,
+	formatRemoteTurnStartResult,
+	startRemoteTunnel,
+	startRemoteTurn,
+} from "./remote-control.ts";
+import {
 	formatThreadRolloutInspection,
 	formatThreadRolloutInstallation,
 	formatThreadRolloutLocation,
@@ -69,6 +77,14 @@ import {
 	scaffoldActionsWorkspace,
 	tickWorkspace,
 } from "./workspace-autonomy.ts";
+import {
+	collectWorkspaceBackendSetupInfo,
+	formatWorkspaceBackendInitLocalResult,
+	formatWorkspaceBackendSetupInfo,
+	formatWorkspaceBackendStartResult,
+	initLocalWorkspaceBackend,
+	startLocalWorkspaceBackend,
+} from "./workspace-backend-setup.ts";
 
 await main().catch((error) => {
 	process.stderr.write(`${errorMessage(error)}\n`);
@@ -90,6 +106,44 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(info, null, 2)}\n`
 			: formatFetchInfo(info, { color: parsed.color }));
+		return;
+	}
+	if (parsed.type === "remote-status") {
+		const info = await collectRemoteStatusInfo({
+			appUrl: parsed.appUrl,
+			workspaceUrl: parsed.workspaceUrl,
+			timeoutMs: parsed.timeoutMs,
+		});
+		write(parsed.json
+			? `${JSON.stringify(info, null, parsed.pretty ? 2 : 0)}\n`
+			: formatRemoteStatusInfo(info));
+		return;
+	}
+	if (parsed.type === "remote-turn-start") {
+		const result = await startRemoteTurn({
+			prompt: parsed.prompt,
+			cwd: parsed.cwd,
+			via: parsed.via,
+			appUrl: parsed.appUrl,
+			workspaceUrl: parsed.workspaceUrl,
+			timeoutMs: parsed.timeoutMs,
+		});
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatRemoteTurnStartResult(result));
+		return;
+	}
+	if (parsed.type === "remote-tunnel-start") {
+		const result = await startRemoteTunnel({
+			sshTarget: parsed.sshTarget,
+			localPort: parsed.localPort,
+			remoteHost: parsed.remoteHost,
+			remotePort: parsed.remotePort,
+			dryRun: parsed.dryRun,
+		});
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatRemoteTunnelPlan(result));
 		return;
 	}
 	if (parsed.type === "app-actions") {
@@ -121,11 +175,65 @@ async function main(): Promise<void> {
 		});
 		const migrated = await maybeMigrateWorkspaceConfig(context);
 		const info = await collectWorkspaceDoctorInfo(context);
-		const backend = await collectBackendInfo(parsed);
-		const result = { ...info, migratedConfig: migrated, backend };
+		const backendSetup = await collectWorkspaceBackendSetupInfo(context);
+		const backend = await collectBackendInfo({
+			appUrl: parsed.appUrl,
+			workspaceUrl: backendSetup.workspaceBackendUrl,
+			timeoutMs: parsed.timeoutMs,
+		});
+		const result = { ...info, migratedConfig: migrated, backend, backendSetup };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
-			: `${formatWorkspaceDoctorInfo(info)}backend             ${backendLabelForDoctor(backend)}\n${migrated ? "config migration   migrated legacy discord.gateway.surfaces\n" : ""}`);
+			: `${formatWorkspaceDoctorInfo(info)}${formatWorkspaceBackendSetupInfo(backendSetup, {
+				backendLabel: backendLabelForDoctor(backend),
+				nextCommand: nextBackendCommand(backendSetup.nextCommand, backend),
+			})}${migrated ? "config migration   migrated legacy discord.gateway.surfaces\n" : ""}`);
+		return;
+	}
+	if (parsed.type === "workspace-backend-init-local") {
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: "local",
+		});
+		const result = await initLocalWorkspaceBackend(context, {
+			overwrite: parsed.overwrite,
+		});
+		write(parsed.json
+			? `${JSON.stringify(result, null, 2)}\n`
+			: formatWorkspaceBackendInitLocalResult(result));
+		return;
+	}
+	if (parsed.type === "workspace-backend-status") {
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: "local",
+		});
+		const setup = await collectWorkspaceBackendSetupInfo(context);
+		const backend = await collectBackendInfo({
+			appUrl: parsed.appUrl,
+			workspaceUrl: setup.workspaceBackendUrl,
+			timeoutMs: parsed.timeoutMs,
+		});
+		const result = { setup, backend };
+		write(parsed.json
+			? `${JSON.stringify(result, null, 2)}\n`
+			: formatWorkspaceBackendSetupInfo(setup, {
+				backendLabel: backendLabelForDoctor(backend),
+				nextCommand: nextBackendCommand(setup.nextCommand, backend),
+			}));
+		return;
+	}
+	if (parsed.type === "workspace-backend-start") {
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: "local",
+		});
+		const result = await startLocalWorkspaceBackend(context, {
+			dryRun: parsed.dryRun,
+		});
+		write(parsed.json
+			? `${JSON.stringify(result, null, 2)}\n`
+			: formatWorkspaceBackendStartResult(result));
 		return;
 	}
 	if (parsed.type === "workspace-tick") {
@@ -383,6 +491,13 @@ function backendLabelForDoctor(backend: FetchBackendInfo): string {
 		return backend.url ? `${backend.mode} connected (${backend.url})` : `${backend.mode} connected`;
 	}
 	return backend.error ? `unavailable (${backend.error})` : "unavailable";
+}
+
+function nextBackendCommand(current: string, backend: FetchBackendInfo): string {
+	if (backend.status === "connected") {
+		return "codex-flows workspace tick --mode local";
+	}
+	return current;
 }
 
 async function callAppServer(
@@ -912,6 +1027,10 @@ Usage:
   codex-flows fetch [--json] [--no-color]
   codex-flows neofetch [--json] [--no-color]
 
+  codex-flows remote status [--json]
+  codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
+  codex-flows remote turn start --prompt <text> [--via auto|workspace|app] [--cwd <path>]
+
   codex-flows app <method> [params-json]
   codex-flows app call <method> [params-json]
   echo '<params-json>' | codex-flows app <method>
@@ -922,6 +1041,9 @@ Usage:
   codex-flows workspace app <method> [params-json]
   codex-flows workspace methods
   codex-flows workspace doctor [--mode auto|local|actions] [--json]
+  codex-flows workspace backend init local [--overwrite] [--json]
+  codex-flows workspace backend status [--json]
+  codex-flows workspace backend start [--dry-run] [--json]
   codex-flows workspace tick [--mode auto|local|actions]
   codex-flows workspace run <task-id> [--mode auto|local|actions]
   codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-agent-turn]
@@ -991,15 +1113,30 @@ Options:
   --github                                   Generate a GitHub Actions workflow.
   --with-smoke                               Generate an Actions smoke flow.
   --with-agent-turn                          Generate an agent-turn flow.
+  --dry-run                                  Print the local backend start command.
+                                             For remote tunnel start, print the ssh command.
+  --prompt <text>                            Prompt text for remote turn start.
+  --via <auto|workspace|app>                 Remote turn surface. Defaults to auto.
+  --ssh, --ssh-target <target>               SSH target for a Tailscale-backed tunnel.
+                                             Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
+  --local-port <port>                        Local tunnel port. Defaults to 3586.
+  --remote-host <host>                       Remote backend host. Defaults to 127.0.0.1.
+  --remote-port <port>                       Remote backend port. Defaults to 3586.
+  --cwd <path>                               Working directory for remote turn start.
   -h, --help                                 Show this help.
 
 Examples:
   codex-flows fetch
   codex-flows fetch --workspace-url ws://127.0.0.1:3586
+  codex-flows remote status --workspace-url ws://127.0.0.1:3586
+  codex-flows remote tunnel start --ssh peezy@vps-tailnet --dry-run
+  codex-flows remote turn start --prompt "Check workspace status"
   codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace delegation.list
   codex-flows workspace doctor --mode actions
+  codex-flows workspace backend init local
+  codex-flows workspace backend start --dry-run
   codex-flows workspace init actions --forgejo --with-smoke --with-agent-turn
   codex-flows actions dispatch --event .codex/workspace/actions/events/manual.json
   codex-flows memories transplant global-to-workspace
