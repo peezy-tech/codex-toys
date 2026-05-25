@@ -1,7 +1,7 @@
 {
 	"name": "@peezy.tech/codex-flows",
 	"version": "0.132.5",
-	"description": "Codex app-server clients, turn automation, flow runtime compatibility helpers, workspace backend helpers, and runnable local backend bins.",
+	"description": "Codex app-server clients, turn automation, workspace backend helpers, and runnable local backend bins.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"repository": {
@@ -13,15 +13,13 @@
 		"codex",
 		"codex-app-server",
 		"json-rpc",
-		"automation",
-		"flows"
+		"automation"
 	],
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"bin": {
 		"codex-flows": "dist/cli/index.js",
 		"codex-app": "dist/bin/codex-app.js",
-		"codex-flow-runner": "dist/bin/codex-flow-runner.js",
 		"codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js"
 	},
 	"files": [
@@ -41,11 +39,6 @@
 			"types": "./dist/browser.d.ts",
 			"require": "./dist/browser.js",
 			"import": "./dist/browser.js"
-		},
-		"./flows": {
-			"types": "./dist/app-server/flows.d.ts",
-			"require": "./dist/app-server/flows.js",
-			"import": "./dist/app-server/flows.js"
 		},
 		"./auth": {
 			"types": "./dist/auth.d.ts",
@@ -77,16 +70,6 @@
 			"require": "./dist/workspace-backend/index.js",
 			"import": "./dist/workspace-backend/index.js"
 		},
-		"./flow-runtime": {
-			"types": "./dist/flow-runtime/index.d.ts",
-			"require": "./dist/flow-runtime/index.js",
-			"import": "./dist/flow-runtime/index.js"
-		},
-		"./flow-runtime/*": {
-			"types": "./dist/flow-runtime/*.d.ts",
-			"require": "./dist/flow-runtime/*.js",
-			"import": "./dist/flow-runtime/*.js"
-		},
 		"./rpc": {
 			"types": "./dist/app-server/rpc.d.ts",
 			"require": "./dist/app-server/rpc.js",
@@ -107,9 +90,8 @@
 		"node": ">=24.0.0 <25"
 	},
 	"scripts": {
-		"build": "vp run clean && tsc -p tsconfig.build.json && vp run build:flow-runtime && vp run build:bins",
+		"build": "vp run clean && tsc -p tsconfig.build.json && vp run build:bins",
 		"build:bins": "tsx scripts/build-bins.ts",
-		"build:flow-runtime": "tsc -p tsconfig.flow-runtime.json",
 		"check:types": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"pack:dry-run": "tsx scripts/pack-dry-run.ts",

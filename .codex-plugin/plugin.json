@@ -1,7 +1,7 @@
 {
   "name": "codex-flows",
   "version": "0.132.5",
-  "description": "Full Codex turn automation, flow compatibility, backend setup, backend operation, and workspace orchestration guidance.",
+  "description": "Full Codex turn automation, backend setup, backend operation, and workspace orchestration guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -12,7 +12,6 @@
   "license": "MIT",
   "keywords": [
     "codex",
-    "flows",
     "workspace-backend",
     "backend-setup",
     "remote-control",
@@ -23,7 +22,7 @@
   "interface": {
     "displayName": "codex-flows",
     "shortDescription": "Run turn automation and operate workspace backends.",
-    "longDescription": "codex-flows provides the full compatibility install: Codex guidance for plugin-native turn automation, advanced flow packages, local workspace backend setup, SSH-backed remote workspace operation, Codex remote-control status, remote turn starts, workspace delegation, and passive workspace lifecycle hooks. Runtime libraries and CLI tools remain available through npm; this plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
+    "longDescription": "codex-flows provides Codex guidance for plugin-native turn automation, local workspace backend setup, SSH-backed remote workspace operation, Codex remote-control status, remote turn starts, workspace delegation, and passive workspace lifecycle hooks. This plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -38,7 +37,6 @@
       "Author a turn automation script that can skip or start a Codex turn.",
       "Set up the local Codex workspace backend.",
       "Run codex-flows against a remote Codex workspace over SSH.",
-      "Inspect a flow backend run failure.",
       "Coordinate delegated workspace work."
     ],
     "brandColor": "#2563EB"

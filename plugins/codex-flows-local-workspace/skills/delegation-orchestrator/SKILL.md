@@ -1,6 +1,6 @@
 ---
 name: delegation-orchestrator
-description: Use when acting as the main Codex workspace operator and coordinating delegated Codex threads through privileged codex_workspace tools for fan-out work, status reads, result flushing, return modes, group wakes, and flow inspection.
+description: Use when acting as the main Codex workspace operator and coordinating delegated Codex threads through privileged codex_workspace tools for fan-out work, status reads, result flushing, return modes, and group wakes.
 ---
 
 # Delegation Orchestrator
@@ -12,8 +12,8 @@ must not receive or use privileged `codex_workspace` tools.
 
 Coordinate work across Codex threads without taking ownership of backend state.
 The workspace backend owns delegation records, return policies, pending wakes,
-flow inspection, and presenter-specific metadata. Your job is to choose when to
-delegate, keep prompts crisp, inspect progress, and merge results.
+and presenter-specific metadata. Your job is to choose when to delegate, keep
+prompts crisp, inspect progress, and merge results.
 
 ## When To Delegate
 
@@ -58,10 +58,6 @@ that are ready to merge back into the operator thread.
 Use `codex_workspace.list_delegation_groups` when coordinating fan-out/fan-in
 work across several related delegations.
 
-Use `codex_workspace.list_flow_runs` and `codex_workspace.list_flow_events` only
-for flow inspection. Do not infer product-specific completion policy from the
-generic flow backend.
-
 ## Return Modes
 
 - `wake_on_done`: wake the operator when this delegation reaches a terminal state.
@@ -100,5 +96,5 @@ Return: <summary, files changed, verification>
 - Do not duplicate work across delegations.
 - Do not delegate vague ownership such as "fix everything".
 - Do not treat Discord, web, or CLI presenter details as core delegation state.
-- Preserve the workspace backend boundary: app-server methods stay native, flow
-  semantics stay generic, and delegation state stays in the backend.
+- Preserve the workspace backend boundary: app-server methods stay native and
+  delegation state stays in the backend.

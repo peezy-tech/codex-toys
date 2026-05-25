@@ -106,9 +106,9 @@ describe("SSH remote provider", () => {
 			remoteCodexCommand: "/env/codex",
 			remoteWorkspaceBackendCommand: "/env/backend",
 		});
-		expect(parseRemoteMode(undefined)).toBe("auto");
+		expect(parseRemoteMode(undefined)).toBe("spawn");
 		expect(() => parseRemoteMode("bad")).toThrow(
-			"--remote-mode must be auto, existing, or spawn",
+			"--remote-mode must be existing or spawn",
 		);
 	});
 
@@ -121,6 +121,7 @@ describe("SSH remote provider", () => {
 				sshTarget: "devbox",
 				localPort: port,
 				timeoutMs: 1_000,
+				remoteMode: "existing",
 				env: { CODEX_FLOWS_SSH_COMMAND: fakeSsh.command },
 			});
 			expect(handle).toMatchObject({
@@ -144,7 +145,7 @@ describe("SSH remote provider", () => {
 		}
 	});
 
-	test("falls back from existing tunnel probe to transient spawned backend", async () => {
+	test("spawns a transient backend by default", async () => {
 		const port = await unusedPort();
 		const fakeSsh = await createFakeSshCommand();
 		const handle = await startSshWorkspaceBackend({
@@ -164,14 +165,16 @@ describe("SSH remote provider", () => {
 			);
 			const entries = await fakeSsh.readLog();
 			expect(entries).toEqual(expect.arrayContaining([
-				expect.objectContaining({ mode: "existing" }),
 				expect.objectContaining({ mode: "spawn", port }),
 				expect.objectContaining({ mode: "workspace-listening", port }),
+			]));
+			expect(entries).not.toEqual(expect.arrayContaining([
+				expect.objectContaining({ mode: "existing" }),
 			]));
 		} finally {
 			handle.close();
 			await waitForLog(fakeSsh, (entries) =>
-				entries.filter((entry) => entry.mode === "signal").length >= 2
+				entries.some((entry) => entry.mode === "signal")
 			);
 		}
 	});
@@ -327,13 +330,12 @@ function workspaceResult(method) {
 			serverInfo: { name: "fake-ssh-workspace", version: "0.1.0" },
 			capabilities: {
 				appServerPassThrough: true,
-				workspaceMethods: ["flow.dispatch"],
-				flowInspection: true,
+				workspaceMethods: ["delegation.list"],
 			},
 		};
 	}
-	if (method === "flow.dispatch") {
-		return { runId: "run-1" };
+	if (method === "delegation.list") {
+		return { delegations: [] };
 	}
 	return {};
 }
@@ -437,7 +439,6 @@ async function startFakeWorkspaceBackend(port: number): Promise<{
 					capabilities: {
 						appServerPassThrough: true,
 						workspaceMethods: [],
-						flowInspection: false,
 					},
 				},
 			}));

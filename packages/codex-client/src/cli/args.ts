@@ -34,7 +34,7 @@ type ParsedCliBase =
 			type: "remote-turn-start";
 			prompt: string;
 			cwd?: string;
-			via: "auto" | "workspace" | "app";
+			via: "workspace" | "app";
 			appUrl: string;
 			workspaceUrl: string;
 			timeoutMs: number;
@@ -58,7 +58,7 @@ type ParsedCliBase =
 			prompt?: string;
 			workspaceRoot?: string;
 			cwd?: string;
-			via: "auto" | "workspace" | "app";
+			via: "workspace" | "app";
 			appUrl: string;
 			workspaceUrl: string;
 			timeoutMs: number;
@@ -113,8 +113,6 @@ type ParsedCliBase =
 			workspaceRoot?: string;
 			forgejo: boolean;
 			github: boolean;
-			withSmoke: boolean;
-			withAgentTurn: boolean;
 			overwrite: boolean;
 			pretty: boolean;
 	  }
@@ -158,52 +156,6 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "flow-dispatch";
-			eventPath: string;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
-			type: "flow-list-events";
-			eventType?: string;
-			limit?: number;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
-			type: "flow-get-event";
-			eventId: string;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
-			type: "flow-replay";
-			eventId: string;
-			wait: boolean;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
-			type: "flow-list-runs";
-			eventId?: string;
-			status?: string;
-			limit?: number;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
-			type: "flow-get-run";
-			runId: string;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
 			type: "actions-prepare-auth";
 			workspaceRoot?: string;
 			pretty: boolean;
@@ -211,20 +163,6 @@ type ParsedCliBase =
 	| {
 			type: "actions-cleanup";
 			workspaceRoot?: string;
-			pretty: boolean;
-	  }
-	| {
-			type: "actions-dispatch";
-			workspaceRoot?: string;
-			eventPath: string;
-			pretty: boolean;
-	  }
-	| {
-			type: "actions-assert-run";
-			workspaceRoot?: string;
-			flowName: string;
-			stepName: string;
-			artifactText?: string;
 			pretty: boolean;
 	  }
 	| {
@@ -313,15 +251,6 @@ export function parseArgs(
 	let color = true;
 	let json = false;
 	let eventPath: string | undefined;
-	let eventType: string | undefined;
-	let eventId: string | undefined;
-	let runId: string | undefined;
-	let status: string | undefined;
-	let limit: number | undefined;
-	let flowName: string | undefined;
-	let stepName: string | undefined;
-	let artifactText: string | undefined;
-	let wait = false;
 	let mode: WorkspaceModeInput | undefined;
 	let workspaceRoot: string | undefined;
 	let globalCodexHome: string | undefined;
@@ -337,12 +266,10 @@ export function parseArgs(
 	let ref: string | undefined;
 	let forgejo = false;
 	let github = false;
-	let withSmoke = false;
-	let withAgentTurn = false;
 	let dryRun = false;
 	let prompt: string | undefined;
 	let cwd: string | undefined = env.CODEX_FLOWS_REMOTE_CWD;
-	let via: "auto" | "workspace" | "app" = "auto";
+	let via: "workspace" | "app" = "workspace";
 	let sshTarget: string | undefined = env.CODEX_FLOWS_REMOTE_SSH_TARGET;
 	let remoteMode: RemoteMode = parseRemoteMode(env.CODEX_FLOWS_REMOTE_MODE);
 	let localPort: number | undefined;
@@ -561,88 +488,12 @@ export function parseArgs(
 			eventPath = arg.slice("--event=".length);
 			continue;
 		}
-		if (arg === "--event-id") {
-			eventId = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--event-id=")) {
-			eventId = arg.slice("--event-id=".length);
-			continue;
-		}
-		if (arg === "--run-id") {
-			runId = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--run-id=")) {
-			runId = arg.slice("--run-id=".length);
-			continue;
-		}
-		if (arg === "--type") {
-			eventType = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--type=")) {
-			eventType = arg.slice("--type=".length);
-			continue;
-		}
-		if (arg === "--status") {
-			status = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--status=")) {
-			status = arg.slice("--status=".length);
-			continue;
-		}
-		if (arg === "--flow") {
-			flowName = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--flow=")) {
-			flowName = arg.slice("--flow=".length);
-			continue;
-		}
-		if (arg === "--step") {
-			stepName = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--step=")) {
-			stepName = arg.slice("--step=".length);
-			continue;
-		}
-		if (arg === "--artifact-text") {
-			artifactText = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--artifact-text=")) {
-			artifactText = arg.slice("--artifact-text=".length);
-			continue;
-		}
-		if (arg === "--limit") {
-			limit = positiveInteger(required(argv, ++index, arg), arg);
-			continue;
-		}
-		if (arg.startsWith("--limit=")) {
-			limit = positiveInteger(arg.slice("--limit=".length), "--limit");
-			continue;
-		}
-		if (arg === "--wait") {
-			wait = true;
-			continue;
-		}
 		if (arg === "--forgejo") {
 			forgejo = true;
 			continue;
 		}
 		if (arg === "--github") {
 			github = true;
-			continue;
-		}
-		if (arg === "--with-smoke") {
-			withSmoke = true;
-			continue;
-		}
-		if (arg === "--with-agent-turn") {
-			withAgentTurn = true;
 			continue;
 		}
 		if (arg === "--dry-run") {
@@ -821,11 +672,7 @@ export function parseArgs(
 		}
 		return {
 			type: "automation-run",
-			target: requiredPositional(
-				positionals,
-				2,
-				"automation run requires <script-or-name>",
-			),
+			target: requiredPositional(positionals, 2, "automation run requires <name>"),
 			eventPath,
 			prompt,
 			workspaceRoot,
@@ -915,8 +762,6 @@ export function parseArgs(
 				workspaceRoot,
 				forgejo,
 				github,
-				withSmoke,
-				withAgentTurn,
 				overwrite,
 				pretty,
 			};
@@ -997,90 +842,6 @@ export function parseArgs(
 			...remoteFields(),
 		};
 	}
-	if (command === "flow") {
-		const subcommand = positionals[1];
-		if (subcommand === "dispatch") {
-			return {
-				type: "flow-dispatch",
-				eventPath: eventPath ?? requiredPositional(
-					positionals,
-					2,
-					"flow dispatch requires --event <path> or <path>",
-				),
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
-				...remoteFields(),
-			};
-		}
-		if (subcommand === "events" || subcommand === "list-events") {
-			return {
-				type: "flow-list-events",
-				eventType,
-				limit,
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
-				...remoteFields(),
-			};
-		}
-		if (subcommand === "event" || subcommand === "show-event") {
-			return {
-				type: "flow-get-event",
-				eventId: eventId ?? requiredPositional(
-					positionals,
-					2,
-					"flow event requires <event-id>",
-				),
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
-				...remoteFields(),
-			};
-		}
-		if (subcommand === "replay" || subcommand === "replay-event") {
-			return {
-				type: "flow-replay",
-				eventId: eventId ?? requiredPositional(
-					positionals,
-					2,
-					"flow replay requires <event-id>",
-				),
-				wait,
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
-				...remoteFields(),
-			};
-		}
-		if (subcommand === "runs" || subcommand === "list-runs") {
-			return {
-				type: "flow-list-runs",
-				eventId,
-				status,
-				limit,
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
-				...remoteFields(),
-			};
-		}
-		if (subcommand === "run" || subcommand === "show-run") {
-			return {
-				type: "flow-get-run",
-				runId: runId ?? requiredPositional(
-					positionals,
-					2,
-					"flow run requires <run-id>",
-				),
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
-				...remoteFields(),
-			};
-		}
-		throw new Error("flow requires dispatch, events, event, replay, runs, or run");
-	}
 	if (command === "actions") {
 		const subcommand = positionals[1];
 		if (subcommand === "prepare-auth") {
@@ -1089,37 +850,7 @@ export function parseArgs(
 		if (subcommand === "cleanup") {
 			return { type: "actions-cleanup", workspaceRoot, pretty };
 		}
-		if (subcommand === "dispatch") {
-			return {
-				type: "actions-dispatch",
-				workspaceRoot,
-				eventPath: eventPath ?? requiredPositional(
-					positionals,
-					2,
-					"actions dispatch requires --event <path> or <path>",
-				),
-				pretty,
-			};
-		}
-		if (subcommand === "assert-run") {
-			return {
-				type: "actions-assert-run",
-				workspaceRoot,
-				flowName: flowName ?? requiredPositional(
-					positionals,
-					2,
-					"actions assert-run requires --flow <name>",
-				),
-				stepName: stepName ?? requiredPositional(
-					positionals,
-					3,
-					"actions assert-run requires --step <name>",
-				),
-				artifactText,
-				pretty,
-			};
-		}
-		throw new Error("actions requires prepare-auth, cleanup, dispatch, or assert-run");
+		throw new Error("actions requires prepare-auth or cleanup");
 	}
 	if (command === "memories") {
 		const subcommand = positionals[1];
@@ -1240,11 +971,11 @@ function paramsText(values: string[]): string | undefined {
 	return values.length > 0 ? values.join(" ") : undefined;
 }
 
-function parseRemoteVia(value: string): "auto" | "workspace" | "app" {
-	if (value === "auto" || value === "workspace" || value === "app") {
+function parseRemoteVia(value: string): "workspace" | "app" {
+	if (value === "workspace" || value === "app") {
 		return value;
 	}
-	throw new Error("--via must be auto, workspace, or app");
+	throw new Error("--via must be workspace or app");
 }
 
 function required(args: string[], index: number, flag: string): string {

@@ -33,12 +33,6 @@ export const COMMON_WORKSPACE_BACKEND_METHODS = [
 	"delegation.setPolicy",
 	"delegation.flushResults",
 	"delegation.listGroups",
-	"flow.dispatch",
-	"flow.replay",
-	"flow.listEvents",
-	"flow.getEvent",
-	"flow.listRuns",
-	"flow.getRun",
 ] as const;
 
 export function validateMethodName(value: string, label: string): string {

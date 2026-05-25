@@ -11,22 +11,20 @@ live in this repository; release syncs installable plugin bundles into
 `peezy-tech/skills`.
 
 The repository root also remains a product-local plugin marketplace for
-development, with a compatibility plugin plus granular install options:
+development, with a full plugin plus granular install options:
 
 ```text
 .codex-plugin/plugin.json
 .agents/plugins/marketplace.json
 plugins/codex-flows-author/
-plugins/codex-flows-backend-author/
 plugins/codex-flows-local-workspace/
-plugins/codex-flows-remote-backend/
 plugins/codex-flows-remote-control/
 skills/
 hooks/hooks.json
 hooks/hook-event.mjs
 ```
 
-Installing a plugin gives Codex the requested guidance without copying flow
+Installing a plugin gives Codex the requested guidance without copying runtime
 packages into a workspace. Plugin-installed scripts can be used as turn
 automations through the `codex-flows automation run` CLI, so products can run
 code first and then conditionally start a native Codex prompt. The local
@@ -35,12 +33,10 @@ lifecycle events for workspace surfaces.
 
 | Plugin | Installs |
 |--------|----------|
-| `codex-flows-author` | Flow package, turn automation, and script authoring guidance. |
-| `codex-flows-backend-author` | Flow backend design and implementation skill. |
-| `codex-flows-local-workspace` | Local backend setup, flow operation, delegation skills, and plugin-bundled hooks. |
-| `codex-flows-remote-backend` | Remote backend setup and operation skills, without local hooks. |
+| `codex-flows-author` | Turn automation authoring guidance. |
+| `codex-flows-local-workspace` | Local backend setup, delegation skills, and plugin-bundled hooks. |
 | `codex-flows-remote-control` | Local Codex App guidance for remote-control status, SSH/Tailscale tunnels, and starting turns on a remote backend. |
-| `codex-flows` | Full compatibility install with all root skills and hooks. |
+| `codex-flows` | Full install with all root skills and hooks. |
 
 ## Install from GitHub
 
@@ -73,9 +69,9 @@ thread to pick up the updated skill and hook list.
 
 ## Hook surface
 
-The local workspace and full compatibility plugins use Codex's native plugin
-hook discovery. The hook config stays inside the plugin at `hooks/hooks.json`;
-it is not copied into `~/.codex/hooks.json`.
+The local workspace and full plugins use Codex's native plugin hook discovery.
+The hook config stays inside the plugin at `hooks/hooks.json`; it is not copied
+into `~/.codex/hooks.json`.
 
 Make sure plugin hooks are enabled in the Codex home that runs the workspace:
 
@@ -141,7 +137,7 @@ On the VPS, run the backend from the target workspace with
 For one-shot automation, prefer the global SSH provider:
 
 ```bash
-codex-flows --ssh <user@tailscale-host> --cwd /repo automation run ./automations/check-release.ts --event event.json
+codex-flows --ssh <user@tailscale-host> --cwd /repo automation run check-release --event event.json
 ```
 
 That command runs the automation script locally, then starts the resulting
@@ -151,14 +147,11 @@ native Codex turn against the remote workspace if the script returns
 ## What the plugin does not install
 
 The plugin installs guidance skills and bundled hook definitions. It does not
-install npm packages, copy `flows/*` into `.codex/flows`, register persistent
-automations by itself, or start a workspace backend process.
+install npm packages, register persistent automations by itself, or start a
+workspace backend process.
 
 Use npm for runtime libraries and CLIs:
 
 ```bash
 npm install @peezy.tech/codex-flows
 ```
-
-Use `.codex/flows/*` only when a workspace intentionally pins an operational
-copy of a flow bundle.

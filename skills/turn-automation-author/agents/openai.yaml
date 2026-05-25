@@ -1,4 +1,4 @@
 interface:
   display_name: "Turn Automation Author"
   short_description: "Write pre-turn scripts that skip or start native Codex turns."
-  default_prompt: "Author a codex-flows turn automation script that inspects external state and returns a skip-or-turn decision without using the heavier flow runtime unless durable event/run state is needed."
+  default_prompt: "Author a named codex-flows turn automation that inspects external state and returns a skip-or-turn decision from a default module handler."

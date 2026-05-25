@@ -15,7 +15,7 @@ import path from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { discoverWorkspaceRoot } from "./workspace-autonomy.ts";
 
-export type PackKind = "skill" | "flow" | "plugin" | "hook";
+export type PackKind = "skill" | "plugin" | "hook";
 
 export type PackSourceDescriptor = {
 	input: string;
@@ -730,7 +730,6 @@ async function discoverPackByConvention(
 	const warnings: string[] = [];
 	const items = [
 		...await discoverSkills(root, warnings),
-		...await discoverFlows(root, warnings),
 		...await discoverPlugins(root, warnings),
 		...await discoverHooks(root, warnings),
 	];
@@ -754,29 +753,6 @@ async function discoverSkills(root: string, warnings: string[]): Promise<PackCap
 			root,
 			name,
 			kind: "skill",
-			sourcePath,
-			warnings,
-		});
-		if (capability) {
-			capabilities.push(capability);
-		}
-	}
-	return capabilities;
-}
-
-async function discoverFlows(root: string, warnings: string[]): Promise<PackCapability[]> {
-	const capabilities: PackCapability[] = [];
-	const flowsRoot = path.join(root, "flows");
-	for (const file of await walkFiles(flowsRoot)) {
-		if (path.basename(file) !== "flow.toml") {
-			continue;
-		}
-		const sourcePath = path.dirname(file);
-		const flowName = await readFlowName(file) ?? path.basename(sourcePath);
-		const capability = await capabilityFromPath({
-			root,
-			name: flowName,
-			kind: "flow",
 			sourcePath,
 			warnings,
 		});
@@ -870,9 +846,6 @@ function expectedFile(sourcePath: string, kind: PackKind): string {
 	if (kind === "skill") {
 		return path.join(sourcePath, "SKILL.md");
 	}
-	if (kind === "flow") {
-		return path.join(sourcePath, "flow.toml");
-	}
 	if (kind === "plugin") {
 		return path.join(sourcePath, ".codex-plugin", "plugin.json");
 	}
@@ -919,9 +892,6 @@ function compareCapabilities(left: PackCapability, right: PackCapability): numbe
 function destinationForItem(workspaceRoot: string, item: Pick<PackCapability, "kind" | "name">): string {
 	if (item.kind === "skill") {
 		return path.join(workspaceRoot, ".agents", "skills", item.name);
-	}
-	if (item.kind === "flow") {
-		return path.join(workspaceRoot, ".codex", "flows", item.name);
 	}
 	if (item.kind === "plugin") {
 		return path.join(workspaceRoot, "plugins", item.name);
@@ -1091,15 +1061,6 @@ function githubShorthand(source: string): boolean {
 
 function gitUrl(source: string): boolean {
 	return /^(https?:\/\/|ssh:\/\/|file:\/\/|git@)/.test(source) || source.endsWith(".git");
-}
-
-async function readFlowName(flowTomlPath: string): Promise<string | undefined> {
-	try {
-		const parsed = record(parseToml(await readFile(flowTomlPath, "utf8")) as unknown);
-		return stringValue(parsed.name);
-	} catch {
-		return undefined;
-	}
 }
 
 function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
@@ -1278,7 +1239,7 @@ function isSubpath(root: string, candidate: string): boolean {
 }
 
 function packKind(value: unknown): PackKind | undefined {
-	if (value === "skill" || value === "flow" || value === "plugin" || value === "hook") {
+	if (value === "skill" || value === "plugin" || value === "hook") {
 		return value;
 	}
 	return undefined;

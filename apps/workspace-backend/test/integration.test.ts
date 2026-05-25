@@ -1,8 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { mkdtemp, rm } from "node:fs/promises";
 import http from "node:http";
-import os from "node:os";
-import path from "node:path";
 import { WebSocketServer, type RawData, type WebSocket as WsSocket } from "ws";
 import { CodexEventEmitter } from "@peezy.tech/codex-flows";
 import {
@@ -10,36 +7,19 @@ import {
 	type CodexWorkspaceBackendAppServer,
 	type CodexWorkspaceBackendPeer,
 } from "@peezy.tech/codex-flows/workspace-backend";
-import { readConfig } from "../src/flow/config.ts";
-import { handleNodeHttpRequest, WorkspaceFlowCapability } from "../src/flow/server.ts";
 
-test("networked local workspace backend serves control WebSocket and flow HTTP routes", async () => {
-	const directory = await mkdtemp(path.join(os.tmpdir(), "workspace-backend-"));
+test("networked local workspace backend serves control WebSocket", async () => {
 	const appServer = new FakeAppServer();
-	const flow = new WorkspaceFlowCapability({
-		config: readConfig({}, {
-			cwd: directory,
-			dataDir: path.join(directory, ".codex", "flow-backend"),
-			host: "127.0.0.1",
-			port: 0,
-			executor: "direct",
-			nodeCommand: process.execPath,
-		}),
-		env: {},
-	});
 	const workspaceBackend = new CodexWorkspaceBackendProtocolServer({
 		appServer,
-		flowInspection: true,
 		methods: {
-			"flow.listEvents": () => flow.listEvents(),
+			"delegation.list": () => ({ delegations: [] }),
 		},
 	});
 	const peers = new WeakMap<WsSocket, CodexWorkspaceBackendPeer>();
-	const server = http.createServer((request, response) => {
-		void handleNodeHttpRequest(request, response, flow.config, async (webRequest) =>
-			await flow.handleHttp(webRequest) ??
-				new Response("workspace backend", { status: 426 }),
-		);
+	const server = http.createServer((_request, response) => {
+		response.writeHead(426, { "content-type": "text/plain; charset=utf-8" });
+		response.end("workspace backend");
 	});
 	const wss = new WebSocketServer({ noServer: true });
 	server.on("upgrade", (request, socket, head) => {
@@ -72,9 +52,8 @@ test("networked local workspace backend serves control WebSocket and flow HTTP r
 	const port = serverPort(server);
 
 	try {
-		const health = await fetch(`http://127.0.0.1:${port}/healthz`);
-		expect(health.status).toBe(200);
-		expect(await health.json()).toEqual({ ok: true });
+		const root = await fetch(`http://127.0.0.1:${port}/`);
+		expect(root.status).toBe(426);
 
 		const responses = await websocketRequests(
 			`ws://127.0.0.1:${port}/__codex-workspace-backend`,
@@ -96,8 +75,8 @@ test("networked local workspace backend serves control WebSocket and flow HTTP r
 				},
 				{
 					jsonrpc: "2.0",
-					id: "events",
-					method: "flow.listEvents",
+					id: "delegations",
+					method: "delegation.list",
 					params: {},
 				},
 			],
@@ -107,20 +86,17 @@ test("networked local workspace backend serves control WebSocket and flow HTTP r
 			ok: true,
 			capabilities: {
 				appServerPassThrough: true,
-				flowInspection: true,
-				workspaceMethods: ["flow.listEvents"],
+				workspaceMethods: ["delegation.list"],
 			},
 		});
 		expect(responses.get("threads")?.result).toEqual({ threads: [] });
 		expect(appServer.requests).toEqual([
 			{ method: "thread/list", params: { limit: 1 } },
 		]);
-		expect(responses.get("events")?.result).toEqual({ events: [] });
+		expect(responses.get("delegations")?.result).toEqual({ delegations: [] });
 	} finally {
 		wss.close();
 		await closeServer(server);
-		flow.close();
-		await rm(directory, { recursive: true, force: true });
 	}
 });
 

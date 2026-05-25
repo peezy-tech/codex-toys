@@ -45,15 +45,15 @@ codex-flows workspace backend status
 ```
 
 The local backend defaults to `ws://127.0.0.1:3586`, starts a local Codex
-app-server over stdio, stores flow data under `.codex/workspace/local`, and
-uses `.codex/workspace/local/hook-spool` for plugin hook events.
+app-server over stdio, and uses `.codex/workspace/local/hook-spool` for plugin
+hook events.
 
 ## Remote Backend Flow
 
 For a remote backend, do not start local hooks or a local backend process. The
 preferred automation path is the SSH-backed provider: the local CLI reads local
-inputs, while flow discovery, flow state, Codex tools, `CODEX_HOME`, and
-workspace execution happen on the remote target.
+inputs, while Codex tools, `CODEX_HOME`, and workspace execution happen on the
+remote target.
 
 Start with a probe:
 
@@ -74,7 +74,7 @@ Examples:
 
 ```bash
 codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode existing workspace methods
-codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode spawn flow dispatch --event event.json
+codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode spawn automation run check-release --event event.json
 codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list '{"limit":20,"sourceKinds":[]}'
 ```
 
@@ -87,7 +87,7 @@ Useful variables:
 ```bash
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@host>
 CODEX_FLOWS_REMOTE_CWD=<remote-workspace>
-CODEX_FLOWS_REMOTE_MODE=auto
+CODEX_FLOWS_REMOTE_MODE=spawn
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
 CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
 ```

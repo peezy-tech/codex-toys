@@ -45,8 +45,8 @@ codex-flows workspace backend status
 ```
 
 The local backend defaults to `ws://127.0.0.1:3586`, starts a local Codex
-app-server over stdio, stores flow data under `.codex/workspace/local`, and
-uses `.codex/workspace/local/hook-spool` for plugin hook events.
+app-server over stdio, and uses `.codex/workspace/local/hook-spool` for plugin
+hook events.
 
 ## Remote Backend Flow
 

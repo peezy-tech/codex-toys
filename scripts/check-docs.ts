@@ -56,7 +56,7 @@ const cliDoc = await read("docs/pages/reference/cli.md");
 const requiredCliLines = [
 	"codex-flows fetch [--json] [--no-color]",
 	"codex-flows automation list [--json]",
-	"codex-flows automation run <script-or-name> [--event <event.json>] [--prompt <text>] [--via auto|workspace|app]",
+	"codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]",
 	"codex-flows app <method> [params-json]",
 	"codex-flows workspace doctor [--mode auto|local|actions] [--json]",
 	"codex-flows workspace backend init local [--overwrite] [--json]",
@@ -74,7 +74,6 @@ const requiredCliLines = [
 	"codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]",
 	"codex-flows pack doctor [--json]",
 	"codex-flows pack list [--json]",
-	"codex-flows flow dispatch --event <event.json>",
 	"--merge codex",
 ];
 
@@ -146,12 +145,12 @@ await expectIncludes("docs/pages/guides/install-codex-plugin.md", "hooks/hooks.j
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "plugin_hooks = true");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_FLOWS_HOOK_SPOOL_DIR");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows workspace backend init local");
-await expectIncludes("docs/pages/guides/turn-automation.md", "TURN_AUTOMATION");
+await expectIncludes("docs/pages/guides/turn-automation.md", "export default async function run");
 await expectIncludes("docs/pages/guides/turn-automation.md", "codex-flows --ssh devbox --cwd /repo automation run");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote status");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote tunnel start --ssh <user@tailscale-host>");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote turn start --prompt <text>");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows automation run <script-or-name>");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows automation run <name>");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "pack repo");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".codex/pack-lock.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".agents/plugins/marketplace.json");

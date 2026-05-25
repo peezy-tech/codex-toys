@@ -28,16 +28,16 @@ or docs surface that solves the problem:
 - `packages/codex-client` owns the public `@peezy.tech/codex-flows` package,
   app-server clients, generated protocol types, workspace helpers, and bundled
   bins.
-- `packages/flow-runtime` and `packages/flow-backend-convex` are compatibility
-  and backend-library packages while the single-package platform migration
-  continues.
+- `packages/flow-runtime` and `packages/flow-backend-convex` are legacy
+  backend-library packages while the single-package platform migration
+  continues; do not add new product surface there.
 - `apps/discord-bridge` and `apps/workspace-voice-gateway` are gateway packages
   that depend on `@peezy.tech/codex-flows`.
 - `apps/workspace-backend`, `apps/web`, `apps/cli`, and `apps/flow-runner` are
   workspace-local apps that are also bundled into the core package where
   appropriate.
-- `flows` contains bundled flow packages used to maintain Codex bindings and
-  Peezy fork releases.
+- `flows` contains bundled legacy flow packages used to maintain Codex bindings
+  and Peezy fork releases until they move to turn automation.
 - `docs/pages` is the canonical user documentation.
 
 Generated app-server protocol files live under

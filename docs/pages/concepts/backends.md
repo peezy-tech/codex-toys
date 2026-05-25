@@ -1,40 +1,35 @@
 ---
 title: Backends
-description: Compare local memory, file state, workspace flow backends, HTTP adapters, and Convex.
+description: Compare direct app-server access, workspace backends, and SSH-backed remote operation.
 ---
 
 # Backends
 
-Backends differ in durability and execution location, not in event semantics.
+Backends differ in ownership and execution location. Turn automation should use
+the smallest backend surface that can start the native Codex turn in the target
+workspace.
 
-## Local client
+## Direct app-server
 
-The local client runs matching steps synchronously in the current workspace.
-Memory state is the default. File state under `.codex/flow-client` gives durable
-event ids, list/get, and replay across client instances.
+Direct app-server access is useful for local development, protocol inspection,
+and one-off debugging. It talks to Codex app-server without workspace policy.
 
-Use it for product CLIs, tests, and local development.
+Use `--via app` only when you deliberately want this direct path.
 
-## Workspace flow capability
+## Workspace backend
 
-The workspace flow capability accepts dispatches, stores events and runs in
-SQLite, writes event JSON files, and starts local steps directly or through
-`systemd-run`. Embedded workspace backends can call it directly; the networked
-local workspace backend also mounts compatible HTTP routes.
+The workspace backend is the normal automation surface. It owns app-server
+pass-through, delegation, hook-spool routing, workspace state, and repo-local
+task execution. Turn automation uses `--via workspace` by default.
 
-Use it for a small host-level service where local system tools and Codex are
-available.
+Use it when automation should respect workspace policy or target a remote
+checkout through the SSH provider.
 
-## Convex component
+## SSH provider
 
-The Convex component stores generic control-plane state and leases work to
-external workers. It is not an executor.
+The SSH provider keeps the CLI local while targeting a remote workspace. It can
+tunnel to an existing workspace backend or start a transient backend when
+configured to spawn.
 
-Use it when the product already uses Convex and needs durable app-visible run
-state, service-authenticated wrappers, and worker handoff.
-
-## HTTP adapters
-
-Any app can expose a compatible `/events` and `/runs` adapter. The shared
-backend client normalizes compatible responses, but authentication and domain
-policy remain app-owned.
+Use it for remote-first prompt automation where scripts run locally but Codex
+turns run against the remote checkout.

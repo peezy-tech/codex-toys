@@ -50,7 +50,7 @@ and memories. This is enforced centrally: `createWorkspaceContext({ mode:
 codex-flows workspace doctor
 codex-flows workspace tick --mode local
 codex-flows workspace run morning-brief --mode actions
-codex-flows workspace init actions --forgejo --with-smoke --with-agent-turn
+codex-flows workspace init actions --forgejo
 CODEX_WORKSPACE_MODE=actions codex-flows workspace doctor
 ```
 
@@ -69,8 +69,6 @@ the runtime Codex home would not be `<repo>/.codex`.
 - `.codex/config.toml`
 - `.forgejo/workflows/codex-flows-actions.yml` with `--forgejo`
 - `.github/workflows/codex-flows-actions.yml` with `--github`
-- an Actions smoke flow with `--with-smoke`
-- a sample agent-turn flow with `--with-agent-turn`
 - `.gitignore` entries for runtime-only Codex files
 
 Existing JSON-RPC passthrough commands stay intact:
@@ -129,33 +127,6 @@ schedule = "0 14 * * *"
 var = "workspace status"
 ```
 
-### `flow`
-
-Dispatches a generated `FlowEvent` through the workspace backend
-`flow.dispatch` capability. The workspace backend discovers installed flows in
-`.codex/flows/*` and source-local flows in `flows/*`, so repository-authored
-flows can stay under `flows/`. Use `.codex/flows` for installed external
-capabilities.
-
-```toml
-[[workspace.tasks]]
-id = "release-health"
-enabled = true
-kind = "flow"
-flow = "workspace.release.health"
-schedule = "*/30 * * * *"
-
-[workspace.tasks.event.payload]
-lookback_sessions = 10
-```
-
-For each run, workspace autonomy creates a unique event id in the form
-`workspace:<workspace-name>:<task-id>:<workspace-run-id>`, sets `type` from
-`event.type` or `flow`, sets `source` from `event.source` or the workspace name,
-and sets `occurredAt` and `receivedAt` to the task start time. Static
-`event.payload` entries are merged over `{ taskId = "<task-id>" }`, so explicit
-payload values win without reusing a static event id across recurring runs.
-
 ### `automation`
 
 Runs a named turn automation from `.codex/automations/*` or `automations/*`.
@@ -180,13 +151,19 @@ repo = "openai/codex"
 tag = "rust-v1.2.3"
 ```
 
-Automation tasks use the same generated event id shape as flow tasks. `prompt`
-and `cwd` can be set directly on the task to override manifest defaults.
+For each automation run, workspace autonomy creates a unique event id in the
+form `workspace:<workspace-name>:<task-id>:<workspace-run-id>`, sets `type`
+from `event.type` or the automation name, sets `source` from `event.source` or
+the workspace name, and sets `occurredAt` and `receivedAt` to the task start
+time. Static `event.payload` entries are merged over `{ taskId =
+"<task-id>" }`, so explicit payload values win without reusing a static event
+id across recurring runs. `prompt` and `cwd` can be set directly on the task to
+override manifest defaults.
 
 ### `command`
 
 Runs an explicitly configured command. Use this for small, deliberate checks
-where a full skill or flow would be unnecessary.
+where a full skill or automation would be unnecessary.
 
 ```toml
 [[workspace.tasks]]
@@ -249,10 +226,10 @@ Use the Actions helpers to exercise the same repository-scoped Codex home
 without a hosted runner:
 
 ```bash
-codex-flows actions dispatch --event ./event.json
-codex-flows actions assert-run --flow actions-smoke --step smoke
+codex-flows actions prepare-auth
+codex-flows workspace tick --mode actions
+codex-flows actions cleanup
 ```
 
-`actions dispatch` writes the event to `.codex/workspace/actions/events` and
-runs matching flows through a file-backed local flow client under
-`.codex/workspace/actions/flow-client`.
+`workspace tick --mode actions` runs due workspace tasks and records their
+state under `.codex/workspace/actions`.

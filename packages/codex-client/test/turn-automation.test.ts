@@ -17,22 +17,13 @@ const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testDir, "../../..");
 
 describe("turn automation", () => {
-	test("parses prefixed skip decisions", () => {
+	test("uses default prompt for module runner decisions", () => {
 		expect(parseTurnAutomationDecision(
-			`checking\nTURN_AUTOMATION ${JSON.stringify({ action: "skip", reason: "quiet" })}\n`,
-		)).toEqual({
-			action: "skip",
-			reason: "quiet",
-		});
-	});
-
-	test("uses fallback prompt for turn decisions", () => {
-		expect(parseTurnAutomationDecision(
-			`TURN_AUTOMATION ${JSON.stringify({ action: "turn" })}\n`,
-			"fallback prompt",
+			`TURN_AUTOMATION_MODULE_RESULT ${JSON.stringify({ action: "turn" })}\n`,
+			"default prompt",
 		)).toEqual({
 			action: "turn",
-			prompt: "fallback prompt",
+			prompt: "default prompt",
 		});
 	});
 
@@ -105,15 +96,23 @@ export default function run() {
 			skills: ["turn-automation-author"],
 		});
 		expect(target.scriptPath).toBe(path.join(automationRoot, "check.ts"));
+		await expect(resolveTurnAutomationTarget("./automations/release-check/check.ts", { cwd: root }))
+			.rejects.toThrow("must be a named automation");
 	});
 
 	test("CLI starts a native turn through a workspace backend", async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-cli-"));
-		const scriptPath = path.join(dir, "check.ts");
-		const eventPath = path.join(dir, "event.json");
+		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-cli-"));
+		const automationRoot = path.join(root, "automations", "release-check");
+		const scriptPath = path.join(automationRoot, "check.ts");
+		const eventPath = path.join(root, "event.json");
+		await mkdir(automationRoot, { recursive: true });
 		await writeFile(eventPath, JSON.stringify({
 			type: "upstream.release",
 			payload: { tag: "v1.2.3" },
+		}));
+		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+			name: "release-check",
+			script: "check.ts",
 		}));
 		await writeFile(scriptPath, `
 export default function run(context) {
@@ -129,11 +128,13 @@ export default function run(context) {
 		const backend = await startFakeWorkspaceBackend();
 		try {
 			const result = await runCli([
+				"--workspace-root",
+				root,
 				"--workspace-url",
 				backend.url,
 				"automation",
 				"run",
-				scriptPath,
+				"release-check",
 				"--event",
 				eventPath,
 				"--via",
@@ -193,7 +194,7 @@ export default function run(context) {
 		}));
 		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
 			script: "check.ts",
-			prompt: "fallback manifest prompt",
+			prompt: "default manifest prompt",
 			cwd: "/manifest-cwd",
 			skills: ["release-skill"],
 		}));
@@ -225,7 +226,7 @@ export default function run(context) {
 			const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
 			expect(parsed.decision).toMatchObject({
 				action: "turn",
-				prompt: "fallback manifest prompt v2.0.0",
+				prompt: "default manifest prompt v2.0.0",
 				cwd: "/manifest-cwd",
 				skills: ["release-skill"],
 			});
@@ -312,7 +313,6 @@ function fakeWorkspaceResult(
 			capabilities: {
 				appServerPassThrough: true,
 				workspaceMethods: [],
-				flowInspection: false,
 			},
 		};
 	}

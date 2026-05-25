@@ -60,7 +60,7 @@ describe("remote control operator", () => {
 			const turn = await startRemoteTurn({
 				prompt: "hello remote",
 				cwd: "/srv/workspace",
-				via: "auto",
+				via: "workspace",
 				workspaceUrl: server.url,
 				appUrl: `ws://127.0.0.1:${await unusedPort()}`,
 				timeoutMs: 1_000,
@@ -128,7 +128,6 @@ function fakeResult(method: string, params: unknown): unknown {
 			capabilities: {
 				appServerPassThrough: true,
 				workspaceMethods: [],
-				flowInspection: false,
 			},
 		};
 	}

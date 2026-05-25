@@ -6,11 +6,6 @@ export type WorkspaceBackendCliArgs =
 			appServerUrl?: string;
 			localAppServer: boolean;
 			cwd?: string;
-			dataDir?: string;
-			secret?: string;
-			executor?: string;
-			nodeCommand?: string;
-			flowRunnerPath?: string;
 	  }
 	| {
 			type: "help";
@@ -44,11 +39,6 @@ export function parseArgs(
 		appServerUrl,
 		localAppServer,
 		cwd: stringFlag(argv, "cwd"),
-		dataDir: stringFlag(argv, "data-dir"),
-		secret: stringFlag(argv, "secret"),
-		executor: stringFlag(argv, "executor"),
-		nodeCommand: stringFlag(argv, "node"),
-		flowRunnerPath: stringFlag(argv, "flow-runner"),
 	};
 }
 
@@ -100,12 +90,7 @@ Options:
   --port <port>              Port to bind. Defaults to 3586.
   --app-server-url <url>     Existing app-server WebSocket URL.
   --local-app-server         Start a local app-server over stdio.
-  --cwd <dir>                Workspace root for flow discovery.
-  --data-dir <dir>           Durable flow backend state directory.
-  --secret <secret>          Optional HMAC secret for HTTP flow dispatch.
-  --executor <executor>      Flow executor: direct or systemd-run.
-  --node <path>               Node command for flow execution.
-  --flow-runner <path>       Flow runner script path.
+  --cwd <dir>                Workspace root for local app-server startup.
   --help, -h                 Show this help.
 
 Environment:

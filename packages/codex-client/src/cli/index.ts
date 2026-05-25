@@ -15,9 +15,7 @@ import {
 	COMMON_WORKSPACE_BACKEND_METHODS,
 } from "./actions.ts";
 import {
-	assertActionsFlowRun,
 	cleanupActionsCodexHome,
-	dispatchActionsFlowEvent,
 	prepareActionsCodexAuth,
 } from "../actions.ts";
 import {
@@ -31,8 +29,6 @@ import {
 	formatFetchInfo,
 	type FetchBackendInfo,
 	type FetchCountInfo,
-	type FetchFlowInfo,
-	type FetchFlowRunCounts,
 	type FetchThreadSummary,
 	type FetchThreadsInfo,
 } from "./fetch.ts";
@@ -342,8 +338,6 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			forgejo: parsed.forgejo,
 			github: parsed.github,
-			withSmoke: parsed.withSmoke,
-			withAgentTurn: parsed.withAgentTurn,
 			overwrite: parsed.overwrite,
 		}), parsed.pretty);
 		return;
@@ -373,62 +367,6 @@ async function main(): Promise<void> {
 		);
 		return;
 	}
-	if (parsed.type === "flow-dispatch") {
-		const event = JSON.parse(await readFile(parsed.eventPath, "utf8")) as unknown;
-		writeJson(await callWorkspaceBackend("flow.dispatch", { event }, parsed), parsed.pretty);
-		return;
-	}
-	if (parsed.type === "flow-list-events") {
-		writeJson(
-			await callWorkspaceBackend(
-				"flow.listEvents",
-				{ type: parsed.eventType, limit: parsed.limit },
-				parsed,
-			),
-			parsed.pretty,
-		);
-		return;
-	}
-	if (parsed.type === "flow-get-event") {
-		writeJson(
-			await callWorkspaceBackend("flow.getEvent", { eventId: parsed.eventId }, parsed),
-			parsed.pretty,
-		);
-		return;
-	}
-	if (parsed.type === "flow-replay") {
-		writeJson(
-			await callWorkspaceBackend(
-				"flow.replay",
-				{ eventId: parsed.eventId, wait: parsed.wait },
-				parsed,
-			),
-			parsed.pretty,
-		);
-		return;
-	}
-	if (parsed.type === "flow-list-runs") {
-		writeJson(
-			await callWorkspaceBackend(
-				"flow.listRuns",
-				{
-					eventId: parsed.eventId,
-					status: parsed.status,
-					limit: parsed.limit,
-				},
-				parsed,
-			),
-			parsed.pretty,
-		);
-		return;
-	}
-	if (parsed.type === "flow-get-run") {
-		writeJson(
-			await callWorkspaceBackend("flow.getRun", { runId: parsed.runId }, parsed),
-			parsed.pretty,
-		);
-		return;
-	}
 	if (parsed.type === "actions-prepare-auth") {
 		const context = await createWorkspaceContext({
 			workspaceRoot: parsed.workspaceRoot,
@@ -447,34 +385,6 @@ async function main(): Promise<void> {
 		});
 		writeJson(await cleanupActionsCodexHome({
 			workspaceRoot: context.repoRoot,
-		}), parsed.pretty);
-		return;
-	}
-	if (parsed.type === "actions-dispatch") {
-		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot,
-			mode: "actions",
-		});
-		const event = JSON.parse(await readFile(parsed.eventPath, "utf8")) as unknown;
-		writeJson(await dispatchActionsFlowEvent({
-			workspaceRoot: context.repoRoot,
-			event,
-			env: process.env,
-		}), parsed.pretty);
-		return;
-	}
-	if (parsed.type === "actions-assert-run") {
-		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot,
-			mode: "actions",
-		});
-		writeJson(await assertActionsFlowRun({
-			workspaceRoot: context.repoRoot,
-			flowName: parsed.flowName,
-			stepName: parsed.stepName,
-			requireCompleted: true,
-			artifactText: parsed.artifactText,
-			env: process.env,
 		}), parsed.pretty);
 		return;
 	}
@@ -573,17 +483,10 @@ async function callAppServer(
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<unknown> {
 	if (hasSshRemote(options)) {
-		try {
-			return await withRemoteWorkspaceTransport(options, async (transport) => {
-				await initialize(transport);
-				return await transport.request(APP_SERVER_CALL_METHOD, { method, params });
-			});
-		} catch (error) {
-			if (options.remoteMode && options.remoteMode !== "auto") {
-				throw error;
-			}
-			return await callSshAppServer(method, params, options);
-		}
+		return await withRemoteWorkspaceTransport(options, async (transport) => {
+			await initialize(transport);
+			return await transport.request(APP_SERVER_CALL_METHOD, { method, params });
+		});
 	}
 	const client = new CodexAppServerClient({
 		...(options.url === "stdio://"
@@ -613,81 +516,39 @@ async function callAppServer(
 	}
 }
 
-async function callSshAppServer(
-	method: string,
-	params: unknown,
-	options: SshRemoteProviderOptions,
-): Promise<unknown> {
-	const client = createSshAppServerClient(options, {
-		name: "codex-flows-cli",
-		title: "Codex Flows CLI",
-	});
-	client.on("request", (message) => {
-		client.respondError(
-			message.id,
-			-32603,
-			"codex-flows CLI does not handle app-server requests",
-		);
-	});
-	try {
-		await client.connect();
-		return await client.request(method, params);
-	} finally {
-		client.close();
-	}
-}
-
 async function startTurnForAutomation(
 	decision: TurnAutomationTurnDecision,
 	options: {
-		via: "auto" | "workspace" | "app";
+		via: "workspace" | "app";
 		appUrl: string;
 		workspaceUrl: string;
 		timeoutMs: number;
 	} & SshRemoteProviderOptions,
 ): Promise<TurnAutomationStartedTurn> {
-	const failures: string[] = [];
-	if (options.via === "workspace" || options.via === "auto") {
-		try {
-			return await withWorkspaceTransport({
-				...options,
-				url: options.workspaceUrl,
-			}, async (transport) => {
-				await initialize(transport);
-				return await startAutomationTurnWithRequest(
-					"workspace",
-					decision,
-					async (method, params) =>
-						await transport.request(APP_SERVER_CALL_METHOD, { method, params }),
-				);
-			});
-		} catch (error) {
-			if (options.via === "workspace") {
-				throw error;
-			}
-			failures.push(`workspace: ${errorMessage(error)}`);
-		}
-	}
-	if (options.via === "app" || options.via === "auto") {
-		try {
-			return await withAppServerClient({
-				...options,
-				url: options.appUrl,
-			}, async (client) =>
-				await startAutomationTurnWithRequest(
-					"app-server",
-					decision,
-					async (method, params) => await client.request(method, params),
-				)
+	if (options.via === "workspace") {
+		return await withWorkspaceTransport({
+			...options,
+			url: options.workspaceUrl,
+		}, async (transport) => {
+			await initialize(transport);
+			return await startAutomationTurnWithRequest(
+				"workspace",
+				decision,
+				async (method, params) =>
+					await transport.request(APP_SERVER_CALL_METHOD, { method, params }),
 			);
-		} catch (error) {
-			if (options.via === "app") {
-				throw error;
-			}
-			failures.push(`app-server: ${errorMessage(error)}`);
-		}
+		});
 	}
-	throw new Error(failures.join("; ") || "No automation turn surface was available");
+	return await withAppServerClient({
+		...options,
+		url: options.appUrl,
+	}, async (client) =>
+		await startAutomationTurnWithRequest(
+			"app-server",
+			decision,
+			async (method, params) => await client.request(method, params),
+		)
+	);
 }
 
 async function withAppServerClient<T>(
@@ -907,7 +768,6 @@ async function collectSshBackendInfo(
 		timeoutMs: number;
 	} & SshRemoteProviderOptions,
 ): Promise<FetchBackendInfo> {
-	const failures: string[] = [];
 	try {
 		const backend = await startSshWorkspaceBackend(options);
 		try {
@@ -918,30 +778,21 @@ async function collectSshBackendInfo(
 			if (info.status === "connected") {
 				return info;
 			}
-			failures.push(info.error ? `workspace: ${info.error}` : "workspace unavailable");
+			return {
+				mode: "local",
+				status: "unavailable",
+				error: info.error ? `workspace: ${info.error}` : "workspace unavailable",
+			};
 		} finally {
 			backend.close();
 		}
 	} catch (error) {
-		failures.push(`workspace: ${errorMessage(error)}`);
+		return {
+			mode: "local",
+			status: "unavailable",
+			error: `workspace: ${errorMessage(error)}`,
+		};
 	}
-	if (!options.remoteMode || options.remoteMode === "auto") {
-		const appServer = await tryCollectSshAppServerInfo(options);
-		if (appServer.status === "connected") {
-			return {
-				...appServer,
-				error: failures.length > 0
-					? `Workspace probe failed: ${failures.join("; ")}`
-					: undefined,
-			};
-		}
-		failures.push(appServer.error ? `app-server: ${appServer.error}` : "app-server unavailable");
-	}
-	return {
-		mode: "local",
-		status: "unavailable",
-		error: failures.join("; ") || "No SSH remote backend responded",
-	};
 }
 
 async function tryCollectWorkspaceBackendInfo(options: {
@@ -961,9 +812,6 @@ async function tryCollectWorkspaceBackendInfo(options: {
 			const delegations = methods.has("delegation.list")
 				? await optionalProbe(() => collectDelegations(transport))
 				: undefined;
-			const flow = methods.has("flow.listRuns") || methods.has("flow.listEvents")
-				? await optionalProbe(() => collectFlow(transport, methods))
-				: undefined;
 			return {
 				mode: "workspace",
 				status: "connected",
@@ -971,11 +819,9 @@ async function tryCollectWorkspaceBackendInfo(options: {
 				server: initialized.serverInfo,
 				capabilities: {
 					workspaceMethods: initialized.capabilities.workspaceMethods.length,
-					flowInspection: initialized.capabilities.flowInspection,
 				},
 				threads,
 				...(delegations ? { delegations } : {}),
-				...(flow ? { flow } : {}),
 			};
 		}, options.timeoutMs, `workspace backend probe timed out after ${options.timeoutMs}ms`);
 	} catch (error) {
@@ -1064,43 +910,6 @@ async function tryCollectAppServerWebSocketInfo(options: {
 	}
 }
 
-async function tryCollectSshAppServerInfo(
-	options: SshRemoteProviderOptions,
-): Promise<FetchBackendInfo> {
-	const client = createSshAppServerClient(options, {
-		name: "codex-flows-fetch",
-		title: "Codex Flows Fetch",
-	});
-	client.on("request", (message) => {
-		client.respondError(
-			message.id,
-			-32603,
-			"codex-flows fetch does not handle app-server requests",
-		);
-	});
-	client.on("error", () => {});
-	try {
-		return await withProbeTimeout(async () => {
-			await client.connect();
-			return {
-				mode: "app-server",
-				status: "connected",
-				url: "ssh://stdio",
-				threads: await collectThreadsViaAppServer(client),
-			};
-		}, options.timeoutMs, `SSH app-server probe timed out after ${options.timeoutMs}ms`);
-	} catch (error) {
-		return {
-			mode: "app-server",
-			status: "unavailable",
-			url: "ssh://stdio",
-			error: errorMessage(error),
-		};
-	} finally {
-		client.close();
-	}
-}
-
 async function initializeAppServerTransport(
 	transport: CodexWebSocketTransport,
 ): Promise<void> {
@@ -1160,26 +969,6 @@ async function collectDelegations(
 ): Promise<FetchCountInfo> {
 	const response = record(await transport.request("delegation.list", {}));
 	return summarizeStatusList(arrayValue(response.delegations));
-}
-
-async function collectFlow(
-	transport: CodexWebSocketTransport,
-	methods: Set<string>,
-): Promise<FetchFlowInfo> {
-	const runs = methods.has("flow.listRuns")
-		? await optionalProbe(async () =>
-			summarizeFlowRuns(arrayValue(await transport.request("flow.listRuns", { limit: 25 })))
-		)
-		: emptyFlowRunCounts();
-	const events = methods.has("flow.listEvents")
-		? await optionalProbe(async () =>
-			arrayValue(await transport.request("flow.listEvents", { limit: 25 })).length
-		)
-		: 0;
-	return {
-		runs: runs ?? emptyFlowRunCounts(),
-		eventsListed: events ?? 0,
-	};
 }
 
 function threadListParams(): Record<string, unknown> {
@@ -1255,37 +1044,6 @@ function summarizeStatusList(values: unknown[]): FetchCountInfo {
 		}
 	}
 	return counts;
-}
-
-function summarizeFlowRuns(values: unknown[]): FetchFlowRunCounts {
-	const counts = emptyFlowRunCounts();
-	counts.total = values.length;
-	for (const value of values) {
-		const status = stringValue(record(value).status);
-		if (status === "queued") {
-			counts.queued += 1;
-		} else if (status === "running") {
-			counts.running += 1;
-		} else if (status === "completed") {
-			counts.completed += 1;
-		} else if (status === "failed") {
-			counts.failed += 1;
-		} else {
-			counts.other += 1;
-		}
-	}
-	return counts;
-}
-
-function emptyFlowRunCounts(): FetchFlowRunCounts {
-	return {
-		total: 0,
-		queued: 0,
-		running: 0,
-		completed: 0,
-		failed: 0,
-		other: 0,
-	};
 }
 
 async function optionalProbe<T>(callback: () => Promise<T>): Promise<T | undefined> {
@@ -1414,10 +1172,10 @@ Usage:
 
   codex-flows remote status [--json]
   codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
-  codex-flows remote turn start --prompt <text> [--via auto|workspace|app] [--cwd <path>]
+  codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>]
 
   codex-flows automation list [--json]
-  codex-flows automation run <script-or-name> [--event <event.json>] [--prompt <text>] [--via auto|workspace|app]
+  codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
 
   codex-flows app <method> [params-json]
   codex-flows app call <method> [params-json]
@@ -1434,12 +1192,10 @@ Usage:
   codex-flows workspace backend start [--dry-run] [--json]
   codex-flows workspace tick [--mode auto|local|actions]
   codex-flows workspace run <task-id> [--mode auto|local|actions]
-  codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-agent-turn]
+  codex-flows workspace init actions [--forgejo|--github]
 
   codex-flows actions prepare-auth
   codex-flows actions cleanup
-  codex-flows actions dispatch --event <event.json>
-  codex-flows actions assert-run --flow <name> --step <name> [--artifact-text <text>]
 
   codex-flows memories transplant global-to-workspace [--apply]
   codex-flows memories transplant workspace-to-global [--apply]
@@ -1453,13 +1209,6 @@ Usage:
   codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]
   codex-flows pack doctor [--json]
   codex-flows pack list [--json]
-
-  codex-flows flow dispatch --event <event.json>
-  codex-flows flow events [--type <type>] [--limit <n>]
-  codex-flows flow event <event-id>
-  codex-flows flow replay <event-id> [--wait]
-  codex-flows flow runs [--event-id <id>] [--status <status>] [--limit <n>]
-  codex-flows flow run <run-id>
 
 Options:
   --app-url, --app-server-url <url>          App-server WebSocket URL.
@@ -1494,26 +1243,20 @@ Options:
   --exclude <name>                           Exclude a pack item by name or kind:name.
   --merge codex                              Merge MEMORY.md and memory_summary.md with Codex.
   --no-backup                                Disable overwrite/merge backups.
-  --flow <name>                              Flow name for Actions run assertions.
-  --step <name>                              Step name for Actions run assertions.
   --event <path>                             Event JSON for automation, Actions,
-                                             or flow dispatch.
-  --artifact-text <text>                     Require text in an Actions run record.
+                                             or workspace tasks.
   --forgejo                                  Generate a Forgejo Actions workflow.
   --github                                   Generate a GitHub Actions workflow.
-  --with-smoke                               Generate an Actions smoke flow.
-  --with-agent-turn                          Generate an agent-turn flow.
   --dry-run                                  Print the local backend start command.
                                              For remote tunnel start, print the ssh command.
   --prompt <text>                            Prompt text for remote turn start or
                                              automation script context.
-  --via <auto|workspace|app>                 Turn surface. Defaults to auto.
+  --via <workspace|app>                      Turn surface. Defaults to workspace.
   --ssh, --ssh-target <target>               SSH target for remote CodexFlows operation
                                              or a Tailscale-backed tunnel.
                                              Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
-  --remote-mode <auto|existing|spawn>        SSH backend mode. auto probes then spawns;
-                                             existing only tunnels; spawn always starts
-                                             a transient remote backend.
+  --remote-mode <existing|spawn>             SSH backend mode. Defaults to spawn;
+                                             existing only tunnels to a running backend.
   --local-port <port>                        Local tunnel port. Defaults to 3586.
   --remote-host <host>                       Remote backend host. Defaults to 127.0.0.1.
   --remote-port <port>                       Remote backend port. Defaults to 3586.
@@ -1528,27 +1271,23 @@ Examples:
   codex-flows remote tunnel start --ssh peezy@vps-tailnet --dry-run
   codex-flows remote turn start --prompt "Check workspace status"
   codex-flows automation list
-  codex-flows automation run ./automations/check-release.ts --event event.json
   codex-flows automation run check-release --event event.json
   codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
   codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows --ssh devbox --cwd /repo workspace delegation.list
-  codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
   codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace delegation.list
   codex-flows workspace doctor --mode actions
   codex-flows workspace backend init local
   codex-flows workspace backend start --dry-run
-  codex-flows workspace init actions --forgejo --with-smoke --with-agent-turn
-  codex-flows actions dispatch --event .codex/workspace/actions/events/manual.json
+  codex-flows workspace init actions --forgejo
   codex-flows memories transplant global-to-workspace
   codex-flows threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex
   codex-flows threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home ./.codex
   codex-flows threads transplant 019e3654-1492-70d0-9b01-46b17d6444a9 --from-codex-home ~/.codex --to-codex-home ./.codex
   codex-flows pack inspect owner/repo
   codex-flows pack add ./capability-pack --apply
-  codex-flows flow events --limit 20
 `;
 }
 

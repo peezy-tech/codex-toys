@@ -16,7 +16,6 @@ exports:
 - SSH remote provider helpers for targeting remote workspaces from a local CLI
 - browser-safe workspace backend client and protocol server primitives
 - browser-safe WebSocket transport
-- framework-agnostic app-server flow helpers
 - auth helpers for account login/status/usage
 - Actions-mode workspace helpers under `@peezy.tech/codex-flows/actions`
 - stable Codex memory artifact helpers under `@peezy.tech/codex-flows/memories`
@@ -24,29 +23,16 @@ exports:
 - thread rollout locate, inspect, install, and transplant helpers under `@peezy.tech/codex-flows/threads`
 - generated Codex app-server protocol types
 - the `codex-flows` CLI for fetch, turn automation, app-server calls,
-  workspace backend calls, flow inspection, workspace autonomy, memory
+  workspace backend calls, workspace autonomy, memory
   transplant, and thread transplant
 - runnable core process bins:
   - `codex-app`
-  - `codex-flow-runner`
   - `codex-workspace-backend-local`
 
 The package is the canonical core install target for building or composing a
 backend plus product-owned presenter surfaces. See
 [Single package platform](../concepts/single-package-platform) for the target
 architecture and release implications.
-
-## `@peezy.tech/codex-flows/flow-runtime`
-
-Runtime package for:
-
-- loading `flow.toml`
-- discovering `.codex/flows/*` before `flows/*`
-- matching events with trigger type and JSON Schema
-- running Node steps
-- module-style Node step helpers under `@peezy.tech/codex-flows/flow-runtime/node`
-- local and HTTP flow clients
-- backend response normalization
 
 ## `@peezy.tech/codex-flows/actions`
 
@@ -60,12 +46,6 @@ Actions-mode simulation:
   shell snapshots, temp dirs, SQLite databases, `.codex/memories/.git`, and
   generated workspace diffs without deleting durable memory markdown or
   `.codex/workspace/actions`
-- `createActionsLocalFlowClient` creates a file-backed local flow client rooted
-  at `.codex/workspace/actions/flow-client` with `CODEX_HOME=<repo>/.codex`
-- `dispatchActionsFlowEvent` persists an event under
-  `.codex/workspace/actions/events` and dispatches it locally
-- `assertActionsFlowRun` validates the latest file-backed Actions run for a
-  flow and step
 
 These helpers intentionally do not inspect or mutate Codex memory SQLite
 internals.
@@ -99,23 +79,9 @@ Thread transplant helpers for:
 The helpers preserve raw rollout bytes and thread ids. They do not reconstruct
 history, rewrite ids, or call app-server import APIs.
 
-## `@peezy.tech/flow-runtime`
-
-Compatibility package for the old standalone flow runtime install target. New
-code should import the runtime through `@peezy.tech/codex-flows/flow-runtime` so
-the core platform surface stays consolidated in the canonical package.
-
-## `@peezy.tech/flow-backend-convex`
-
-Convex component for generic flow control-plane state: manifests, events, runs,
-attempts, leases, output chunks, and final result payloads.
-
 ## Workspace apps
 
-- `codex-flow-runner`: local CLI for listing, firing, and running steps. It is
-  exposed as a bin from `@peezy.tech/codex-flows`.
 - `codex-workspace-backend-local`: local workspace backend process with
-  control WebSocket and optional flow HTTP routes. It is exposed as a bin from
-  `@peezy.tech/codex-flows`.
+  control WebSocket. It is exposed as a bin from `@peezy.tech/codex-flows`.
 - `codex-app-cli`: JSON-RPC CLI for app-server actions. It is exposed as the
   `codex-app` bin from `@peezy.tech/codex-flows`.

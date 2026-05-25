@@ -12,11 +12,6 @@ const setupKeys = [
 	"CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER",
 	"CODEX_WORKSPACE_BACKEND_APP_SERVER_URL",
 	"CODEX_WORKSPACE_BACKEND_WS_URL",
-	"CODEX_FLOW_BACKEND_DATA_DIR",
-	"CODEX_FLOW_BACKEND_SECRET",
-	"CODEX_FLOW_BACKEND_EXECUTOR",
-	"CODEX_FLOW_BACKEND_NODE",
-	"CODEX_FLOW_BACKEND_RUNNER",
 	"CODEX_FLOWS_HOOK_SPOOL_DIR",
 	"CODEX_DISCORD_HOOK_SPOOL_DIR",
 ] as const;
@@ -258,11 +253,6 @@ function localBackendDefaults(context: WorkspaceContext): Record<SetupKey, strin
 		CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER: "1",
 		CODEX_WORKSPACE_BACKEND_APP_SERVER_URL: undefined,
 		CODEX_WORKSPACE_BACKEND_WS_URL: `ws://${host}:${port}`,
-		CODEX_FLOW_BACKEND_DATA_DIR: ".codex/workspace/local/flow-backend",
-		CODEX_FLOW_BACKEND_SECRET: undefined,
-		CODEX_FLOW_BACKEND_EXECUTOR: "direct",
-		CODEX_FLOW_BACKEND_NODE: undefined,
-		CODEX_FLOW_BACKEND_RUNNER: undefined,
 		CODEX_FLOWS_HOOK_SPOOL_DIR: ".codex/workspace/local/hook-spool",
 		CODEX_DISCORD_HOOK_SPOOL_DIR: undefined,
 	};
@@ -277,15 +267,10 @@ function localBackendEnvText(context: WorkspaceContext): string {
 		`CODEX_WORKSPACE_BACKEND_PORT=${defaults.CODEX_WORKSPACE_BACKEND_PORT}`,
 		`CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER=${defaults.CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER}`,
 		`CODEX_WORKSPACE_BACKEND_WS_URL=${defaults.CODEX_WORKSPACE_BACKEND_WS_URL}`,
-		`CODEX_FLOW_BACKEND_DATA_DIR=${defaults.CODEX_FLOW_BACKEND_DATA_DIR}`,
-		`CODEX_FLOW_BACKEND_EXECUTOR=${defaults.CODEX_FLOW_BACKEND_EXECUTOR}`,
 		`CODEX_FLOWS_HOOK_SPOOL_DIR=${defaults.CODEX_FLOWS_HOOK_SPOOL_DIR}`,
 		"",
 		"# Optional:",
 		"# CODEX_WORKSPACE_BACKEND_APP_SERVER_URL=ws://127.0.0.1:3585",
-		"# CODEX_FLOW_BACKEND_SECRET=",
-		"# CODEX_FLOW_BACKEND_NODE=node",
-		"# CODEX_FLOW_BACKEND_RUNNER=codex-flow-runner",
 		"",
 	];
 	return `${lines.join("\n")}`;
@@ -356,21 +341,6 @@ function localBackendStartArgs(
 	}
 	if (env.CODEX_WORKSPACE_BACKEND_APP_SERVER_URL) {
 		args.push("--app-server-url", env.CODEX_WORKSPACE_BACKEND_APP_SERVER_URL);
-	}
-	if (env.CODEX_FLOW_BACKEND_DATA_DIR) {
-		args.push("--data-dir", absoluteFromWorkspace(context, env.CODEX_FLOW_BACKEND_DATA_DIR));
-	}
-	if (env.CODEX_FLOW_BACKEND_SECRET) {
-		args.push("--secret", env.CODEX_FLOW_BACKEND_SECRET);
-	}
-	if (env.CODEX_FLOW_BACKEND_EXECUTOR) {
-		args.push("--executor", env.CODEX_FLOW_BACKEND_EXECUTOR);
-	}
-	if (env.CODEX_FLOW_BACKEND_NODE) {
-		args.push("--node", env.CODEX_FLOW_BACKEND_NODE);
-	}
-	if (env.CODEX_FLOW_BACKEND_RUNNER) {
-		args.push("--flow-runner", env.CODEX_FLOW_BACKEND_RUNNER);
 	}
 	return args;
 }

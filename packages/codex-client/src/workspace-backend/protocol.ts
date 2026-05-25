@@ -31,7 +31,6 @@ export type WorkspaceBackendInitializeResponse = {
 	capabilities: {
 		appServerPassThrough: true;
 		workspaceMethods: string[];
-		flowInspection: boolean;
 	};
 };
 
@@ -98,7 +97,6 @@ export type WorkspaceBackendEventParams = {
 export const workspaceBackendOwnedMethodPrefixes = [
 	"delegation.",
 	"workbench.",
-	"flow.",
 ] as const;
 
 export function isWorkspaceBackendOwnedMethod(method: string): boolean {

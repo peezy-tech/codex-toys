@@ -21,21 +21,29 @@ event, schedule, hook, or operator command
      -> start native Codex turn with prompt/cwd/settings
 ```
 
-## Run a script
-
-```bash
-codex-flows automation run ./automations/check-release.ts --event event.json
-```
+## Run an automation
 
 Named automations live under `.codex/automations/<name>/automation.json` or
 `automations/<name>/automation.json`:
 
 ```bash
 codex-flows automation list
-codex-flows automation run check-release --event event.json
+codex-flows automation run check-release --event event.json --via workspace
 ```
 
-The script receives JSON on stdin:
+The manifest points to a module script and optional defaults:
+
+```json
+{
+  "name": "check-release",
+  "description": "Start a turn when a release needs inspection.",
+  "script": "check-release.ts",
+  "promptFile": "prompt.md",
+  "cwd": "../.."
+}
+```
+
+The script exports a default handler and receives a context object:
 
 ```json
 {
@@ -52,12 +60,10 @@ The script receives JSON on stdin:
       "tag": "rust-v1.2.3"
     }
   },
-  "prompt": "optional fallback prompt",
+  "prompt": "optional default prompt",
   "cwd": "/repo"
 }
 ```
-
-Module-style scripts can export a default handler:
 
 ```ts
 export default async function run(context) {
@@ -71,12 +77,6 @@ export default async function run(context) {
     prompt: `Inspect ${context.event.payload.tag} and decide whether to update the fork.`
   };
 }
-```
-
-Raw scripts can print a final prefixed JSON line:
-
-```bash
-echo 'TURN_AUTOMATION {"action":"skip","reason":"no matching release"}'
 ```
 
 ## Decision contract
@@ -105,7 +105,8 @@ Start a turn:
 Supported turn fields:
 
 - `prompt`: required text for the native turn.
-  If omitted from the script decision, `--prompt` is used as the fallback.
+  If omitted from the script decision, `--prompt` or the manifest prompt is used
+  as the default.
 - `threadId`: continue an existing thread instead of creating a new one.
 - `cwd`: target workspace cwd for the turn.
 - `model`, `serviceTier`, `permissions`: forwarded to app-server when present.
@@ -116,13 +117,11 @@ Supported turn fields:
 
 ## Local and remote targets
 
-By default, automation starts the turn through the configured local workspace
-backend or app-server:
+Automation starts the turn through the configured workspace backend by default.
+Use `--via app` only when deliberately targeting a direct app-server connection:
 
 ```bash
-codex-flows automation run ./automations/check-release.ts \
-  --event event.json \
-  --via auto
+codex-flows automation run check-release --event event.json --via workspace
 ```
 
 The same command can target a remote workspace through the SSH provider:
@@ -130,17 +129,9 @@ The same command can target a remote workspace through the SSH provider:
 ```bash
 codex-flows --ssh devbox --cwd /repo automation run check-release \
   --event event.json \
-  --via auto
+  --via workspace
 ```
 
 With `--ssh`, the script still runs locally. The resulting turn targets the
-remote workspace. The provider first tries an existing remote workspace backend,
-then can spawn a transient backend, and app-only paths can fall back to
-`codex app-server --listen stdio://` over SSH.
-
-## Relationship to flow packages
-
-Turn automation is the narrow path for "run code first, then maybe run Codex."
-Generic flow packages remain useful when a product needs event/run persistence,
-replay, attempts, leases, or a durable backend queue. Prefer turn automation for
-plugin-installed prompt workflows that do not need the full flow ABI.
+remote workspace. The provider uses the selected surface directly; it does not
+try a second turn surface if the selected one is unavailable.

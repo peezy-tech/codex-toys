@@ -109,10 +109,6 @@ describe("workspace autonomy", () => {
 			"--cwd",
 			root,
 			"--local-app-server",
-			"--data-dir",
-			path.join(root, ".codex", "workspace", "local", "flow-backend"),
-			"--executor",
-			"direct",
 		]);
 	});
 
@@ -134,11 +130,6 @@ kind = "command"
 command = ["node", "--version"]
 schedule = "* * * * *"
 
-[[workspace.tasks]]
-id = "flow-task"
-kind = "flow"
-flow = "demo.event"
-
 [[workspace.reactive]]
 id = "repair"
 enabled = true
@@ -151,7 +142,7 @@ skill = "skill-repair"
 		const config = await loadWorkspaceConfig(context);
 		expect(config.name).toBe("demo");
 		expect(config.surfaces[0]?.kind).toBe("discord");
-		expect(config.tasks.map((task) => task.id)).toEqual(["daily", "flow-task"]);
+		expect(config.tasks.map((task) => task.id)).toEqual(["daily"]);
 		expect(config.reactive[0]?.skill).toBe("skill-repair");
 		expect(context.runtimeCodexHome).toBe(path.join(root, ".codex"));
 		expect(context.stateRoot).toBe(path.join(root, ".codex", "workspace", "actions"));
@@ -189,17 +180,17 @@ command = ["node", "-e", "console.log('hello')"]
 			.toContain("\"taskId\": \"hello\"");
 	});
 
-	test("tick dispatches due flow tasks once and doctor reports health", async () => {
+	test("tick runs due command tasks once and doctor reports health", async () => {
 		const root = await tempWorkspace();
 		await writeWorkspaceToml(root, `
 [workspace]
 name = "demo"
 
 [[workspace.tasks]]
-id = "flow-due"
+id = "command-due"
 enabled = true
-kind = "flow"
-flow = "demo.event"
+kind = "command"
+command = ["node", "-e", "console.log('done')"]
 schedule = "* * * * *"
 `);
 		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "actions", env: {} });
@@ -216,95 +207,13 @@ schedule = "* * * * *"
 				return { ok: true };
 			},
 		});
-		expect(first.due).toEqual(["flow-due"]);
+		expect(first.due).toEqual(["command-due"]);
 		expect(second.due).toEqual([]);
-		expect(calls).toHaveLength(1);
+		expect(calls).toHaveLength(0);
 		const doctor = await collectWorkspaceDoctorInfo(context);
 		expect(doctor.taskCount).toBe(1);
-		expect(doctor.latestRun?.taskId).toBe("flow-due");
+		expect(doctor.latestRun?.taskId).toBe("command-due");
 		expect(doctor.errors).toEqual([]);
-	});
-
-	test("flow tasks synthesize complete workspace events", async () => {
-		const root = await tempWorkspace();
-		await writeWorkspaceToml(root, `
-[workspace]
-name = "demo"
-
-[[workspace.tasks]]
-id = "flow-task"
-enabled = true
-kind = "flow"
-flow = "demo.event"
-`);
-		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
-		const calls: Array<{ method: string; params: unknown }> = [];
-		const run = await runWorkspaceTaskById(context, "flow-task", {
-			callWorkspaceBackend: async (method, params) => {
-				calls.push({ method, params });
-				return { ok: true };
-			},
-		});
-		expect(run.status).toBe("completed");
-		expect(calls).toHaveLength(1);
-		expect(calls[0]?.method).toBe("flow.dispatch");
-		const event = (calls[0]?.params as { event: Record<string, unknown> }).event;
-		expect(String(event.id).startsWith("workspace:demo:flow-task:")).toBe(true);
-		expect(String(event.id).endsWith(run.id)).toBe(true);
-		expect(event.type).toBe("demo.event");
-		expect(event.source).toBe("demo");
-		expect(event.occurredAt).toBe(run.startedAt);
-		expect(event.receivedAt).toBe(run.startedAt);
-		expect(event.payload).toEqual({ taskId: "flow-task" });
-	});
-
-	test("flow tasks merge static event payload and ignore recurring static ids", async () => {
-		const root = await tempWorkspace();
-		await writeWorkspaceToml(root, `
-[workspace]
-name = "demo"
-
-[[workspace.tasks]]
-id = "flow-task"
-enabled = true
-kind = "flow"
-flow = "demo.event"
-
-[workspace.tasks.event]
-id = "static-id"
-type = "custom.event"
-source = "custom-source"
-occurredAt = "2026-01-01T00:00:00.000Z"
-receivedAt = "2026-01-01T00:00:00.000Z"
-priority = "normal"
-
-[workspace.tasks.event.payload]
-taskId = "payload-task"
-lookback_sessions = 10
-`);
-		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
-		const events: Record<string, unknown>[] = [];
-		for (let index = 0; index < 2; index += 1) {
-			await runWorkspaceTaskById(context, "flow-task", {
-				callWorkspaceBackend: async (_method, params) => {
-					events.push((params as { event: Record<string, unknown> }).event);
-					return { ok: true };
-				},
-			});
-		}
-		expect(events).toHaveLength(2);
-		expect(events[0]?.id).not.toBe("static-id");
-		expect(events[1]?.id).not.toBe("static-id");
-		expect(events[0]?.id).not.toBe(events[1]?.id);
-		expect(events[0]?.type).toBe("custom.event");
-		expect(events[0]?.source).toBe("custom-source");
-		expect(events[0]?.priority).toBe("normal");
-		expect(events[0]?.occurredAt).not.toBe("2026-01-01T00:00:00.000Z");
-		expect(events[0]?.receivedAt).toBe(events[0]?.occurredAt);
-		expect(events[0]?.payload).toEqual({
-			taskId: "payload-task",
-			lookback_sessions: 10,
-		});
 	});
 
 	test("automation tasks run scripts and start turns through workspace backend", async () => {
@@ -511,27 +420,21 @@ schedule = "not-cron"
 		});
 	});
 
-	test("scaffoldActionsWorkspace creates Actions config, workflows, flows, and gitignore entries", async () => {
+	test("scaffoldActionsWorkspace creates Actions config, workflows, and gitignore entries", async () => {
 		const root = await tempWorkspace();
 		const result = await scaffoldActionsWorkspace({
 			workspaceRoot: root,
 			forgejo: true,
-			withSmoke: true,
-			withAgentTurn: true,
 		});
 		expect(result.files.some((file) => file.path.endsWith(".codex/workspace.toml"))).toBe(true);
 		expect(await readFile(path.join(root, ".codex", "workspace.toml"), "utf8"))
-			.toContain('id = "actions-smoke"');
+			.toContain("[workspace]");
 		expect(await readFile(path.join(root, ".codex", "config.toml"), "utf8"))
 			.toContain("repository-scoped Actions");
 		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-flows-actions.yml"), "utf8"))
 			.toContain("codex-flows actions prepare-auth");
 		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-flows-actions.yml"), "utf8"))
 			.toContain("codex-flows actions cleanup");
-		expect(await readFile(path.join(root, ".codex", "flows", "actions-smoke", "flow.toml"), "utf8"))
-			.toContain('name = "actions-smoke"');
-		expect(await readFile(path.join(root, ".codex", "flows", "actions-agent-turn", "exec", "agent-turn.ts"), "utf8"))
-			.toContain("runCodexAgentTurnFromFlow");
 		expect(await readFile(path.join(root, ".gitignore"), "utf8"))
 			.toContain(".codex/auth.json");
 	});

@@ -5,7 +5,7 @@ import { CodexStdioTransport } from "../app-server/stdio-transport.ts";
 import { CodexWebSocketTransport } from "../app-server/websocket-transport.ts";
 import { WORKSPACE_BACKEND_INITIALIZE_METHOD } from "../workspace-backend/protocol.ts";
 
-export type RemoteMode = "auto" | "existing" | "spawn";
+export type RemoteMode = "existing" | "spawn";
 
 export type SshRemoteProviderOptions = {
 	sshTarget?: string;
@@ -59,13 +59,13 @@ export function hasSshRemote(
 }
 
 export function parseRemoteMode(value: string | undefined): RemoteMode {
-	if (!value || value === "auto") {
-		return "auto";
+	if (!value || value === "spawn") {
+		return "spawn";
 	}
-	if (value === "existing" || value === "spawn") {
+	if (value === "existing") {
 		return value;
 	}
-	throw new Error("--remote-mode must be auto, existing, or spawn");
+	throw new Error("--remote-mode must be existing or spawn");
 }
 
 export function resolveSshRemoteOptions(
@@ -192,7 +192,7 @@ export async function startSshWorkspaceBackend(
 ): Promise<SshWorkspaceBackendHandle> {
 	const resolved = resolveSshRemoteOptions(options);
 	const failures: string[] = [];
-	if (resolved.remoteMode === "existing" || resolved.remoteMode === "auto") {
+	if (resolved.remoteMode === "existing") {
 		try {
 			return await startWorkspacePlan(
 				createSshExistingBackendTunnelPlan(options),
@@ -201,21 +201,17 @@ export async function startSshWorkspaceBackend(
 			);
 		} catch (error) {
 			failures.push(`existing backend: ${errorMessage(error)}`);
-			if (resolved.remoteMode === "existing") {
-				throw remoteProviderError(failures);
-			}
+			throw remoteProviderError(failures);
 		}
 	}
-	if (resolved.remoteMode === "spawn" || resolved.remoteMode === "auto") {
-		try {
-			return await startWorkspacePlan(
-				createSshSpawnBackendPlan(options),
-				"ssh-spawn-backend",
-				resolved.timeoutMs,
-			);
-		} catch (error) {
-			failures.push(`spawn backend: ${errorMessage(error)}`);
-		}
+	try {
+		return await startWorkspacePlan(
+			createSshSpawnBackendPlan(options),
+			"ssh-spawn-backend",
+			resolved.timeoutMs,
+		);
+	} catch (error) {
+		failures.push(`spawn backend: ${errorMessage(error)}`);
 	}
 	throw remoteProviderError(failures);
 }

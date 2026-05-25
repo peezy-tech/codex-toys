@@ -1,12 +1,12 @@
 # codex-flows
 
-Codex app-server clients, turn automation, flow compatibility tooling,
-workspace backend tools, and repo-native workspace operations.
+Codex app-server clients, turn automation, workspace backend tools, and
+repo-native workspace operations.
 
 This repository is a monorepo. The npm package users should install is
 `@peezy.tech/codex-flows`, which publishes app-server client APIs, turn
-automation helpers, flow runtime compatibility helpers, workspace backend
-helpers, the `codex-flows` CLI, and runnable local backend bins. The full user
+automation helpers, workspace backend helpers, the `codex-flows` CLI, and
+runnable local backend bins. The full user
 documentation lives in the Tome docs site under
 [`docs/pages`](docs/pages).
 
@@ -28,17 +28,11 @@ documentation lives in the Tome docs site under
 - `packages/codex-client`: `@peezy.tech/codex-flows`, the app-server client,
   transports, turn automation helpers, workspace backend helpers, CLI, auth
   helpers, workbench reducers, and generated app-server protocol types.
-- `packages/flow-runtime`: generic `FlowEvent` runtime, manifest loading,
-  local execution, backend clients, and Node step runners.
-- `packages/flow-backend-convex`: reusable Convex component for generic flow
-  events, runs, attempts, leases, output, and result payloads.
 - `apps/workspace-backend`: local workspace backend process with control
-  WebSocket and optional flow HTTP routes.
-- `apps/flow-runner`: CLI for listing and running local flow packages.
+  WebSocket routes.
 - `automations`: plugin-native turn automation examples that run code before
   deciding whether to start a native Codex turn.
 - `docs`: Tome documentation source.
-- `flows`: bundled flow packages.
 
 ## Common Commands
 
@@ -70,12 +64,10 @@ tsx packages/codex-client/src/cli/index.ts --help
 codex-flows fetch
 codex-flows remote status
 codex-flows automation list
-codex-flows automation run ./automations/check-release.ts --event event.json
 codex-flows automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo fetch
 codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
 codex-flows workspace doctor
 codex-flows workspace backend status
 codex-flows memories transplant global-to-workspace
@@ -83,8 +75,7 @@ codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex
 ```
 
 Install the shared Peezy Tech Codex plugin marketplace from GitHub. Use the
-granular plugin that matches the job, or keep `codex-flows` as the full
-compatibility install:
+granular plugin that matches the job, or keep `codex-flows` as the full install:
 
 ```bash
 codex plugin marketplace add peezy-tech/skills --ref main
@@ -102,11 +93,10 @@ docs site:
 - Tutorials teach a first successful workflow.
 - Guides cover operational tasks such as turn automation, workspace autonomy,
   memory transplant, thread transplant, plugin install, optional pack copies,
-  local backend operation, and release flow operation.
-- Reference pages define CLI commands, package exports, backend APIs,
-  `FlowEvent`, `FLOW_RESULT`, and `flow.toml`.
+  and local backend operation.
+- Reference pages define CLI commands, package exports, and backend APIs.
 - Concepts explain boundaries between app-server clients, turn automation,
-  flow compatibility, workspace backends, and product-owned domain completion.
+  workspace backends, and product-owned domain completion.
 
 Package READMEs stay npm-focused: install, exports, minimal examples, and links
 back to the docs site.
@@ -117,11 +107,8 @@ The canonical user-facing package is:
 
 - `@peezy.tech/codex-flows`
 
-The release train still contains compatibility/library packages while the
-single-package platform consolidation continues:
-
-- `@peezy.tech/flow-runtime`
-- `@peezy.tech/flow-backend-convex`
+Older flow runtime packages may still exist in the monorepo during conversion,
+but they are no longer part of the primary product surface.
 
 Release procedure and remote policy are in [`RELEASE.md`](RELEASE.md). In short:
 jojo.build is the canonical development remote, Codeberg is a push mirror, and

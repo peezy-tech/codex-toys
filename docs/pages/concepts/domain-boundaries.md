@@ -1,27 +1,16 @@
 ---
 title: Domain boundaries
-description: What generic flow infrastructure owns and what products must keep.
+description: What codex-flows owns and what products must keep.
 ---
 
 # Domain boundaries
 
-Turn automation owns the narrow prompt automation path:
+Turn automation owns prompt automation:
 
 - running a pre-turn script
 - reading a skip-or-turn decision
 - starting a native Codex turn through app-server or a workspace backend
 - targeting remote workspaces through the SSH provider
-
-Generic flow infrastructure owns the heavier event/run-state mechanics:
-
-- event dispatch
-- flow discovery
-- payload schema matching
-- local step execution
-- backend event/run persistence
-- replay and cancellation where supported
-- output, attempts, and result payload storage
-- normalized inspection views
 
 It does not own product-specific completion:
 
@@ -33,18 +22,10 @@ It does not own product-specific completion:
 - channel-specific write tools
 - workspace backend presenters and arbitrary app-server thread wrappers
 
-Keep domain completion in the consuming app. For example, a pet-game worker can
-generate an asset through a flow step, upload the asset, update payment state,
-mint if needed, and only then complete the generic run.
+Keep domain completion in the consuming app. For example, a release automation
+can inspect an upstream signal and start a Codex turn, but the product still
+owns publishing, branch protection, credential use, and any external writes.
 
-This boundary keeps flow packages portable and prevents generic backends from
-depending on app-specific Convex schemas, credentials, or release policy.
-
-Prefer turn automation when code only needs to decide whether to run a prompt.
-Use flow packages when the product needs durable event history, replay,
-attempts, leases, or backend queue semantics.
-
-Presenter wrappers follow the same rule. They may inspect generic flow runs and
-events for an operator, but their app-server thread orchestration, delegation
-policy, workbench presentation state, and hook-spool wake behavior are not part
-of the generic codex-flow backend contract.
+Presenter wrappers follow the same rule. Their app-server thread orchestration,
+delegation policy, workbench presentation state, and hook-spool wake behavior
+are not part of turn automation itself.

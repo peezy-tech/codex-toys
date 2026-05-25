@@ -3,7 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const TURN_AUTOMATION_RESULT_PREFIX = "TURN_AUTOMATION ";
+const MODULE_RESULT_PREFIX = "TURN_AUTOMATION_MODULE_RESULT ";
 
 export type TurnAutomationContext = {
 	automation: {
@@ -65,7 +65,7 @@ export async function runTurnAutomationScript(
 ): Promise<TurnAutomationRun> {
 	const scriptPath = path.resolve(options.scriptPath);
 	const context = turnAutomationContext({ ...options, scriptPath });
-	const command = await nodeCommandPath(scriptPath);
+	const command = nodeCommandPath(scriptPath);
 	const subprocess = spawn(command[0] ?? process.execPath, command.slice(1), {
 		cwd: options.automation?.root ?? process.cwd(),
 		env: {
@@ -94,10 +94,9 @@ export async function runTurnAutomationScript(
 
 export function parseTurnAutomationDecision(
 	stdout: string,
-	fallbackPrompt?: string,
+	defaultPrompt?: string,
 ): TurnAutomationDecision {
-	const parsed = parsePrefixedResult(stdout) ?? parseJsonOnlyResult(stdout);
-	return normalizeTurnAutomationDecision(parsed, fallbackPrompt);
+	return normalizeTurnAutomationDecision(parseModuleResult(stdout), defaultPrompt);
 }
 
 export function formatTurnAutomationRun(run: TurnAutomationRun & {
@@ -194,14 +193,8 @@ export async function resolveTurnAutomationTarget(
 	options: ListTurnAutomationsOptions = {},
 ): Promise<TurnAutomationRunTarget> {
 	const cwd = path.resolve(options.cwd ?? process.cwd());
-	const resolved = path.resolve(cwd, target);
-	if (await isFile(resolved)) {
-		return { scriptPath: resolved };
-	}
-	const directoryManifest = path.join(resolved, "automation.json");
-	if (await isFile(directoryManifest)) {
-		const automation = await loadTurnAutomationManifest(directoryManifest);
-		return targetFromAutomation(automation);
+	if (target.includes("/") || target.includes("\\") || target.endsWith(".ts") || target.endsWith(".js")) {
+		throw new Error(`Turn automation target must be a named automation, got ${JSON.stringify(target)}`);
 	}
 	const automations = await listTurnAutomations({ ...options, cwd });
 	const automation = automations.find((entry) => entry.name === target);
@@ -355,28 +348,20 @@ function resolveMaybeRelative(root: string, value: string): string {
 	return path.isAbsolute(value) ? value : path.resolve(root, value);
 }
 
-function parsePrefixedResult(stdout: string): unknown {
+function parseModuleResult(stdout: string): unknown {
 	for (const line of stdout.split(/\r?\n/).reverse()) {
-		const index = line.indexOf(TURN_AUTOMATION_RESULT_PREFIX);
+		const index = line.indexOf(MODULE_RESULT_PREFIX);
 		if (index === -1) {
 			continue;
 		}
-		return JSON.parse(line.slice(index + TURN_AUTOMATION_RESULT_PREFIX.length).trim());
+		return JSON.parse(line.slice(index + MODULE_RESULT_PREFIX.length).trim());
 	}
-	return undefined;
-}
-
-function parseJsonOnlyResult(stdout: string): unknown {
-	const text = stdout.trim();
-	if (!text.startsWith("{")) {
-		throw new Error(`Script did not emit ${TURN_AUTOMATION_RESULT_PREFIX.trim()}`);
-	}
-	return JSON.parse(text);
+	throw new Error("Turn automation module did not return a decision");
 }
 
 function normalizeTurnAutomationDecision(
 	value: unknown,
-	fallbackPrompt?: string,
+	defaultPrompt?: string,
 ): TurnAutomationDecision {
 	if (!isRecord(value)) {
 		throw new Error("Turn automation result must be a JSON object");
@@ -391,7 +376,7 @@ function normalizeTurnAutomationDecision(
 	if (value.action !== "turn") {
 		throw new Error("Turn automation action must be skip or turn");
 	}
-	const prompt = optionalString(value.prompt) ?? fallbackPrompt;
+	const prompt = optionalString(value.prompt) ?? defaultPrompt;
 	if (!prompt) {
 		throw new Error("turn automation prompt must be a non-empty string");
 	}
@@ -410,23 +395,15 @@ function normalizeTurnAutomationDecision(
 	});
 }
 
-async function nodeCommandPath(scriptPath: string): Promise<string[]> {
+function nodeCommandPath(scriptPath: string): string[] {
 	const tsxLoader = import.meta.resolve("tsx");
-	if (await isModuleStyleScript(scriptPath)) {
-		return [
-			process.execPath,
-			"--import",
-			tsxLoader,
-			siblingRuntimePath("turn-automation-module-runner"),
-			scriptPath,
-		];
-	}
-	return [process.execPath, "--import", tsxLoader, scriptPath];
-}
-
-async function isModuleStyleScript(scriptPath: string): Promise<boolean> {
-	const source = await readFile(scriptPath, "utf8");
-	return /\bexport\s+default\b/.test(source);
+	return [
+		process.execPath,
+		"--import",
+		tsxLoader,
+		siblingRuntimePath("turn-automation-module-runner"),
+		scriptPath,
+	];
 }
 
 function siblingRuntimePath(basename: string): string {

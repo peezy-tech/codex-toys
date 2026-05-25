@@ -1,7 +1,7 @@
 # @peezy.tech/codex-flows
 
 Codex app-server client APIs, turn automation helpers, workspace backend
-helpers, flow compatibility tooling, and runnable local backend CLIs.
+helpers, and runnable local backend CLIs.
 
 ```bash
 pnpm add @peezy.tech/codex-flows
@@ -31,13 +31,10 @@ Full documentation lives in the repo docs site:
 |--------|---------|
 | `@peezy.tech/codex-flows` | Node app-server client, turn automation helpers, SSH provider helpers, event emitter base, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
 | `@peezy.tech/codex-flows/browser` | Browser-safe app-server client and WebSocket transport. |
-| `@peezy.tech/codex-flows/flows` | Helpers for starting Codex-backed flow work. |
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |
 | `@peezy.tech/codex-flows/workbench` | Transport-neutral thread UX reducers and app-server request descriptors. |
 | `@peezy.tech/codex-flows/threads` | Raw Codex rollout locate, inspect, install, and transplant helpers. |
 | `@peezy.tech/codex-flows/workspace-backend` | Workspace backend protocol server/client helpers and capability primitives. |
-| `@peezy.tech/codex-flows/flow-runtime` | Flow package discovery, trigger matching, local execution, and flow result helpers. |
-| `@peezy.tech/codex-flows/flow-runtime/*` | Flow runtime client, local-client, backend-client, Node helper, and runner subpaths. |
 | `@peezy.tech/codex-flows/rpc` | JSON-RPC message types and parsing helpers. |
 | `@peezy.tech/codex-flows/generated` | Generated Codex app-server protocol types. |
 | `@peezy.tech/codex-flows/generated/*` | Generated per-type modules. |
@@ -70,33 +67,13 @@ const client = new CodexAppServerClient({
 await client.connect();
 ```
 
-## Flow Helpers
-
-```ts
-import { createCodexFlowClient } from "@peezy.tech/codex-flows/flows";
-
-const codex = createCodexFlowClient({
-	appServerUrl: "ws://127.0.0.1:3585",
-});
-
-const result = await codex.startFlow({
-	cwd: "/path/to/app",
-	prompt: "Run the app-specific Codex workflow.",
-	approvalPolicy: "never",
-	sandbox: "danger-full-access",
-	wait: false,
-});
-
-console.log(result.threadId, result.turnId);
-```
-
 ## Turn Automation
 
 ```ts
 import { runTurnAutomationScript } from "@peezy.tech/codex-flows";
 
 const run = await runTurnAutomationScript({
-	scriptPath: "./automations/check-release.ts",
+	scriptPath: "./automations/check-release/check-release.ts",
 	event: { type: "upstream.release", payload: { tag: "v1.2.3" } },
 	cwd: "/repo",
 	timeoutMs: 90_000,
@@ -108,8 +85,7 @@ if (run.decision.action === "turn") {
 ```
 
 Turn automation runs code before deciding whether to start a native Codex turn.
-Use it for plugin-installed prompt automation that does not need the full
-`FlowEvent`/`FLOW_RESULT` runtime.
+Use it for plugin-installed prompt automation.
 
 ## Auth Helpers
 
@@ -166,12 +142,10 @@ codex-flows remote status
 codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
 codex-flows remote turn start --via workspace --prompt "Check workspace status"
 codex-flows automation list
-codex-flows automation run ./automations/check-release.ts --event event.json
 codex-flows automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo fetch
 codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
 codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace doctor
@@ -181,10 +155,8 @@ codex-flows workspace backend start --dry-run
 codex-flows workspace tick --mode local
 codex-flows memories transplant global-to-workspace
 codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
-codex-flows flow events --limit 20
 
 codex-app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-flow-runner list
 codex-workspace-backend-local serve --local-app-server
 ```
 

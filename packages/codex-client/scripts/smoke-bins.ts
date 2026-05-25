@@ -10,7 +10,6 @@ const packageRoot = path.resolve(__dirname, "..");
 const checks = [
 	{ name: "codex-flows", path: "dist/cli/index.js" },
 	{ name: "codex-app", path: "dist/bin/codex-app.js" },
-	{ name: "codex-flow-runner", path: "dist/bin/codex-flow-runner.js" },
 	{
 		name: "codex-workspace-backend-local",
 		path: "dist/bin/codex-workspace-backend-local.js",

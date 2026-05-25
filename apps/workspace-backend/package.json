@@ -1,7 +1,7 @@
 {
 	"name": "codex-workspace-backend-local",
 	"version": "0.132.5",
-	"description": "Local Codex workspace backend with app-server control and flow capabilities.",
+	"description": "Local Codex workspace backend with app-server control.",
 	"type": "module",
 	"private": true,
 	"license": "Apache-2.0",
@@ -12,7 +12,7 @@
 		"build": "tsc --noEmit",
 		"check:types": "tsc --noEmit",
 		"start": "tsx ./src/index.ts serve",
-		"test": "vp test run --root ../.. apps/workspace-backend/test"
+		"test": "vp test run --root ../.. apps/workspace-backend/test/args.test.ts apps/workspace-backend/test/integration.test.ts"
 	},
 	"dependencies": {
 		"@peezy.tech/codex-flows": "workspace:*",

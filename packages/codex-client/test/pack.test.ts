@@ -24,7 +24,6 @@ describe("pack installer", () => {
 			version: "0.1.0",
 		});
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
-			"flow:release-health",
 			"hook:workspace-stop",
 			"plugin:repo-policy",
 			"skill:tdd",
@@ -37,14 +36,14 @@ describe("pack installer", () => {
 		const plan = await planPackAdd({
 			source: fixtureRoot,
 			workspaceRoot,
-			include: ["tdd", "release-health"],
+			include: ["tdd", "workspace-stop"],
 		});
 
 		expect(plan.apply).toBe(false);
 		expect(plan.items.filter((item) => item.action === "add").map((item) => item.name).sort())
-			.toEqual(["release-health", "tdd"]);
+			.toEqual(["tdd", "workspace-stop"]);
 		expect(plan.items.filter((item) => item.action === "skip").map((item) => item.name).sort())
-			.toEqual(["repo-policy", "workspace-stop"]);
+			.toEqual(["repo-policy"]);
 		expect(await exists(path.join(workspaceRoot, ".agents", "skills", "tdd"))).toBe(false);
 		expect(await exists(path.join(workspaceRoot, ".codex", "pack-lock.json"))).toBe(false);
 	});
@@ -60,8 +59,6 @@ describe("pack installer", () => {
 		expect(plan.items.every((item) => item.action === "add")).toBe(true);
 		expect(await readFile(path.join(workspaceRoot, ".agents", "skills", "tdd", "SKILL.md"), "utf8"))
 			.toContain("# TDD");
-		expect(await readFile(path.join(workspaceRoot, ".codex", "flows", "release-health", "flow.toml"), "utf8"))
-			.toContain('name = "release-health"');
 		expect(await readFile(path.join(workspaceRoot, "plugins", "repo-policy", ".codex-plugin", "plugin.json"), "utf8"))
 			.toContain('"name": "repo-policy"');
 
@@ -81,14 +78,13 @@ describe("pack installer", () => {
 
 		const list = await listInstalledPacks({ workspaceRoot });
 		expect(list.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
-			"flow:release-health",
 			"hook:workspace-stop",
 			"plugin:repo-policy",
 			"skill:tdd",
 		]);
 
 		const doctor = await collectPackDoctor({ workspaceRoot });
-		expect(doctor.installedItems).toBe(4);
+		expect(doctor.installedItems).toBe(3);
 		expect(doctor.missingDestinations).toEqual([]);
 		expect(doctor.marketplace.valid).toBe(true);
 		expect(doctor.hooks.valid).toBe(true);
@@ -268,21 +264,12 @@ describe("pack installer", () => {
 	test("discovers conventional layouts without codex-pack.toml", async () => {
 		const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-pack-source-"));
 		await writeFixtureFile(sourceRoot, "skills/demo/SKILL.md", "# Demo\n");
-		await writeFixtureFile(sourceRoot, "flows/demo-flow/flow.toml", [
-			'name = "demo-flow"',
-			"version = 1",
-			"[[steps]]",
-			'name = "check"',
-			'runner = "node"',
-			'script = "check.ts"',
-		].join("\n"));
 		await writeFixtureFile(sourceRoot, "plugins/demo-plugin/.codex-plugin/plugin.json", '{"name":"demo-plugin"}');
 		await writeFixtureFile(sourceRoot, "hooks/demo-hooks/hooks.json", '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo stop"}]}]}}');
 
 		const inspection = await inspectPackSource({ source: sourceRoot });
 
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
-			"flow:demo-flow",
 			"hook:demo-hooks",
 			"plugin:demo-plugin",
 			"skill:demo",

@@ -49,7 +49,6 @@ export type CodexWorkspaceBackendProtocolServerOptions = {
 	now?: () => Date;
 	serverName?: string;
 	serverVersion?: string;
-	flowInspection?: boolean;
 	workspaceMethods?: string[];
 	methods?: Record<string, WorkspaceBackendMethodHandler>;
 };
@@ -60,7 +59,6 @@ export class CodexWorkspaceBackendProtocolServer {
 	#now: () => Date;
 	#serverName: string;
 	#serverVersion: string;
-	#flowInspection: boolean;
 	#workspaceMethods: string[];
 	#methods: Map<string, WorkspaceBackendMethodHandler>;
 
@@ -69,7 +67,6 @@ export class CodexWorkspaceBackendProtocolServer {
 		this.#now = options.now ?? (() => new Date());
 		this.#serverName = options.serverName ?? "codex-workspace-backend-local";
 		this.#serverVersion = options.serverVersion ?? "0.1.0";
-		this.#flowInspection = options.flowInspection ?? false;
 		this.#methods = new Map(Object.entries(options.methods ?? {}));
 		this.#workspaceMethods = options.workspaceMethods ??
 			[...this.#methods.keys()].sort();
@@ -259,7 +256,6 @@ export class CodexWorkspaceBackendProtocolServer {
 			capabilities: {
 				appServerPassThrough: true,
 				workspaceMethods: this.#workspaceMethods,
-				flowInspection: this.#flowInspection,
 			},
 		};
 	}

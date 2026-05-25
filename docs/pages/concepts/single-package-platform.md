@@ -1,25 +1,24 @@
 ---
 title: Single package platform
-description: Target shape for exposing Codex flows clients, runtime, backend primitives, and CLIs through one package.
+description: Target shape for exposing Codex app-server clients, turn automation, backend primitives, and CLIs through one package.
 ---
 
 # Single package platform
 
 The platform goal is to make `@peezy.tech/codex-flows` the one package users
-install when they want the core Codex flows/workspace surface: app-server
-clients, flow runtime helpers, workspace backend primitives, and the local
-backend process.
+install when they want the core Codex workspace surface: app-server clients,
+turn automation helpers, workspace backend primitives, and the local backend
+process.
 
 ## Goal
 
 `@peezy.tech/codex-flows` is the canonical public package for:
 
 - app-server JSON-RPC clients, generated protocol types, and transports
-- flow helpers and local flow execution under
-  `@peezy.tech/codex-flows/flow-runtime`
+- turn automation helpers
 - workspace backend protocol client/server helpers
 - the local workspace backend process
-- terminal tools for app-server calls, local flow runs, memory transplant,
+- terminal tools for app-server calls, turn automation, memory transplant,
   workspace autonomy, and pack installation
 
 Backends and external presenters remain separate processes. The package
@@ -35,8 +34,8 @@ codex-workspace-backend-local serve --local-app-server
 
 The workspace backend protocol is the stable composition point. Backends expose
 capabilities such as app-server pass-through, delegation, workbench state, hook
-spool handling, and flow inspection. External presenters can consume that
-protocol and project selected behavior into product-owned surfaces.
+spool handling, and workspace task execution. External presenters can consume
+that protocol and project selected behavior into product-owned surfaces.
 
 External backends and presenters are expected. They should implement or consume
 the workspace backend protocol and advertise capabilities instead of depending
@@ -54,10 +53,10 @@ process code:
   release surface
 - release checks smoke-test both importable subpaths and runnable bins
 
-The current consolidation path keeps the private workspace app source layout for
-development, then builds the reusable flow runtime and selected app entries into
-the publishable package dist. That gives users a single package while avoiding a
-large source move up front.
+The consolidation path keeps private workspace app source layout for
+development, then builds selected reusable entries into the publishable package
+dist. That gives users a single package while avoiding a large source move up
+front.
 
 ## Release Implications
 
@@ -73,5 +72,5 @@ Release validation for the canonical package must cover:
 - package dry-run output that includes the expected dist files
 - docs that show backend composition through the core package
 
-When a compatibility package is still published, the release notes should state
-whether it is a compatibility artifact or a required install target.
+When an older package is still published during conversion, the release notes
+should state whether it remains a required install target.

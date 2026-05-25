@@ -1,6 +1,6 @@
 ---
 title: Install pack repos
-description: Copy repo-local flow bundles, plugins, and hooks from capability pack repositories.
+description: Copy repo-local skills, plugins, and hooks from capability pack repositories.
 ---
 
 # Install pack repos
@@ -10,10 +10,10 @@ cleanly from GitHub-backed marketplaces and do not require codex-flows to own a
 parallel distribution model.
 
 Pack repos are the lower-level file-copy path for workspaces that intentionally
-want repo-local copies, such as pinned flow bundles under `.codex/flows`, local
-plugins under `plugins`, or direct hook config under `.codex/hooks`. For
-codex-flows itself, prefer the plugin install because its hooks are bundled in
-the plugin and discovered by Codex without a pack copy.
+want repo-local copies, such as skills under `.agents/skills`, local plugins
+under `plugins`, or direct hook config under `.codex/hooks`. For codex-flows
+itself, prefer the plugin install because its hooks are bundled in the plugin
+and discovered by Codex without a pack copy.
 
 A workspace repo is the operational target. `codex-flows pack add` installs
 selected capabilities into that repo's Codex-native locations. V1 is repo-local
@@ -25,7 +25,6 @@ Pack repos work without a manifest by scanning conventional folders:
 
 ```text
 skills/**/<skill>/SKILL.md
-flows/**/flow.toml
 plugins/**/.codex-plugin/plugin.json
 hooks/<hook-pack>/hooks.json
 ```
@@ -37,17 +36,12 @@ item names and paths:
 [pack]
 name = "engineering-capabilities"
 version = "0.1.0"
-description = "Reusable engineering skills and flows."
+description = "Reusable engineering skills, plugins, and hooks."
 
 [[pack.items]]
 name = "tdd"
 kind = "skill"
 path = "skills/engineering/tdd"
-
-[[pack.items]]
-name = "release-health"
-kind = "flow"
-path = "flows/release-health"
 
 [[pack.items]]
 name = "repo-policy"
@@ -96,7 +90,6 @@ Overwrite backs up replaced item directories under `.codex/pack-backups/<timesta
 | Kind | Source | Workspace destination |
 |------|--------|-----------------------|
 | Skill | `skills/**/<skill>/SKILL.md` | `.agents/skills/<skill>` |
-| Flow | `flows/**/flow.toml` | `.codex/flows/<flow-name>` |
 | Plugin | `plugins/**/.codex-plugin/plugin.json` | `plugins/<plugin-name>` and `.agents/plugins/marketplace.json` |
 | Hook | `hooks/**/hooks.json` | `.codex/hooks/<hook-pack>` and `.codex/hooks.json` |
 

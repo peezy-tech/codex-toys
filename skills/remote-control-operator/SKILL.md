@@ -1,6 +1,6 @@
 ---
 name: remote-control-operator
-description: Use when a local Codex App or codex-flows CLI needs to operate a remote Codex workspace over SSH, including SSH-backed fetch/app/workspace/flow commands, transient remote workspace backends, manual tunnels, or remote turn starts.
+description: Use when a local Codex App or codex-flows CLI needs to operate a remote Codex workspace over SSH, including SSH-backed fetch/app/workspace/automation commands, transient remote workspace backends, manual tunnels, or remote turn starts.
 ---
 
 # Remote Control Operator
@@ -15,9 +15,9 @@ reachable over SSH or Tailscale.
 - Remote target: the machine where Codex, the workspace, and any workspace
   backend or transient backend process runs.
 - The local plugin does not install hooks or start a local backend.
-- Prefer the global `--ssh` provider for one-shot automation. It can reuse an
-  existing remote backend, spawn a transient remote backend, or fall back to
-  remote app-server stdio for app-only calls.
+- Prefer the global `--ssh` provider for one-shot automation. It starts a
+  transient remote backend by default, or uses an existing remote backend when
+  `--remote-mode existing` is set.
 - Keep manual tunnels for long-lived sessions, diagnostics, or when another
   local process needs a stable `ws://127.0.0.1:<port>` backend URL.
 
@@ -29,26 +29,23 @@ Start with an explicit remote target and remote workspace cwd:
 codex-flows --ssh <user@host> --cwd <remote-workspace> fetch
 codex-flows --ssh <user@host> --cwd <remote-workspace> workspace doctor
 codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh <user@host> --cwd <remote-workspace> flow dispatch --event event.json
+codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json
 ```
 
-Use `--remote-mode auto` by default. It probes an existing remote backend first,
-then starts a transient remote `codex-workspace-backend-local serve
---local-app-server` if no backend responds. Use `existing` when a daemon or
-manual backend must already be running, and `spawn` when the command should
-always own a fresh transient backend.
+Use `--remote-mode spawn` by default. It starts a transient remote
+`codex-workspace-backend-local serve --local-app-server`. Use `existing` when a
+daemon or manual backend must already be running.
 
-Local files such as `--event event.json` are read locally. Flow discovery, flow
-state, Codex tools, `CODEX_HOME`, and workspace execution happen on the remote
-target. Do not copy local credentials to the target; SSH config and the remote
-environment own auth.
+Local files such as `--event event.json` are read locally. Codex tools,
+`CODEX_HOME`, and workspace execution happen on the remote target. Do not copy
+local credentials to the target; SSH config and the remote environment own auth.
 
 Useful defaults:
 
 ```bash
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@host>
 CODEX_FLOWS_REMOTE_CWD=<remote-workspace>
-CODEX_FLOWS_REMOTE_MODE=auto
+CODEX_FLOWS_REMOTE_MODE=spawn
 CODEX_FLOWS_REMOTE_TUNNEL_PORT=3586
 CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
 CODEX_FLOWS_REMOTE_BACKEND_PORT=3586

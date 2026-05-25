@@ -1,7 +1,7 @@
 {
   "name": "codex-flows-author",
   "version": "0.132.4",
-  "description": "Codex turn automation and advanced flow package authoring guidance.",
+  "description": "Codex turn automation authoring guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -12,15 +12,14 @@
   "license": "MIT",
   "keywords": [
     "codex",
-    "flows",
     "authoring",
     "skills"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-flows author",
-    "shortDescription": "Author turn automations and advanced flow packages.",
-    "longDescription": "codex-flows author installs Codex-facing guidance for plugin-native turn automation scripts and advanced durable flow packages. It does not install local backend hooks or start a backend process.",
+    "shortDescription": "Author turn automations.",
+    "longDescription": "codex-flows author installs Codex-facing guidance for plugin-native turn automation scripts. It does not install local backend hooks or start a backend process.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -31,8 +30,7 @@
     "privacyPolicyURL": "https://peezy.tech/privacy",
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
-      "Author a turn automation script that can skip or start a Codex turn.",
-      "Author an advanced reusable Codex flow package."
+      "Author a turn automation script that can skip or start a Codex turn."
     ],
     "brandColor": "#2563EB"
   }

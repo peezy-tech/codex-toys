@@ -3,9 +3,7 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-	assertActionsFlowRun,
 	cleanupActionsCodexHome,
-	dispatchActionsFlowEvent,
 	prepareActionsCodexAuth,
 	repoCodexHome,
 } from "../src/actions.ts";
@@ -79,37 +77,6 @@ describe("Actions helpers", () => {
 		expect(await readFile(path.join(codexHome, "memories", "raw_memories.md"), "utf8")).toBe("keep");
 		expect(await readFile(path.join(codexHome, "workspace", "actions", "state.json"), "utf8")).toBe("{}");
 	});
-
-	test("dispatchActionsFlowEvent persists events and file-backed run state under .codex/workspace/actions", async () => {
-		const root = await tempWorkspace();
-		await writeSmokeFlow(root);
-
-		const result = await dispatchActionsFlowEvent({
-			workspaceRoot: root,
-			env: { CODEX_HOME: "/tmp/external-codex-home" },
-			event: {
-				id: "event-1",
-				type: "workspace.smoke",
-				receivedAt: "2026-05-17T00:00:00.000Z",
-				payload: { name: "Ada" },
-			},
-		});
-
-		expect(result.eventPath).toContain(path.join(".codex", "workspace", "actions", "events"));
-		expect(await readFile(result.eventPath, "utf8")).toContain("\"id\": \"event-1\"");
-		expect(await readFile(path.join(root, ".codex", "workspace", "actions", "flow-client", "state.json"), "utf8"))
-			.toContain("actions smoke Ada");
-
-		const asserted = await assertActionsFlowRun({
-			workspaceRoot: root,
-			flowName: "actions-smoke",
-			stepName: "smoke",
-			requireCompleted: true,
-			artifactText: path.join(root, ".codex"),
-			env: { CODEX_HOME: "/tmp/external-codex-home" },
-		});
-		expect(asserted.run.resultStatus).toBe("completed");
-	});
 });
 
 async function tempWorkspace(): Promise<string> {
@@ -125,44 +92,4 @@ async function tempWorkspace(): Promise<string> {
 		await mkdir(dir, { recursive: true });
 	}
 	return root;
-}
-
-async function writeSmokeFlow(root: string): Promise<void> {
-	const flowRoot = path.join(root, ".codex", "flows", "actions-smoke");
-	await mkdir(path.join(flowRoot, "exec"), { recursive: true });
-	await writeFile(
-		path.join(flowRoot, "flow.toml"),
-		[
-			'name = "actions-smoke"',
-			"version = 1",
-			"",
-			"[[steps]]",
-			'name = "smoke"',
-			'runner = "node"',
-			'script = "exec/smoke.ts"',
-			"timeout_ms = 30000",
-			"",
-			"[steps.trigger]",
-			'type = "workspace.smoke"',
-			"",
-		].join("\n"),
-	);
-	await writeFile(
-		path.join(flowRoot, "exec", "smoke.ts"),
-		[
-			"async function main() {",
-			"  const chunks = [];",
-			"  for await (const chunk of process.stdin) chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);",
-			"  const context = JSON.parse(Buffer.concat(chunks).toString('utf8'));",
-			"  const name = context.flow.event.payload.name;",
-			"  console.log('FLOW_RESULT ' + JSON.stringify({",
-			"    status: 'completed',",
-			"    message: `actions smoke ${name}`,",
-			"    artifacts: { codexHome: process.env.CODEX_HOME },",
-			"  }));",
-			"}",
-			"void main();",
-			"",
-		].join("\n"),
-	);
 }

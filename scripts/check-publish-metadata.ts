@@ -17,8 +17,6 @@ type PackageJson = {
 
 const publicPackageJsonPaths = [
 	"packages/codex-client/package.json",
-	"packages/flow-runtime/package.json",
-	"packages/flow-backend-convex/package.json",
 ];
 
 const dependencyFields = [

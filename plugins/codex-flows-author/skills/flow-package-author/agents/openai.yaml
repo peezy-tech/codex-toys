@@ -1,4 +1,0 @@
-interface:
-  display_name: "Flow Package Author"
-  short_description: "Advanced durable flow bundle layout, manifests, schemas, and result contracts."
-  default_prompt: "Use generic flow package conventions only when durable event/run state is needed; otherwise recommend codex-flows turn automation for pre-turn prompt automation."

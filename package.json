@@ -9,18 +9,16 @@
 		"node": ">=24.0.0 <25"
 	},
 	"scripts": {
-		"build": "vp run --filter @peezy.tech/codex-flows build && vp run --filter @peezy.tech/flow-runtime build && vp run --filter @peezy.tech/flow-backend-convex build && vp run --filter @peezy.tech/codex-opencode-go-router build && vp run --filter @workspace/ui build && vp run --filter codex-app-cli build && vp run --filter codex-workspace-backend-local build && vp run --filter codex-flow-runner build && vp run --filter @peezy.tech/codex-flow-docs build",
-		"check:types": "vp run --concurrency-limit 1 --filter @peezy.tech/codex-flows --filter @peezy.tech/flow-runtime --filter @peezy.tech/flow-backend-convex --filter @peezy.tech/codex-opencode-go-router --filter @workspace/ui --filter codex-app-cli --filter codex-workspace-backend-local --filter codex-flow-runner --filter @peezy.tech/codex-flow-docs check:types && vp run -w docs:check",
+		"build": "vp run --filter @peezy.tech/codex-flows build && vp run --filter @peezy.tech/codex-opencode-go-router build && vp run --filter @workspace/ui build && vp run --filter codex-app-cli build && vp run --filter codex-workspace-backend-local build && vp run --filter @peezy.tech/codex-flow-docs build",
+		"check:types": "vp run --concurrency-limit 1 --filter @peezy.tech/codex-flows --filter @peezy.tech/codex-opencode-go-router --filter @workspace/ui --filter codex-app-cli --filter codex-workspace-backend-local --filter @peezy.tech/codex-flow-docs check:types && vp run -w docs:check",
 		"dev": "vp run docs:dev",
 		"docs:build": "vp run --filter @peezy.tech/codex-flow-docs build",
 		"docs:check": "tsx scripts/check-docs.ts",
 		"docs:deploy": "vp run --filter @peezy.tech/codex-flow-docs deploy",
 		"docs:dev": "vp run --filter @peezy.tech/codex-flow-docs dev",
-		"flow": "tsx apps/flow-runner/src/index.ts",
-		"flow:backend": "tsx apps/workspace-backend/src/index.ts",
 		"workspace:backend": "tsx apps/workspace-backend/src/index.ts serve",
-		"test": "vp run --filter @peezy.tech/codex-flows test && vp run --filter @peezy.tech/flow-runtime test && vp run --filter @peezy.tech/flow-backend-convex test && vp run --filter @peezy.tech/codex-opencode-go-router test && vp run --filter codex-workspace-backend-local test && vp run --filter codex-flow-runner test && vp run --filter codex-app-cli test",
-		"release:check": "tsx scripts/check-publish-metadata.ts && vp run --filter @peezy.tech/codex-flows release:check && vp run --filter @peezy.tech/flow-runtime release:check && vp run --filter @peezy.tech/flow-backend-convex release:check"
+		"test": "vp run --filter @peezy.tech/codex-flows test && vp run --filter @peezy.tech/codex-opencode-go-router test && vp run --filter codex-workspace-backend-local test && vp run --filter codex-app-cli test",
+		"release:check": "tsx scripts/check-publish-metadata.ts && vp run --filter @peezy.tech/codex-flows release:check"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

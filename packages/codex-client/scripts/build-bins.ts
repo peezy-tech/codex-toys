@@ -24,11 +24,6 @@ const builds: BinBuild[] = [
 		external: selfExternals,
 	},
 	{
-		name: "codex-flow-runner",
-		entry: "apps/flow-runner/src/index.ts",
-		external: selfExternals,
-	},
-	{
 		name: "codex-workspace-backend-local",
 		entry: "apps/workspace-backend/src/index.ts",
 		external: selfExternals,

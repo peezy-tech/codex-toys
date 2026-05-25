@@ -34,14 +34,6 @@ export type WorkspaceTask =
 	| {
 			id: string;
 			enabled: boolean;
-			kind: "flow";
-			flow: string;
-			event?: Record<string, unknown>;
-			schedule?: string;
-	  }
-	| {
-			id: string;
-			enabled: boolean;
 			kind: "automation";
 			automation: string;
 			event?: Record<string, unknown>;
@@ -127,8 +119,6 @@ export type ScaffoldActionsWorkspaceOptions = {
 	workspaceRoot?: string;
 	forgejo?: boolean;
 	github?: boolean;
-	withSmoke?: boolean;
-	withAgentTurn?: boolean;
 	overwrite?: boolean;
 };
 
@@ -358,21 +348,13 @@ export async function scaffoldActionsWorkspace(
 		files.push(await writeScaffoldFile(workspaceRoot, relativePath, content, options.overwrite === true));
 	};
 
-	await write(".codex/workspace.toml", workspaceTomlTemplate(workspaceRoot, options));
+	await write(".codex/workspace.toml", workspaceTomlTemplate(workspaceRoot));
 	await write(".codex/config.toml", codexConfigTemplate());
 	if (options.forgejo) {
 		await write(".forgejo/workflows/codex-flows-actions.yml", actionsWorkflowTemplate("forgejo"));
 	}
 	if (options.github || !options.forgejo) {
 		await write(".github/workflows/codex-flows-actions.yml", actionsWorkflowTemplate("github"));
-	}
-	if (options.withSmoke) {
-		await write(".codex/flows/actions-smoke/flow.toml", smokeFlowToml());
-		await write(".codex/flows/actions-smoke/exec/smoke.ts", smokeFlowScript());
-	}
-	if (options.withAgentTurn) {
-		await write(".codex/flows/actions-agent-turn/flow.toml", agentTurnFlowToml());
-		await write(".codex/flows/actions-agent-turn/exec/agent-turn.ts", agentTurnFlowScript());
 	}
 	files.push(await appendGitignoreEntries(workspaceRoot, actionsGitignoreEntries()));
 	return { workspaceRoot, files };
@@ -474,11 +456,7 @@ async function runWorkspaceTask(
 			await persistRun(context, run, result);
 			return run;
 		}
-		if (task.kind === "flow") {
-			result = await options.callWorkspaceBackend("flow.dispatch", {
-				event: workspaceFlowEvent(config, task, runId, startedAt),
-			});
-		} else if (task.kind === "automation") {
+		if (task.kind === "automation") {
 			result = await runAutomationTask(
 				context,
 				config,
@@ -504,28 +482,6 @@ async function runWorkspaceTask(
 
 function workspaceRunId(taskId: string, startedAt: string): string {
 	return `${startedAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}-${taskId}`;
-}
-
-function workspaceFlowEvent(
-	config: WorkspaceConfig,
-	task: Extract<WorkspaceTask, { kind: "flow" }>,
-	runId: string,
-	startedAt: string,
-): Record<string, unknown> {
-	const event = task.event ?? {};
-	const payload = isRecord(event.payload) ? event.payload : {};
-	return {
-		...event,
-		id: `workspace:${config.name}:${task.id}:${runId}`,
-		type: stringValue(event.type, task.flow),
-		source: stringValue(event.source, config.name),
-		occurredAt: startedAt,
-		receivedAt: startedAt,
-		payload: {
-			taskId: task.id,
-			...payload,
-		},
-	};
 }
 
 async function runAutomationTask(
@@ -950,41 +906,12 @@ async function appendGitignoreEntries(
 	return { path: file, action: current ? "updated" : "created" };
 }
 
-function workspaceTomlTemplate(
-	workspaceRoot: string,
-	options: ScaffoldActionsWorkspaceOptions,
-): string {
+function workspaceTomlTemplate(workspaceRoot: string): string {
 	const lines = [
 		"[workspace]",
 		`name = ${tomlString(path.basename(workspaceRoot))}`,
 		"",
 	];
-	if (options.withSmoke) {
-		lines.push(
-			"[[workspace.tasks]]",
-			'id = "actions-smoke"',
-			"enabled = true",
-			'kind = "flow"',
-			'flow = "workspace.smoke"',
-			"",
-			"[workspace.tasks.event]",
-			'type = "workspace.smoke"',
-			"",
-		);
-	}
-	if (options.withAgentTurn) {
-		lines.push(
-			"[[workspace.tasks]]",
-			'id = "actions-agent-turn"',
-			"enabled = true",
-			'kind = "flow"',
-			'flow = "workspace.agent_turn"',
-			"",
-			"[workspace.tasks.event]",
-			'type = "workspace.agent_turn"',
-			"",
-		);
-	}
 	return lines.join("\n");
 }
 
@@ -1038,84 +965,6 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 	].join("\n");
 }
 
-function smokeFlowToml(): string {
-	return [
-		'name = "actions-smoke"',
-		"version = 1",
-		'description = "Verify file-backed Actions flow dispatch."',
-		"",
-		"[[steps]]",
-		'name = "smoke"',
-		'runner = "node"',
-		'script = "exec/smoke.ts"',
-		"timeout_ms = 30000",
-		"",
-		"[steps.trigger]",
-		'type = "workspace.smoke"',
-		"",
-	].join("\n");
-}
-
-function smokeFlowScript(): string {
-	return [
-		'import { readFlowContext } from "@peezy.tech/codex-flows/flow-runtime/node";',
-		"",
-		"const context = await readFlowContext();",
-		"console.log('FLOW_RESULT ' + JSON.stringify({",
-		"  status: 'completed',",
-		"  message: 'actions smoke completed',",
-		"  artifacts: {",
-		"    eventId: context.runtime.eventId,",
-		"    codexHome: process.env.CODEX_HOME,",
-		"    workspaceMode: process.env.CODEX_WORKSPACE_MODE,",
-		"  },",
-		"}));",
-		"",
-	].join("\n");
-}
-
-function agentTurnFlowToml(): string {
-	return [
-		'name = "actions-agent-turn"',
-		"version = 1",
-		'description = "Run one Codex agent turn from a Node flow step."',
-		"",
-		"[[steps]]",
-		'name = "agent-turn"',
-		'runner = "node"',
-		'script = "exec/agent-turn.ts"',
-		"cwd = \"../../..\"",
-		"timeout_ms = 900000",
-		"",
-		"[steps.trigger]",
-		'type = "workspace.agent_turn"',
-		"",
-	].join("\n");
-}
-
-function agentTurnFlowScript(): string {
-	return [
-		'import { readFlowContext } from "@peezy.tech/codex-flows/flow-runtime/node";',
-		'import { runCodexAgentTurnFromFlow } from "@peezy.tech/codex-flows/flows";',
-		"",
-		"const context = await readFlowContext();",
-		"const result = await runCodexAgentTurnFromFlow(context, {",
-		"  cwd: process.cwd(),",
-		"  prompt: 'Run the configured workspace agent task and summarize the result.',",
-		"  approvalPolicy: 'never',",
-		"  sandbox: 'danger-full-access',",
-		"  wait: { timeoutMs: 900000, throwOnFailure: true },",
-		"  exportThreadJson: '.codex/workspace/actions/agent-turn-thread.json',",
-		"});",
-		"console.log('FLOW_RESULT ' + JSON.stringify({",
-		"  status: 'completed',",
-		"  message: 'agent turn completed',",
-		"  artifacts: result.artifacts,",
-		"}));",
-		"",
-	].join("\n");
-}
-
 function actionsGitignoreEntries(): string[] {
 	return [
 		".codex/auth.json",
@@ -1160,9 +1009,6 @@ function parseTask(input: unknown): WorkspaceTask {
 	}
 	if (kind === "skill") {
 		return { id, enabled, kind, skill: requiredString(input.skill, `workspace task ${id} skill`), schedule, var: optionalString(input.var) };
-	}
-	if (kind === "flow") {
-		return { id, enabled, kind, flow: requiredString(input.flow, `workspace task ${id} flow`), schedule, event: isRecord(input.event) ? input.event : undefined };
 	}
 	if (kind === "automation") {
 		return {

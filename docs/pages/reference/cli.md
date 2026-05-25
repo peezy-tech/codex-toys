@@ -1,13 +1,13 @@
 ---
 title: CLI reference
-description: Commands for turn automation, app-server calls, workspace backend calls, flow inspection, workspace autonomy, memory transplant, thread transplant, and pack repos.
+description: Commands for turn automation, app-server calls, workspace backend calls, workspace autonomy, memory transplant, thread transplant, and pack repos.
 ---
 
 # CLI reference
 
 `codex-flows` controls Codex app-server and workspace backend surfaces. The
-same package also publishes focused bins for app-server calls, local flow runs,
-and the local workspace backend.
+same package also publishes focused bins for app-server calls and the local
+workspace backend.
 
 ```bash
 codex-flows --help
@@ -21,20 +21,19 @@ codex-flows neofetch [--json] [--no-color]
 codex-flows --ssh <target> --cwd <remote-workspace> fetch
 ```
 
-`fetch` first probes the configured workspace backend, falls back to the
-configured app-server, and then prints local package, runtime, endpoint,
-workspace, and Codex environment information. With a reachable backend it also
-includes capabilities, recent thread counts, delegation counts, and flow
-run/event counts. With `--ssh`, the local CLI probes a remote workspace backend
-through SSH and prints the remote workspace cwd while leaving local credentials
-alone.
+`fetch` probes the configured workspace backend and app-server endpoints, then
+prints local package, runtime, endpoint, workspace, and Codex environment
+information. With a reachable backend it also includes capabilities, recent
+thread counts, and delegation counts. With `--ssh`, the local CLI probes a
+remote workspace backend through SSH and prints the remote workspace cwd while
+leaving local credentials alone.
 
 ## Remote Control
 
 ```bash
 codex-flows remote status [--json]
 codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
-codex-flows remote turn start --prompt <text> [--via auto|workspace|app] [--cwd <path>]
+codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>]
 ```
 
 These commands are for the local-Codex-App-to-remote-VPS use case. `remote
@@ -46,21 +45,20 @@ fatal setup error. `remote tunnel start` runs an OpenSSH local forward from
 a turn through the workspace backend tunnel when available.
 
 The global `--ssh` provider is the remote-first automation path. App-server,
-workspace backend, flow, and fetch commands can run locally while targeting a
-remote workspace:
+workspace backend, automation, and fetch commands can run locally while
+targeting a remote workspace:
 
 ```bash
 codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh devbox --cwd /repo workspace delegation.list
-codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
+codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
 ```
 
-The provider first tries an SSH tunnel to an existing remote backend. In `auto`
-mode it starts a transient `codex-workspace-backend-local serve
---local-app-server` on the remote when no backend responds. App-only commands
-fall back to `codex app-server --listen stdio://` over SSH. Missing remote
-binaries produce setup errors; the CLI does not install or copy credentials to
-the remote host.
+By default the provider starts a transient `codex-workspace-backend-local serve
+--local-app-server` on the remote host. Use `--remote-mode existing` only when a
+backend is already running and should be reached through an SSH tunnel. Missing
+remote binaries produce setup errors; the CLI does not install or copy
+credentials to the remote host.
 
 Useful options and environment:
 
@@ -71,11 +69,11 @@ Useful options and environment:
 --local-port 3586
 --remote-host 127.0.0.1
 --remote-port 3586
---remote-mode auto
+--remote-mode spawn
 
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@tailscale-host>
 CODEX_FLOWS_REMOTE_CWD=/repo
-CODEX_FLOWS_REMOTE_MODE=auto
+CODEX_FLOWS_REMOTE_MODE=spawn
 CODEX_FLOWS_REMOTE_TUNNEL_PORT=3586
 CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
 CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
@@ -87,15 +85,15 @@ CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
 
 ```bash
 codex-flows automation list [--json]
-codex-flows automation run <script-or-name> [--event <event.json>] [--prompt <text>] [--via auto|workspace|app]
-codex-flows --ssh <target> --cwd <remote-workspace> automation run <script-or-name> [--event <event.json>]
+codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
+codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
 ```
 
 `automation run` executes a pre-turn script and starts a native Codex turn only
-when the script returns `{"action":"turn"}`. The script receives JSON on stdin
-with `automation`, `runtime`, optional `event`, optional `prompt`, and optional
-`cwd` fields. Module-style TypeScript/JavaScript scripts can export a default
-handler, and raw scripts can print a final `TURN_AUTOMATION <json>` line.
+when the script returns `{"action":"turn"}`. Automations must be named
+manifests under `.codex/automations/*` or `automations/*`. The script exports a
+default TypeScript/JavaScript handler that receives `automation`, `runtime`,
+optional `event`, optional `prompt`, and optional `cwd` fields.
 `automation list` discovers named automations from `.codex/automations/*` and
 `automations/*`.
 
@@ -160,7 +158,7 @@ codex-flows workspace backend status [--json]
 codex-flows workspace backend start [--dry-run] [--json]
 codex-flows workspace tick [--mode auto|local|actions]
 codex-flows workspace run <task-id> [--mode auto|local|actions]
-codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-agent-turn]
+codex-flows workspace init actions [--forgejo|--github]
 ```
 
 - `doctor` reports mode, repo root, `.codex/workspace.toml`, runtime
@@ -179,8 +177,7 @@ codex-flows workspace init actions [--forgejo|--github] [--with-smoke] [--with-a
 - `tick` runs due scheduled tasks and reactive rules.
 - `run <task-id>` runs one task immediately.
 - `init actions` scaffolds `.codex/workspace.toml`, `.codex/config.toml`,
-  workflow files, optional smoke and agent-turn flows, and `.gitignore`
-  entries for runtime-only Codex files.
+  workflow files, and `.gitignore` entries for runtime-only Codex files.
 
 See [Workspace autonomy](../guides/workspace-autonomy) for config, modes, and
 CI behavior.
@@ -190,8 +187,6 @@ CI behavior.
 ```bash
 codex-flows actions prepare-auth
 codex-flows actions cleanup
-codex-flows actions dispatch --event <event.json>
-codex-flows actions assert-run --flow <name> --step <name> [--artifact-text <text>]
 ```
 
 These commands are for CI and local Actions-mode simulation. They always resolve
@@ -204,10 +199,6 @@ the runtime Codex home to `<repo>/.codex`, even if the caller has another
   temp dirs, SQLite databases, `.codex/memories/.git`, and
   `phase2_workspace_diff.md` while preserving `.codex/memories/*.md`,
   `.codex/memories/rollout_summaries/*.md`, and `.codex/workspace/actions`.
-- `dispatch` persists the event under `.codex/workspace/actions/events` and
-  dispatches it through a file-backed local flow client rooted at
-  `.codex/workspace/actions/flow-client`.
-- `assert-run` checks the latest file-backed Actions run for a flow and step,
   optionally requiring text in the stored run record.
 
 ## Memory Transplant
@@ -259,69 +250,27 @@ codex-flows pack doctor [--json]
 codex-flows pack list [--json]
 ```
 
-`pack inspect` discovers skills, flow packages, plugins, and hook bundles from a
-local directory, GitHub shorthand such as `owner/repo`, or a Git URL. Use
+`pack inspect` discovers skills, plugins, and hook bundles from a local
+directory, GitHub shorthand such as `owner/repo`, or a Git URL. Use
 `--ref <ref>` with GitHub shorthand or Git URL sources. Prefer Codex plugin
 marketplaces for reusable skills; pack commands are for explicit repo-local file
 copies.
 
 `pack add` is dry-run by default and writes only with `--apply`. It installs
-repo-local capabilities into `.agents/skills`, `.codex/flows`, `plugins`,
+repo-local capabilities into `.agents/skills`, `plugins`,
 `.agents/plugins/marketplace.json`, `.codex/hooks`, and `.codex/hooks.json`.
-Changed destinations and same-name plugin marketplace entries from another
-source are conflicts unless `--overwrite` is set; overwrite backs up replaced
-paths under `.codex/pack-backups/<timestamp>/`.
+Changed destinations and same-name plugin marketplace entries from another source
+are conflicts unless `--overwrite` is set; overwrite backs up replaced paths
+under `.codex/pack-backups/<timestamp>/`.
 
 `pack list` reads `.codex/pack-lock.json`. `pack doctor` checks the lockfile,
 destination paths and content hashes, plugin marketplace JSON, and direct hook JSON. See
 [Install pack repos](../guides/install-pack-repos).
 
-## Flow Inspection
-
-```bash
-codex-flows flow dispatch --event <event.json>
-codex-flows flow events [--type <type>] [--limit <n>]
-codex-flows flow event <event-id>
-codex-flows flow replay <event-id> [--wait]
-codex-flows flow runs [--event-id <id>] [--status <status>] [--limit <n>]
-codex-flows flow run <run-id>
-```
-
-These commands use the workspace backend flow capability. They inspect and
-control generic flow events and runs; they do not execute app-server thread
-commands directly.
-
-## Local Runner
-
-The package includes `codex-flow-runner` for local flow packages:
-
-```bash
-codex-flow-runner list
-codex-flow-runner fire --event event.json
-codex-flow-runner run <flow> <step> --event event.json
-```
-
-`flow fire` dispatches through the local client and runs every step whose
-trigger type and schema match the event.
-
-`flow run` also accepts run metadata used by workspace backend launches:
-
-```bash
-codex-flow-runner run <flow> <step> --event event.json \
-  --run-id run_123 \
-  --attempt-id run_123 \
-  --workspace-backend-url ws://127.0.0.1:3586
-```
-
-## Workspace Flow Backend
+## Workspace Backend
 
 ```bash
 codex-workspace-backend-local serve --cwd <workspace>
-codex-workspace-backend-local list-events --limit 20
-codex-workspace-backend-local show-event <event-id>
-codex-workspace-backend-local list-runs --status failed --limit 20
-codex-workspace-backend-local show-run <run-id>
-codex-workspace-backend-local replay-event <event-id> --wait
 ```
 
 ## Companion Bins
@@ -357,15 +306,11 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--exclude <name>` | Exclude a pack item by name or `kind:name`. |
 | `--merge codex` | Merge `MEMORY.md` and `memory_summary.md` with Codex. |
 | `--no-backup` | Disable overwrite or merge backups. |
-| `--flow <name>` | Flow name for `actions assert-run`. |
-| `--step <name>` | Step name for `actions assert-run`. |
-| `--artifact-text <text>` | Text that must appear in an asserted Actions run. |
 | `--forgejo` | Generate a Forgejo workflow with `workspace init actions`. |
 | `--github` | Generate a GitHub Actions workflow with `workspace init actions`. |
-| `--with-smoke` | Generate an Actions smoke flow with `workspace init actions`. |
-| `--with-agent-turn` | Generate an agent-turn flow with `workspace init actions`. |
+| `--via <workspace\|app>` | Turn surface for remote turns and automation. Defaults to `workspace`. |
 | `--ssh`, `--ssh-target <target>` | SSH target for remote CodexFlows operation. |
-| `--remote-mode <auto|existing|spawn>` | SSH backend mode. `auto` probes then spawns, `existing` only tunnels, `spawn` always starts a transient backend. |
+| `--remote-mode <existing\|spawn>` | SSH backend mode. Defaults to `spawn`; `existing` only tunnels to an already-running backend. |
 | `--local-port <port>` | Local SSH tunnel port. Defaults to `3586`. |
 | `--remote-host <host>` | Remote backend bind host. Defaults to `127.0.0.1`. |
 | `--remote-port <port>` | Remote backend port. Defaults to `3586`. |
@@ -381,22 +326,13 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_HOME` | Active Codex home. Actions mode sets it to the repo `.codex`. |
 | `CODEX_AUTH_JSON_B64` | Base64 JSON auth payload consumed by `actions prepare-auth`. |
 | `CODEX_AUTH_JSON` | Raw JSON auth payload consumed by `actions prepare-auth`. |
-| `OPENAI_API_KEY` | API key fallback consumed by `actions prepare-auth`. |
+| `OPENAI_API_KEY` | API key consumed by `actions prepare-auth` when JSON auth is not provided. |
 | `CODEX_APP_SERVER_CODEX_COMMAND` | Overrides the Codex command for stdio app-server launches. |
 | `CODEX_FLOWS_REMOTE_SSH_TARGET` | Default SSH target for remote CodexFlows operation. |
 | `CODEX_FLOWS_REMOTE_CWD` | Default remote workspace cwd. |
-| `CODEX_FLOWS_REMOTE_MODE` | Default SSH backend mode: `auto`, `existing`, or `spawn`. |
+| `CODEX_FLOWS_REMOTE_MODE` | Default SSH backend mode: `existing` or `spawn`. |
 | `CODEX_FLOWS_REMOTE_TUNNEL_PORT` | Default local SSH tunnel port. |
 | `CODEX_FLOWS_REMOTE_BACKEND_HOST` | Default remote backend host. |
 | `CODEX_FLOWS_REMOTE_BACKEND_PORT` | Default remote backend port. |
-| `CODEX_FLOWS_REMOTE_CODEX_COMMAND` | Remote Codex command for SSH stdio app-server fallback. |
+| `CODEX_FLOWS_REMOTE_CODEX_COMMAND` | Remote Codex command for transient workspace backend startup or explicit `--via app` turns. |
 | `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` | Remote workspace backend command for transient SSH backend startup. |
-| `CODEX_FLOW_BACKEND_URL` | HTTP backend URL for compatible flow inspection and dispatch clients. |
-| `CODEX_FLOW_BACKEND_SECRET` | Shared HMAC secret for HTTP flow dispatch. |
-| `CODEX_FLOW_BACKEND_EXECUTOR` | `direct` or `systemd-run`. |
-| `CODEX_FLOW_BACKEND_DATA_DIR` | Durable backend state directory. |
-| `CODEX_FLOW_EVENT_ID` | Event id passed to running Node steps. |
-| `CODEX_FLOW_RUN_ID` | Run id passed to running Node steps. |
-| `CODEX_FLOW_ATTEMPT_ID` | Attempt identity passed to running Node steps. |
-| `CODEX_FLOW_REPLAY` | `1` when the current execution is a replay. |
-| `CODEX_FLOW_LAUNCHED_BY` | Runner or backend identity that launched the step. |

@@ -7,7 +7,7 @@ import {
 	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 } from "../workspace-backend/protocol.ts";
 
-export type RemoteVia = "auto" | "workspace" | "app";
+export type RemoteVia = "workspace" | "app";
 
 export type RemoteProbeResult = {
 	mode: "workspace" | "app-server";
@@ -76,28 +76,9 @@ export async function startRemoteTurn(options: {
 	workspaceUrl: string;
 	timeoutMs: number;
 }): Promise<RemoteTurnStartResult> {
-	const failures: string[] = [];
-	if (options.via === "workspace" || options.via === "auto") {
-		try {
-			return await startTurnViaWorkspace(options);
-		} catch (error) {
-			if (options.via === "workspace") {
-				throw error;
-			}
-			failures.push(`workspace: ${errorMessage(error)}`);
-		}
-	}
-	if (options.via === "app" || options.via === "auto") {
-		try {
-			return await startTurnViaAppServer(options);
-		} catch (error) {
-			if (options.via === "app") {
-				throw error;
-			}
-			failures.push(`app-server: ${errorMessage(error)}`);
-		}
-	}
-	throw new Error(failures.join("; ") || "No remote turn surface was available");
+	return options.via === "workspace"
+		? await startTurnViaWorkspace(options)
+		: await startTurnViaAppServer(options);
 }
 
 export function createRemoteTunnelPlan(

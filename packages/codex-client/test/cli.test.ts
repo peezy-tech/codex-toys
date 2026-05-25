@@ -109,23 +109,23 @@ describe("codex-flows CLI args", () => {
 			"/repo",
 			"automation",
 			"run",
-			"./automations/check-release.ts",
+			"check-release",
 			"--event",
 			"event.json",
 			"--prompt",
-			"fallback prompt",
+			"default prompt",
 			"--via",
 			"workspace",
 			"--json",
 		], {})).toMatchObject({
 			type: "automation-run",
-			target: "./automations/check-release.ts",
+			target: "check-release",
 			eventPath: "event.json",
-			prompt: "fallback prompt",
+			prompt: "default prompt",
 			via: "workspace",
 			sshTarget: "devbox",
 			cwd: "/repo",
-			remoteMode: "auto",
+			remoteMode: "spawn",
 			json: true,
 		});
 		expect(parseArgs(["automation", "list", "--workspace-root", "/work"], {}))
@@ -135,7 +135,7 @@ describe("codex-flows CLI args", () => {
 			});
 	});
 
-	test("parses SSH provider options on app, workspace, flow, and fetch commands", () => {
+	test("parses SSH provider options on app, workspace, and fetch commands", () => {
 		const remote = {
 			sshTarget: "devbox",
 			cwd: "/repo",
@@ -168,7 +168,7 @@ describe("codex-flows CLI args", () => {
 			type: "app-call",
 			sshTarget: "devbox",
 			cwd: "/repo",
-			remoteMode: "auto",
+			remoteMode: "spawn",
 		});
 		expect(parseArgs([
 			"--ssh",
@@ -181,22 +181,7 @@ describe("codex-flows CLI args", () => {
 			type: "workspace-call",
 			sshTarget: "devbox",
 			cwd: "/repo",
-			remoteMode: "auto",
-		});
-		expect(parseArgs([
-			"--ssh",
-			"devbox",
-			"--cwd",
-			"/repo",
-			"flow",
-			"dispatch",
-			"--event",
-			"event.json",
-		], {})).toMatchObject({
-			type: "flow-dispatch",
-			sshTarget: "devbox",
-			cwd: "/repo",
-			remoteMode: "auto",
+			remoteMode: "spawn",
 		});
 	});
 
@@ -213,19 +198,6 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
-	test("parses flow inspection commands", () => {
-		expect(parseArgs(["flow", "events", "--type", "demo.event", "--limit=10"], {}))
-			.toMatchObject({
-				type: "flow-list-events",
-				eventType: "demo.event",
-				limit: 10,
-			});
-		expect(parseArgs(["flow", "run", "run_123"], {})).toMatchObject({
-			type: "flow-get-run",
-			runId: "run_123",
-		});
-	});
-
 	test("parses Actions helper commands and workspace Actions scaffolding", () => {
 		expect(parseArgs(["actions", "prepare-auth", "--workspace-root", "/work"], {}))
 			.toEqual({
@@ -238,43 +210,19 @@ describe("codex-flows CLI args", () => {
 			workspaceRoot: undefined,
 			pretty: true,
 		});
-		expect(parseArgs(["actions", "dispatch", "--event", "event.json"], {}))
-			.toMatchObject({
-				type: "actions-dispatch",
-				eventPath: "event.json",
-			});
-		expect(parseArgs([
-			"actions",
-			"assert-run",
-			"--flow",
-			"actions-smoke",
-			"--step",
-			"smoke",
-			"--artifact-text",
-			"needle",
-		], {})).toEqual({
-			type: "actions-assert-run",
-			workspaceRoot: undefined,
-			flowName: "actions-smoke",
-			stepName: "smoke",
-			artifactText: "needle",
-			pretty: true,
-		});
+		expect(() => parseArgs(["actions", "dispatch", "--event", "event.json"], {}))
+			.toThrow("actions requires prepare-auth or cleanup");
 		expect(parseArgs([
 			"workspace",
 			"init",
 			"actions",
 			"--forgejo",
-			"--with-smoke",
-			"--with-agent-turn",
 			"--overwrite",
 		], {})).toEqual({
 			type: "workspace-init-actions",
 			workspaceRoot: undefined,
 			forgejo: true,
 			github: false,
-			withSmoke: true,
-			withAgentTurn: true,
 			overwrite: true,
 			pretty: true,
 		});
@@ -453,7 +401,6 @@ describe("codex-flows CLI args", () => {
 				},
 				capabilities: {
 					workspaceMethods: 8,
-					flowInspection: true,
 				},
 				threads: {
 					total: 2,

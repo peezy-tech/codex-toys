@@ -1,7 +1,7 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const resultPrefix = "TURN_AUTOMATION ";
+const resultPrefix = "TURN_AUTOMATION_MODULE_RESULT ";
 const scriptPath = process.argv[2];
 
 try {

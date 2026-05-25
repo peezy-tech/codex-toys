@@ -1,4 +1,4 @@
-import { chmod, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { Buffer } from "node:buffer";
 import path from "node:path";
 
@@ -25,49 +25,8 @@ export type CleanupActionsCodexHomeResult = {
 	removed: string[];
 };
 
-export type CreateActionsLocalFlowClientOptions = {
-	workspaceRoot: string;
-	env?: ActionsHelperEnv;
-};
-
-export type ActionsLocalFlowClient = {
-	dispatchEvent(event: unknown, options?: Record<string, unknown>): Promise<unknown>;
-	replayEvent(eventId: string, options?: Record<string, unknown>): Promise<unknown>;
-	listEvents(options?: Record<string, unknown>): Promise<unknown>;
-	getEvent(eventId: string): Promise<unknown>;
-	listRuns(options?: Record<string, unknown>): Promise<unknown>;
-	getRun(runId: string): Promise<unknown>;
-};
-
-export type DispatchActionsFlowEventOptions = {
-	workspaceRoot: string;
-	event: unknown;
-	env?: ActionsHelperEnv;
-};
-
-export type DispatchActionsFlowEventResult = {
-	eventPath: string;
-	event: Record<string, unknown>;
-	dispatch: unknown;
-};
-
-export type AssertActionsFlowRunOptions = {
-	workspaceRoot: string;
-	flowName: string;
-	stepName: string;
-	requireCompleted?: boolean;
-	artifactText?: string;
-	env?: ActionsHelperEnv;
-};
-
-export type AssertActionsFlowRunResult = {
-	run: Record<string, unknown>;
-};
-
 const SQLITE_EXTENSIONS = [".sqlite", ".sqlite3", ".db"];
 const ACTIONS_STATE_RELATIVE = path.join("workspace", "actions");
-
-type LocalFlowClientFactory = (options: Record<string, unknown>) => ActionsLocalFlowClient;
 
 export function repoCodexHome(workspaceRoot: string): string {
 	return path.join(path.resolve(workspaceRoot), ".codex");
@@ -121,112 +80,6 @@ export async function cleanupActionsCodexHome(
 	return { codexHome, removed: removed.sort() };
 }
 
-export function createActionsLocalFlowClient(
-	options: CreateActionsLocalFlowClientOptions,
-): ActionsLocalFlowClient {
-	const workspaceRoot = path.resolve(options.workspaceRoot);
-	const codexHome = repoCodexHome(workspaceRoot);
-	const env: ActionsHelperEnv = {
-		...process.env,
-		...(options.env ?? {}),
-		CODEX_HOME: codexHome,
-		CODEX_WORKSPACE_MODE: "actions",
-	};
-	let clientPromise: Promise<ActionsLocalFlowClient> | undefined;
-	const client = async (): Promise<ActionsLocalFlowClient> => {
-		clientPromise ??= loadLocalFlowClientFactory().then((createLocalFlowClient) =>
-			createLocalFlowClient({
-				cwd: workspaceRoot,
-				env,
-				state: {
-					kind: "file",
-					dataDir: path.join(codexHome, "workspace", "actions", "flow-client"),
-				},
-				codex: {
-					mode: "stdio",
-					command: env.CODEX_APP_SERVER_CODEX_COMMAND,
-					codexHome,
-					stream: env.CODEX_FLOW_STREAM === "0" ? false : true,
-				},
-			})
-		);
-		return await clientPromise;
-	};
-	return {
-		dispatchEvent: async (event, dispatchOptions) =>
-			await (await client()).dispatchEvent(event, dispatchOptions),
-		replayEvent: async (eventId, replayOptions) =>
-			await (await client()).replayEvent(eventId, replayOptions),
-		listEvents: async (listOptions) =>
-			await (await client()).listEvents(listOptions),
-		getEvent: async (eventId) => await (await client()).getEvent(eventId),
-		listRuns: async (listOptions) => await (await client()).listRuns(listOptions),
-		getRun: async (runId) => await (await client()).getRun(runId),
-	};
-}
-
-export async function dispatchActionsFlowEvent(
-	options: DispatchActionsFlowEventOptions,
-): Promise<DispatchActionsFlowEventResult> {
-	const workspaceRoot = path.resolve(options.workspaceRoot);
-	const codexHome = repoCodexHome(workspaceRoot);
-	const event = normalizeFlowEvent(options.event);
-	const eventsRoot = path.join(codexHome, "workspace", "actions", "events");
-	await mkdir(eventsRoot, { recursive: true });
-	const eventPath = path.join(eventsRoot, `${eventFileStem(event)}.json`);
-	await writeFile(eventPath, `${JSON.stringify(event, null, 2)}\n`);
-	const client = createActionsLocalFlowClient({
-		workspaceRoot,
-		env: options.env,
-	});
-	const dispatch = await client.dispatchEvent(event);
-	return { eventPath, event, dispatch };
-}
-
-export async function assertActionsFlowRun(
-	options: AssertActionsFlowRunOptions,
-): Promise<AssertActionsFlowRunResult> {
-	const client = createActionsLocalFlowClient({
-		workspaceRoot: options.workspaceRoot,
-		env: options.env,
-	});
-	const listed = record(await client.listRuns({ limit: 100 }));
-	const runs = Array.isArray(listed.runs) ? listed.runs.filter(isRecord) : [];
-	const run = runs.find((candidate) =>
-		candidate.flowName === options.flowName && candidate.stepName === options.stepName
-	);
-	if (!run) {
-		throw new Error(`No Actions flow run found for ${options.flowName}/${options.stepName}`);
-	}
-	if (options.requireCompleted === true && !isCompletedRun(run)) {
-		throw new Error(
-			`Latest Actions flow run for ${options.flowName}/${options.stepName} is ${String(run.status ?? run.processStatus ?? "unknown")}`,
-		);
-	}
-	if (options.artifactText !== undefined && !JSON.stringify(run).includes(options.artifactText)) {
-		throw new Error(
-			`Latest Actions flow run for ${options.flowName}/${options.stepName} does not contain artifact text ${JSON.stringify(options.artifactText)}`,
-		);
-	}
-	return { run };
-}
-
-async function loadLocalFlowClientFactory(): Promise<LocalFlowClientFactory> {
-	const moduleUrl = new URL(
-		import.meta.url.endsWith(".ts")
-			? "../../flow-runtime/src/local-client.ts"
-			: "./flow-runtime/local-client.js",
-		import.meta.url,
-	);
-	const module = await import(moduleUrl.href) as {
-		createLocalFlowClient?: unknown;
-	};
-	if (typeof module.createLocalFlowClient !== "function") {
-		throw new Error("Unable to load createLocalFlowClient");
-	}
-	return module.createLocalFlowClient as LocalFlowClientFactory;
-}
-
 function authJsonFromEnv(
 	env: ActionsHelperEnv,
 ): { source: PrepareActionsCodexAuthResult["source"]; value: unknown } | undefined {
@@ -260,26 +113,6 @@ function parseAuthJson(text: string, source: string): unknown {
 	} catch (error) {
 		throw new Error(`${source} must contain JSON: ${errorMessage(error)}`);
 	}
-}
-
-function normalizeFlowEvent(event: unknown): Record<string, unknown> {
-	if (!isRecord(event) || typeof event.id !== "string" || typeof event.type !== "string") {
-		throw new Error("Actions flow event requires string id and type");
-	}
-	return {
-		receivedAt: new Date().toISOString(),
-		payload: {},
-		...event,
-	};
-}
-
-function eventFileStem(event: Record<string, unknown>): string {
-	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-	return `${timestamp}-${safePathPart(String(event.id))}`;
-}
-
-function safePathPart(value: string): string {
-	return value.replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "event";
 }
 
 async function listFiles(
@@ -351,15 +184,6 @@ function isInsideProtectedRoot(file: string, protectedRoot: string | undefined):
 function isSqlitePath(file: string): boolean {
 	const lower = file.toLowerCase();
 	return SQLITE_EXTENSIONS.some((extension) => lower.endsWith(extension));
-}
-
-function isCompletedRun(run: Record<string, unknown>): boolean {
-	return run.processStatus === "completed" &&
-		(run.effectiveStatus === undefined || run.effectiveStatus === "completed");
-}
-
-function record(value: unknown): Record<string, unknown> {
-	return isRecord(value) ? value : {};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

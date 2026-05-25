@@ -1,14 +1,14 @@
 ---
 title: Architecture
-description: How events, clients, runtimes, backends, workers, and apps fit together.
+description: How turn automation, Codex app-server, workspace backends, and apps fit together.
 ---
 
 # Architecture
 
-codex-flows separates pre-turn prompt automation, durable event automation, and
-product completion.
-
-For plugin-native prompt automation, code runs before a Codex turn:
+codex-flows centers on plugin-native prompt automation and native Codex turns.
+The primary runtime is intentionally narrow: a named automation runs code,
+decides whether work is needed, and starts a native app-server turn only when
+there is something worth asking Codex to do.
 
 ```mermaid
 sequenceDiagram
@@ -22,32 +22,8 @@ sequenceDiagram
   Codex-->>Codex: native turn uses normal tools and skills
 ```
 
-For durable event automation, the flow runtime preserves event/run state:
-
-```mermaid
-sequenceDiagram
-  participant App as Product app
-  participant Client as Flow client
-  participant Backend as Backend or local runtime
-  participant Step as Flow step
-  participant Domain as App completion
-
-  App->>Client: dispatchEvent(FlowEvent)
-  Client->>Backend: local match or HTTP POST /events
-  Backend->>Step: runner context
-  Step-->>Backend: FlowResult or FLOW_RESULT
-  Backend-->>Client: run/event views
-  Backend-->>Domain: app-owned worker or wrapper applies product effects
-```
-
-The same flow package can run:
-
-- directly through `codex-flow-runner`
-- synchronously through `@peezy.tech/codex-flows/flow-runtime/local-client`
-- through the workspace backend's local flow capability
-- through a Convex control plane plus an external worker
-- through any app-owned backend adapter that preserves the event/result ABI
-
-The important invariant is that the generic layer owns flow state, not product
-meaning. A `blocked` result can be surfaced by the backend, but the app decides
-what blocked means and how to resolve it.
+The workspace backend is the remote-friendly control surface. It owns app-server
+pass-through, delegation, hook-spool routing, workspace state, and the policy
+needed to run scheduled tasks. Product-specific completion still stays outside
+codex-flows: each product owns credentials, release rules, external writes, and
+the final side effects that happen after a Codex turn.

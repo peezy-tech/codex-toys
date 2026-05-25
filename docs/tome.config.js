@@ -10,36 +10,19 @@ export default {
 	navigation: [
 		{ group: "Overview", pages: ["index"] },
 		{
-			group: "Tutorials",
-			pages: [
-				"tutorials/first-flow",
-				"tutorials/dispatch-release-event",
-			],
-		},
-		{
 			group: "Guides",
 			pages: [
 				"guides/turn-automation",
-				"guides/author-flow-package",
-				"guides/run-flows-locally",
-				"guides/dispatch-and-replay-events",
 				"guides/workspace-autonomy",
 				"guides/memory-transplant",
 				"guides/thread-transplant",
 				"guides/install-codex-plugin",
 				"guides/install-pack-repos",
-				"guides/operate-workspace-flow-backend",
-				"guides/use-convex-backend",
-				"guides/operate-codex-release-flows",
 			],
 		},
 		{
 			group: "Reference",
 			pages: [
-				"reference/flow-event",
-				"reference/flow-toml",
-				"reference/flow-client",
-				"reference/backend-http",
 				"reference/cli",
 				"reference/packages",
 			],

@@ -10,16 +10,15 @@ not a skill: it runs first, then decides whether to start a native Codex turn.
 
 ## Contract
 
-- Run scripts through `codex-flows automation run <script>`.
-- Prefer named automations under `automations/<name>/automation.json` when the
-  script should be reused, scheduled, or installed by a plugin.
-- Read one JSON context object from stdin with `automation`, `runtime`, optional
-  `event`, optional `prompt`, and optional `cwd`.
+- Run scripts through `codex-flows automation run <name>`.
+- Use named automations under `automations/<name>/automation.json`.
+- Export a default handler that receives a context object with `automation`,
+  `runtime`, optional `event`, optional `prompt`, and optional `cwd`.
 - Return `{ "action": "skip" }` when no Codex turn is needed.
 - Return `{ "action": "turn", "prompt": "..." }` when Codex should start a
   native turn.
-- Module-style scripts may `export default async function run(context)`.
-- Raw scripts must print one final `TURN_AUTOMATION <json>` line.
+- Scripts must `export default async function run(context)` or an equivalent
+  default function.
 
 ## Named Layout
 
@@ -51,6 +50,4 @@ automations/<name>/
 - Keep external side effects small before the turn starts; the turn should own
   work that needs Codex reasoning, tools, or skill guidance.
 - Use the SSH provider for remote workspaces:
-  `codex-flows --ssh <target> --cwd /repo automation run <script>`.
-- Use flow packages only when durable event/run state, replay, leases, attempts,
-  or backend queues are needed.
+  `codex-flows --ssh <target> --cwd /repo automation run <name>`.

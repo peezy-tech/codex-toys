@@ -1,17 +1,12 @@
 [pack]
 name = "engineering-capabilities"
 version = "0.1.0"
-description = "Reusable engineering skills, flows, plugins, and hooks."
+description = "Reusable engineering skills, plugins, and hooks."
 
 [[pack.items]]
 name = "tdd"
 kind = "skill"
 path = "skills/engineering/tdd"
-
-[[pack.items]]
-name = "release-health"
-kind = "flow"
-path = "flows/release-health"
 
 [[pack.items]]
 name = "repo-policy"

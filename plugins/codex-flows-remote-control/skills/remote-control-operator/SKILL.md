@@ -1,6 +1,6 @@
 ---
 name: remote-control-operator
-description: Use when a Codex App install on a local machine needs to inspect existing Codex remote-control connections, open an SSH/Tailscale tunnel to a remote codex-flows workspace backend, or start a Codex turn on that remote backend.
+description: Use when a Codex App install on a local machine needs to inspect existing Codex remote-control connections, open an SSH/Tailscale tunnel to a remote codex-flows workspace backend, run remote automation, or start a Codex turn on that remote backend.
 ---
 
 # Remote Control Operator
@@ -93,5 +93,5 @@ specific remote workspace path.
 - `remoteControl/status/read` unavailable on the app-server: the local Codex App
   may not expose the remote-control API yet; continue through the workspace
   backend tunnel if that is reachable.
-- `remote turn start` fails through `auto`: retry with `--via workspace` to make
-  the intended tunnel path explicit.
+- `remote turn start` fails: retry with `--via workspace` and check that the
+  backend URL is reachable.

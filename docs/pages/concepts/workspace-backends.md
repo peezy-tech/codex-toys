@@ -15,7 +15,6 @@ The built-in capability families are:
 
 - app-server pass-through for native Codex app-server JSON-RPC methods
 - delegation lifecycle, return modes, result flushing, and group wakes
-- flow execution and inspection over the generic `FlowEvent`/`FLOW_RESULT` ABI
 - workbench state, observed threads, hook-spool returns, and presentation routing
 
 Native app-server methods stay app-server-native. Calls such as `thread/list`,
@@ -27,16 +26,8 @@ target host.
 
 Workspace-owned methods are reserved for behavior that combines app-server
 state with workspace policy or workspace state: delegations, return modes, group
-wakes, workbench routing, hook-spool observed-thread wake behavior, persisted
-workspace sessions, and flow inspection or dispatch.
-
-Flow execution is now a workspace backend capability. In an embedded backend,
-tools and presenters can call the flow capability directly. In a networked local
-backend, the same capability is also mounted as the existing HTTP routes for
-dispatch, inspection, and replay. The generic flow ABI remains unchanged:
-products dispatch `FlowEvent`, flow packages match `flow.toml`, steps emit
-`FLOW_RESULT`, and app-specific completion stays in the consuming app.
+wakes, workbench routing, hook-spool observed-thread wake behavior, and
+persisted workspace sessions.
 
 Use a workspace backend when the product needs a long-lived Codex control
-surface. Use flow packages when the product needs portable event-driven
-automation.
+surface or remote-friendly turn automation.

@@ -17,43 +17,40 @@ presenter or transport constructs the workspace backend in-process with:
 - a state store
 - workspace configuration
 - presenter callbacks for output and UI artifacts
-- direct access to delegation, workbench, and flow capabilities
+- direct access to delegation and workbench capabilities
 
 The presenter wrapper owns its own startup, shutdown, command registration, and
 inbound events. The local workspace backend owns Codex app-server lifecycle,
-thread routing, goals, delegation, workbench state, hook-spool draining, flow
-capability access, and persisted workspace state.
+thread routing, goals, delegation, workbench state, hook-spool draining, and
+persisted workspace state.
 
 ## Networked local
 
 Networked local mode runs `codex-workspace-backend-local` as one process. It can
 connect to an existing app-server or spawn a local stdio app-server, and it can
-mount control WebSocket plus flow HTTP surfaces.
+mount the control WebSocket surface.
 
 The control protocol has two lanes:
 
 | Lane | Methods | Owner |
 |------|---------|-------|
 | app-server pass-through | `appServer.call`, `appServer.notify`, `appServer.respond`, `appServer.respondError` | Codex app-server adapter |
-| workspace-owned | `workspace.*`, `delegation.*`, `flow.*`, and `workspace.event` | Codex workspace backend |
+| workspace-owned | `workspace.*`, `delegation.*`, and `workspace.event` | Codex workspace backend |
 
-The networked local process also mounts the stable flow HTTP routes such as
-`/events`, `/events/:id/replay`, `/runs`, and `/healthz`. Those routes are an
-optional transport surface over the same built-in flow capability.
+The networked local process is the normal target for workspace-backed turn
+automation and remote operation.
 
 ## SSH remote
 
 SSH remote mode keeps the operator command local and runs Codex workspace
-capabilities on the target host. The local CLI opens an SSH tunnel to an
-existing backend, or starts a transient `codex-workspace-backend-local serve
---local-app-server` process on the remote when configured for `auto` or `spawn`
-mode. App-server-only commands can fall back to `codex app-server --listen
-stdio://` over SSH.
+capabilities on the target host. The local CLI starts a transient
+`codex-workspace-backend-local serve --local-app-server` process on the remote
+by default. Use `--remote-mode existing` when the remote already runs a backend
+and the local command should only open a tunnel.
 
 The remote host owns its checkout, `CODEX_HOME`, installed tools, and
-credentials. The local CLI reads local command inputs such as `--event`, but
-flow discovery, step execution, Codex tools, and generated state happen on the
-remote workspace.
+credentials. The local CLI reads local command inputs such as `--event`, while
+Codex tools and generated state happen on the remote workspace.
 
 ## Future remote
 
@@ -65,8 +62,6 @@ remote transport. The transport-facing contract should stay small:
 | presenter to backend | transport-specific inbound events or workspace JSON-RPC | lifecycle, commands, and event delivery |
 | backend to presenter | presenter operations or `workspace.event` notifications | UI output and presentation updates |
 | backend to app-server | app-server adapter calls | app-server-native thread, turn, auth, goal, and tool behavior |
-| backend to flow capability | direct calls or mounted HTTP routes | flow dispatch, inspection, and replay |
-
-The backend boundary should not redefine app-server or flow semantics. It owns
-workspace orchestration and policy; app-server and flow capabilities keep their
-native contracts.
+The backend boundary should not redefine app-server semantics. It owns
+workspace orchestration and policy; app-server capabilities keep their native
+contracts.

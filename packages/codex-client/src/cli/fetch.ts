@@ -42,11 +42,9 @@ export type FetchBackendInfo = {
 	};
 	capabilities?: {
 		workspaceMethods: number;
-		flowInspection: boolean;
 	};
 	threads?: FetchThreadsInfo;
 	delegations?: FetchCountInfo;
-	flow?: FetchFlowInfo;
 	error?: string;
 };
 
@@ -71,21 +69,6 @@ export type FetchCountInfo = {
 	complete?: number;
 	reported?: number;
 	other?: number;
-};
-
-export type FetchFlowInfo = {
-	runs: FetchFlowRunCounts;
-	eventsListed: number;
-	error?: string;
-};
-
-export type FetchFlowRunCounts = {
-	total: number;
-	queued: number;
-	running: number;
-	completed: number;
-	failed: number;
-	other: number;
 };
 
 export async function collectFetchInfo(
@@ -184,9 +167,7 @@ function backendRows(backend: FetchBackendInfo): Array<[string, string]> {
 	if (backend.capabilities) {
 		rows.push([
 			"capabilities",
-			`${backend.capabilities.workspaceMethods} methods, flow ${
-				backend.capabilities.flowInspection ? "on" : "off"
-			}`,
+			`${backend.capabilities.workspaceMethods} methods`,
 		]);
 	}
 	if (backend.threads) {
@@ -200,18 +181,6 @@ function backendRows(backend: FetchBackendInfo): Array<[string, string]> {
 	}
 	if (backend.delegations) {
 		rows.push(["delegations", countLabel(backend.delegations)]);
-	}
-	if (backend.flow) {
-		const runs = backend.flow.runs;
-		rows.push([
-			"flows",
-			`${runs.total} runs (${runs.running} running, ${runs.queued} queued), ${
-				backend.flow.eventsListed
-			} events listed`,
-		]);
-		if (backend.flow.error) {
-			rows.push(["flow error", backend.flow.error]);
-		}
 	}
 	return rows;
 }

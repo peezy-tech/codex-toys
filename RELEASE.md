@@ -88,12 +88,6 @@ Gateway packages:
 - `@peezy.tech/codex-discord-bridge`
 - `@peezy.tech/codex-workspace-voice-gateway`
 
-Compatibility/library packages that may still be published during the
-single-package platform migration:
-
-- `@peezy.tech/flow-runtime`
-- `@peezy.tech/flow-backend-convex`
-
 The GitHub publish workflow checks whether each package version already exists
 on npm. It publishes new versions and skips versions that are already present.
 Published packages are packed with `pnpm pack` and then handed to `npm publish`
@@ -103,8 +97,7 @@ Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
 line is `0.132.x`, a breaking codex-flows stack release should usually advance
 to `0.132.1` rather than `0.133.0`. Keep public package versions aligned across
-the stack, including packages that previously had lower independent versions
-such as `@peezy.tech/flow-runtime`.
+the stack.
 
 New public core runtime surfaces should be exported through
 `@peezy.tech/codex-flows` first, including reusable protocol helpers and
@@ -131,13 +124,11 @@ To publish through GitHub trusted publishing:
 3. Confirm the Codeberg mirror has received the commit.
 4. Push the same commit to GitHub.
 5. For a package name that has never existed on npm, create the package/trusted-publisher setup with the owning npm account first. Do not add npm tokens to the repo or GitHub secrets.
-6. Run `.github/workflows/publish-codex-flows.yml` on GitHub with confirmation input `publish-codex-flow-packages`.
+6. Run `.github/workflows/publish-codex-flows.yml` on GitHub with confirmation input `publish-codex-flows-packages`.
 7. Verify npm:
 
 ```bash
 npm dist-tag ls @peezy.tech/codex-flows
 npm dist-tag ls @peezy.tech/codex-discord-bridge
 npm dist-tag ls @peezy.tech/codex-workspace-voice-gateway
-npm dist-tag ls @peezy.tech/flow-runtime
-npm dist-tag ls @peezy.tech/flow-backend-convex
 ```
