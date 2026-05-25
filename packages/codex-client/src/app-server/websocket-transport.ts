@@ -40,7 +40,9 @@ export class CodexWebSocketTransport extends CodexEventEmitter {
 	}
 
 	start(): void {
-		void this.#connect();
+		void this.#connect().catch(() => {
+			// The transport emits connection errors; this marks eager starts as handled.
+		});
 	}
 
 	close(): void {

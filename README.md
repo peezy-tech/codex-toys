@@ -65,6 +65,9 @@ Inspect the CLI:
 tsx packages/codex-client/src/cli/index.ts --help
 codex-flows fetch
 codex-flows remote status
+codex-flows --ssh devbox --cwd /repo fetch
+codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
 codex-flows workspace doctor
 codex-flows workspace backend status
 codex-flows memories transplant global-to-workspace

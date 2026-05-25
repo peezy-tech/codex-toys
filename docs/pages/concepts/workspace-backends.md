@@ -22,7 +22,8 @@ Native app-server methods stay app-server-native. Calls such as `thread/list`,
 `thread/read`, `thread/start`, `turn/start`, `turn/interrupt`, `account/read`,
 and app-server-native goal APIs are forwarded through the app-server adapter the
 workspace backend owns. That adapter might be stdio, a Unix socket, a local
-WebSocket, or a future remote transport.
+WebSocket, or a remote SSH provider that tunnels or starts the backend on the
+target host.
 
 Workspace-owned methods are reserved for behavior that combines app-server
 state with workspace policy or workspace state: delegations, return modes, group

@@ -143,6 +143,9 @@ codex-flows fetch
 codex-flows remote status
 codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
 codex-flows remote turn start --via workspace --prompt "Check workspace status"
+codex-flows --ssh devbox --cwd /repo fetch
+codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
 codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace doctor
@@ -161,9 +164,9 @@ codex-workspace-backend-local serve --local-app-server
 
 See `docs/pages/reference/cli.md` for the full command surface.
 
-Gateway packages, such as Discord text or voice integrations, should depend on
-this package and consume `@peezy.tech/codex-flows/workspace-backend` instead of
-being bundled into the core package.
+SSH is a connection provider, not a product UI surface. With `--ssh`, the local
+CLI can target a remote workspace, tunnel or spawn the remote workspace backend,
+and fall back to a remote app-server over stdio for app-only commands.
 
 ## Development Scripts
 

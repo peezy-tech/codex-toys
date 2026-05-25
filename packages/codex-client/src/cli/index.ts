@@ -58,6 +58,12 @@ import {
 	startRemoteTurn,
 } from "./remote-control.ts";
 import {
+	createSshAppServerClient,
+	hasSshRemote,
+	startSshWorkspaceBackend,
+	type SshRemoteProviderOptions,
+} from "./remote-provider.ts";
+import {
 	formatThreadRolloutInspection,
 	formatThreadRolloutInstallation,
 	formatThreadRolloutLocation,
@@ -101,6 +107,7 @@ async function main(): Promise<void> {
 		const info = await collectFetchInfo({
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
+			cwd: parsed.sshTarget ? parsed.cwd : undefined,
 			backend: await collectBackendInfo(parsed),
 		});
 		write(parsed.json
@@ -152,10 +159,7 @@ async function main(): Promise<void> {
 	}
 	if (parsed.type === "app-call") {
 		writeJson(
-			await callAppServer(parsed.method, await readParams(parsed.paramsText), {
-				url: parsed.url,
-				timeoutMs: parsed.timeoutMs,
-			}),
+			await callAppServer(parsed.method, await readParams(parsed.paramsText), parsed),
 			parsed.pretty,
 		);
 		return;
@@ -180,6 +184,12 @@ async function main(): Promise<void> {
 			appUrl: parsed.appUrl,
 			workspaceUrl: backendSetup.workspaceBackendUrl,
 			timeoutMs: parsed.timeoutMs,
+			sshTarget: parsed.sshTarget,
+			cwd: parsed.cwd,
+			remoteMode: parsed.remoteMode,
+			localPort: parsed.localPort,
+			remoteHost: parsed.remoteHost,
+			remotePort: parsed.remotePort,
 		});
 		const result = { ...info, migratedConfig: migrated, backend, backendSetup };
 		write(parsed.json
@@ -213,6 +223,12 @@ async function main(): Promise<void> {
 			appUrl: parsed.appUrl,
 			workspaceUrl: setup.workspaceBackendUrl,
 			timeoutMs: parsed.timeoutMs,
+			sshTarget: parsed.sshTarget,
+			cwd: parsed.cwd,
+			remoteMode: parsed.remoteMode,
+			localPort: parsed.localPort,
+			remoteHost: parsed.remoteHost,
+			remotePort: parsed.remotePort,
 		});
 		const result = { setup, backend };
 		write(parsed.json
@@ -503,8 +519,21 @@ function nextBackendCommand(current: string, backend: FetchBackendInfo): string 
 async function callAppServer(
 	method: string,
 	params: unknown,
-	options: { url: string; timeoutMs: number },
+	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<unknown> {
+	if (hasSshRemote(options)) {
+		try {
+			return await withRemoteWorkspaceTransport(options, async (transport) => {
+				await initialize(transport);
+				return await transport.request(APP_SERVER_CALL_METHOD, { method, params });
+			});
+		} catch (error) {
+			if (options.remoteMode && options.remoteMode !== "auto") {
+				throw error;
+			}
+			return await callSshAppServer(method, params, options);
+		}
+	}
 	const client = new CodexAppServerClient({
 		...(options.url === "stdio://"
 			? { transportOptions: { requestTimeoutMs: options.timeoutMs } }
@@ -533,10 +562,34 @@ async function callAppServer(
 	}
 }
 
+async function callSshAppServer(
+	method: string,
+	params: unknown,
+	options: SshRemoteProviderOptions,
+): Promise<unknown> {
+	const client = createSshAppServerClient(options, {
+		name: "codex-flows-cli",
+		title: "Codex Flows CLI",
+	});
+	client.on("request", (message) => {
+		client.respondError(
+			message.id,
+			-32603,
+			"codex-flows CLI does not handle app-server requests",
+		);
+	});
+	try {
+		await client.connect();
+		return await client.request(method, params);
+	} finally {
+		client.close();
+	}
+}
+
 async function initializeWorkspaceBackend(options: {
 	url: string;
 	timeoutMs: number;
-}): Promise<WorkspaceBackendInitializeResponse> {
+} & SshRemoteProviderOptions): Promise<WorkspaceBackendInitializeResponse> {
 	return await withWorkspaceTransport(options, async (transport) =>
 		await initialize(transport)
 	);
@@ -545,7 +598,7 @@ async function initializeWorkspaceBackend(options: {
 async function callWorkspaceBackend(
 	method: string,
 	params: unknown,
-	options: { url: string; timeoutMs: number },
+	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<unknown> {
 	return await withWorkspaceTransport(options, async (transport) => {
 		await initialize(transport);
@@ -554,6 +607,31 @@ async function callWorkspaceBackend(
 }
 
 async function withWorkspaceTransport<T>(
+	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
+	callback: (transport: CodexWebSocketTransport) => Promise<T>,
+): Promise<T> {
+	if (hasSshRemote(options)) {
+		return await withRemoteWorkspaceTransport(options, callback);
+	}
+	return await withWorkspaceWebSocket(options, callback);
+}
+
+async function withRemoteWorkspaceTransport<T>(
+	options: { timeoutMs: number } & SshRemoteProviderOptions,
+	callback: (transport: CodexWebSocketTransport) => Promise<T>,
+): Promise<T> {
+	const backend = await startSshWorkspaceBackend(options);
+	try {
+		return await withWorkspaceWebSocket({
+			url: backend.workspaceUrl,
+			timeoutMs: options.timeoutMs,
+		}, callback);
+	} finally {
+		backend.close();
+	}
+}
+
+async function withWorkspaceWebSocket<T>(
 	options: { url: string; timeoutMs: number },
 	callback: (transport: CodexWebSocketTransport) => Promise<T>,
 ): Promise<T> {
@@ -591,7 +669,10 @@ async function collectBackendInfo(options: {
 	appUrl: string;
 	workspaceUrl: string;
 	timeoutMs: number;
-}): Promise<FetchBackendInfo> {
+} & SshRemoteProviderOptions): Promise<FetchBackendInfo> {
+	if (hasSshRemote(options)) {
+		return await collectSshBackendInfo(options);
+	}
 	const workspace = await tryCollectWorkspaceBackendInfo(options);
 	if (workspace.status === "connected") {
 		return workspace;
@@ -612,6 +693,50 @@ async function collectBackendInfo(options: {
 			workspace.error ? `workspace: ${workspace.error}` : undefined,
 			appServer.error ? `app-server: ${appServer.error}` : undefined,
 		].filter(Boolean).join("; ") || "No backend responded",
+	};
+}
+
+async function collectSshBackendInfo(
+	options: {
+		appUrl: string;
+		workspaceUrl: string;
+		timeoutMs: number;
+	} & SshRemoteProviderOptions,
+): Promise<FetchBackendInfo> {
+	const failures: string[] = [];
+	try {
+		const backend = await startSshWorkspaceBackend(options);
+		try {
+			const info = await tryCollectWorkspaceBackendInfo({
+				workspaceUrl: backend.workspaceUrl,
+				timeoutMs: options.timeoutMs,
+			});
+			if (info.status === "connected") {
+				return info;
+			}
+			failures.push(info.error ? `workspace: ${info.error}` : "workspace unavailable");
+		} finally {
+			backend.close();
+		}
+	} catch (error) {
+		failures.push(`workspace: ${errorMessage(error)}`);
+	}
+	if (!options.remoteMode || options.remoteMode === "auto") {
+		const appServer = await tryCollectSshAppServerInfo(options);
+		if (appServer.status === "connected") {
+			return {
+				...appServer,
+				error: failures.length > 0
+					? `Workspace probe failed: ${failures.join("; ")}`
+					: undefined,
+			};
+		}
+		failures.push(appServer.error ? `app-server: ${appServer.error}` : "app-server unavailable");
+	}
+	return {
+		mode: "local",
+		status: "unavailable",
+		error: failures.join("; ") || "No SSH remote backend responded",
 	};
 }
 
@@ -732,6 +857,43 @@ async function tryCollectAppServerWebSocketInfo(options: {
 		};
 	} finally {
 		transport.close();
+	}
+}
+
+async function tryCollectSshAppServerInfo(
+	options: SshRemoteProviderOptions,
+): Promise<FetchBackendInfo> {
+	const client = createSshAppServerClient(options, {
+		name: "codex-flows-fetch",
+		title: "Codex Flows Fetch",
+	});
+	client.on("request", (message) => {
+		client.respondError(
+			message.id,
+			-32603,
+			"codex-flows fetch does not handle app-server requests",
+		);
+	});
+	client.on("error", () => {});
+	try {
+		return await withProbeTimeout(async () => {
+			await client.connect();
+			return {
+				mode: "app-server",
+				status: "connected",
+				url: "ssh://stdio",
+				threads: await collectThreadsViaAppServer(client),
+			};
+		}, options.timeoutMs, `SSH app-server probe timed out after ${options.timeoutMs}ms`);
+	} catch (error) {
+		return {
+			mode: "app-server",
+			status: "unavailable",
+			url: "ssh://stdio",
+			error: errorMessage(error),
+		};
+	} finally {
+		client.close();
 	}
 }
 
@@ -1026,6 +1188,7 @@ function helpText(): string {
 Usage:
   codex-flows fetch [--json] [--no-color]
   codex-flows neofetch [--json] [--no-color]
+  codex-flows --ssh <target> --cwd <remote-workspace> fetch
 
   codex-flows remote status [--json]
   codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
@@ -1117,20 +1280,28 @@ Options:
                                              For remote tunnel start, print the ssh command.
   --prompt <text>                            Prompt text for remote turn start.
   --via <auto|workspace|app>                 Remote turn surface. Defaults to auto.
-  --ssh, --ssh-target <target>               SSH target for a Tailscale-backed tunnel.
+  --ssh, --ssh-target <target>               SSH target for remote CodexFlows operation
+                                             or a Tailscale-backed tunnel.
                                              Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
+  --remote-mode <auto|existing|spawn>        SSH backend mode. auto probes then spawns;
+                                             existing only tunnels; spawn always starts
+                                             a transient remote backend.
   --local-port <port>                        Local tunnel port. Defaults to 3586.
   --remote-host <host>                       Remote backend host. Defaults to 127.0.0.1.
   --remote-port <port>                       Remote backend port. Defaults to 3586.
-  --cwd <path>                               Working directory for remote turn start.
+  --cwd <path>                               Remote workspace cwd for SSH operation.
   -h, --help                                 Show this help.
 
 Examples:
   codex-flows fetch
+  codex-flows --ssh devbox --cwd /repo fetch
   codex-flows fetch --workspace-url ws://127.0.0.1:3586
   codex-flows remote status --workspace-url ws://127.0.0.1:3586
   codex-flows remote tunnel start --ssh peezy@vps-tailnet --dry-run
   codex-flows remote turn start --prompt "Check workspace status"
+  codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+  codex-flows --ssh devbox --cwd /repo workspace delegation.list
+  codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
   codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace delegation.list

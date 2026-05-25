@@ -41,6 +41,20 @@ The networked local process also mounts the stable flow HTTP routes such as
 `/events`, `/events/:id/replay`, `/runs`, and `/healthz`. Those routes are an
 optional transport surface over the same built-in flow capability.
 
+## SSH remote
+
+SSH remote mode keeps the operator command local and runs Codex workspace
+capabilities on the target host. The local CLI opens an SSH tunnel to an
+existing backend, or starts a transient `codex-workspace-backend-local serve
+--local-app-server` process on the remote when configured for `auto` or `spawn`
+mode. App-server-only commands can fall back to `codex app-server --listen
+stdio://` over SSH.
+
+The remote host owns its checkout, `CODEX_HOME`, installed tools, and
+credentials. The local CLI reads local command inputs such as `--event`, but
+flow discovery, step execution, Codex tools, and generated state happen on the
+remote workspace.
+
 ## Future remote
 
 A remote workspace backend should expose the same logical capabilities behind a

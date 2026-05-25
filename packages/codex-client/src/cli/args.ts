@@ -1,8 +1,18 @@
 import { validateMethodName } from "./actions.ts";
+import { parseRemoteMode, type RemoteMode } from "./remote-provider.ts";
 import { parseMode, type WorkspaceModeInput } from "./workspace-autonomy.ts";
 import type { MemoryTransplantDirection } from "./memories.ts";
 
-export type ParsedCli =
+export type ParsedRemoteOptions = {
+	sshTarget?: string;
+	cwd?: string;
+	remoteMode?: RemoteMode;
+	localPort?: number;
+	remoteHost?: string;
+	remotePort?: number;
+};
+
+type ParsedCliBase =
 	| { type: "help" }
 	| {
 			type: "fetch";
@@ -264,6 +274,8 @@ export type ParsedCli =
 			json: boolean;
 	  };
 
+export type ParsedCli = ParsedCliBase & ParsedRemoteOptions;
+
 export const DEFAULT_APP_SERVER_WS_URL = "ws://127.0.0.1:3585";
 export const DEFAULT_WORKSPACE_BACKEND_WS_URL = "ws://127.0.0.1:3586";
 const defaultTimeoutMs = 90_000;
@@ -309,9 +321,10 @@ export function parseArgs(
 	let withAgentTurn = false;
 	let dryRun = false;
 	let prompt: string | undefined;
-	let cwd: string | undefined;
+	let cwd: string | undefined = env.CODEX_FLOWS_REMOTE_CWD;
 	let via: "auto" | "workspace" | "app" = "auto";
 	let sshTarget: string | undefined = env.CODEX_FLOWS_REMOTE_SSH_TARGET;
+	let remoteMode: RemoteMode = parseRemoteMode(env.CODEX_FLOWS_REMOTE_MODE);
 	let localPort: number | undefined;
 	let remoteHost: string | undefined;
 	let remotePort: number | undefined;
@@ -632,6 +645,14 @@ export function parseArgs(
 			via = parseRemoteVia(arg.slice("--via=".length));
 			continue;
 		}
+		if (arg === "--remote-mode") {
+			remoteMode = parseRemoteMode(required(argv, ++index, arg));
+			continue;
+		}
+		if (arg.startsWith("--remote-mode=")) {
+			remoteMode = parseRemoteMode(arg.slice("--remote-mode=".length));
+			continue;
+		}
 		if (arg === "--ssh" || arg === "--ssh-target") {
 			sshTarget = required(argv, ++index, arg);
 			continue;
@@ -678,6 +699,27 @@ export function parseArgs(
 		positionals.push(arg);
 	}
 
+	const remoteFields = (): ParsedRemoteOptions => {
+		const fields: ParsedRemoteOptions = {};
+		if (sshTarget) {
+			fields.sshTarget = sshTarget;
+			fields.remoteMode = remoteMode;
+			if (cwd) {
+				fields.cwd = cwd;
+			}
+		}
+		if (localPort !== undefined) {
+			fields.localPort = localPort;
+		}
+		if (remoteHost !== undefined) {
+			fields.remoteHost = remoteHost;
+		}
+		if (remotePort !== undefined) {
+			fields.remotePort = remotePort;
+		}
+		return fields;
+	};
+
 	const command = positionals[0];
 	if (!command || command === "help") {
 		return { type: "help" };
@@ -690,6 +732,7 @@ export function parseArgs(
 			timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
 			color,
 			json,
+			...remoteFields(),
 		};
 	}
 	if (command === "remote") {
@@ -759,12 +802,19 @@ export function parseArgs(
 			url: appUrl,
 			timeoutMs,
 			pretty,
+			...remoteFields(),
 		};
 	}
 	if (command === "workspace") {
 		const subcommand = positionals[1];
 		if (!subcommand || subcommand === "methods") {
-			return { type: "workspace-methods", url: workspaceUrl, timeoutMs, pretty };
+			return {
+				type: "workspace-methods",
+				url: workspaceUrl,
+				timeoutMs,
+				pretty,
+				...remoteFields(),
+			};
 		}
 		if (subcommand === "doctor") {
 			return {
@@ -776,6 +826,7 @@ export function parseArgs(
 				timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
 				color,
 				json,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "tick") {
@@ -786,6 +837,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "run") {
@@ -797,6 +849,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "init") {
@@ -847,6 +900,7 @@ export function parseArgs(
 					timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
 					json,
 					pretty,
+					...remoteFields(),
 				};
 			}
 			if (backendCommand === "start") {
@@ -873,6 +927,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		const method = subcommand === "call"
@@ -886,6 +941,7 @@ export function parseArgs(
 			url: workspaceUrl,
 			timeoutMs,
 			pretty,
+			...remoteFields(),
 		};
 	}
 	if (command === "flow") {
@@ -901,6 +957,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "events" || subcommand === "list-events") {
@@ -911,6 +968,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "event" || subcommand === "show-event") {
@@ -924,6 +982,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "replay" || subcommand === "replay-event") {
@@ -938,6 +997,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "runs" || subcommand === "list-runs") {
@@ -949,6 +1009,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "run" || subcommand === "show-run") {
@@ -962,6 +1023,7 @@ export function parseArgs(
 				url: workspaceUrl,
 				timeoutMs,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		throw new Error("flow requires dispatch, events, event, replay, runs, or run");

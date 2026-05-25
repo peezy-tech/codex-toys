@@ -18,13 +18,16 @@ codex-flows --help
 ```bash
 codex-flows fetch [--json] [--no-color]
 codex-flows neofetch [--json] [--no-color]
+codex-flows --ssh <target> --cwd <remote-workspace> fetch
 ```
 
 `fetch` first probes the configured workspace backend, falls back to the
 configured app-server, and then prints local package, runtime, endpoint,
 workspace, and Codex environment information. With a reachable backend it also
 includes capabilities, recent thread counts, delegation counts, and flow
-run/event counts.
+run/event counts. With `--ssh`, the local CLI probes a remote workspace backend
+through SSH and prints the remote workspace cwd while leaving local credentials
+alone.
 
 ## Remote Control
 
@@ -42,6 +45,23 @@ fatal setup error. `remote tunnel start` runs an OpenSSH local forward from
 `127.0.0.1:3586` on both sides. `remote turn start` creates a thread and starts
 a turn through the workspace backend tunnel when available.
 
+The global `--ssh` provider is the remote-first automation path. App-server,
+workspace backend, flow, and fetch commands can run locally while targeting a
+remote workspace:
+
+```bash
+codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo workspace delegation.list
+codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
+```
+
+The provider first tries an SSH tunnel to an existing remote backend. In `auto`
+mode it starts a transient `codex-workspace-backend-local serve
+--local-app-server` on the remote when no backend responds. App-only commands
+fall back to `codex app-server --listen stdio://` over SSH. Missing remote
+binaries produce setup errors; the CLI does not install or copy credentials to
+the remote host.
+
 Useful options and environment:
 
 ```bash
@@ -51,11 +71,16 @@ Useful options and environment:
 --local-port 3586
 --remote-host 127.0.0.1
 --remote-port 3586
+--remote-mode auto
 
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@tailscale-host>
+CODEX_FLOWS_REMOTE_CWD=/repo
+CODEX_FLOWS_REMOTE_MODE=auto
 CODEX_FLOWS_REMOTE_TUNNEL_PORT=3586
 CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
 CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
+CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
+CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
 ```
 
 ## App-Server Calls
@@ -300,6 +325,12 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--github` | Generate a GitHub Actions workflow with `workspace init actions`. |
 | `--with-smoke` | Generate an Actions smoke flow with `workspace init actions`. |
 | `--with-agent-turn` | Generate an agent-turn flow with `workspace init actions`. |
+| `--ssh`, `--ssh-target <target>` | SSH target for remote CodexFlows operation. |
+| `--remote-mode <auto|existing|spawn>` | SSH backend mode. `auto` probes then spawns, `existing` only tunnels, `spawn` always starts a transient backend. |
+| `--local-port <port>` | Local SSH tunnel port. Defaults to `3586`. |
+| `--remote-host <host>` | Remote backend bind host. Defaults to `127.0.0.1`. |
+| `--remote-port <port>` | Remote backend port. Defaults to `3586`. |
+| `--cwd <path>` | Remote workspace cwd when used with `--ssh`. |
 
 ## Environment
 
@@ -313,6 +344,14 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_AUTH_JSON` | Raw JSON auth payload consumed by `actions prepare-auth`. |
 | `OPENAI_API_KEY` | API key fallback consumed by `actions prepare-auth`. |
 | `CODEX_APP_SERVER_CODEX_COMMAND` | Overrides the Codex command for stdio app-server launches. |
+| `CODEX_FLOWS_REMOTE_SSH_TARGET` | Default SSH target for remote CodexFlows operation. |
+| `CODEX_FLOWS_REMOTE_CWD` | Default remote workspace cwd. |
+| `CODEX_FLOWS_REMOTE_MODE` | Default SSH backend mode: `auto`, `existing`, or `spawn`. |
+| `CODEX_FLOWS_REMOTE_TUNNEL_PORT` | Default local SSH tunnel port. |
+| `CODEX_FLOWS_REMOTE_BACKEND_HOST` | Default remote backend host. |
+| `CODEX_FLOWS_REMOTE_BACKEND_PORT` | Default remote backend port. |
+| `CODEX_FLOWS_REMOTE_CODEX_COMMAND` | Remote Codex command for SSH stdio app-server fallback. |
+| `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` | Remote workspace backend command for transient SSH backend startup. |
 | `CODEX_FLOW_BACKEND_URL` | HTTP backend URL for compatible flow inspection and dispatch clients. |
 | `CODEX_FLOW_BACKEND_SECRET` | Shared HMAC secret for HTTP flow dispatch. |
 | `CODEX_FLOW_BACKEND_EXECUTOR` | `direct` or `systemd-run`. |

@@ -28,6 +28,21 @@ export {
 	type CodexWebSocketTransportOptions,
 } from "./app-server/websocket-transport.ts";
 export {
+	createSshAppServerClient,
+	createSshAppServerPlan,
+	createSshExistingBackendTunnelPlan,
+	createSshSpawnBackendPlan,
+	hasSshRemote,
+	parseRemoteMode,
+	resolveSshRemoteOptions,
+	startSshWorkspaceBackend,
+	type RemoteMode,
+	type ResolvedSshRemoteOptions,
+	type SshCommandPlan,
+	type SshRemoteProviderOptions,
+	type SshWorkspaceBackendHandle,
+} from "./cli/remote-provider.ts";
+export {
 	JsonRpcError,
 	isJsonRpcNotification,
 	isJsonRpcRequest,

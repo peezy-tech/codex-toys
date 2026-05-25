@@ -13,7 +13,7 @@ these related surfaces:
 - generic flow automation built around `FlowEvent`, `flow.toml`, and
   `FLOW_RESULT`
 - workspace backend operation for long-running workspace control
-- remote backend control from a local Codex App over SSH/Tailscale tunnels
+- SSH-backed remote workspace operation from a local CLI or Codex App
 - repo-native workspace autonomy and Codex memory/thread transplant tools
 - Git-backed Codex plugin install for flow authoring skills and bundled
   lifecycle hooks
@@ -169,6 +169,14 @@ the installable bundles into `peezy-tech/skills`. The bundled hooks live at
 plugin hooks. Pack install remains available when a workspace intentionally
 wants file copies, such as pinning a flow bundle into `.codex/flows` or merging
 direct hook config.
+
+The CLI can also target an SSH workspace directly:
+
+```bash
+codex-flows --ssh devbox --cwd /repo fetch
+codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
+```
 
 ## Flow Automation In One Screen
 

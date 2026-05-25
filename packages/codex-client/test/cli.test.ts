@@ -101,6 +101,71 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
+	test("parses SSH provider options on app, workspace, flow, and fetch commands", () => {
+		const remote = {
+			sshTarget: "devbox",
+			cwd: "/repo",
+			remoteMode: "spawn",
+			localPort: 4596,
+			remoteHost: "127.0.0.1",
+			remotePort: 3586,
+		};
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"--remote-mode",
+			"spawn",
+			"--local-port",
+			"4596",
+			"--remote-host",
+			"127.0.0.1",
+			"--remote-port",
+			"3586",
+			"fetch",
+		], {})).toMatchObject({ type: "fetch", ...remote });
+		expect(parseArgs([
+			"--ssh=devbox",
+			"--cwd=/repo",
+			"app",
+			"thread/list",
+		], {})).toMatchObject({
+			type: "app-call",
+			sshTarget: "devbox",
+			cwd: "/repo",
+			remoteMode: "auto",
+		});
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"workspace",
+			"delegation.list",
+		], {})).toMatchObject({
+			type: "workspace-call",
+			sshTarget: "devbox",
+			cwd: "/repo",
+			remoteMode: "auto",
+		});
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"flow",
+			"dispatch",
+			"--event",
+			"event.json",
+		], {})).toMatchObject({
+			type: "flow-dispatch",
+			sshTarget: "devbox",
+			cwd: "/repo",
+			remoteMode: "auto",
+		});
+	});
+
 	test("parses app-server pass-through through the workspace backend", () => {
 		expect(parseArgs([
 			"workspace",
