@@ -156,6 +156,33 @@ and sets `occurredAt` and `receivedAt` to the task start time. Static
 `event.payload` entries are merged over `{ taskId = "<task-id>" }`, so explicit
 payload values win without reusing a static event id across recurring runs.
 
+### `automation`
+
+Runs a named turn automation from `.codex/automations/*` or `automations/*`.
+The automation script can skip or start a native Codex turn through the same
+workspace backend that `workspace tick` is using. With `--ssh --cwd /repo`, the
+script still runs locally and the resulting turn targets the remote workspace
+cwd.
+
+```toml
+[[workspace.tasks]]
+id = "codex-bindings"
+enabled = true
+kind = "automation"
+automation = "openai-codex-bindings"
+schedule = "0 * * * *"
+
+[workspace.tasks.event]
+type = "upstream.release"
+
+[workspace.tasks.event.payload]
+repo = "openai/codex"
+tag = "rust-v1.2.3"
+```
+
+Automation tasks use the same generated event id shape as flow tasks. `prompt`
+and `cwd` can be set directly on the task to override manifest defaults.
+
 ### `command`
 
 Runs an explicitly configured command. Use this for small, deliberate checks

@@ -101,6 +101,40 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
+	test("parses turn automation commands", () => {
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"automation",
+			"run",
+			"./automations/check-release.ts",
+			"--event",
+			"event.json",
+			"--prompt",
+			"fallback prompt",
+			"--via",
+			"workspace",
+			"--json",
+		], {})).toMatchObject({
+			type: "automation-run",
+			target: "./automations/check-release.ts",
+			eventPath: "event.json",
+			prompt: "fallback prompt",
+			via: "workspace",
+			sshTarget: "devbox",
+			cwd: "/repo",
+			remoteMode: "auto",
+			json: true,
+		});
+		expect(parseArgs(["automation", "list", "--workspace-root", "/work"], {}))
+			.toMatchObject({
+				type: "automation-list",
+				workspaceRoot: "/work",
+			});
+	});
+
 	test("parses SSH provider options on app, workspace, flow, and fetch commands", () => {
 		const remote = {
 			sshTarget: "devbox",

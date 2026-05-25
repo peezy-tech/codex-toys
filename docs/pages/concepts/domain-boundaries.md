@@ -5,7 +5,14 @@ description: What generic flow infrastructure owns and what products must keep.
 
 # Domain boundaries
 
-Generic flow infrastructure owns reusable automation mechanics:
+Turn automation owns the narrow prompt automation path:
+
+- running a pre-turn script
+- reading a skip-or-turn decision
+- starting a native Codex turn through app-server or a workspace backend
+- targeting remote workspaces through the SSH provider
+
+Generic flow infrastructure owns the heavier event/run-state mechanics:
 
 - event dispatch
 - flow discovery
@@ -32,6 +39,10 @@ mint if needed, and only then complete the generic run.
 
 This boundary keeps flow packages portable and prevents generic backends from
 depending on app-specific Convex schemas, credentials, or release policy.
+
+Prefer turn automation when code only needs to decide whether to run a prompt.
+Use flow packages when the product needs durable event history, replay,
+attempts, leases, or backend queue semantics.
 
 Presenter wrappers follow the same rule. They may inspect generic flow runs and
 events for an operator, but their app-server thread orchestration, delegation

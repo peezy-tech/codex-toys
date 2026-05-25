@@ -307,6 +307,93 @@ lookback_sessions = 10
 		});
 	});
 
+	test("automation tasks run scripts and start turns through workspace backend", async () => {
+		const root = await tempWorkspace();
+		const automationRoot = path.join(root, "automations", "release-check");
+		await mkdir(automationRoot, { recursive: true });
+		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+			script: "check.ts",
+			prompt: "inspect",
+			cwd: "/manifest-cwd",
+			skills: ["release-skill"],
+		}));
+		await writeFile(path.join(automationRoot, "check.ts"), `
+export default function run(context) {
+  return {
+    action: "turn",
+    prompt: context.prompt + " " + context.event.payload.tag
+  };
+}
+`);
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "automation-task"
+enabled = true
+kind = "automation"
+automation = "release-check"
+cwd = "/remote-cwd"
+
+[workspace.tasks.event]
+type = "upstream.release"
+
+[workspace.tasks.event.payload]
+tag = "v1.2.3"
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const calls: Array<{ method: string; params: unknown }> = [];
+		const run = await runWorkspaceTaskById(context, "automation-task", {
+			callWorkspaceBackend: async (method, params) => {
+				calls.push({ method, params });
+				const appMethod = String((params as { method?: unknown }).method);
+				if (appMethod === "thread/start") {
+					return { thread: { id: "thread-1" } };
+				}
+				if (appMethod === "turn/start") {
+					return { turn: { id: "turn-1" } };
+				}
+				return { ok: true };
+			},
+		});
+		expect(run.status).toBe("completed");
+		expect(calls).toEqual([
+			expect.objectContaining({
+				method: "appServer.call",
+				params: expect.objectContaining({
+					method: "thread/start",
+					params: expect.objectContaining({
+						cwd: "/remote-cwd",
+					}),
+				}),
+			}),
+			expect.objectContaining({
+				method: "appServer.call",
+				params: expect.objectContaining({
+					method: "turn/start",
+					params: expect.objectContaining({
+						threadId: "thread-1",
+						cwd: "/remote-cwd",
+					}),
+				}),
+			}),
+		]);
+		const output = JSON.parse(await readFile(run.outputPath!, "utf8")) as Record<string, unknown>;
+		expect(output).toMatchObject({
+			decision: {
+				action: "turn",
+				prompt: "inspect v1.2.3",
+				cwd: "/remote-cwd",
+				skills: ["release-skill"],
+			},
+			turn: {
+				threadId: "thread-1",
+				turnId: "turn-1",
+			},
+		});
+	});
+
 	test("run records disabled tasks as skipped", async () => {
 		const root = await tempWorkspace();
 		await writeWorkspaceToml(root, `

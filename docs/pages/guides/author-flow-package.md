@@ -112,75 +112,16 @@ void main();
 Use `blocked` or `needs_intervention` when a human or external condition is
 required. Clients and backends mark those statuses as needing attention.
 
-## Bun steps
+## Runner support
 
-Use `runner = "bun"` when the step should run host automation directly under
-the flow runner. Bun steps receive the same JSON context on stdin and must print
-exactly one `FLOW_RESULT <json>` line to stdout. Use stderr for progress logs
-that should not be parsed as the result.
+Portable flow packages use `runner = "node"`. Older documentation and private
+experiments referenced Bun or Code Mode runners, but those are not the default
+portable runtime contract. Use custom runner guidance only when a product owns
+that backend extension.
 
-```ts
-const context = JSON.parse(await Bun.stdin.text());
-
-function result(value: Record<string, unknown>): never {
-  process.stdout.write(`FLOW_RESULT ${JSON.stringify(value)}\n`);
-  process.exit(0);
-}
-
-try {
-  result({
-    status: "completed",
-    artifacts: {
-      eventId: context.flow.event.id,
-    },
-  });
-} catch (error) {
-  result({
-    status: "failed",
-    message: error instanceof Error ? error.message : String(error),
-  });
-}
-```
-
-Bun steps should treat `event.id` as the idempotency key, read secret names from
-flow or backend config instead of hardcoding values, and return
-`needs_intervention` when a human or Codex turn must continue from preserved
-external state.
-
-## Code Mode steps
-
-Prefer Node or Bun steps for portable flow packages. `runner = "code-mode"` is
-for flows that deliberately execute through a Codex app-server with Code Mode
-enabled, usually in a workspace that owns a compatible Codex fork or feature
-flag.
-
-The runner injects `flow` and `result(value)` before the `.code-mode.js` body,
-executes the snippet through raw `thread/codeMode/execute`, and converts the
-single `result(...)` call to `FLOW_RESULT`.
-
-```js
-text("starting");
-
-const status = await tools.exec_command({
-  cmd: "git status --short",
-  workdir: flow.cwd,
-  yield_time_ms: 1000,
-  max_output_tokens: 4000,
-});
-
-result({
-  status: "completed",
-  artifacts: { status },
-});
-```
-
-Code Mode availability should be selected by runtime or backend flags, not by a
-separate flow branch. Use `tools.exec_command` for host actions, pass `workdir`
-explicitly when touching repositories, and do not assume generated client types
-include fork-only app-server methods. Prefer `CODEX_FLOWS_MODE=code-mode` when
-the environment should both enable Code Mode flow steps and select the Peezy
-Codex fork package; `CODEX_FLOWS_ENABLE_CODE_MODE=1` only gates Code Mode runner
-availability.
+For "run code first, then maybe start Codex", prefer
+[Turn automation](turn-automation) over adding a flow package. Flow packages are
+for durable event/run state, replay, attempts, leases, and backend queues.
 
 ## Calling Codex from Node
 

@@ -27,12 +27,15 @@ hooks/hook-event.mjs
 ```
 
 Installing a plugin gives Codex the requested guidance without copying flow
-packages into a workspace. The local workspace plugin also gives Codex a
-plugin-bundled hook config that records lifecycle events for workspace surfaces.
+packages into a workspace. Plugin-installed scripts can be used as turn
+automations through the `codex-flows automation run` CLI, so products can run
+code first and then conditionally start a native Codex prompt. The local
+workspace plugin also gives Codex a plugin-bundled hook config that records
+lifecycle events for workspace surfaces.
 
 | Plugin | Installs |
 |--------|----------|
-| `codex-flows-author` | Flow package and Bun step authoring skills. |
+| `codex-flows-author` | Flow package, turn automation, and script authoring guidance. |
 | `codex-flows-backend-author` | Flow backend design and implementation skill. |
 | `codex-flows-local-workspace` | Local backend setup, flow operation, delegation skills, and plugin-bundled hooks. |
 | `codex-flows-remote-backend` | Remote backend setup and operation skills, without local hooks. |
@@ -135,11 +138,21 @@ On the VPS, run the backend from the target workspace with
 `codex-flows workspace backend start`. The SSH tunnel can forward local
 `ws://127.0.0.1:3586` to the remote backend's `127.0.0.1:3586`.
 
+For one-shot automation, prefer the global SSH provider:
+
+```bash
+codex-flows --ssh <user@tailscale-host> --cwd /repo automation run ./automations/check-release.ts --event event.json
+```
+
+That command runs the automation script locally, then starts the resulting
+native Codex turn against the remote workspace if the script returns
+`{"action":"turn"}`.
+
 ## What the plugin does not install
 
 The plugin installs guidance skills and bundled hook definitions. It does not
-install npm packages, copy `flows/*` into `.codex/flows`, or start a workspace
-backend process.
+install npm packages, copy `flows/*` into `.codex/flows`, register persistent
+automations by itself, or start a workspace backend process.
 
 Use npm for runtime libraries and CLIs:
 

@@ -1,7 +1,7 @@
 {
 	"name": "@peezy.tech/codex-flows",
 	"version": "0.132.5",
-	"description": "Codex app-server clients, flow runtime, workspace backend helpers, and runnable local backend bins.",
+	"description": "Codex app-server clients, turn automation, flow runtime compatibility helpers, workspace backend helpers, and runnable local backend bins.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"repository": {
@@ -13,6 +13,7 @@
 		"codex",
 		"codex-app-server",
 		"json-rpc",
+		"automation",
 		"flows"
 	],
 	"sideEffects": false,

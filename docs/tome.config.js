@@ -19,6 +19,7 @@ export default {
 		{
 			group: "Guides",
 			pages: [
+				"guides/turn-automation",
 				"guides/author-flow-package",
 				"guides/run-flows-locally",
 				"guides/dispatch-and-replay-events",

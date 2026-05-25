@@ -4,6 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { parse as parseToml } from "smol-toml";
+import {
+	applyTurnAutomationDefaults,
+	resolveTurnAutomationTarget,
+	runTurnAutomationScript,
+	type TurnAutomationTurnDecision,
+} from "./turn-automation.ts";
 
 export type WorkspaceModeInput = "auto" | "local" | "actions";
 export type WorkspaceMode = "local" | "actions";
@@ -31,6 +37,16 @@ export type WorkspaceTask =
 			kind: "flow";
 			flow: string;
 			event?: Record<string, unknown>;
+			schedule?: string;
+	  }
+	| {
+			id: string;
+			enabled: boolean;
+			kind: "automation";
+			automation: string;
+			event?: Record<string, unknown>;
+			prompt?: string;
+			cwd?: string;
 			schedule?: string;
 	  }
 	| {
@@ -364,7 +380,10 @@ export async function scaffoldActionsWorkspace(
 
 export async function tickWorkspace(
 	context: WorkspaceContext,
-	options: { callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown> },
+	options: {
+		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+	},
 ): Promise<{ mode: WorkspaceMode; due: string[]; runs: WorkspaceRunRecord[] }> {
 	await ensureStateDirs(context);
 	const config = await loadWorkspaceConfig(context);
@@ -389,7 +408,10 @@ export async function tickWorkspace(
 export async function runWorkspaceTaskById(
 	context: WorkspaceContext,
 	taskId: string,
-	options: { callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown> },
+	options: {
+		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+	},
 ): Promise<WorkspaceRunRecord> {
 	await ensureStateDirs(context);
 	const config = await loadWorkspaceConfig(context);
@@ -436,7 +458,10 @@ async function runWorkspaceTask(
 	context: WorkspaceContext,
 	config: WorkspaceConfig,
 	task: WorkspaceTask,
-	options: { callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown> },
+	options: {
+		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+	},
 ): Promise<WorkspaceRunRecord> {
 	const startedAt = new Date().toISOString();
 	const runId = workspaceRunId(task.id, startedAt);
@@ -453,6 +478,15 @@ async function runWorkspaceTask(
 			result = await options.callWorkspaceBackend("flow.dispatch", {
 				event: workspaceFlowEvent(config, task, runId, startedAt),
 			});
+		} else if (task.kind === "automation") {
+			result = await runAutomationTask(
+				context,
+				config,
+				task,
+				runId,
+				startedAt,
+				options,
+			);
 		} else if (task.kind === "command") {
 			result = await runCommand(task.command, context);
 		} else {
@@ -492,6 +526,135 @@ function workspaceFlowEvent(
 			...payload,
 		},
 	};
+}
+
+async function runAutomationTask(
+	context: WorkspaceContext,
+	config: WorkspaceConfig,
+	task: Extract<WorkspaceTask, { kind: "automation" }>,
+	runId: string,
+	startedAt: string,
+	options: {
+		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+	},
+): Promise<unknown> {
+	const target = await resolveTurnAutomationTarget(task.automation, {
+		cwd: context.repoRoot,
+	});
+	const event = workspaceAutomationEvent(config, task, runId, startedAt);
+	const prompt = task.prompt ?? target.prompt;
+	const cwd = task.cwd ?? options.automationCwd ?? target.cwd ?? context.repoRoot;
+	const scriptRun = await runTurnAutomationScript({
+		scriptPath: target.scriptPath,
+		automation: target.automation,
+		event,
+		prompt,
+		cwd,
+		timeoutMs: 90_000,
+	});
+	const decision = applyTurnAutomationDefaults(scriptRun.decision, {
+		prompt,
+		cwd,
+		skills: target.skills,
+	});
+	if (decision.action === "skip") {
+		return { ...scriptRun, decision };
+	}
+	const turn = await startAutomationTurnViaWorkspace(options.callWorkspaceBackend, decision);
+	return { ...scriptRun, decision, turn };
+}
+
+function workspaceAutomationEvent(
+	config: WorkspaceConfig,
+	task: Extract<WorkspaceTask, { kind: "automation" }>,
+	runId: string,
+	startedAt: string,
+): Record<string, unknown> {
+	const event = task.event ?? {};
+	const payload = isRecord(event.payload) ? event.payload : {};
+	return {
+		...event,
+		id: `workspace:${config.name}:${task.id}:${runId}`,
+		type: stringValue(event.type, task.automation),
+		source: stringValue(event.source, config.name),
+		occurredAt: startedAt,
+		receivedAt: startedAt,
+		payload: {
+			taskId: task.id,
+			...payload,
+		},
+	};
+}
+
+async function startAutomationTurnViaWorkspace(
+	callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>,
+	decision: TurnAutomationTurnDecision,
+): Promise<unknown> {
+	let threadId = decision.threadId;
+	let thread: unknown = null;
+	if (!threadId) {
+		const threadResponse = await callWorkspaceBackend("appServer.call", {
+			method: "thread/start",
+			params: threadStartParamsFromAutomation(decision),
+		});
+		threadId = nestedId(threadResponse, "thread", "thread/start");
+		thread = record(threadResponse).thread ?? threadResponse;
+	}
+	const turnResponse = await callWorkspaceBackend("appServer.call", {
+		method: "turn/start",
+		params: turnStartParamsFromAutomation(threadId, decision),
+	});
+	return {
+		via: "workspace",
+		threadId,
+		turnId: nestedId(turnResponse, "turn", "turn/start"),
+		thread,
+		turn: record(turnResponse).turn ?? turnResponse,
+	};
+}
+
+function threadStartParamsFromAutomation(
+	decision: TurnAutomationTurnDecision,
+): Record<string, unknown> {
+	return compactUndefined({
+		cwd: decision.cwd,
+		model: decision.model,
+		serviceTier: decision.serviceTier,
+		permissions: decision.permissions,
+		experimentalRawEvents: false,
+		persistExtendedHistory: false,
+	});
+}
+
+function turnStartParamsFromAutomation(
+	threadId: string,
+	decision: TurnAutomationTurnDecision,
+): Record<string, unknown> {
+	return compactUndefined({
+		threadId,
+		input: [
+			{
+				type: "text",
+				text: decision.prompt,
+				text_elements: [],
+			},
+		],
+		cwd: decision.cwd,
+		model: decision.model,
+		serviceTier: decision.serviceTier,
+		permissions: decision.permissions,
+		responsesapiClientMetadata: decision.responsesapiClientMetadata,
+		outputSchema: decision.outputSchema,
+	});
+}
+
+function nestedId(response: unknown, key: string, label: string): string {
+	const id = optionalString(record(record(response)[key]).id);
+	if (!id) {
+		throw new Error(`${label} did not return ${key}.id`);
+	}
+	return id;
 }
 
 async function runReactiveRule(
@@ -1001,6 +1164,18 @@ function parseTask(input: unknown): WorkspaceTask {
 	if (kind === "flow") {
 		return { id, enabled, kind, flow: requiredString(input.flow, `workspace task ${id} flow`), schedule, event: isRecord(input.event) ? input.event : undefined };
 	}
+	if (kind === "automation") {
+		return {
+			id,
+			enabled,
+			kind,
+			automation: requiredString(input.automation, `workspace task ${id} automation`),
+			schedule,
+			event: isRecord(input.event) ? input.event : undefined,
+			prompt: optionalString(input.prompt),
+			cwd: optionalString(input.cwd),
+		};
+	}
 	if (kind === "command") {
 		if (!Array.isArray(input.command) || !input.command.every((item) => typeof item === "string")) {
 			throw new Error(`workspace task ${id} command must be an array of strings`);
@@ -1046,6 +1221,20 @@ function requiredString(value: unknown, label: string): string {
 
 function optionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function record(value: unknown): Record<string, unknown> {
+	return isRecord(value) ? value : {};
+}
+
+function compactUndefined<T extends Record<string, unknown>>(value: T): T {
+	const result: Record<string, unknown> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		if (entry !== undefined) {
+			result[key] = entry;
+		}
+	}
+	return result as T;
 }
 
 function stringValue(value: unknown, fallback: string): string {

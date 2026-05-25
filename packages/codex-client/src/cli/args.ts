@@ -51,6 +51,26 @@ type ParsedCliBase =
 			json: boolean;
 			pretty: boolean;
 	  }
+	| {
+			type: "automation-run";
+			target: string;
+			eventPath?: string;
+			prompt?: string;
+			workspaceRoot?: string;
+			cwd?: string;
+			via: "auto" | "workspace" | "app";
+			appUrl: string;
+			workspaceUrl: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "automation-list";
+			workspaceRoot?: string;
+			json: boolean;
+			pretty: boolean;
+	  }
 	| { type: "app-actions" }
 	| {
 			type: "app-call";
@@ -785,6 +805,39 @@ export function parseArgs(
 			};
 		}
 		throw new Error("remote requires status, turn, or tunnel");
+	}
+	if (command === "automation" || command === "automations") {
+		const subcommand = positionals[1];
+		if (subcommand === "list" || subcommand === "ls") {
+			return {
+				type: "automation-list",
+				workspaceRoot,
+				json,
+				pretty,
+			};
+		}
+		if (subcommand !== "run") {
+			throw new Error("automation requires run or list");
+		}
+		return {
+			type: "automation-run",
+			target: requiredPositional(
+				positionals,
+				2,
+				"automation run requires <script-or-name>",
+			),
+			eventPath,
+			prompt,
+			workspaceRoot,
+			cwd,
+			via,
+			appUrl,
+			workspaceUrl,
+			timeoutMs,
+			json,
+			pretty,
+			...remoteFields(),
+		};
 	}
 	if (command === "app") {
 		const subcommand = positionals[1];

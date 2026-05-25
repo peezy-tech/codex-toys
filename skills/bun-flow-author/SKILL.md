@@ -1,15 +1,17 @@
 ---
 name: bun-flow-author
-description: Use when writing or reviewing Bun-based flow step scripts that run under a Codex flow runner, read flow context from stdin, use Bun shell or JavaScript runtime APIs, and emit FLOW_RESULT.
+description: Use only when maintaining a custom or legacy Bun-backed flow runner. The current portable codex-flows runtime uses node steps, so prefer turn automation scripts or node flow steps for new work.
 ---
 
 # Bun Flow Author
 
-Use this skill for `runner = "bun"` flow steps.
+Use this skill only for `runner = "bun"` flow steps in a custom or legacy
+runner. The portable codex-flows runtime currently supports `runner = "node"`;
+new prompt automation should usually use `codex-flows automation run`.
 
 ## Runtime Contract
 
-- The runner executes `bun <script>`.
+- The custom runner executes `bun <script>`.
 - The script reads one JSON object from stdin containing flow context, including `flow.config` and the triggering flow event.
 - The script must print exactly one `FLOW_RESULT <json>` line to stdout.
 - Use stderr for progress logs that should not be parsed as the result.

@@ -5,7 +5,24 @@ description: How events, clients, runtimes, backends, workers, and apps fit toge
 
 # Architecture
 
-codex-flow separates event semantics, execution, and product completion.
+codex-flows separates pre-turn prompt automation, durable event automation, and
+product completion.
+
+For plugin-native prompt automation, code runs before a Codex turn:
+
+```mermaid
+sequenceDiagram
+  participant Signal as Event, schedule, hook, or operator
+  participant Script as Pre-turn script
+  participant Codex as Codex app-server
+
+  Signal->>Script: JSON context
+  Script-->>Signal: skip
+  Script-->>Codex: turn decision with prompt/cwd/settings
+  Codex-->>Codex: native turn uses normal tools and skills
+```
+
+For durable event automation, the flow runtime preserves event/run state:
 
 ```mermaid
 sequenceDiagram

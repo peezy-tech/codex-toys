@@ -1,0 +1,7 @@
+{
+  "name": "openai-codex-bindings",
+  "description": "Start a Codex turn for an openai/codex release that may require regenerated app-server bindings.",
+  "script": "check-release.ts",
+  "promptFile": "prompt.md",
+  "cwd": "../.."
+}

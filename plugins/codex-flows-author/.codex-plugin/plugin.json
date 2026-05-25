@@ -1,7 +1,7 @@
 {
   "name": "codex-flows-author",
   "version": "0.132.4",
-  "description": "Codex flow package and Bun step authoring skills.",
+  "description": "Codex turn automation and advanced flow package authoring guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-flows author",
-    "shortDescription": "Author portable Codex flow packages and Bun steps.",
-    "longDescription": "codex-flows author installs the Codex-facing skills for creating portable flow packages and writing Bun-based flow step scripts. It does not install local backend hooks or start a backend process.",
+    "shortDescription": "Author turn automations and advanced flow packages.",
+    "longDescription": "codex-flows author installs Codex-facing guidance for plugin-native turn automation scripts and advanced durable flow packages. It does not install local backend hooks or start a backend process.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -31,8 +31,8 @@
     "privacyPolicyURL": "https://peezy.tech/privacy",
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
-      "Author a reusable Codex flow package.",
-      "Write a Bun flow step that emits FLOW_RESULT."
+      "Author a turn automation script that can skip or start a Codex turn.",
+      "Author an advanced reusable Codex flow package."
     ],
     "brandColor": "#2563EB"
   }

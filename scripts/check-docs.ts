@@ -55,6 +55,8 @@ if (helpExit !== 0) {
 const cliDoc = await read("docs/pages/reference/cli.md");
 const requiredCliLines = [
 	"codex-flows fetch [--json] [--no-color]",
+	"codex-flows automation list [--json]",
+	"codex-flows automation run <script-or-name> [--event <event.json>] [--prompt <text>] [--via auto|workspace|app]",
 	"codex-flows app <method> [params-json]",
 	"codex-flows workspace doctor [--mode auto|local|actions] [--json]",
 	"codex-flows workspace backend init local [--overwrite] [--json]",
@@ -93,12 +95,14 @@ await expectExcludes("package.json", "codex-bare");
 await expectExcludes("package.json", "Thin web UI");
 await expectExcludes("SECURITY.md", "codex-bare");
 await expectIncludes("SECURITY.md", "Memory transplant");
+await expectIncludes("README.md", "docs/pages/guides/turn-automation.md");
 await expectIncludes("README.md", "docs/pages/guides/workspace-autonomy.md");
 await expectIncludes("README.md", "docs/pages/guides/memory-transplant.md");
 await expectIncludes("README.md", "docs/pages/guides/thread-transplant.md");
 await expectIncludes("README.md", "docs/pages/guides/install-codex-plugin.md");
 await expectIncludes("README.md", "docs/pages/guides/install-pack-repos.md");
 
+await expectIncludes("docs/tome.config.js", "\"guides/turn-automation\"");
 await expectIncludes("docs/tome.config.js", "\"guides/workspace-autonomy\"");
 await expectIncludes("docs/tome.config.js", "\"guides/memory-transplant\"");
 await expectIncludes("docs/tome.config.js", "\"guides/thread-transplant\"");
@@ -107,6 +111,7 @@ await expectIncludes("docs/tome.config.js", "\"guides/install-pack-repos\"");
 await expectIncludes("docs/tome.config.js", "RELEASE.md");
 await expectIncludes("docs/index.html", "<title>codex-flows</title>");
 
+await expectIncludes("docs/pages/index.md", "Turn Automation");
 await expectIncludes("docs/pages/index.md", "Workspace autonomy");
 await expectIncludes("docs/pages/index.md", "Memory transplant");
 await expectIncludes("docs/pages/index.md", "Thread Transplant");
@@ -141,14 +146,18 @@ await expectIncludes("docs/pages/guides/install-codex-plugin.md", "hooks/hooks.j
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "plugin_hooks = true");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_FLOWS_HOOK_SPOOL_DIR");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows workspace backend init local");
+await expectIncludes("docs/pages/guides/turn-automation.md", "TURN_AUTOMATION");
+await expectIncludes("docs/pages/guides/turn-automation.md", "codex-flows --ssh devbox --cwd /repo automation run");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote status");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote tunnel start --ssh <user@tailscale-host>");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote turn start --prompt <text>");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows automation run <script-or-name>");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "pack repo");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".codex/pack-lock.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".agents/plugins/marketplace.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "[features].plugin_hooks = true");
 
+await expectIncludes("packages/codex-client/README.md", "codex-flows automation run");
 await expectIncludes("packages/codex-client/README.md", "codex-flows workspace doctor");
 await expectIncludes("packages/codex-client/README.md", "codex-flows workspace backend init local");
 await expectIncludes("packages/codex-client/README.md", "codex-flows remote status");

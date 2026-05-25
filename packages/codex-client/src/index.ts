@@ -43,6 +43,27 @@ export {
 	type SshWorkspaceBackendHandle,
 } from "./cli/remote-provider.ts";
 export {
+	TURN_AUTOMATION_RESULT_PREFIX,
+	applyTurnAutomationDefaults,
+	formatTurnAutomationList,
+	formatTurnAutomationRun,
+	listTurnAutomations,
+	parseTurnAutomationDecision,
+	resolveTurnAutomationTarget,
+	runTurnAutomationScript,
+	type ListTurnAutomationsOptions,
+	type LoadedTurnAutomation,
+	type RunTurnAutomationScriptOptions,
+	type TurnAutomationContext,
+	type TurnAutomationDecision,
+	type TurnAutomationManifest,
+	type TurnAutomationRun,
+	type TurnAutomationRunTarget,
+	type TurnAutomationSkipDecision,
+	type TurnAutomationStartedTurn,
+	type TurnAutomationTurnDecision,
+} from "./cli/turn-automation.ts";
+export {
 	JsonRpcError,
 	isJsonRpcNotification,
 	isJsonRpcRequest,

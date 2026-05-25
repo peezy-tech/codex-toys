@@ -1,21 +1,23 @@
 ---
 title: codex-flows
-description: App-server clients, flow automation, workspace autonomy, and memory tooling for Codex.
+description: App-server clients, turn automation, workspace autonomy, and memory tooling for Codex.
 ---
 
 # codex-flows
 
-`codex-flows` is the workspace automation layer around Codex app-server. It has
-these related surfaces:
+`codex-flows` is the workspace automation layer around Codex app-server. Its
+preferred automation shape is turn automation: run code first, then
+conditionally start a native Codex prompt turn. It has these related surfaces:
 
 - app-server clients and transports for direct Codex thread, auth, and protocol
   work
-- generic flow automation built around `FlowEvent`, `flow.toml`, and
-  `FLOW_RESULT`
+- plugin-native turn automation scripts that can skip or start native turns
+- generic flow compatibility built around `FlowEvent`, `flow.toml`, and
+  `FLOW_RESULT` when durable event/run state is needed
 - workspace backend operation for long-running workspace control
 - SSH-backed remote workspace operation from a local CLI or Codex App
 - repo-native workspace autonomy and Codex memory/thread transplant tools
-- Git-backed Codex plugin install for flow authoring skills and bundled
+- Git-backed Codex plugin install for turn automation, flow authoring skills, and bundled
   lifecycle hooks
 
 The project keeps product-specific completion outside the generic layer. Flow
@@ -29,7 +31,8 @@ credentials, domain state, release policy, and final side effects.
 |------|------------|
 | Call Codex app-server from TypeScript | [Packages](reference/packages) |
 | Inspect or call app-server and workspace backend methods from a terminal | [CLI reference](reference/cli) |
-| Build a first reusable flow | [Build your first flow](tutorials/first-flow) |
+| Run code before deciding whether to start a Codex prompt | [Turn automation](guides/turn-automation) |
+| Build an advanced reusable flow with durable run state | [Build your first flow](tutorials/first-flow) |
 | Dispatch and replay generic events | [Dispatch and replay events](guides/dispatch-and-replay-events) |
 | Run a local flow backend | [Operate the workspace flow backend](guides/operate-workspace-flow-backend) |
 | Control a remote backend from a local Codex App | [Install the Codex plugin](guides/install-codex-plugin) and [CLI reference](reference/cli) |
@@ -58,11 +61,46 @@ credentials, domain state, release policy, and final side effects.
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
 - `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
-  remote backend control, flow inspection, workspace autonomy, memory
+  turn automation, remote backend control, flow inspection, workspace autonomy, memory
   transplant, thread transplant, and optional pack repo install
 - `codex-workspace-backend-local`: local workspace backend process
 - `codex-app`: app-server JSON-RPC utility CLI
 - `codex-flow-runner`: local flow runner CLI
+
+## Turn Automation In One Screen
+
+Turn automation runs a local script before deciding whether to start a native
+Codex turn:
+
+```bash
+codex-flows automation list
+codex-flows automation run openai-codex-bindings --event event.json
+```
+
+The script can skip:
+
+```json
+{
+  "action": "skip",
+  "reason": "nothing changed"
+}
+```
+
+Or start a native turn:
+
+```json
+{
+  "action": "turn",
+  "cwd": "/repo",
+  "prompt": "Check this upstream release and prepare the fork update."
+}
+```
+
+The SSH provider lets the local script target a remote workspace:
+
+```bash
+codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
+```
 
 ## Workspace Autonomy In One Screen
 
@@ -178,9 +216,9 @@ codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":
 codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
 ```
 
-## Flow Automation In One Screen
+## Flow Compatibility In One Screen
 
-Products dispatch generic events:
+Products that need durable event/run state can still dispatch generic events:
 
 ```json
 {
@@ -198,11 +236,14 @@ Products dispatch generic events:
 Flow packages match events with `flow.toml` and JSON Schema. Steps run through
 the Node runner. Steps can be raw stdin/`FLOW_RESULT` scripts or module-style
 handlers that return a result object and, when trusted, call the launching
-workspace backend to orchestrate Codex turns.
+workspace backend to orchestrate Codex turns. Prefer turn automation when a
+plugin-installed script only needs to decide whether to run one native prompt.
 
 ## Boundaries
 
 - App-server client APIs call Codex thread/auth/protocol methods.
+- Turn automation owns pre-turn script execution and conditional native turn
+  starts.
 - Flow clients and backends own generic event/run state, replay, cancellation,
   attempts, output, and result payloads.
 - Workspace autonomy owns repo-local schedules and generated workspace state

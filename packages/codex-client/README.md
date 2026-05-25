@@ -1,7 +1,7 @@
 # @peezy.tech/codex-flows
 
-Codex app-server client APIs, workspace backend helpers, flow tooling, and
-runnable local backend CLIs.
+Codex app-server client APIs, turn automation helpers, workspace backend
+helpers, flow compatibility tooling, and runnable local backend CLIs.
 
 ```bash
 pnpm add @peezy.tech/codex-flows
@@ -17,6 +17,7 @@ Full documentation lives in the repo docs site:
 
 - overview: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/index.md>
 - CLI reference: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/reference/cli.md>
+- turn automation: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/turn-automation.md>
 - package reference: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/reference/packages.md>
 - workspace autonomy: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/workspace-autonomy.md>
 - memory transplant: <https://github.com/peezy-tech/codex-flows/blob/main/docs/pages/guides/memory-transplant.md>
@@ -28,7 +29,7 @@ Full documentation lives in the repo docs site:
 
 | Export | Purpose |
 |--------|---------|
-| `@peezy.tech/codex-flows` | Node app-server client, event emitter base, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
+| `@peezy.tech/codex-flows` | Node app-server client, turn automation helpers, SSH provider helpers, event emitter base, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
 | `@peezy.tech/codex-flows/browser` | Browser-safe app-server client and WebSocket transport. |
 | `@peezy.tech/codex-flows/flows` | Helpers for starting Codex-backed flow work. |
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |
@@ -89,6 +90,27 @@ const result = await codex.startFlow({
 console.log(result.threadId, result.turnId);
 ```
 
+## Turn Automation
+
+```ts
+import { runTurnAutomationScript } from "@peezy.tech/codex-flows";
+
+const run = await runTurnAutomationScript({
+	scriptPath: "./automations/check-release.ts",
+	event: { type: "upstream.release", payload: { tag: "v1.2.3" } },
+	cwd: "/repo",
+	timeoutMs: 90_000,
+});
+
+if (run.decision.action === "turn") {
+	console.log(run.decision.prompt);
+}
+```
+
+Turn automation runs code before deciding whether to start a native Codex turn.
+Use it for plugin-installed prompt automation that does not need the full
+`FlowEvent`/`FLOW_RESULT` runtime.
+
 ## Auth Helpers
 
 ```ts
@@ -143,6 +165,10 @@ codex-flows fetch
 codex-flows remote status
 codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
 codex-flows remote turn start --via workspace --prompt "Check workspace status"
+codex-flows automation list
+codex-flows automation run ./automations/check-release.ts --event event.json
+codex-flows automation run openai-codex-bindings --event event.json
+codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo fetch
 codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json

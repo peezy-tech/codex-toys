@@ -11,6 +11,9 @@ Codex app-server client package, workspace platform package, and CLI bundle. It
 exports:
 
 - app-server JSON-RPC client and stdio/WebSocket transports
+- turn automation helpers for pre-turn scripts that can skip or start native
+  Codex turns
+- SSH remote provider helpers for targeting remote workspaces from a local CLI
 - browser-safe workspace backend client and protocol server primitives
 - browser-safe WebSocket transport
 - framework-agnostic app-server flow helpers
@@ -20,8 +23,9 @@ exports:
 - workbench reducers and request descriptors
 - thread rollout locate, inspect, install, and transplant helpers under `@peezy.tech/codex-flows/threads`
 - generated Codex app-server protocol types
-- the `codex-flows` CLI for fetch, app-server calls, workspace backend calls,
-  flow inspection, workspace autonomy, memory transplant, and thread transplant
+- the `codex-flows` CLI for fetch, turn automation, app-server calls,
+  workspace backend calls, flow inspection, workspace autonomy, memory
+  transplant, and thread transplant
 - runnable core process bins:
   - `codex-app`
   - `codex-flow-runner`
@@ -68,7 +72,9 @@ internals.
 
 ## `@peezy.tech/codex-flows/memories`
 
-Memory helpers operate on stable markdown artifacts only:
+The memory transplant helpers operate on stable markdown artifacts only.
+
+They provide:
 
 - `listCodexMemoryArtifacts`
 - `findTextInCodexMemoryArtifacts`

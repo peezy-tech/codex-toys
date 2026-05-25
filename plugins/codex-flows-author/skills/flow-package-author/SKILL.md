@@ -1,15 +1,16 @@
 ---
 name: flow-package-author
-description: Use when creating or updating portable Codex flow packages, including flow.toml manifests, generic FlowEvent contracts, JSON Schema payload validation, exec snippets, fixtures, and installed/source flow bundle layout.
+description: Use when creating or updating advanced portable Codex flow packages that need flow.toml manifests, generic FlowEvent contracts, durable run state, JSON Schema payload validation, exec snippets, fixtures, and installed/source flow bundle layout.
 ---
 
 # Flow Package Author
 
-Use this skill for the mechanics of packaging arbitrary flows. It does not define project-specific release, remote, mirror, credential, or publishing policy.
+Use this skill for the mechanics of packaging arbitrary durable flows. Prefer turn automation when a script only needs to decide whether to start a native Codex prompt. This skill does not define project-specific release, remote, mirror, credential, or publishing policy.
 
 ## Core Rules
 
 - Use `flow` naming: flow bundle, `flow.toml`, flow step, flow event, `FLOW_RESULT`.
+- Treat flow packages as the heavier event/run-state layer, not the default plugin automation surface.
 - Keep the event envelope generic: `id`, `type`, optional `source`, optional `occurredAt`, `receivedAt`, and `payload`.
 - Put domain-specific payload shape in `schemas/*.schema.json`; do not bake repo, package, release, or git fields into the core event envelope.
 - If a flow needs project-specific behavior, declare it in `guidance.skills` and read those skills/docs before writing push, publish, mirror, branch-protection, or credential behavior.
@@ -24,7 +25,6 @@ flows/<name>/
   flow.toml
   schemas/*.schema.json
   exec/*.js
-  exec/*.code-mode.js
   README.md
   fixtures/
   tests/
@@ -57,7 +57,7 @@ commit = false
 
 [[steps]]
 name = "step-name"
-runner = "bun" # or "code-mode"
+runner = "node"
 script = "exec/step-name.js"
 timeout_ms = 300000
 
@@ -68,11 +68,14 @@ schema = "schemas/example-event.schema.json"
 
 ## Result Contract
 
-Every step must emit exactly one line:
+Raw step scripts must emit exactly one line:
 
 ```text
 FLOW_RESULT {"status":"completed","message":"...","artifacts":{},"next":[]}
 ```
+
+Module-style Node step scripts can instead export a default handler that returns
+the same result object.
 
 Valid statuses are `skipped`, `completed`, `changed`, `needs_intervention`, `blocked`, and `failed`.
 

@@ -1,6 +1,6 @@
 ---
 title: CLI reference
-description: Commands for app-server calls, workspace backend calls, flow inspection, workspace autonomy, memory transplant, thread transplant, and pack repos.
+description: Commands for turn automation, app-server calls, workspace backend calls, flow inspection, workspace autonomy, memory transplant, thread transplant, and pack repos.
 ---
 
 # CLI reference
@@ -82,6 +82,45 @@ CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
 CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
 ```
+
+## Turn Automation
+
+```bash
+codex-flows automation list [--json]
+codex-flows automation run <script-or-name> [--event <event.json>] [--prompt <text>] [--via auto|workspace|app]
+codex-flows --ssh <target> --cwd <remote-workspace> automation run <script-or-name> [--event <event.json>]
+```
+
+`automation run` executes a pre-turn script and starts a native Codex turn only
+when the script returns `{"action":"turn"}`. The script receives JSON on stdin
+with `automation`, `runtime`, optional `event`, optional `prompt`, and optional
+`cwd` fields. Module-style TypeScript/JavaScript scripts can export a default
+handler, and raw scripts can print a final `TURN_AUTOMATION <json>` line.
+`automation list` discovers named automations from `.codex/automations/*` and
+`automations/*`.
+
+Skip result:
+
+```json
+{
+  "action": "skip",
+  "reason": "nothing changed"
+}
+```
+
+Turn result:
+
+```json
+{
+  "action": "turn",
+  "prompt": "Inspect this release and prepare the update.",
+  "cwd": "/repo"
+}
+```
+
+The turn is started through the workspace backend or app-server according to
+`--via`. With `--ssh`, the script runs locally and the resulting turn targets
+the remote workspace through the SSH provider. See [Turn automation](../guides/turn-automation).
 
 ## App-Server Calls
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
+import type { v2 } from "../app-server/generated/index.ts";
 import {
 	CodexAppServerClient,
 	CodexWebSocketTransport,
@@ -57,6 +58,16 @@ import {
 	startRemoteTunnel,
 	startRemoteTurn,
 } from "./remote-control.ts";
+import {
+	applyTurnAutomationDefaults,
+	formatTurnAutomationList,
+	formatTurnAutomationRun,
+	listTurnAutomations,
+	resolveTurnAutomationTarget,
+	runTurnAutomationScript,
+	type TurnAutomationStartedTurn,
+	type TurnAutomationTurnDecision,
+} from "./turn-automation.ts";
 import {
 	createSshAppServerClient,
 	hasSshRemote,
@@ -151,6 +162,44 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
 			: formatRemoteTunnelPlan(result));
+		return;
+	}
+	if (parsed.type === "automation-run") {
+		const event = parsed.eventPath
+			? JSON.parse(await readFile(parsed.eventPath, "utf8")) as unknown
+			: undefined;
+		const target = await resolveTurnAutomationTarget(parsed.target, {
+			cwd: parsed.workspaceRoot,
+		});
+		const prompt = parsed.prompt ?? target.prompt;
+		const cwd = parsed.cwd ?? target.cwd;
+		const run = await runTurnAutomationScript({
+			scriptPath: target.scriptPath,
+			automation: target.automation,
+			event,
+			prompt,
+			cwd,
+			timeoutMs: parsed.timeoutMs,
+		});
+		const decision = applyTurnAutomationDefaults(run.decision, {
+			prompt,
+			cwd,
+			skills: target.skills,
+		});
+		const completedRun = { ...run, decision };
+		const turn = completedRun.decision.action === "turn"
+			? await startTurnForAutomation(completedRun.decision, parsed)
+			: undefined;
+		write(parsed.json
+			? `${JSON.stringify({ ...completedRun, turn }, null, parsed.pretty ? 2 : 0)}\n`
+			: formatTurnAutomationRun({ ...completedRun, turn }));
+		return;
+	}
+	if (parsed.type === "automation-list") {
+		const automations = await listTurnAutomations({ cwd: parsed.workspaceRoot });
+		write(parsed.json
+			? `${JSON.stringify({ automations }, null, parsed.pretty ? 2 : 0)}\n`
+			: formatTurnAutomationList(automations));
 		return;
 	}
 	if (parsed.type === "app-actions") {
@@ -261,6 +310,7 @@ async function main(): Promise<void> {
 		const result = await tickWorkspace(context, {
 			callWorkspaceBackend: async (method, params) =>
 				await callWorkspaceBackend(method, params, parsed),
+			automationCwd: parsed.cwd,
 		});
 		writeJson({
 			...result,
@@ -277,6 +327,7 @@ async function main(): Promise<void> {
 		const run = await runWorkspaceTaskById(context, parsed.taskId, {
 			callWorkspaceBackend: async (method, params) =>
 				await callWorkspaceBackend(method, params, parsed),
+			automationCwd: parsed.cwd,
 		});
 		writeJson({
 			run,
@@ -584,6 +635,159 @@ async function callSshAppServer(
 	} finally {
 		client.close();
 	}
+}
+
+async function startTurnForAutomation(
+	decision: TurnAutomationTurnDecision,
+	options: {
+		via: "auto" | "workspace" | "app";
+		appUrl: string;
+		workspaceUrl: string;
+		timeoutMs: number;
+	} & SshRemoteProviderOptions,
+): Promise<TurnAutomationStartedTurn> {
+	const failures: string[] = [];
+	if (options.via === "workspace" || options.via === "auto") {
+		try {
+			return await withWorkspaceTransport({
+				...options,
+				url: options.workspaceUrl,
+			}, async (transport) => {
+				await initialize(transport);
+				return await startAutomationTurnWithRequest(
+					"workspace",
+					decision,
+					async (method, params) =>
+						await transport.request(APP_SERVER_CALL_METHOD, { method, params }),
+				);
+			});
+		} catch (error) {
+			if (options.via === "workspace") {
+				throw error;
+			}
+			failures.push(`workspace: ${errorMessage(error)}`);
+		}
+	}
+	if (options.via === "app" || options.via === "auto") {
+		try {
+			return await withAppServerClient({
+				...options,
+				url: options.appUrl,
+			}, async (client) =>
+				await startAutomationTurnWithRequest(
+					"app-server",
+					decision,
+					async (method, params) => await client.request(method, params),
+				)
+			);
+		} catch (error) {
+			if (options.via === "app") {
+				throw error;
+			}
+			failures.push(`app-server: ${errorMessage(error)}`);
+		}
+	}
+	throw new Error(failures.join("; ") || "No automation turn surface was available");
+}
+
+async function withAppServerClient<T>(
+	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
+	callback: (client: CodexAppServerClient) => Promise<T>,
+): Promise<T> {
+	const client = hasSshRemote(options)
+		? createSshAppServerClient(options, {
+				name: "codex-flows-automation",
+				title: "Codex Flows Automation",
+			})
+		: new CodexAppServerClient({
+				...(options.url === "stdio://"
+					? { transportOptions: { requestTimeoutMs: options.timeoutMs } }
+					: {
+							webSocketTransportOptions: {
+								url: options.url,
+								requestTimeoutMs: options.timeoutMs,
+							},
+						}),
+				clientName: "codex-flows-automation",
+				clientTitle: "Codex Flows Automation",
+				clientVersion: "0.1.0",
+			});
+	client.on("request", (message) => {
+		client.respondError(
+			message.id,
+			-32603,
+			"codex-flows automation does not handle app-server requests",
+		);
+	});
+	try {
+		await client.connect();
+		return await callback(client);
+	} finally {
+		client.close();
+	}
+}
+
+async function startAutomationTurnWithRequest(
+	via: TurnAutomationStartedTurn["via"],
+	decision: TurnAutomationTurnDecision,
+	request: (method: string, params: unknown) => Promise<unknown>,
+): Promise<TurnAutomationStartedTurn> {
+	let threadId = decision.threadId;
+	let thread: unknown = null;
+	if (!threadId) {
+		const threadResponse = await request(
+			"thread/start",
+			threadStartParamsFromAutomation(decision),
+		);
+		threadId = nestedId(threadResponse, "thread", "thread/start");
+		thread = record(threadResponse).thread ?? threadResponse;
+	}
+	const turnResponse = await request(
+		"turn/start",
+		turnStartParamsFromAutomation(threadId, decision),
+	);
+	return {
+		via,
+		threadId,
+		turnId: nestedId(turnResponse, "turn", "turn/start"),
+		thread,
+		turn: record(turnResponse).turn ?? turnResponse,
+	};
+}
+
+function threadStartParamsFromAutomation(
+	decision: TurnAutomationTurnDecision,
+): v2.ThreadStartParams {
+	return compactUndefined({
+		cwd: decision.cwd,
+		model: decision.model,
+		serviceTier: decision.serviceTier,
+		permissions: decision.permissions,
+		experimentalRawEvents: false,
+		persistExtendedHistory: false,
+	});
+}
+
+function turnStartParamsFromAutomation(
+	threadId: string,
+	decision: TurnAutomationTurnDecision,
+): v2.TurnStartParams {
+	return compactUndefined({
+		threadId,
+		input: [
+			{
+				type: "text",
+				text: decision.prompt,
+				text_elements: [],
+			},
+		],
+		cwd: decision.cwd,
+		model: decision.model,
+		serviceTier: decision.serviceTier,
+		permissions: decision.permissions,
+		responsesapiClientMetadata: decision.responsesapiClientMetadata,
+		outputSchema: decision.outputSchema as v2.TurnStartParams["outputSchema"],
+	});
 }
 
 async function initializeWorkspaceBackend(options: {
@@ -1133,6 +1337,14 @@ function truncate(value: string, maxLength: number): string {
 	return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
 }
 
+function nestedId(response: unknown, key: string, label: string): string {
+	const id = stringValue(record(record(response)[key]).id);
+	if (!id) {
+		throw new Error(`${label} did not return ${key}.id`);
+	}
+	return id;
+}
+
 function record(value: unknown): Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 		? value as Record<string, unknown>
@@ -1145,6 +1357,16 @@ function arrayValue(value: unknown): unknown[] {
 
 function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function compactUndefined<T extends Record<string, unknown>>(value: T): T {
+	const result: Record<string, unknown> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		if (entry !== undefined) {
+			result[key] = entry;
+		}
+	}
+	return result as T;
 }
 
 async function readParams(paramsText: string | undefined): Promise<unknown> {
@@ -1193,6 +1415,9 @@ Usage:
   codex-flows remote status [--json]
   codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
   codex-flows remote turn start --prompt <text> [--via auto|workspace|app] [--cwd <path>]
+
+  codex-flows automation list [--json]
+  codex-flows automation run <script-or-name> [--event <event.json>] [--prompt <text>] [--via auto|workspace|app]
 
   codex-flows app <method> [params-json]
   codex-flows app call <method> [params-json]
@@ -1271,6 +1496,8 @@ Options:
   --no-backup                                Disable overwrite/merge backups.
   --flow <name>                              Flow name for Actions run assertions.
   --step <name>                              Step name for Actions run assertions.
+  --event <path>                             Event JSON for automation, Actions,
+                                             or flow dispatch.
   --artifact-text <text>                     Require text in an Actions run record.
   --forgejo                                  Generate a Forgejo Actions workflow.
   --github                                   Generate a GitHub Actions workflow.
@@ -1278,8 +1505,9 @@ Options:
   --with-agent-turn                          Generate an agent-turn flow.
   --dry-run                                  Print the local backend start command.
                                              For remote tunnel start, print the ssh command.
-  --prompt <text>                            Prompt text for remote turn start.
-  --via <auto|workspace|app>                 Remote turn surface. Defaults to auto.
+  --prompt <text>                            Prompt text for remote turn start or
+                                             automation script context.
+  --via <auto|workspace|app>                 Turn surface. Defaults to auto.
   --ssh, --ssh-target <target>               SSH target for remote CodexFlows operation
                                              or a Tailscale-backed tunnel.
                                              Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
@@ -1299,6 +1527,10 @@ Examples:
   codex-flows remote status --workspace-url ws://127.0.0.1:3586
   codex-flows remote tunnel start --ssh peezy@vps-tailnet --dry-run
   codex-flows remote turn start --prompt "Check workspace status"
+  codex-flows automation list
+  codex-flows automation run ./automations/check-release.ts --event event.json
+  codex-flows automation run check-release --event event.json
+  codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
   codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows --ssh devbox --cwd /repo workspace delegation.list
   codex-flows --ssh devbox --cwd /repo flow dispatch --event event.json
