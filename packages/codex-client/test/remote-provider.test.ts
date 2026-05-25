@@ -128,6 +128,9 @@ describe("SSH remote provider", () => {
 				workspaceUrl: `ws://127.0.0.1:${port}`,
 			});
 			expect(backend.methods).toContain("workspace.initialize");
+			await waitForLog(fakeSsh, (entries) =>
+				entries.some((entry) => entry.mode === "existing")
+			);
 			handle.close();
 			await waitForLog(fakeSsh, (entries) =>
 				entries.some((entry) => entry.mode === "signal")
@@ -262,8 +265,7 @@ const args = process.argv.slice(2);
 const port = localPort(args);
 
 if (args.includes("-N")) {
-	log({ mode: "existing" });
-	hold();
+	hold({ mode: "existing" });
 } else if (port && SPAWN_BACKEND) {
 	log({ mode: "spawn", port });
 	await serveWorkspace(port);
@@ -286,11 +288,12 @@ function localPort(values) {
 	return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function hold() {
+function hold(entry) {
 	process.on("SIGTERM", () => {
 		log({ mode: "signal", signal: "SIGTERM" });
 		process.exit(0);
 	});
+	log(entry);
 	setInterval(() => {}, 1_000);
 }
 
