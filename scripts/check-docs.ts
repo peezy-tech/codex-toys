@@ -138,9 +138,10 @@ await expectIncludes("docs/pages/guides/thread-transplant.md", "--replace");
 await expectIncludes("docs/pages/guides/thread-transplant.md", "not app-server-native import");
 
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin marketplace add peezy-tech/skills --ref main");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows@peezy-tech");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-author@peezy-tech");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-local-workspace@peezy-tech");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-remote-control@peezy-tech");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows@codex-flows");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "hooks/hooks.json");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "plugin_hooks = true");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_FLOWS_HOOK_SPOOL_DIR");

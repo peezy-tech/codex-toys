@@ -34,9 +34,9 @@ lifecycle events for workspace surfaces.
 | Plugin | Installs |
 |--------|----------|
 | `codex-flows-author` | Turn automation authoring guidance. |
-| `codex-flows-local-workspace` | Local backend setup, delegation skills, and plugin-bundled hooks. |
+| `codex-flows-local-workspace` | Local backend setup and plugin-bundled hooks. |
 | `codex-flows-remote-control` | Local Codex App guidance for remote-control status, SSH/Tailscale tunnels, and starting turns on a remote backend. |
-| `codex-flows` | Full install with all root skills and hooks. |
+| `codex-flows` | Product-local full install for development and compatibility. |
 
 ## Install from GitHub
 
@@ -50,9 +50,8 @@ The same install can be done from a Codex CLI that shares the same `CODEX_HOME`:
 ```bash
 codex plugin marketplace add peezy-tech/skills --ref main
 codex plugin add codex-flows-author@peezy-tech
-codex plugin add codex-flows-local-workspace@peezy-tech
 codex plugin add codex-flows-remote-control@peezy-tech
-codex plugin add codex-flows@peezy-tech
+codex plugin add codex-flows-local-workspace@peezy-tech
 ```
 
 ## Local development
@@ -61,6 +60,7 @@ Before publishing or while iterating locally, add the checkout root instead:
 
 ```bash
 codex plugin marketplace add /home/peezy/meta-workspace/codex-flows
+codex plugin add codex-flows@codex-flows
 codex plugin add codex-flows-local-workspace@codex-flows
 ```
 

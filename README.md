@@ -75,14 +75,13 @@ codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex
 ```
 
 Install the shared Peezy Tech Codex plugin marketplace from GitHub. Use the
-granular plugin that matches the job, or keep `codex-flows` as the full install:
+granular plugin that matches the job:
 
 ```bash
 codex plugin marketplace add peezy-tech/skills --ref main
 codex plugin add codex-flows-author@peezy-tech
-codex plugin add codex-flows-local-workspace@peezy-tech
 codex plugin add codex-flows-remote-control@peezy-tech
-codex plugin add codex-flows@peezy-tech
+codex plugin add codex-flows-local-workspace@peezy-tech
 ```
 
 ## Documentation Model

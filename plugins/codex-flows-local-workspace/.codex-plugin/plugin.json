@@ -1,7 +1,7 @@
 {
   "name": "codex-flows-local-workspace",
-  "version": "0.132.4",
-  "description": "Local Codex workspace backend operation, delegation, and plugin-bundled hooks.",
+  "version": "0.132.5",
+  "description": "Local Codex workspace backend operation and plugin-bundled hooks.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -15,13 +15,13 @@
     "workspace",
     "backend",
     "hooks",
-    "delegation"
+    "local-workspace"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-flows local workspace",
-    "shortDescription": "Operate a local workspace backend with delegation and hooks.",
-    "longDescription": "codex-flows local workspace installs skills for local backend setup, flow operation, and delegation orchestration. It also bundles passive Codex lifecycle hooks that write workspace hook-spool events. It does not automatically start or install a persistent backend service.",
+    "shortDescription": "Operate a local workspace backend with plugin-bundled hooks.",
+    "longDescription": "codex-flows local workspace installs skills for local backend setup and passive Codex lifecycle hooks that write workspace hook-spool events. It does not automatically start or install a persistent backend service.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -34,8 +34,7 @@
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
       "Set up the local Codex workspace backend.",
-      "Check workspace backend and hook status.",
-      "Coordinate delegated workspace work."
+      "Check workspace backend and hook status."
     ],
     "brandColor": "#7C3AED"
   }

@@ -1,6 +1,6 @@
 {
   "name": "codex-flows-remote-control",
-  "version": "0.132.4",
+  "version": "0.132.5",
   "description": "Operate a remote codex-flows backend from a local Codex App install.",
   "author": {
     "name": "Peezy",
