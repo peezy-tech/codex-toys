@@ -1,9 +1,12 @@
-import { spawn } from "node:child_process";
+import { spawn, type Serializable } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { v2 } from "../app-server/generated/index.ts";
 
 const MODULE_RESULT_PREFIX = "TURN_AUTOMATION_MODULE_RESULT ";
+const DEFAULT_TURN_WAIT_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_TURN_WAIT_POLL_INTERVAL_MS = 1000;
 
 export type TurnAutomationContext = {
 	automation: {
@@ -43,12 +46,38 @@ export type TurnAutomationDecision =
 	| TurnAutomationSkipDecision
 	| TurnAutomationTurnDecision;
 
+export type TurnAutomationProgramResult = Record<string, unknown>;
+
+export type TurnAutomationResult =
+	| TurnAutomationDecision
+	| TurnAutomationProgramResult;
+
+export type ParsedTurnAutomationResult = {
+	result: TurnAutomationResult;
+	decision?: TurnAutomationDecision;
+};
+
 export type TurnAutomationRun = {
 	context: TurnAutomationContext;
-	decision: TurnAutomationDecision;
+	result: TurnAutomationResult;
+	decision?: TurnAutomationDecision;
 	stdout: string;
 	stderr: string;
 };
+
+export type TurnAutomationHostCall = {
+	method: string;
+	params?: unknown;
+};
+
+export type TurnAutomationHostHandler = (
+	call: TurnAutomationHostCall,
+) => Promise<unknown> | unknown;
+
+export type TurnAutomationBackendRequest = (
+	method: string,
+	params: unknown,
+) => Promise<unknown>;
 
 export type RunTurnAutomationScriptOptions = {
 	scriptPath: string;
@@ -58,6 +87,7 @@ export type RunTurnAutomationScriptOptions = {
 	cwd?: string;
 	timeoutMs: number;
 	env?: Record<string, string | undefined>;
+	host?: TurnAutomationHostHandler;
 };
 
 export async function runTurnAutomationScript(
@@ -72,9 +102,15 @@ export async function runTurnAutomationScript(
 			...process.env,
 			...options.env,
 		},
-		stdio: ["pipe", "pipe", "pipe"],
+		stdio: ["ignore", "pipe", "pipe", "ipc"],
 	});
-	subprocess.stdin.end(`${JSON.stringify(context, null, 2)}\n`);
+	subprocess.on("message", (message) => {
+		void handleHostMessage(subprocess, options.host, message);
+	});
+	await sendChildMessage(subprocess, {
+		type: "turnAutomation.context",
+		context,
+	});
 	const timer = setTimeout(() => subprocess.kill("SIGTERM"), options.timeoutMs);
 	const [stdout, stderr, exitCode] = await Promise.all([
 		collectText(subprocess.stdout),
@@ -84,24 +120,42 @@ export async function runTurnAutomationScript(
 	if (exitCode !== 0) {
 		throw new Error(`Turn automation script failed:\n${stderr || stdout}`);
 	}
+	const parsed = parseTurnAutomationResult(stdout, options.prompt);
 	return {
 		context,
-		decision: parseTurnAutomationDecision(stdout, options.prompt),
+		...parsed,
 		stdout,
 		stderr,
 	};
+}
+
+export function parseTurnAutomationResult(
+	stdout: string,
+	defaultPrompt?: string,
+): ParsedTurnAutomationResult {
+	return normalizeTurnAutomationResult(parseModuleResult(stdout), defaultPrompt);
 }
 
 export function parseTurnAutomationDecision(
 	stdout: string,
 	defaultPrompt?: string,
 ): TurnAutomationDecision {
-	return normalizeTurnAutomationDecision(parseModuleResult(stdout), defaultPrompt);
+	const parsed = parseTurnAutomationResult(stdout, defaultPrompt);
+	if (!parsed.decision) {
+		throw new Error("Turn automation result did not return a skip or turn decision");
+	}
+	return parsed.decision;
 }
 
 export function formatTurnAutomationRun(run: TurnAutomationRun & {
 	turn?: TurnAutomationStartedTurn;
 }): string {
+	if (!run.decision) {
+		return [
+			"automation action   result",
+			`result              ${previewJson(run.result)}`,
+		].join("\n") + "\n";
+	}
 	if (run.decision.action === "skip") {
 		return [
 			"automation action   skip",
@@ -123,11 +177,67 @@ export function formatTurnAutomationRun(run: TurnAutomationRun & {
 }
 
 export type TurnAutomationStartedTurn = {
+	id?: string;
 	via: "workspace" | "app-server";
 	threadId: string;
 	turnId: string;
 	thread: unknown;
 	turn: unknown;
+};
+
+export type TurnAutomationTurnSnapshot = TurnAutomationStartedTurn & {
+	status: string;
+	outputText: string;
+	error?: unknown;
+};
+
+export type TurnAutomationHostTurnStartParams =
+	& Partial<Omit<TurnAutomationTurnDecision, "action" | "prompt">>
+	& {
+		id?: string;
+		prompt?: string;
+	};
+
+export type TurnAutomationScriptContext = TurnAutomationContext & {
+	app: {
+		call(method: string, params?: unknown): Promise<unknown>;
+	};
+	workspace: {
+		call(method: string, params?: unknown): Promise<unknown>;
+	};
+	turn: {
+		start(params: TurnAutomationHostTurnStartParams): Promise<TurnAutomationStartedTurn>;
+		read(
+			turn: Pick<TurnAutomationStartedTurn, "id" | "threadId" | "turnId">,
+		): Promise<TurnAutomationTurnSnapshot>;
+		wait(
+			turn: Pick<TurnAutomationStartedTurn, "id" | "threadId" | "turnId">,
+			options?: {
+				timeoutMs?: number;
+				pollIntervalMs?: number;
+				throwOnFailure?: boolean;
+			},
+		): Promise<TurnAutomationTurnSnapshot>;
+		waitAll(
+			turns: Array<Pick<TurnAutomationStartedTurn, "id" | "threadId" | "turnId">>,
+			options?: {
+				timeoutMs?: number;
+				pollIntervalMs?: number;
+				throwOnFailure?: boolean;
+			},
+		): Promise<TurnAutomationTurnSnapshot[]>;
+	};
+};
+
+export type CreateTurnAutomationHostOptions = {
+	via: TurnAutomationStartedTurn["via"];
+	appRequest: TurnAutomationBackendRequest;
+	workspaceRequest?: TurnAutomationBackendRequest;
+	defaults?: {
+		prompt?: string;
+		cwd?: string;
+		skills?: string[];
+	};
 };
 
 export type TurnAutomationManifest = {
@@ -163,6 +273,162 @@ export type ListTurnAutomationsOptions = {
 	cwd?: string;
 	roots?: string[];
 };
+
+export function createTurnAutomationHost(
+	options: CreateTurnAutomationHostOptions,
+): TurnAutomationHostHandler {
+	return async (call) => {
+		if (call.method === "app.call") {
+			const params = record(call.params);
+			return await options.appRequest(
+				requiredString(params.method, "ctx.app.call method"),
+				params.params,
+			);
+		}
+		if (call.method === "workspace.call") {
+			if (!options.workspaceRequest) {
+				throw new Error("ctx.workspace.call is only available through a workspace backend");
+			}
+			const params = record(call.params);
+			return await options.workspaceRequest(
+				requiredString(params.method, "ctx.workspace.call method"),
+				params.params,
+			);
+		}
+		if (call.method === "turn.start") {
+			const params = record(call.params);
+			const decision = turnDecisionFromHostParams(params, options.defaults);
+			return await startAutomationTurnWithRequest(
+				options.via,
+				decision,
+				options.appRequest,
+				optionalString(params.id),
+			);
+		}
+		if (call.method === "turn.read") {
+			return await readAutomationTurnWithRequest(
+				options.via,
+				options.appRequest,
+				turnRefFromValue(call.params, "ctx.turn.read"),
+			);
+		}
+		if (call.method === "turn.wait") {
+			const params = record(call.params);
+			return await waitAutomationTurnWithRequest(
+				options.via,
+				options.appRequest,
+				turnRefFromValue(params.turn ?? call.params, "ctx.turn.wait"),
+				waitOptionsFromValue(params.options),
+			);
+		}
+		if (call.method === "turn.waitAll") {
+			const params = record(call.params);
+			if (!Array.isArray(params.turns)) {
+				throw new Error("ctx.turn.waitAll requires an array of turns");
+			}
+			const waitOptions = waitOptionsFromValue(params.options);
+			return await Promise.all(params.turns.map(async (entry) =>
+				await waitAutomationTurnWithRequest(
+					options.via,
+					options.appRequest,
+					turnRefFromValue(entry, "ctx.turn.waitAll"),
+					waitOptions,
+				)
+			));
+		}
+		throw new Error(`Unknown turn automation host method: ${call.method}`);
+	};
+}
+
+export async function startAutomationTurnWithRequest(
+	via: TurnAutomationStartedTurn["via"],
+	decision: TurnAutomationTurnDecision,
+	request: TurnAutomationBackendRequest,
+	id?: string,
+): Promise<TurnAutomationStartedTurn> {
+	let threadId = decision.threadId;
+	let thread: unknown = null;
+	if (!threadId) {
+		const threadResponse = await request(
+			"thread/start",
+			threadStartParamsFromAutomation(decision),
+		);
+		threadId = nestedId(threadResponse, "thread", "thread/start");
+		thread = record(threadResponse).thread ?? threadResponse;
+	}
+	const turnResponse = await request(
+		"turn/start",
+		turnStartParamsFromAutomation(threadId, decision),
+	);
+	return compactUndefined({
+		id,
+		via,
+		threadId,
+		turnId: nestedId(turnResponse, "turn", "turn/start"),
+		thread,
+		turn: record(turnResponse).turn ?? turnResponse,
+	});
+}
+
+export async function readAutomationTurnWithRequest(
+	via: TurnAutomationStartedTurn["via"],
+	request: TurnAutomationBackendRequest,
+	ref: Pick<TurnAutomationStartedTurn, "id" | "threadId" | "turnId">,
+): Promise<TurnAutomationTurnSnapshot> {
+	const threadResponse = await request("thread/read", {
+		threadId: ref.threadId,
+		includeTurns: true,
+	});
+	const thread = record(threadResponse).thread ?? threadResponse;
+	const turn = array(record(thread).turns)
+		.map(record)
+		.find((candidate) => candidate.id === ref.turnId);
+	if (!turn) {
+		throw new Error(`thread/read did not return turn ${ref.turnId}`);
+	}
+	return compactUndefined({
+		id: ref.id,
+		via,
+		threadId: ref.threadId,
+		turnId: ref.turnId,
+		status: optionalString(turn.status) ?? "unknown",
+		outputText: finalTextFromTurn(turn),
+		error: turn.error,
+		thread,
+		turn,
+	});
+}
+
+export async function waitAutomationTurnWithRequest(
+	via: TurnAutomationStartedTurn["via"],
+	request: TurnAutomationBackendRequest,
+	ref: Pick<TurnAutomationStartedTurn, "id" | "threadId" | "turnId">,
+	options: {
+		timeoutMs?: number;
+		pollIntervalMs?: number;
+		throwOnFailure?: boolean;
+	} = {},
+): Promise<TurnAutomationTurnSnapshot> {
+	const timeoutMs = options.timeoutMs ?? DEFAULT_TURN_WAIT_TIMEOUT_MS;
+	const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_TURN_WAIT_POLL_INTERVAL_MS;
+	const startedAt = Date.now();
+	while (true) {
+		const snapshot = await readAutomationTurnWithRequest(via, request, ref);
+		if (snapshot.status !== "inProgress") {
+			if (
+				snapshot.status === "failed" &&
+				options.throwOnFailure !== false
+			) {
+				throw new Error(`Turn ${ref.turnId} failed`);
+			}
+			return snapshot;
+		}
+		if (Date.now() - startedAt >= timeoutMs) {
+			throw new Error(`Timed out waiting for turn ${ref.turnId}`);
+		}
+		await delay(Math.min(pollIntervalMs, Math.max(0, timeoutMs - (Date.now() - startedAt))));
+	}
+}
 
 export async function listTurnAutomations(
 	options: ListTurnAutomationsOptions = {},
@@ -356,16 +622,30 @@ function parseModuleResult(stdout: string): unknown {
 		}
 		return JSON.parse(line.slice(index + MODULE_RESULT_PREFIX.length).trim());
 	}
-	throw new Error("Turn automation module did not return a decision");
+	throw new Error("Turn automation module did not return a result");
 }
 
-function normalizeTurnAutomationDecision(
+function normalizeTurnAutomationResult(
 	value: unknown,
 	defaultPrompt?: string,
-): TurnAutomationDecision {
+): ParsedTurnAutomationResult {
 	if (!isRecord(value)) {
 		throw new Error("Turn automation result must be a JSON object");
 	}
+	if (value.action === "skip" || value.action === "turn") {
+		const decision = normalizeTurnAutomationDecision(value, defaultPrompt);
+		return {
+			result: decision,
+			decision,
+		};
+	}
+	return { result: value };
+}
+
+function normalizeTurnAutomationDecision(
+	value: Record<string, unknown>,
+	defaultPrompt?: string,
+): TurnAutomationDecision {
 	if (value.action === "skip") {
 		return compactUndefined({
 			action: "skip",
@@ -392,6 +672,173 @@ function normalizeTurnAutomationDecision(
 		outputSchema: value.outputSchema,
 		skills: stringArray(value.skills),
 		artifacts: value.artifacts,
+	});
+}
+
+function turnDecisionFromHostParams(
+	params: Record<string, unknown>,
+	defaults: CreateTurnAutomationHostOptions["defaults"] = {},
+): TurnAutomationTurnDecision {
+	const prompt = optionalString(params.prompt) ?? defaults.prompt;
+	if (!prompt) {
+		throw new Error("ctx.turn.start requires a prompt or automation prompt default");
+	}
+	return compactUndefined({
+		action: "turn",
+		prompt,
+		threadId: optionalString(params.threadId),
+		cwd: optionalString(params.cwd) ?? defaults.cwd,
+		model: optionalString(params.model),
+		serviceTier: optionalString(params.serviceTier),
+		permissions: optionalString(params.permissions),
+		responsesapiClientMetadata: stringRecord(params.responsesapiClientMetadata),
+		outputSchema: params.outputSchema,
+		skills: stringArray(params.skills) ?? defaults.skills,
+	});
+}
+
+function turnRefFromValue(
+	value: unknown,
+	label: string,
+): Pick<TurnAutomationStartedTurn, "id" | "threadId" | "turnId"> {
+	const params = record(value);
+	return compactUndefined({
+		id: optionalString(params.id),
+		threadId: requiredString(params.threadId, `${label} threadId`),
+		turnId: requiredString(params.turnId, `${label} turnId`),
+	});
+}
+
+function waitOptionsFromValue(value: unknown): {
+	timeoutMs?: number;
+	pollIntervalMs?: number;
+	throwOnFailure?: boolean;
+} {
+	const params = record(value);
+	return compactUndefined({
+		timeoutMs: optionalNumber(params.timeoutMs),
+		pollIntervalMs: optionalNumber(params.pollIntervalMs),
+		throwOnFailure: optionalBoolean(params.throwOnFailure),
+	});
+}
+
+function threadStartParamsFromAutomation(
+	decision: TurnAutomationTurnDecision,
+): v2.ThreadStartParams {
+	return compactUndefined({
+		cwd: decision.cwd,
+		model: decision.model,
+		serviceTier: decision.serviceTier,
+		permissions: decision.permissions,
+		experimentalRawEvents: false,
+		persistExtendedHistory: false,
+	});
+}
+
+function turnStartParamsFromAutomation(
+	threadId: string,
+	decision: TurnAutomationTurnDecision,
+): v2.TurnStartParams {
+	return compactUndefined({
+		threadId,
+		input: [
+			{
+				type: "text",
+				text: decision.prompt,
+				text_elements: [],
+			},
+		],
+		cwd: decision.cwd,
+		model: decision.model,
+		serviceTier: decision.serviceTier,
+		permissions: decision.permissions,
+		responsesapiClientMetadata: decision.responsesapiClientMetadata,
+		outputSchema: decision.outputSchema as v2.TurnStartParams["outputSchema"],
+	});
+}
+
+function nestedId(response: unknown, key: string, label: string): string {
+	const id = optionalString(record(record(response)[key]).id);
+	if (!id) {
+		throw new Error(`${label} did not return ${key}.id`);
+	}
+	return id;
+}
+
+function finalTextFromTurn(turn: Record<string, unknown>): string {
+	const items = array(turn.items);
+	const agentMessages = items
+		.map(record)
+		.filter((item) => item.type === "agentMessage");
+	const finalMessages = agentMessages.filter((item) => item.phase === "final_answer");
+	const selected = finalMessages.length > 0 ? finalMessages : agentMessages;
+	return selected
+		.map((item) => optionalString(item.text) ?? "")
+		.filter(Boolean)
+		.join("\n\n");
+}
+
+async function handleHostMessage(
+	subprocess: ReturnType<typeof spawn>,
+	host: TurnAutomationHostHandler | undefined,
+	message: unknown,
+): Promise<void> {
+	if (!isHostRequestMessage(message)) {
+		return;
+	}
+	try {
+		if (!host) {
+			throw new Error("Turn automation host API is not available");
+		}
+		const result = await host({
+			method: message.method,
+			params: message.params,
+		});
+		await sendChildMessage(subprocess, {
+			type: "turnAutomation.hostResponse",
+			id: message.id,
+			result,
+		}).catch(() => undefined);
+	} catch (error) {
+		await sendChildMessage(subprocess, {
+			type: "turnAutomation.hostResponse",
+			id: message.id,
+			error: {
+				message: errorMessage(error),
+				stack: error instanceof Error ? error.stack : undefined,
+			},
+		}).catch(() => undefined);
+	}
+}
+
+function isHostRequestMessage(value: unknown): value is {
+	type: "turnAutomation.hostRequest";
+	id: number;
+	method: string;
+	params?: unknown;
+} {
+	const message = record(value);
+	return message.type === "turnAutomation.hostRequest" &&
+		typeof message.id === "number" &&
+		typeof message.method === "string";
+}
+
+function sendChildMessage(
+	subprocess: ReturnType<typeof spawn>,
+	message: unknown,
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		if (!subprocess.connected || typeof subprocess.send !== "function") {
+			reject(new Error("Turn automation runner IPC channel is closed"));
+			return;
+		}
+		subprocess.send(message as Serializable, (error) => {
+			if (error) {
+				reject(error);
+				return;
+			}
+			resolve();
+		});
 	});
 }
 
@@ -434,6 +881,22 @@ function optionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function requiredString(value: unknown, label: string): string {
+	const result = optionalString(value);
+	if (!result) {
+		throw new Error(`${label} must be a non-empty string`);
+	}
+	return result;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+	return typeof value === "boolean" ? value : undefined;
+}
+
 function stringRecord(value: unknown): Record<string, string> | undefined {
 	if (!isRecord(value)) {
 		return undefined;
@@ -454,6 +917,14 @@ function stringArray(value: unknown): string[] | undefined {
 	return entries.length > 0 ? entries : undefined;
 }
 
+function array(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : [];
+}
+
+function record(value: unknown): Record<string, unknown> {
+	return isRecord(value) ? value : {};
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -470,4 +941,17 @@ function compactUndefined<T extends Record<string, unknown>>(value: T): T {
 
 function preview(value: string): string {
 	return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+}
+
+function previewJson(value: unknown): string {
+	const json = JSON.stringify(value);
+	return preview(json ?? "null");
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }

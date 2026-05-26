@@ -31,7 +31,7 @@ documentation lives in the Tome docs site under
 - `apps/workspace-backend`: local workspace backend process with control
   WebSocket routes.
 - `automations`: plugin-native turn automation examples that run code before
-  deciding whether to start a native Codex turn.
+  skipping, starting, waiting on, or composing native Codex turns.
 - `docs`: Tome documentation source.
 
 ## Common Commands

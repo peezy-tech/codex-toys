@@ -1,24 +1,25 @@
 ---
 title: Turn automation
-description: Run a pre-turn script that can skip or start a native Codex turn.
+description: Run a pre-turn script that can skip, start, wait on, or compose native Codex turns.
 ---
 
 # Turn automation
 
 Turn automation is the plugin-native automation shape for codex-flows. A script
-runs first, inspects external state, and decides whether a native Codex turn
-should start.
+runs first, inspects external state, and can either return a simple decision or
+programmatically compose native Codex turns.
 
 This is prompt automation, not skill automation. Skills remain normal Codex
 capabilities that the resulting turn may use. The automation itself is just code
 that can check APIs, repositories, files, queues, release feeds, or any other
-external signal before spending a Codex turn.
+external signal before spending Codex turns.
 
 ```text
 event, schedule, hook, or operator command
   -> pre-turn script
      -> skip
      -> start native Codex turn with prompt/cwd/settings
+     -> start/wait/read multiple native Codex turns and return JSON
 ```
 
 ## Run an automation
@@ -65,6 +66,18 @@ The script exports a default handler and receives a context object:
 }
 ```
 
+At runtime the context also includes a small host API:
+
+- `context.app.call(method, params)`: call an app-server method.
+- `context.workspace.call(method, params)`: call a workspace-backend method.
+  This is only available when running `--via workspace`.
+- `context.turn.start(params)`: start a native turn and return
+  `{ id?, via, threadId, turnId, thread, turn }`.
+- `context.turn.read(turn)`: read the latest snapshot for a started turn.
+- `context.turn.wait(turn, options)`: wait until a turn is no longer
+  `inProgress`, returning `status`, `outputText`, `thread`, and `turn`.
+- `context.turn.waitAll(turns, options)`: wait for multiple turns.
+
 ```ts
 export default async function run(context) {
   if (context.event?.payload?.repo !== "openai/codex") {
@@ -79,7 +92,11 @@ export default async function run(context) {
 }
 ```
 
-## Decision contract
+## Return Contract
+
+The handler must return a JSON object. Returning `skip` or `turn` is the simple
+path; returning any other object is treated as the automation result and no
+extra turn is started by the CLI.
 
 Skip:
 
@@ -114,6 +131,39 @@ Supported turn fields:
 - `outputSchema`: JSON Schema for the final assistant response.
 - `skills`: recorded in the automation result for routing and future
   turn-scoped skill filtering; current app-server builds do not enforce it.
+
+Programmatic orchestration:
+
+```ts
+export default async function run(context) {
+  const turns = await Promise.all(["linux", "mac"].map((id) =>
+    context.turn.start({
+      id,
+      prompt: `Check the release on ${id}.`,
+      cwd: context.cwd
+    })
+  ));
+
+  const results = await context.turn.waitAll(turns, {
+    timeoutMs: 20 * 60 * 1000,
+    pollIntervalMs: 1000
+  });
+
+  return {
+    status: "completed",
+    rows: results.map((item) => ({
+      id: item.id,
+      threadId: item.threadId,
+      turnId: item.turnId,
+      outputText: item.outputText
+    }))
+  };
+}
+```
+
+If the automation needs a CSV, markdown report, or other file, write it directly
+from the script with normal JavaScript APIs such as `node:fs/promises`, then
+include the path in the returned JSON object.
 
 ## Local and remote targets
 

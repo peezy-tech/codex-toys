@@ -7,8 +7,8 @@ description: How turn automation, Codex app-server, workspace backends, and apps
 
 codex-flows centers on plugin-native prompt automation and native Codex turns.
 The primary runtime is intentionally narrow: a named automation runs code,
-decides whether work is needed, and starts a native app-server turn only when
-there is something worth asking Codex to do.
+decides whether work is needed, and can start, wait on, and compose native
+app-server turns only when there is something worth asking Codex to do.
 
 ```mermaid
 sequenceDiagram
@@ -19,6 +19,7 @@ sequenceDiagram
   Signal->>Script: JSON context
   Script-->>Signal: skip
   Script-->>Codex: turn decision with prompt/cwd/settings
+  Script-->>Codex: optional turn.start / turn.wait orchestration
   Codex-->>Codex: native turn uses normal tools and skills
 ```
 

@@ -79,13 +79,14 @@ const run = await runTurnAutomationScript({
 	timeoutMs: 90_000,
 });
 
-if (run.decision.action === "turn") {
+if (run.decision?.action === "turn") {
 	console.log(run.decision.prompt);
 }
 ```
 
-Turn automation runs code before deciding whether to start a native Codex turn.
-Use it for plugin-installed prompt automation.
+Turn automation runs code before deciding whether to skip, start one native
+Codex turn, or return a programmatic result after composing several turns. Use
+it for plugin-installed prompt automation.
 
 ## Auth Helpers
 

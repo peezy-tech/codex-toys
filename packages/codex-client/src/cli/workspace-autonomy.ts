@@ -6,8 +6,10 @@ import { spawn } from "node:child_process";
 import { parse as parseToml } from "smol-toml";
 import {
 	applyTurnAutomationDefaults,
+	createTurnAutomationHost,
 	resolveTurnAutomationTarget,
 	runTurnAutomationScript,
+	startAutomationTurnWithRequest,
 	type TurnAutomationTurnDecision,
 } from "./turn-automation.ts";
 
@@ -508,17 +510,37 @@ async function runAutomationTask(
 		prompt,
 		cwd,
 		timeoutMs: 90_000,
+		host: createTurnAutomationHost({
+			via: "workspace",
+			appRequest: async (method, params) =>
+				await options.callWorkspaceBackend("appServer.call", {
+					method,
+					params,
+				}),
+			workspaceRequest: options.callWorkspaceBackend,
+			defaults: {
+				prompt,
+				cwd,
+				skills: target.skills,
+			},
+		}),
 	});
-	const decision = applyTurnAutomationDefaults(scriptRun.decision, {
-		prompt,
-		cwd,
-		skills: target.skills,
-	});
+	const decision = scriptRun.decision
+		? applyTurnAutomationDefaults(scriptRun.decision, {
+				prompt,
+				cwd,
+				skills: target.skills,
+			})
+		: undefined;
+	if (!decision) {
+		return scriptRun;
+	}
+	const completedRun = { ...scriptRun, result: decision, decision };
 	if (decision.action === "skip") {
-		return { ...scriptRun, decision };
+		return completedRun;
 	}
 	const turn = await startAutomationTurnViaWorkspace(options.callWorkspaceBackend, decision);
-	return { ...scriptRun, decision, turn };
+	return { ...completedRun, turn };
 }
 
 function workspaceAutomationEvent(
@@ -547,70 +569,12 @@ async function startAutomationTurnViaWorkspace(
 	callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>,
 	decision: TurnAutomationTurnDecision,
 ): Promise<unknown> {
-	let threadId = decision.threadId;
-	let thread: unknown = null;
-	if (!threadId) {
-		const threadResponse = await callWorkspaceBackend("appServer.call", {
-			method: "thread/start",
-			params: threadStartParamsFromAutomation(decision),
-		});
-		threadId = nestedId(threadResponse, "thread", "thread/start");
-		thread = record(threadResponse).thread ?? threadResponse;
-	}
-	const turnResponse = await callWorkspaceBackend("appServer.call", {
-		method: "turn/start",
-		params: turnStartParamsFromAutomation(threadId, decision),
-	});
-	return {
-		via: "workspace",
-		threadId,
-		turnId: nestedId(turnResponse, "turn", "turn/start"),
-		thread,
-		turn: record(turnResponse).turn ?? turnResponse,
-	};
-}
-
-function threadStartParamsFromAutomation(
-	decision: TurnAutomationTurnDecision,
-): Record<string, unknown> {
-	return compactUndefined({
-		cwd: decision.cwd,
-		model: decision.model,
-		serviceTier: decision.serviceTier,
-		permissions: decision.permissions,
-		experimentalRawEvents: false,
-		persistExtendedHistory: false,
-	});
-}
-
-function turnStartParamsFromAutomation(
-	threadId: string,
-	decision: TurnAutomationTurnDecision,
-): Record<string, unknown> {
-	return compactUndefined({
-		threadId,
-		input: [
-			{
-				type: "text",
-				text: decision.prompt,
-				text_elements: [],
-			},
-		],
-		cwd: decision.cwd,
-		model: decision.model,
-		serviceTier: decision.serviceTier,
-		permissions: decision.permissions,
-		responsesapiClientMetadata: decision.responsesapiClientMetadata,
-		outputSchema: decision.outputSchema,
-	});
-}
-
-function nestedId(response: unknown, key: string, label: string): string {
-	const id = optionalString(record(record(response)[key]).id);
-	if (!id) {
-		throw new Error(`${label} did not return ${key}.id`);
-	}
-	return id;
+	return await startAutomationTurnWithRequest(
+		"workspace",
+		decision,
+		async (method, params) =>
+			await callWorkspaceBackend("appServer.call", { method, params }),
+	);
 }
 
 async function runReactiveRule(

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-import type { v2 } from "../app-server/generated/index.ts";
 import {
 	CodexAppServerClient,
 	CodexWebSocketTransport,
@@ -56,11 +55,17 @@ import {
 } from "./remote-control.ts";
 import {
 	applyTurnAutomationDefaults,
+	createTurnAutomationHost,
 	formatTurnAutomationList,
 	formatTurnAutomationRun,
 	listTurnAutomations,
 	resolveTurnAutomationTarget,
 	runTurnAutomationScript,
+	startAutomationTurnWithRequest,
+	type TurnAutomationBackendRequest,
+	type TurnAutomationHostHandler,
+	type TurnAutomationRun,
+	type TurnAutomationRunTarget,
 	type TurnAutomationStartedTurn,
 	type TurnAutomationTurnDecision,
 } from "./turn-automation.ts";
@@ -68,6 +73,7 @@ import {
 	createSshAppServerClient,
 	hasSshRemote,
 	startSshWorkspaceBackend,
+	type SshWorkspaceBackendHandle,
 	type SshRemoteProviderOptions,
 } from "./remote-provider.ts";
 import {
@@ -169,22 +175,32 @@ async function main(): Promise<void> {
 		});
 		const prompt = parsed.prompt ?? target.prompt;
 		const cwd = parsed.cwd ?? target.cwd;
-		const run = await runTurnAutomationScript({
-			scriptPath: target.scriptPath,
-			automation: target.automation,
+		const run = await runTurnAutomationForCli(target, {
 			event,
 			prompt,
 			cwd,
+			via: parsed.via,
+			appUrl: parsed.appUrl,
+			workspaceUrl: parsed.workspaceUrl,
 			timeoutMs: parsed.timeoutMs,
+			sshTarget: parsed.sshTarget,
+			remoteMode: parsed.remoteMode,
+			localPort: parsed.localPort,
+			remoteHost: parsed.remoteHost,
+			remotePort: parsed.remotePort,
 		});
-		const decision = applyTurnAutomationDefaults(run.decision, {
-			prompt,
-			cwd,
-			skills: target.skills,
-		});
-		const completedRun = { ...run, decision };
-		const turn = completedRun.decision.action === "turn"
-			? await startTurnForAutomation(completedRun.decision, parsed)
+		const decision = run.decision
+			? applyTurnAutomationDefaults(run.decision, {
+					prompt,
+					cwd,
+					skills: target.skills,
+				})
+			: undefined;
+		const completedRun = decision
+			? { ...run, result: decision, decision }
+			: run;
+		const turn = decision?.action === "turn"
+			? await startTurnForAutomation(decision, parsed)
 			: undefined;
 		write(parsed.json
 			? `${JSON.stringify({ ...completedRun, turn }, null, parsed.pretty ? 2 : 0)}\n`
@@ -516,6 +532,185 @@ async function callAppServer(
 	}
 }
 
+async function runTurnAutomationForCli(
+	target: TurnAutomationRunTarget,
+	options: {
+		event?: unknown;
+		prompt?: string;
+		cwd?: string;
+		via: "workspace" | "app";
+		appUrl: string;
+		workspaceUrl: string;
+		timeoutMs: number;
+	} & SshRemoteProviderOptions,
+): Promise<TurnAutomationRun> {
+	const host = createCliTurnAutomationHost({
+		...options,
+		defaults: {
+			prompt: options.prompt,
+			cwd: options.cwd,
+			skills: target.skills,
+		},
+	});
+	try {
+		return await runTurnAutomationScript({
+			scriptPath: target.scriptPath,
+			automation: target.automation,
+			event: options.event,
+			prompt: options.prompt,
+			cwd: options.cwd,
+			timeoutMs: options.timeoutMs,
+			host: host.handler,
+		});
+	} finally {
+		host.close();
+	}
+}
+
+function createCliTurnAutomationHost(
+	options: {
+		via: "workspace" | "app";
+		appUrl: string;
+		workspaceUrl: string;
+		timeoutMs: number;
+		defaults: {
+			prompt?: string;
+			cwd?: string;
+			skills?: string[];
+		};
+	} & SshRemoteProviderOptions,
+): { handler: TurnAutomationHostHandler; close(): void } {
+	if (options.via === "workspace") {
+		const requester = createLazyWorkspaceRequester({
+			...options,
+			url: options.workspaceUrl,
+		});
+		return {
+			handler: createTurnAutomationHost({
+				via: "workspace",
+				appRequest: requester.appRequest,
+				workspaceRequest: requester.workspaceRequest,
+				defaults: options.defaults,
+			}),
+			close: requester.close,
+		};
+	}
+	const requester = createLazyAppServerRequester({
+		...options,
+		url: options.appUrl,
+	});
+	return {
+		handler: createTurnAutomationHost({
+			via: "app-server",
+			appRequest: requester.request,
+			defaults: options.defaults,
+		}),
+		close: requester.close,
+	};
+}
+
+function createLazyAppServerRequester(
+	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
+): { request: TurnAutomationBackendRequest; close(): void } {
+	let client: CodexAppServerClient | undefined;
+	const getClient = async (): Promise<CodexAppServerClient> => {
+		if (client) {
+			return client;
+		}
+		client = hasSshRemote(options)
+			? createSshAppServerClient(options, {
+					name: "codex-flows-automation",
+					title: "Codex Flows Automation",
+				})
+			: new CodexAppServerClient({
+					...(options.url === "stdio://"
+						? { transportOptions: { requestTimeoutMs: options.timeoutMs } }
+						: {
+								webSocketTransportOptions: {
+									url: options.url,
+									requestTimeoutMs: options.timeoutMs,
+								},
+							}),
+					clientName: "codex-flows-automation",
+					clientTitle: "Codex Flows Automation",
+					clientVersion: "0.1.0",
+				});
+		client.on("request", (message) => {
+			client?.respondError(
+				message.id,
+				-32603,
+				"codex-flows automation does not handle app-server requests",
+			);
+		});
+		try {
+			await client.connect();
+			return client;
+		} catch (error) {
+			client.close();
+			client = undefined;
+			throw error;
+		}
+	};
+	return {
+		request: async (method, params) => await (await getClient()).request(method, params),
+		close: () => {
+			client?.close();
+			client = undefined;
+		},
+	};
+}
+
+function createLazyWorkspaceRequester(
+	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
+): {
+	appRequest: TurnAutomationBackendRequest;
+	workspaceRequest: TurnAutomationBackendRequest;
+	close(): void;
+} {
+	let transport: CodexWebSocketTransport | undefined;
+	let sshBackend: SshWorkspaceBackendHandle | undefined;
+	const getTransport = async (): Promise<CodexWebSocketTransport> => {
+		if (transport) {
+			return transport;
+		}
+		let url = options.url;
+		if (hasSshRemote(options)) {
+			sshBackend = await startSshWorkspaceBackend(options);
+			url = sshBackend.workspaceUrl;
+		}
+		transport = new CodexWebSocketTransport({
+			url,
+			requestTimeoutMs: options.timeoutMs,
+		});
+		try {
+			transport.start();
+			await initialize(transport);
+			return transport;
+		} catch (error) {
+			transport.close();
+			transport = undefined;
+			sshBackend?.close();
+			sshBackend = undefined;
+			throw error;
+		}
+	};
+	return {
+		appRequest: async (method, params) =>
+			await (await getTransport()).request(APP_SERVER_CALL_METHOD, {
+				method,
+				params,
+			}),
+		workspaceRequest: async (method, params) =>
+			await (await getTransport()).request(method, params),
+		close: () => {
+			transport?.close();
+			transport = undefined;
+			sshBackend?.close();
+			sshBackend = undefined;
+		},
+	};
+}
+
 async function startTurnForAutomation(
 	decision: TurnAutomationTurnDecision,
 	options: {
@@ -586,69 +781,6 @@ async function withAppServerClient<T>(
 	} finally {
 		client.close();
 	}
-}
-
-async function startAutomationTurnWithRequest(
-	via: TurnAutomationStartedTurn["via"],
-	decision: TurnAutomationTurnDecision,
-	request: (method: string, params: unknown) => Promise<unknown>,
-): Promise<TurnAutomationStartedTurn> {
-	let threadId = decision.threadId;
-	let thread: unknown = null;
-	if (!threadId) {
-		const threadResponse = await request(
-			"thread/start",
-			threadStartParamsFromAutomation(decision),
-		);
-		threadId = nestedId(threadResponse, "thread", "thread/start");
-		thread = record(threadResponse).thread ?? threadResponse;
-	}
-	const turnResponse = await request(
-		"turn/start",
-		turnStartParamsFromAutomation(threadId, decision),
-	);
-	return {
-		via,
-		threadId,
-		turnId: nestedId(turnResponse, "turn", "turn/start"),
-		thread,
-		turn: record(turnResponse).turn ?? turnResponse,
-	};
-}
-
-function threadStartParamsFromAutomation(
-	decision: TurnAutomationTurnDecision,
-): v2.ThreadStartParams {
-	return compactUndefined({
-		cwd: decision.cwd,
-		model: decision.model,
-		serviceTier: decision.serviceTier,
-		permissions: decision.permissions,
-		experimentalRawEvents: false,
-		persistExtendedHistory: false,
-	});
-}
-
-function turnStartParamsFromAutomation(
-	threadId: string,
-	decision: TurnAutomationTurnDecision,
-): v2.TurnStartParams {
-	return compactUndefined({
-		threadId,
-		input: [
-			{
-				type: "text",
-				text: decision.prompt,
-				text_elements: [],
-			},
-		],
-		cwd: decision.cwd,
-		model: decision.model,
-		serviceTier: decision.serviceTier,
-		permissions: decision.permissions,
-		responsesapiClientMetadata: decision.responsesapiClientMetadata,
-		outputSchema: decision.outputSchema as v2.TurnStartParams["outputSchema"],
-	});
 }
 
 async function initializeWorkspaceBackend(options: {
@@ -1093,14 +1225,6 @@ function threadLabel(thread: Record<string, unknown>): string {
 
 function truncate(value: string, maxLength: number): string {
 	return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
-}
-
-function nestedId(response: unknown, key: string, label: string): string {
-	const id = stringValue(record(record(response)[key]).id);
-	if (!id) {
-		throw new Error(`${label} did not return ${key}.id`);
-	}
-	return id;
 }
 
 function record(value: unknown): Record<string, unknown> {

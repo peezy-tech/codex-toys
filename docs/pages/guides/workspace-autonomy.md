@@ -130,10 +130,10 @@ var = "workspace status"
 ### `automation`
 
 Runs a named turn automation from `.codex/automations/*` or `automations/*`.
-The automation script can skip or start a native Codex turn through the same
-workspace backend that `workspace tick` is using. With `--ssh --cwd /repo`, the
-script still runs locally and the resulting turn targets the remote workspace
-cwd.
+The automation script can skip, start, wait on, or compose native Codex turns
+through the same workspace backend that `workspace tick` is using. With
+`--ssh --cwd /repo`, the script still runs locally and the resulting turns target
+the remote workspace cwd.
 
 ```toml
 [[workspace.tasks]]

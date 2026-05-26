@@ -55,6 +55,40 @@ export default function run(context) {
 		});
 	});
 
+	test("runs module scripts with a programmable host API", async () => {
+		const dir = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-host-"));
+		const scriptPath = path.join(dir, "check.ts");
+		await writeFile(scriptPath, `
+export default async function run(ctx) {
+  const echo = await ctx.app.call("demo.echo", { tag: ctx.event.payload.tag });
+  return {
+    status: "completed",
+    echo
+  };
+}
+`);
+		const run = await runTurnAutomationScript({
+			scriptPath,
+			event: { type: "upstream.release", payload: { tag: "v1.2.3" } },
+			timeoutMs: 5_000,
+			host: async (call) => {
+				expect(call).toEqual({
+					method: "app.call",
+					params: {
+						method: "demo.echo",
+						params: { tag: "v1.2.3" },
+					},
+				});
+				return { ok: true, tag: "v1.2.3" };
+			},
+		});
+		expect(run.decision).toBeUndefined();
+		expect(run.result).toEqual({
+			status: "completed",
+			echo: { ok: true, tag: "v1.2.3" },
+		});
+	});
+
 	test("fails module-style scripts that throw", async () => {
 		const dir = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-"));
 		const scriptPath = path.join(dir, "check.ts");
@@ -183,6 +217,74 @@ export default function run(context) {
 		}
 	});
 
+	test("CLI automation scripts can fan out turns and return gathered results", async () => {
+		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-cli-fanout-"));
+		const automationRoot = path.join(root, "automations", "fanout-check");
+		await mkdir(automationRoot, { recursive: true });
+		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+			name: "fanout-check",
+			script: "check.ts",
+			cwd: "/repo",
+		}));
+		await writeFile(path.join(automationRoot, "check.ts"), `
+export default async function run(ctx) {
+  const turns = await Promise.all(["linux", "mac"].map((id) =>
+    ctx.turn.start({ id, prompt: "check " + id })
+  ));
+  const results = await ctx.turn.waitAll(turns, { timeoutMs: 1000, pollIntervalMs: 1 });
+  return {
+    status: "completed",
+    rows: results.map((item) => ({
+      id: item.id,
+      threadId: item.threadId,
+      turnId: item.turnId,
+      outputText: item.outputText
+    }))
+  };
+}
+`);
+		const backend = await startFakeWorkspaceBackend();
+		try {
+			const result = await runCli([
+				"--workspace-root",
+				root,
+				"--workspace-url",
+				backend.url,
+				"automation",
+				"run",
+				"fanout-check",
+				"--via",
+				"workspace",
+				"--json",
+			]);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
+			expect(parsed.decision).toBeUndefined();
+			expect(parsed.turn).toBeUndefined();
+			const automationResult = record(parsed.result);
+			expect(automationResult.status).toBe("completed");
+			const rows = (automationResult.rows as Array<Record<string, unknown>>);
+			expect(rows).toEqual([
+				expect.objectContaining({
+					id: "linux",
+					outputText: "done linux",
+				}),
+				expect.objectContaining({
+					id: "mac",
+					outputText: "done mac",
+				}),
+			]);
+			expect(new Set(rows.map((row) => row.threadId)).size).toBe(2);
+			expect(new Set(rows.map((row) => row.turnId)).size).toBe(2);
+			expect(backend.methods.filter((method) => method === "thread/start")).toHaveLength(2);
+			expect(backend.methods.filter((method) => method === "turn/start")).toHaveLength(2);
+			expect(backend.methods.filter((method) => method === "thread/read")).toHaveLength(2);
+		} finally {
+			await backend.close();
+		}
+	});
+
 	test("CLI runs named automation manifests", async () => {
 		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-cli-named-"));
 		const automationRoot = path.join(root, "automations", "release-check");
@@ -269,6 +371,11 @@ async function startFakeWorkspaceBackend(): Promise<{
 	const address = wss.address() as AddressInfo;
 	const methods: string[] = [];
 	const appCalls: Array<{ method: string; params: unknown }> = [];
+	const state = {
+		threadCounter: 0,
+		turnCounter: 0,
+		turnsByThread: new Map<string, unknown[]>(),
+	};
 	wss.on("connection", (socket) => {
 		socket.on("message", (data) => {
 			const message = JSON.parse(data.toString()) as Record<string, unknown>;
@@ -286,7 +393,7 @@ async function startFakeWorkspaceBackend(): Promise<{
 			socket.send(JSON.stringify({
 				jsonrpc: "2.0",
 				id: message.id,
-				result: fakeWorkspaceResult(method, params),
+				result: fakeWorkspaceResult(method, params, state),
 			}));
 		});
 	});
@@ -305,6 +412,11 @@ async function startFakeWorkspaceBackend(): Promise<{
 function fakeWorkspaceResult(
 	method: string,
 	params: Record<string, unknown>,
+	state: {
+		threadCounter: number;
+		turnCounter: number;
+		turnsByThread: Map<string, unknown[]>;
+	},
 ): unknown {
 	if (method === "workspace.initialize") {
 		return {
@@ -318,14 +430,57 @@ function fakeWorkspaceResult(
 	}
 	if (method === "appServer.call") {
 		const appMethod = String(params.method);
+		const appParams = record(params.params);
 		if (appMethod === "thread/start") {
-			return { thread: { id: "thread-1" } };
+			const threadId = `thread-${++state.threadCounter}`;
+			state.turnsByThread.set(threadId, []);
+			return { thread: { id: threadId } };
 		}
 		if (appMethod === "turn/start") {
-			return { turn: { id: "turn-1" } };
+			const threadId = String(appParams.threadId);
+			const turnId = `turn-${++state.turnCounter}`;
+			const prompt = promptText(appParams);
+			const turn = {
+				id: turnId,
+				status: "completed",
+				itemsView: "full",
+				error: null,
+				startedAt: 0,
+				completedAt: 1,
+				durationMs: 1,
+				items: [
+					{
+						type: "agentMessage",
+						id: `${turnId}-message`,
+						text: `done ${prompt.replace(/^check\s+/, "")}`,
+						phase: "final_answer",
+						memoryCitation: null,
+					},
+				],
+			};
+			state.turnsByThread.set(threadId, [
+				...(state.turnsByThread.get(threadId) ?? []),
+				turn,
+			]);
+			return { turn };
+		}
+		if (appMethod === "thread/read") {
+			const threadId = String(appParams.threadId);
+			return {
+				thread: {
+					id: threadId,
+					turns: state.turnsByThread.get(threadId) ?? [],
+				},
+			};
 		}
 	}
 	return {};
+}
+
+function promptText(params: Record<string, unknown>): string {
+	const input = Array.isArray(params.input) ? params.input : [];
+	const first = record(input[0]);
+	return typeof first.text === "string" ? first.text : "";
 }
 
 function record(value: unknown): Record<string, unknown> {

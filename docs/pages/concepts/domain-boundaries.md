@@ -8,8 +8,9 @@ description: What codex-flows owns and what products must keep.
 Turn automation owns prompt automation:
 
 - running a pre-turn script
-- reading a skip-or-turn decision
-- starting a native Codex turn through app-server or a workspace backend
+- reading a skip-or-turn decision or arbitrary JSON result
+- starting, reading, and waiting on native Codex turns through app-server or a
+  workspace backend
 - targeting remote workspaces through the SSH provider
 
 It does not own product-specific completion:
