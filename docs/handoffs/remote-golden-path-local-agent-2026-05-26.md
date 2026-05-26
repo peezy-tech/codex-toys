@@ -15,7 +15,19 @@ workspace execution happens on the remote host.
 
 ## Required Updated Package
 
-Use a `codex-flows` build that includes these fixes:
+Upgrade the local Windows-side CLI to the released package that includes these
+fixes:
+
+```powershell
+npm install -g @peezy.tech/codex-flows@0.132.6
+codex-flows fetch --no-color
+```
+
+The `fetch` output should report `@peezy.tech/codex-flows@0.132.6`. If the
+local agent is running from a source checkout instead of npm, pull a checkout at
+or after codex-flows commit `a9a91e4`.
+
+Version `0.132.6` includes:
 
 - `remote turn start` accepts and uses the SSH provider when `--ssh` is set.
 - SSH provider accepts `--remote-path-prepend` and
@@ -24,8 +36,8 @@ Use a `codex-flows` build that includes these fixes:
   `--permissions`.
 - CLI JSON parsing tolerates a leading UTF-8 BOM.
 
-Before retrying, install or run that updated local package on Windows. The Codex
-plugin/skill alone is not enough; the local shell must be able to run
+Before retrying, make sure the local shell resolves this upgraded CLI. The
+Codex plugin/skill alone is not enough; the local shell must be able to run
 `codex-flows`.
 
 ## Local SSH Setup
