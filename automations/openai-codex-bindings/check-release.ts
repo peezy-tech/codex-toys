@@ -21,13 +21,13 @@ export default async function checkRelease(context: AutomationContext) {
 	const payload = context.event?.payload ?? {};
 	if (payload.repo !== "openai/codex") {
 		return {
-			action: "skip",
+			status: "skipped",
 			reason: "release is not for openai/codex",
 		};
 	}
 	if (typeof payload.tag !== "string" || payload.tag.length === 0) {
 		return {
-			action: "skip",
+			status: "skipped",
 			reason: "release signal did not include payload.tag",
 		};
 	}

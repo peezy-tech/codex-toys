@@ -14,6 +14,7 @@ export type TurnAutomationContext = {
 		scriptPath: string;
 		name?: string;
 		manifestPath?: string;
+		config?: Record<string, unknown>;
 	};
 	runtime: {
 		startedAt: string;
@@ -23,14 +24,7 @@ export type TurnAutomationContext = {
 	cwd?: string;
 };
 
-export type TurnAutomationSkipDecision = {
-	action: "skip";
-	reason?: string;
-	artifacts?: unknown;
-};
-
-export type TurnAutomationTurnDecision = {
-	action: "turn";
+export type TurnAutomationTurnStartParams = {
 	prompt: string;
 	threadId?: string;
 	cwd?: string;
@@ -40,28 +34,19 @@ export type TurnAutomationTurnDecision = {
 	responsesapiClientMetadata?: Record<string, string>;
 	outputSchema?: unknown;
 	skills?: string[];
-	artifacts?: unknown;
 };
-
-export type TurnAutomationDecision =
-	| TurnAutomationSkipDecision
-	| TurnAutomationTurnDecision;
 
 export type TurnAutomationProgramResult = Record<string, unknown>;
 
-export type TurnAutomationResult =
-	| TurnAutomationDecision
-	| TurnAutomationProgramResult;
+export type TurnAutomationResult = TurnAutomationProgramResult;
 
 export type ParsedTurnAutomationResult = {
 	result: TurnAutomationResult;
-	decision?: TurnAutomationDecision;
 };
 
 export type TurnAutomationRun = {
 	context: TurnAutomationContext;
 	result: TurnAutomationResult;
-	decision?: TurnAutomationDecision;
 	stdout: string;
 	stderr: string;
 };
@@ -121,7 +106,7 @@ export async function runTurnAutomationScript(
 	if (exitCode !== 0) {
 		throw new Error(`Turn automation script failed:\n${stderr || stdout}`);
 	}
-	const parsed = parseTurnAutomationResult(stdout, options.prompt);
+	const parsed = parseTurnAutomationResult(stdout);
 	return {
 		context,
 		...parsed,
@@ -132,45 +117,16 @@ export async function runTurnAutomationScript(
 
 export function parseTurnAutomationResult(
 	stdout: string,
-	defaultPrompt?: string,
 ): ParsedTurnAutomationResult {
-	return normalizeTurnAutomationResult(parseModuleResult(stdout), defaultPrompt);
-}
-
-export function parseTurnAutomationDecision(
-	stdout: string,
-	defaultPrompt?: string,
-): TurnAutomationDecision {
-	const parsed = parseTurnAutomationResult(stdout, defaultPrompt);
-	if (!parsed.decision) {
-		throw new Error("Turn automation result did not return a skip or turn decision");
-	}
-	return parsed.decision;
+	return normalizeTurnAutomationResult(parseModuleResult(stdout));
 }
 
 export function formatTurnAutomationRun(run: TurnAutomationRun & {
 	turn?: TurnAutomationStartedTurn;
 }): string {
-	if (!run.decision) {
-		return [
-			"automation action   result",
-			`result              ${previewJson(run.result)}`,
-		].join("\n") + "\n";
-	}
-	if (run.decision.action === "skip") {
-		return [
-			"automation action   skip",
-			`reason              ${run.decision.reason ?? "none"}`,
-		].join("\n") + "\n";
-	}
 	return [
-		"automation action   turn",
-		`prompt              ${preview(run.decision.prompt)}`,
-		run.decision.cwd ? `cwd                 ${run.decision.cwd}` : undefined,
-		run.decision.threadId ? `requested thread    ${run.decision.threadId}` : undefined,
-		run.decision.skills?.length
-			? `skills requested    ${run.decision.skills.join(", ")}`
-			: undefined,
+		"automation action   result",
+		`result              ${previewJson(run.result)}`,
 		run.turn ? `turn surface        ${run.turn.via}` : undefined,
 		run.turn ? `thread id           ${run.turn.threadId}` : undefined,
 		run.turn ? `turn id             ${run.turn.turnId}` : undefined,
@@ -193,7 +149,7 @@ export type TurnAutomationTurnSnapshot = TurnAutomationStartedTurn & {
 };
 
 export type TurnAutomationHostTurnStartParams =
-	& Partial<Omit<TurnAutomationTurnDecision, "action" | "prompt">>
+	& Partial<Omit<TurnAutomationTurnStartParams, "prompt">>
 	& {
 		id?: string;
 		prompt?: string;
@@ -249,6 +205,7 @@ export type TurnAutomationManifest = {
 	promptFile?: string;
 	cwd?: string;
 	skills?: string[];
+	config?: Record<string, unknown>;
 };
 
 export type LoadedTurnAutomation = {
@@ -298,10 +255,10 @@ export function createTurnAutomationHost(
 		}
 		if (call.method === "turn.start") {
 			const params = record(call.params);
-			const decision = turnDecisionFromHostParams(params, options.defaults);
+			const turn = turnStartParamsFromHostParams(params, options.defaults);
 			return await startAutomationTurnWithRequest(
 				options.via,
-				decision,
+				turn,
 				options.appRequest,
 				optionalString(params.id),
 			);
@@ -343,23 +300,23 @@ export function createTurnAutomationHost(
 
 export async function startAutomationTurnWithRequest(
 	via: TurnAutomationStartedTurn["via"],
-	decision: TurnAutomationTurnDecision,
+	turn: TurnAutomationTurnStartParams,
 	request: TurnAutomationBackendRequest,
 	id?: string,
 ): Promise<TurnAutomationStartedTurn> {
-	let threadId = decision.threadId;
+	let threadId = turn.threadId;
 	let thread: unknown = null;
 	if (!threadId) {
 		const threadResponse = await request(
 			"thread/start",
-			threadStartParamsFromAutomation(decision),
+			threadStartParamsFromAutomation(turn),
 		);
 		threadId = nestedId(threadResponse, "thread", "thread/start");
 		thread = record(threadResponse).thread ?? threadResponse;
 	}
 	const turnResponse = await request(
 		"turn/start",
-		turnStartParamsFromAutomation(threadId, decision),
+		turnStartParamsFromAutomation(threadId, turn),
 	);
 	return compactUndefined({
 		id,
@@ -471,29 +428,6 @@ export async function resolveTurnAutomationTarget(
 	return targetFromAutomation(automation);
 }
 
-export function applyTurnAutomationDefaults(
-	decision: TurnAutomationDecision,
-	defaults: {
-		prompt?: string;
-		cwd?: string;
-		skills?: string[];
-	},
-): TurnAutomationDecision {
-	if (decision.action === "skip") {
-		return decision;
-	}
-	const prompt = decision.prompt || defaults.prompt;
-	if (!prompt) {
-		throw new Error("turn automation prompt must be a non-empty string");
-	}
-	return compactUndefined({
-		...decision,
-		prompt,
-		cwd: decision.cwd ?? defaults.cwd,
-		skills: decision.skills ?? defaults.skills,
-	});
-}
-
 export function formatTurnAutomationList(
 	automations: LoadedTurnAutomation[],
 ): string {
@@ -519,6 +453,7 @@ function turnAutomationContext(
 			scriptPath: options.scriptPath,
 			name: options.automation?.name,
 			manifestPath: options.automation?.manifestPath,
+			config: options.automation?.manifest.config,
 		},
 		runtime: {
 			startedAt: new Date().toISOString(),
@@ -567,6 +502,7 @@ async function loadTurnAutomationManifest(
 		promptFile: optionalString(parsed.promptFile),
 		cwd: optionalString(parsed.cwd),
 		skills: stringArray(parsed.skills),
+		config: recordOrUndefined(parsed.config),
 	});
 	const prompt = manifest.promptFile
 		? await readFile(path.resolve(root, manifest.promptFile), "utf8")
@@ -629,66 +565,22 @@ function parseModuleResult(stdout: string): unknown {
 	throw new Error("Turn automation module did not return a result");
 }
 
-function normalizeTurnAutomationResult(
-	value: unknown,
-	defaultPrompt?: string,
-): ParsedTurnAutomationResult {
+function normalizeTurnAutomationResult(value: unknown): ParsedTurnAutomationResult {
 	if (!isRecord(value)) {
 		throw new Error("Turn automation result must be a JSON object");
-	}
-	if (value.action === "skip" || value.action === "turn") {
-		const decision = normalizeTurnAutomationDecision(value, defaultPrompt);
-		return {
-			result: decision,
-			decision,
-		};
 	}
 	return { result: value };
 }
 
-function normalizeTurnAutomationDecision(
-	value: Record<string, unknown>,
-	defaultPrompt?: string,
-): TurnAutomationDecision {
-	if (value.action === "skip") {
-		return compactUndefined({
-			action: "skip",
-			reason: optionalString(value.reason),
-			artifacts: value.artifacts,
-		});
-	}
-	if (value.action !== "turn") {
-		throw new Error("Turn automation action must be skip or turn");
-	}
-	const prompt = optionalString(value.prompt) ?? defaultPrompt;
-	if (!prompt) {
-		throw new Error("turn automation prompt must be a non-empty string");
-	}
-	return compactUndefined({
-		action: "turn",
-		prompt,
-		threadId: optionalString(value.threadId),
-		cwd: optionalString(value.cwd),
-		model: optionalString(value.model),
-		serviceTier: optionalString(value.serviceTier),
-		permissions: optionalString(value.permissions),
-		responsesapiClientMetadata: stringRecord(value.responsesapiClientMetadata),
-		outputSchema: value.outputSchema,
-		skills: stringArray(value.skills),
-		artifacts: value.artifacts,
-	});
-}
-
-function turnDecisionFromHostParams(
+function turnStartParamsFromHostParams(
 	params: Record<string, unknown>,
 	defaults: CreateTurnAutomationHostOptions["defaults"] = {},
-): TurnAutomationTurnDecision {
+): TurnAutomationTurnStartParams {
 	const prompt = optionalString(params.prompt) ?? defaults.prompt;
 	if (!prompt) {
 		throw new Error("ctx.turn.start requires a prompt or automation prompt default");
 	}
 	return compactUndefined({
-		action: "turn",
 		prompt,
 		threadId: optionalString(params.threadId),
 		cwd: optionalString(params.cwd) ?? defaults.cwd,
@@ -727,13 +619,13 @@ function waitOptionsFromValue(value: unknown): {
 }
 
 function threadStartParamsFromAutomation(
-	decision: TurnAutomationTurnDecision,
+	turn: TurnAutomationTurnStartParams,
 ): v2.ThreadStartParams {
 	return compactUndefined({
-		cwd: decision.cwd,
-		model: decision.model,
-		serviceTier: decision.serviceTier,
-		permissions: decision.permissions,
+		cwd: turn.cwd,
+		model: turn.model,
+		serviceTier: turn.serviceTier,
+		permissions: turn.permissions,
 		experimentalRawEvents: false,
 		persistExtendedHistory: false,
 	});
@@ -741,23 +633,23 @@ function threadStartParamsFromAutomation(
 
 function turnStartParamsFromAutomation(
 	threadId: string,
-	decision: TurnAutomationTurnDecision,
+	turn: TurnAutomationTurnStartParams,
 ): v2.TurnStartParams {
 	return compactUndefined({
 		threadId,
 		input: [
 			{
 				type: "text",
-				text: decision.prompt,
+				text: turn.prompt,
 				text_elements: [],
 			},
 		],
-		cwd: decision.cwd,
-		model: decision.model,
-		serviceTier: decision.serviceTier,
-		permissions: decision.permissions,
-		responsesapiClientMetadata: decision.responsesapiClientMetadata,
-		outputSchema: decision.outputSchema as v2.TurnStartParams["outputSchema"],
+		cwd: turn.cwd,
+		model: turn.model,
+		serviceTier: turn.serviceTier,
+		permissions: turn.permissions,
+		responsesapiClientMetadata: turn.responsesapiClientMetadata,
+		outputSchema: turn.outputSchema as v2.TurnStartParams["outputSchema"],
 	});
 }
 
@@ -919,6 +811,10 @@ function stringArray(value: unknown): string[] | undefined {
 		typeof entry === "string" && entry.length > 0
 	);
 	return entries.length > 0 ? entries : undefined;
+}
+
+function recordOrUndefined(value: unknown): Record<string, unknown> | undefined {
+	return isRecord(value) ? value : undefined;
 }
 
 function array(value: unknown): unknown[] {

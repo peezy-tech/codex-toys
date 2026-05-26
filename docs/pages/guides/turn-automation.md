@@ -1,13 +1,14 @@
 ---
 title: Turn automation
-description: Run a pre-turn script that can skip, start, wait on, or compose native Codex turns.
+description: Run a pre-turn script that can return JSON, start turns, wait on turns, or compose native Codex work.
 ---
 
 # Turn automation
 
 Turn automation is the plugin-native automation shape for codex-flows. A script
-runs first, inspects external state, and can either return a simple decision or
-programmatically compose native Codex turns.
+runs first, inspects external state, and returns a JSON object. When it needs
+Codex work, it starts, reads, waits on, or composes native Codex turns through
+the host API.
 
 This is prompt automation, not skill automation. Skills remain normal Codex
 capabilities that the resulting turn may use. The automation itself is just code
@@ -17,8 +18,8 @@ external signal before spending Codex turns.
 ```text
 event, schedule, hook, or operator command
   -> pre-turn script
-     -> skip
-     -> start native Codex turn with prompt/cwd/settings
+     -> return JSON
+     -> optionally start native Codex turns with prompt/cwd/settings
      -> start/wait/read multiple native Codex turns and return JSON
 ```
 
@@ -81,56 +82,63 @@ At runtime the context also includes a small host API:
 ```ts
 export default async function run(context) {
   if (context.event?.payload?.repo !== "openai/codex") {
-    return { action: "skip", reason: "not the Codex upstream" };
+    return { status: "skipped", reason: "not the Codex upstream" };
   }
 
-  return {
-    action: "turn",
+  const turn = await context.turn.start({
     cwd: context.cwd,
     prompt: `Inspect ${context.event.payload.tag} and decide whether to update the fork.`
+  });
+
+  return {
+    status: "started",
+    turn
   };
 }
 ```
 
 ## Return Contract
 
-The handler must return a JSON object. Returning `skip` or `turn` is the simple
-path; returning any other object is treated as the automation result and no
-extra turn is started by the CLI.
+The handler must return a JSON object. The CLI records that object as the
+automation result; it does not interpret `action` fields or start an implicit
+turn from the return value.
 
-Skip:
+Skip-like results are just ordinary JSON:
 
 ```json
 {
-  "action": "skip",
+  "status": "skipped",
   "reason": "nothing changed"
 }
 ```
 
-Start a turn:
+Start a turn through `context.turn.start`:
 
-```json
-{
-  "action": "turn",
-  "prompt": "Check the upstream release and prepare the patch stack update.",
-  "cwd": "/repo",
-  "model": "gpt-5.2",
-  "permissions": "default"
+```ts
+export default async function run(context) {
+  const turn = await context.turn.start({
+    prompt: "Check the upstream release and prepare the patch stack update.",
+    cwd: "/repo",
+    model: "gpt-5.2",
+    permissions: "default"
+  });
+
+  return {
+    status: "started",
+    turn
+  };
 }
 ```
 
 Supported turn fields:
 
 - `prompt`: required text for the native turn.
-  If omitted from the script decision, `--prompt` or the manifest prompt is used
-  as the default.
 - `threadId`: continue an existing thread instead of creating a new one.
 - `cwd`: target workspace cwd for the turn.
 - `model`, `serviceTier`, `permissions`: forwarded to app-server when present.
 - `responsesapiClientMetadata`: string metadata forwarded to the turn.
 - `outputSchema`: JSON Schema for the final assistant response.
-- `skills`: recorded in the automation result for routing and future
-  turn-scoped skill filtering; current app-server builds do not enforce it.
+- `skills`: forwarded as turn-scoped routing metadata for hosts that support it.
 
 Programmatic orchestration:
 

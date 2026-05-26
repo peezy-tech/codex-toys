@@ -17,9 +17,9 @@ sequenceDiagram
   participant Codex as Codex app-server
 
   Signal->>Script: JSON context
-  Script-->>Signal: skip
-  Script-->>Codex: turn decision with prompt/cwd/settings
-  Script-->>Codex: optional turn.start / turn.wait orchestration
+  Script-->>Signal: JSON result
+  Script-->>Codex: optional turn.start with prompt/cwd/settings
+  Script-->>Codex: optional turn.read / turn.wait orchestration
   Codex-->>Codex: native turn uses normal tools and skills
 ```
 

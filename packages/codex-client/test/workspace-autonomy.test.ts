@@ -227,10 +227,13 @@ schedule = "* * * * *"
 			skills: ["release-skill"],
 		}));
 		await writeFile(path.join(automationRoot, "check.ts"), `
-export default function run(context) {
-  return {
-    action: "turn",
+export default async function run(context) {
+  const turn = await context.turn.start({
     prompt: context.prompt + " " + context.event.payload.tag
+  });
+  return {
+    status: "started",
+    turn
   };
 }
 `);
@@ -290,12 +293,7 @@ tag = "v1.2.3"
 		]);
 		const output = JSON.parse(await readFile(run.outputPath!, "utf8")) as Record<string, unknown>;
 		expect(output).toMatchObject({
-			decision: {
-				action: "turn",
-				prompt: "inspect v1.2.3",
-				cwd: "/remote-cwd",
-				skills: ["release-skill"],
-			},
+			status: "started",
 			turn: {
 				threadId: "thread-1",
 				turnId: "turn-1",

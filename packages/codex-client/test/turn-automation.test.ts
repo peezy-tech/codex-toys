@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import {
 	listTurnAutomations,
-	parseTurnAutomationDecision,
+	parseTurnAutomationResult,
 	resolveTurnAutomationTarget,
 	runTurnAutomationScript,
 } from "../src/cli/turn-automation.ts";
@@ -17,13 +17,11 @@ const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testDir, "../../..");
 
 describe("turn automation", () => {
-	test("uses default prompt for module runner decisions", () => {
-		expect(parseTurnAutomationDecision(
-			`TURN_AUTOMATION_MODULE_RESULT ${JSON.stringify({ action: "turn" })}\n`,
-			"default prompt",
+	test("treats action-shaped module returns as plain JSON results", () => {
+		expect(parseTurnAutomationResult(
+			`TURN_AUTOMATION_MODULE_RESULT ${JSON.stringify({ action: "ignored" })}\n`,
 		)).toEqual({
-			action: "turn",
-			prompt: "default prompt",
+			result: { action: "ignored" },
 		});
 	});
 
@@ -33,8 +31,8 @@ describe("turn automation", () => {
 		await writeFile(scriptPath, `
 export default function run(context) {
   return {
-    action: "turn",
-    prompt: context.prompt + " for " + context.event.payload.tag,
+    status: "ready",
+    promptText: context.prompt + " for " + context.event.payload.tag,
     cwd: context.cwd,
     skills: ["release-operator"]
   };
@@ -47,9 +45,9 @@ export default function run(context) {
 			cwd: "/repo",
 			timeoutMs: 5_000,
 		});
-		expect(run.decision).toEqual({
-			action: "turn",
-			prompt: "inspect for v1.2.3",
+		expect(run.result).toEqual({
+			status: "ready",
+			promptText: "inspect for v1.2.3",
 			cwd: "/repo",
 			skills: ["release-operator"],
 		});
@@ -82,7 +80,6 @@ export default async function run(ctx) {
 				return { ok: true, tag: "v1.2.3" };
 			},
 		});
-		expect(run.decision).toBeUndefined();
 		expect(run.result).toEqual({
 			status: "completed",
 			echo: { ok: true, tag: "v1.2.3" },
@@ -107,7 +104,7 @@ export default function run() {
 		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-root-"));
 		const automationRoot = path.join(root, "automations", "release-check");
 		await mkdir(automationRoot, { recursive: true });
-		await writeFile(path.join(automationRoot, "check.ts"), "export default () => ({ action: 'skip' });");
+		await writeFile(path.join(automationRoot, "check.ts"), "export default () => ({ status: 'skipped' });");
 		await writeFile(path.join(automationRoot, "prompt.md"), "Inspect the release.\n");
 		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
 			name: "release-check",
@@ -134,7 +131,7 @@ export default function run() {
 			.rejects.toThrow("must be a named automation");
 	});
 
-	test("CLI starts a native turn through a workspace backend", async () => {
+	test("CLI scripts start native turns through the programmable host", async () => {
 		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-cli-"));
 		const automationRoot = path.join(root, "automations", "release-check");
 		const scriptPath = path.join(automationRoot, "check.ts");
@@ -149,13 +146,16 @@ export default function run() {
 			script: "check.ts",
 		}));
 		await writeFile(scriptPath, `
-export default function run(context) {
-  return {
-    action: "turn",
+export default async function run(context) {
+  const turn = await context.turn.start({
     prompt: "inspect " + context.event.payload.tag,
     cwd: "/repo",
     permissions: "trusted",
     responsesapiClientMetadata: { automation: "release-check" }
+  });
+  return {
+    status: "started",
+    turn
   };
 }
 `);
@@ -178,13 +178,11 @@ export default function run(context) {
 			expect(result.exitCode).toBe(0);
 			expect(result.stderr).toBe("");
 			const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
-			expect(parsed.decision).toMatchObject({
-				action: "turn",
-				prompt: "inspect v1.2.3",
-				cwd: "/repo",
-				permissions: "trusted",
+			const automationResult = record(parsed.result);
+			expect(automationResult).toMatchObject({
+				status: "started",
 			});
-			expect(parsed.turn).toMatchObject({
+			expect(automationResult.turn).toMatchObject({
 				via: "workspace",
 				threadId: "thread-1",
 				turnId: "turn-1",
@@ -260,7 +258,6 @@ export default async function run(ctx) {
 			expect(result.exitCode).toBe(0);
 			expect(result.stderr).toBe("");
 			const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
-			expect(parsed.decision).toBeUndefined();
 			expect(parsed.turn).toBeUndefined();
 			const automationResult = record(parsed.result);
 			expect(automationResult.status).toBe("completed");
@@ -301,10 +298,13 @@ export default async function run(ctx) {
 			skills: ["release-skill"],
 		}));
 		await writeFile(path.join(automationRoot, "check.ts"), `
-export default function run(context) {
-  return {
-    action: "turn",
+export default async function run(context) {
+  const turn = await context.turn.start({
     prompt: context.prompt + " " + context.event.payload.tag
+  });
+  return {
+    status: "started",
+    turn
   };
 }
 `);
@@ -326,16 +326,29 @@ export default function run(context) {
 			]);
 			expect(result.exitCode).toBe(0);
 			const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
-			expect(parsed.decision).toMatchObject({
-				action: "turn",
-				prompt: "default manifest prompt v2.0.0",
-				cwd: "/manifest-cwd",
-				skills: ["release-skill"],
+			const automationResult = record(parsed.result);
+			expect(automationResult).toMatchObject({
+				status: "started",
 			});
-			expect(parsed.turn).toMatchObject({
+			expect(automationResult.turn).toMatchObject({
 				threadId: "thread-1",
 				turnId: "turn-1",
 			});
+			expect(backend.appCalls).toEqual([
+				expect.objectContaining({
+					method: "thread/start",
+					params: expect.objectContaining({
+						cwd: "/manifest-cwd",
+					}),
+				}),
+				expect.objectContaining({
+					method: "turn/start",
+					params: expect.objectContaining({
+						threadId: "thread-1",
+						cwd: "/manifest-cwd",
+					}),
+				}),
+			]);
 		} finally {
 			await backend.close();
 		}

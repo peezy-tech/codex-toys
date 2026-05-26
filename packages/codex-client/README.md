@@ -80,14 +80,12 @@ const run = await runTurnAutomationScript({
 	timeoutMs: 90_000,
 });
 
-if (run.decision?.action === "turn") {
-	console.log(run.decision.prompt);
-}
+console.log(run.result);
 ```
 
-Turn automation runs code before deciding whether to skip, start one native
-Codex turn, or return a programmatic result after composing several turns. Use
-it for plugin-installed prompt automation.
+Turn automation runs code before returning a JSON result. Scripts can start one
+native Codex turn or compose several turns through `context.turn.start`,
+`context.turn.read`, and `context.turn.wait`.
 
 ## Auth Helpers
 

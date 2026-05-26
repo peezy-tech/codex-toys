@@ -39,12 +39,10 @@ export {
 	type SshRemoteProviderOptions,
 } from "./cli/remote-provider.ts";
 export {
-	applyTurnAutomationDefaults,
 	createTurnAutomationHost,
 	formatTurnAutomationList,
 	formatTurnAutomationRun,
 	listTurnAutomations,
-	parseTurnAutomationDecision,
 	parseTurnAutomationResult,
 	readAutomationTurnWithRequest,
 	resolveTurnAutomationTarget,
@@ -58,7 +56,6 @@ export {
 	type RunTurnAutomationScriptOptions,
 	type TurnAutomationBackendRequest,
 	type TurnAutomationContext,
-	type TurnAutomationDecision,
 	type TurnAutomationHostCall,
 	type TurnAutomationHostHandler,
 	type TurnAutomationHostTurnStartParams,
@@ -68,10 +65,9 @@ export {
 	type TurnAutomationRun,
 	type TurnAutomationRunTarget,
 	type TurnAutomationScriptContext,
-	type TurnAutomationSkipDecision,
 	type TurnAutomationStartedTurn,
 	type TurnAutomationTurnSnapshot,
-	type TurnAutomationTurnDecision,
+	type TurnAutomationTurnStartParams,
 } from "./cli/turn-automation.ts";
 export {
 	JsonRpcError,

@@ -55,20 +55,16 @@ import {
 	formatRemotePreflight,
 } from "./remote-preflight.ts";
 import {
-	applyTurnAutomationDefaults,
 	createTurnAutomationHost,
 	formatTurnAutomationList,
 	formatTurnAutomationRun,
 	listTurnAutomations,
 	resolveTurnAutomationTarget,
 	runTurnAutomationScript,
-	startAutomationTurnWithRequest,
 	type TurnAutomationBackendRequest,
 	type TurnAutomationHostHandler,
 	type TurnAutomationRun,
 	type TurnAutomationRunTarget,
-	type TurnAutomationStartedTurn,
-	type TurnAutomationTurnDecision,
 } from "./turn-automation.ts";
 import {
 	createSshRemoteAgentTransport,
@@ -212,22 +208,9 @@ async function main(): Promise<void> {
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 			});
-		const decision = run.decision
-			? applyTurnAutomationDefaults(run.decision, {
-					prompt,
-					cwd,
-					skills: target.skills,
-				})
-			: undefined;
-		const completedRun = decision
-			? { ...run, result: decision, decision }
-			: run;
-		const turn = decision?.action === "turn"
-			? await startTurnForAutomation(decision, parsed)
-			: undefined;
 		write(parsed.json
-			? `${JSON.stringify({ ...completedRun, turn }, null, parsed.pretty ? 2 : 0)}\n`
-			: formatTurnAutomationRun({ ...completedRun, turn }));
+			? `${JSON.stringify(run, null, parsed.pretty ? 2 : 0)}\n`
+			: formatTurnAutomationRun(run));
 		return;
 	}
 	if (parsed.type === "automation-list") {
@@ -770,76 +753,6 @@ function createLazyWorkspaceRequester(
 			transport = undefined;
 		},
 	};
-}
-
-async function startTurnForAutomation(
-	decision: TurnAutomationTurnDecision,
-	options: {
-		via: "workspace" | "app";
-		appUrl: string;
-		workspaceUrl: string;
-		timeoutMs: number;
-	} & SshRemoteProviderOptions,
-): Promise<TurnAutomationStartedTurn> {
-	if (options.via === "workspace" || hasSshRemote(options)) {
-		return await withWorkspaceTransport({
-			...options,
-			url: options.workspaceUrl,
-		}, async (transport) => {
-			await initialize(transport);
-			return await startAutomationTurnWithRequest(
-				"workspace",
-				decision,
-				async (method, params) =>
-					await transport.request(APP_SERVER_CALL_METHOD, { method, params }),
-			);
-		});
-	}
-	return await withAppServerClient({
-		...options,
-		url: options.appUrl,
-	}, async (client) =>
-		await startAutomationTurnWithRequest(
-			"app-server",
-			decision,
-			async (method, params) => await client.request(method, params),
-		)
-	);
-}
-
-async function withAppServerClient<T>(
-	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
-	callback: (client: CodexAppServerClient) => Promise<T>,
-): Promise<T> {
-	if (hasSshRemote(options)) {
-		throw new Error("SSH remote app-server stdio is no longer supported; use the remote-agent workspace provider.");
-	}
-	const client = new CodexAppServerClient({
-				...(options.url === "stdio://"
-					? { transportOptions: { requestTimeoutMs: options.timeoutMs } }
-					: {
-							webSocketTransportOptions: {
-								url: options.url,
-								requestTimeoutMs: options.timeoutMs,
-							},
-						}),
-				clientName: "codex-flows-automation",
-				clientTitle: "Codex Flows Automation",
-				clientVersion: "0.1.0",
-			});
-	client.on("request", (message) => {
-		client.respondError(
-			message.id,
-			-32603,
-			"codex-flows automation does not handle app-server requests",
-		);
-	});
-	try {
-		await client.connect();
-		return await callback(client);
-	} finally {
-		client.close();
-	}
 }
 
 async function initializeWorkspaceBackend(options: {

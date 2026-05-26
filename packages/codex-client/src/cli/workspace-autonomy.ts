@@ -5,12 +5,9 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { parse as parseToml } from "smol-toml";
 import {
-	applyTurnAutomationDefaults,
 	createTurnAutomationHost,
 	resolveTurnAutomationTarget,
 	runTurnAutomationScript,
-	startAutomationTurnWithRequest,
-	type TurnAutomationTurnDecision,
 } from "./turn-automation.ts";
 import { parseJsonText } from "./json.ts";
 
@@ -526,22 +523,7 @@ async function runAutomationTask(
 			},
 		}),
 	});
-	const decision = scriptRun.decision
-		? applyTurnAutomationDefaults(scriptRun.decision, {
-				prompt,
-				cwd,
-				skills: target.skills,
-			})
-		: undefined;
-	if (!decision) {
-		return scriptRun;
-	}
-	const completedRun = { ...scriptRun, result: decision, decision };
-	if (decision.action === "skip") {
-		return completedRun;
-	}
-	const turn = await startAutomationTurnViaWorkspace(options.callWorkspaceBackend, decision);
-	return { ...completedRun, turn };
+	return scriptRun.result;
 }
 
 function workspaceAutomationEvent(
@@ -564,18 +546,6 @@ function workspaceAutomationEvent(
 			...payload,
 		},
 	};
-}
-
-async function startAutomationTurnViaWorkspace(
-	callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>,
-	decision: TurnAutomationTurnDecision,
-): Promise<unknown> {
-	return await startAutomationTurnWithRequest(
-		"workspace",
-		decision,
-		async (method, params) =>
-			await callWorkspaceBackend("appServer.call", { method, params }),
-	);
 }
 
 async function runReactiveRule(
