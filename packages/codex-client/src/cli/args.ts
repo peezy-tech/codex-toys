@@ -11,6 +11,10 @@ export type ParsedRemoteOptions = {
 	remoteHost?: string;
 	remotePort?: number;
 	remotePathPrepend?: string;
+	remoteCodexCommand?: string;
+	remoteCodexArgs?: string[];
+	remoteWorkspaceBackendCommand?: string;
+	remoteWorkspaceBackendArgs?: string[];
 };
 
 export type RemoteTurnApprovalPolicy =
@@ -42,20 +46,30 @@ type ParsedCliBase =
 			json: boolean;
 			pretty: boolean;
 	  }
-	| {
-			type: "remote-turn-start";
-			prompt: string;
-			cwd?: string;
-			via: "workspace" | "app";
-			appUrl: string;
-			workspaceUrl: string;
-			timeoutMs: number;
-			sandbox?: RemoteTurnSandbox;
-			approvalPolicy?: RemoteTurnApprovalPolicy;
-			permissions?: string;
-			json: boolean;
-			pretty: boolean;
-	  }
+		| {
+				type: "remote-preflight";
+				cwd?: string;
+				timeoutMs: number;
+				json: boolean;
+				pretty: boolean;
+		  }
+		| {
+				type: "remote-turn-start";
+				prompt: string;
+				threadId?: string;
+				cwd?: string;
+				via: "workspace" | "app";
+				appUrl: string;
+				workspaceUrl: string;
+				timeoutMs: number;
+				wait: boolean;
+				sandbox?: RemoteTurnSandbox;
+				approvalPolicy?: RemoteTurnApprovalPolicy;
+				permissions?: string;
+				model?: string;
+				json: boolean;
+				pretty: boolean;
+		  }
 	| {
 			type: "remote-tunnel-start";
 			sshTarget?: string;
@@ -87,14 +101,31 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| { type: "app-actions" }
-	| {
-			type: "app-call";
-			method: string;
-			paramsText?: string;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
+		| {
+				type: "turn-run";
+				prompt: string;
+				threadId?: string;
+				cwd?: string;
+				appUrl: string;
+				workspaceUrl: string;
+				timeoutMs: number;
+				wait: boolean;
+				sandbox?: RemoteTurnSandbox;
+				approvalPolicy?: RemoteTurnApprovalPolicy;
+				permissions?: string;
+				model?: string;
+				json: boolean;
+				pretty: boolean;
+		  }
+		| {
+				type: "app-call";
+				method: string;
+				paramsText?: string;
+				paramsFile?: string;
+				url: string;
+				timeoutMs: number;
+				pretty: boolean;
+		  }
 	| { type: "workspace-methods"; url: string; timeoutMs: number; pretty: boolean }
 	| {
 			type: "workspace-doctor";
@@ -154,22 +185,24 @@ type ParsedCliBase =
 			json: boolean;
 			pretty: boolean;
 	  }
-	| {
-			type: "workspace-call";
-			method: string;
-			paramsText?: string;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
-			type: "workspace-app-call";
-			method: string;
-			paramsText?: string;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
+		| {
+				type: "workspace-call";
+				method: string;
+				paramsText?: string;
+				paramsFile?: string;
+				url: string;
+				timeoutMs: number;
+				pretty: boolean;
+		  }
+		| {
+				type: "workspace-app-call";
+				method: string;
+				paramsText?: string;
+				paramsFile?: string;
+				url: string;
+				timeoutMs: number;
+				pretty: boolean;
+		  }
 	| {
 			type: "actions-prepare-auth";
 			workspaceRoot?: string;
@@ -283,6 +316,11 @@ export function parseArgs(
 	let github = false;
 	let dryRun = false;
 	let prompt: string | undefined;
+	let threadId: string | undefined;
+	let wait = false;
+	let model: string | undefined;
+	let paramsJson: string | undefined;
+	let paramsFile: string | undefined;
 	let cwd: string | undefined = env.CODEX_FLOWS_REMOTE_CWD;
 	let via: "workspace" | "app" = "workspace";
 	let sshTarget: string | undefined = env.CODEX_FLOWS_REMOTE_SSH_TARGET;
@@ -291,6 +329,10 @@ export function parseArgs(
 	let remoteHost: string | undefined;
 	let remotePort: number | undefined;
 	let remotePathPrepend: string | undefined = env.CODEX_FLOWS_REMOTE_PATH_PREPEND;
+	let remoteCodexCommand: string | undefined;
+	const remoteCodexArgs: string[] = [];
+	let remoteWorkspaceBackendCommand: string | undefined;
+	const remoteWorkspaceBackendArgs: string[] = [];
 	let sandbox: RemoteTurnSandbox | undefined;
 	let approvalPolicy: RemoteTurnApprovalPolicy | undefined;
 	let permissions: string | undefined;
@@ -371,14 +413,30 @@ export function parseArgs(
 			color = true;
 			continue;
 		}
-		if (arg === "--json") {
-			json = true;
-			continue;
-		}
-		if (arg === "--mode") {
-			mode = parseMode(required(argv, ++index, arg));
-			continue;
-		}
+			if (arg === "--json") {
+				json = true;
+				continue;
+			}
+			if (arg === "--params-json") {
+				paramsJson = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--params-json=")) {
+				paramsJson = arg.slice("--params-json=".length);
+				continue;
+			}
+			if (arg === "--params-file") {
+				paramsFile = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--params-file=")) {
+				paramsFile = arg.slice("--params-file=".length);
+				continue;
+			}
+			if (arg === "--mode") {
+				mode = parseMode(required(argv, ++index, arg));
+				continue;
+			}
 		if (arg.startsWith("--mode=")) {
 			mode = parseMode(arg.slice("--mode=".length));
 			continue;
@@ -519,18 +577,38 @@ export function parseArgs(
 			dryRun = true;
 			continue;
 		}
-		if (arg === "--prompt") {
-			prompt = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--prompt=")) {
-			prompt = arg.slice("--prompt=".length);
-			continue;
-		}
-		if (arg === "--via") {
-			via = parseRemoteVia(required(argv, ++index, arg));
-			continue;
-		}
+			if (arg === "--prompt") {
+				prompt = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--prompt=")) {
+				prompt = arg.slice("--prompt=".length);
+				continue;
+			}
+			if (arg === "--thread-id") {
+				threadId = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--thread-id=")) {
+				threadId = arg.slice("--thread-id=".length);
+				continue;
+			}
+			if (arg === "--wait") {
+				wait = true;
+				continue;
+			}
+			if (arg === "--model") {
+				model = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--model=")) {
+				model = arg.slice("--model=".length);
+				continue;
+			}
+			if (arg === "--via") {
+				via = parseRemoteVia(required(argv, ++index, arg));
+				continue;
+			}
 		if (arg.startsWith("--via=")) {
 			via = parseRemoteVia(arg.slice("--via=".length));
 			continue;
@@ -609,10 +687,42 @@ export function parseArgs(
 			remotePathPrepend = required(argv, ++index, arg);
 			continue;
 		}
-		if (arg.startsWith("--remote-path-prepend=")) {
-			remotePathPrepend = arg.slice("--remote-path-prepend=".length);
-			continue;
-		}
+			if (arg.startsWith("--remote-path-prepend=")) {
+				remotePathPrepend = arg.slice("--remote-path-prepend=".length);
+				continue;
+			}
+			if (arg === "--remote-codex-command") {
+				remoteCodexCommand = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--remote-codex-command=")) {
+				remoteCodexCommand = arg.slice("--remote-codex-command=".length);
+				continue;
+			}
+			if (arg === "--remote-codex-arg") {
+				remoteCodexArgs.push(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--remote-codex-arg=")) {
+				remoteCodexArgs.push(arg.slice("--remote-codex-arg=".length));
+				continue;
+			}
+			if (arg === "--remote-workspace-backend-command") {
+				remoteWorkspaceBackendCommand = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--remote-workspace-backend-command=")) {
+				remoteWorkspaceBackendCommand = arg.slice("--remote-workspace-backend-command=".length);
+				continue;
+			}
+			if (arg === "--remote-workspace-backend-arg") {
+				remoteWorkspaceBackendArgs.push(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--remote-workspace-backend-arg=")) {
+				remoteWorkspaceBackendArgs.push(arg.slice("--remote-workspace-backend-arg=".length));
+				continue;
+			}
 		if (arg === "--") {
 			positionals.push(...argv.slice(index + 1));
 			break;
@@ -641,11 +751,23 @@ export function parseArgs(
 		if (remotePort !== undefined) {
 			fields.remotePort = remotePort;
 		}
-		if (remotePathPrepend !== undefined) {
-			fields.remotePathPrepend = remotePathPrepend;
-		}
-		return fields;
-	};
+			if (remotePathPrepend !== undefined) {
+				fields.remotePathPrepend = remotePathPrepend;
+			}
+			if (remoteCodexCommand !== undefined) {
+				fields.remoteCodexCommand = remoteCodexCommand;
+			}
+			if (remoteCodexArgs.length > 0) {
+				fields.remoteCodexArgs = remoteCodexArgs;
+			}
+			if (remoteWorkspaceBackendCommand !== undefined) {
+				fields.remoteWorkspaceBackendCommand = remoteWorkspaceBackendCommand;
+			}
+			if (remoteWorkspaceBackendArgs.length > 0) {
+				fields.remoteWorkspaceBackendArgs = remoteWorkspaceBackendArgs;
+			}
+			return fields;
+		};
 
 	const command = positionals[0];
 	if (!command || command === "help") {
@@ -662,42 +784,55 @@ export function parseArgs(
 			...remoteFields(),
 		};
 	}
-	if (command === "remote") {
-		const subcommand = positionals[1];
-		if (!subcommand || subcommand === "status") {
+		if (command === "remote") {
+			const subcommand = positionals[1];
+			if (!subcommand || subcommand === "status") {
 			return {
 				type: "remote-status",
 				appUrl,
 				workspaceUrl,
 				timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
 				json,
-				pretty,
-			};
-		}
-		if (subcommand === "turn") {
-			const action = requiredPositional(positionals, 2, "remote turn requires start");
-			if (action !== "start") {
-				throw new Error("remote turn currently supports only start");
+					pretty,
+				};
 			}
-			return {
-				type: "remote-turn-start",
-				prompt: prompt ?? requiredPositional(
-					positionals,
-					3,
-					"remote turn start requires --prompt <text> or <text>",
-				),
-				cwd,
-				via,
-				appUrl,
-				workspaceUrl,
-				timeoutMs,
-				sandbox,
-				approvalPolicy,
-				permissions,
-				json,
-				pretty,
-				...remoteFields(),
-			};
+			if (subcommand === "preflight") {
+				return {
+					type: "remote-preflight",
+					cwd,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (subcommand === "turn") {
+				const action = requiredPositional(positionals, 2, "remote turn requires start");
+				if (action !== "start") {
+					throw new Error("remote turn currently supports only start");
+				}
+				return {
+					type: "remote-turn-start",
+					prompt: prompt ?? requiredPositional(
+						positionals,
+						3,
+						"remote turn start requires --prompt <text> or <text>",
+					),
+					threadId,
+					cwd,
+					via,
+					appUrl,
+					workspaceUrl,
+					timeoutMs,
+					wait,
+					sandbox,
+					approvalPolicy,
+					permissions,
+					model,
+					json,
+					pretty,
+					...remoteFields(),
+				};
 		}
 		if (subcommand === "tunnel") {
 			const action = requiredPositional(positionals, 2, "remote tunnel requires start");
@@ -715,8 +850,35 @@ export function parseArgs(
 				pretty,
 			};
 		}
-		throw new Error("remote requires status, turn, or tunnel");
-	}
+			throw new Error("remote requires status, preflight, turn, or tunnel");
+		}
+		if (command === "turn") {
+			const subcommand = positionals[1];
+			if (subcommand !== "run") {
+				throw new Error("turn requires run");
+			}
+			return {
+				type: "turn-run",
+				prompt: prompt ?? requiredPositional(
+					positionals,
+					2,
+					"turn run requires <prompt> or --prompt <text>",
+				),
+				threadId,
+				cwd,
+				appUrl,
+				workspaceUrl,
+				timeoutMs,
+				wait,
+				sandbox,
+				approvalPolicy,
+				permissions,
+				model,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
 	if (command === "automation" || command === "automations") {
 		const subcommand = positionals[1];
 		if (subcommand === "list" || subcommand === "ls") {
@@ -755,13 +917,13 @@ export function parseArgs(
 			? requiredPositional(positionals, 2, "app call requires <method>")
 			: subcommand;
 		const params = subcommand === "call" ? positionals.slice(3) : positionals.slice(2);
-		return {
-			type: "app-call",
-			method: validateMethodName(method, "app method"),
-			paramsText: paramsText(params),
-			url: appUrl,
-			timeoutMs,
-			pretty,
+			return {
+				type: "app-call",
+				method: validateMethodName(method, "app method"),
+				...paramsSource(params, paramsJson, paramsFile),
+				url: appUrl,
+				timeoutMs,
+				pretty,
 			...remoteFields(),
 		};
 	}
@@ -878,13 +1040,13 @@ export function parseArgs(
 				2,
 				"workspace app requires <method>",
 			);
-			return {
-				type: "workspace-app-call",
-				method: validateMethodName(method, "app method"),
-				paramsText: paramsText(positionals.slice(3)),
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
+				return {
+					type: "workspace-app-call",
+					method: validateMethodName(method, "app method"),
+					...paramsSource(positionals.slice(3), paramsJson, paramsFile),
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
 				...remoteFields(),
 			};
 		}
@@ -892,13 +1054,13 @@ export function parseArgs(
 			? requiredPositional(positionals, 2, "workspace call requires <method>")
 			: subcommand;
 		const params = subcommand === "call" ? positionals.slice(3) : positionals.slice(2);
-		return {
-			type: "workspace-call",
-			method: validateMethodName(method, "workspace method"),
-			paramsText: paramsText(params),
-			url: workspaceUrl,
-			timeoutMs,
-			pretty,
+			return {
+				type: "workspace-call",
+				method: validateMethodName(method, "workspace method"),
+				...paramsSource(params, paramsJson, paramsFile),
+				url: workspaceUrl,
+				timeoutMs,
+				pretty,
 			...remoteFields(),
 		};
 	}
@@ -1029,6 +1191,27 @@ export function parseArgs(
 
 function paramsText(values: string[]): string | undefined {
 	return values.length > 0 ? values.join(" ") : undefined;
+}
+
+function paramsSource(
+	values: string[],
+	paramsJson: string | undefined,
+	paramsFile: string | undefined,
+): { paramsText?: string; paramsFile?: string } {
+	const positional = paramsText(values);
+	if (paramsJson !== undefined && paramsFile !== undefined) {
+		throw new Error("--params-json cannot be combined with --params-file");
+	}
+	if (positional !== undefined && (paramsJson !== undefined || paramsFile !== undefined)) {
+		throw new Error("inline JSON params cannot be combined with --params-json or --params-file");
+	}
+	if (paramsJson !== undefined) {
+		return { paramsText: paramsJson };
+	}
+	if (paramsFile !== undefined) {
+		return { paramsFile };
+	}
+	return positional === undefined ? {} : { paramsText: positional };
 }
 
 function parseRemoteVia(value: string): "workspace" | "app" {

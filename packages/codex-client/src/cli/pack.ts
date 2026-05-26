@@ -13,6 +13,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { parseJsonText } from "./json.ts";
 import { discoverWorkspaceRoot } from "./workspace-autonomy.ts";
 
 export type PackKind = "skill" | "plugin" | "hook";
@@ -1143,7 +1144,7 @@ async function readPackLock(workspaceRoot: string): Promise<PackLock> {
 
 function parsePackLock(text: string, lockPath: string): PackLock {
 	try {
-		const parsed = record(JSON.parse(text));
+			const parsed = record(parseJsonText(text, lockPath));
 		const items = arrayValue(parsed.items).map(parsePackLockItem).filter(
 			(item): item is PackLockItem => item !== undefined,
 		);
@@ -1195,7 +1196,7 @@ async function checkJsonFile(filePath: string): Promise<JsonFileCheck> {
 		return { path: filePath, exists: false, valid: false };
 	}
 	try {
-		JSON.parse(await readFile(filePath, "utf8"));
+			parseJsonText(await readFile(filePath, "utf8"), filePath);
 		return { path: filePath, exists: true, valid: true };
 	} catch (error) {
 		return {
@@ -1216,7 +1217,7 @@ async function readJsonObjectIfExists(filePath: string): Promise<Record<string, 
 
 async function readJsonObject(filePath: string): Promise<Record<string, unknown>> {
 	try {
-		return record(JSON.parse(await readFile(filePath, "utf8")));
+			return record(parseJsonText(await readFile(filePath, "utf8"), filePath));
 	} catch (error) {
 		throw new Error(`Failed to parse JSON at ${filePath}: ${errorMessage(error)}`);
 	}

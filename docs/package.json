@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/codex-flow-docs",
-	"version": "0.132.6",
+	"version": "0.132.7",
 	"private": true,
 	"type": "module",
 	"scripts": {

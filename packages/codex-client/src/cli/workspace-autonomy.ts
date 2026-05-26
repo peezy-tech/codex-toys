@@ -12,6 +12,7 @@ import {
 	startAutomationTurnWithRequest,
 	type TurnAutomationTurnDecision,
 } from "./turn-automation.ts";
+import { parseJsonText } from "./json.ts";
 
 export type WorkspaceModeInput = "auto" | "local" | "actions";
 export type WorkspaceMode = "local" | "actions";
@@ -716,7 +717,11 @@ async function readRuns(context: WorkspaceContext): Promise<WorkspaceRunRecord[]
 				continue;
 			}
 			try {
-				const parsed = JSON.parse(await readFile(path.join(dir, entry), "utf8")) as WorkspaceRunRecord;
+					const runPath = path.join(dir, entry);
+					const parsed = parseJsonText(
+						await readFile(runPath, "utf8"),
+						runPath,
+					) as WorkspaceRunRecord;
 				if (parsed && typeof parsed.taskId === "string") {
 					runs.push(parsed);
 				}

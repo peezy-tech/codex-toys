@@ -19,15 +19,16 @@ Upgrade the local Windows-side CLI to the released package that includes these
 fixes:
 
 ```powershell
-npm install -g @peezy.tech/codex-flows@0.132.6
+npm install -g @peezy.tech/codex-flows@0.132.7
 codex-flows fetch --no-color
 ```
 
-The `fetch` output should report `@peezy.tech/codex-flows@0.132.6`. If the
-local agent is running from a source checkout instead of npm, pull a checkout at
-or after codex-flows commit `a9a91e4`.
+The `fetch` output should report `@peezy.tech/codex-flows@0.132.7`. If the
+local agent is running from a source checkout instead of npm, pull the `0.132.7`
+release commit or newer.
 
-Version `0.132.6` includes:
+Version `0.132.7` includes the first SSH provider fix set plus the remote
+workflow improvements below:
 
 - `remote turn start` accepts and uses the SSH provider when `--ssh` is set.
 - SSH provider accepts `--remote-path-prepend` and
@@ -35,6 +36,15 @@ Version `0.132.6` includes:
 - `remote turn start` accepts `--sandbox`, `--approval-policy`, and
   `--permissions`.
 - CLI JSON parsing tolerates a leading UTF-8 BOM.
+
+- `turn run <prompt>` as the primary prompt primitive.
+- `remote preflight` diagnostics for SSH, cwd, Node, Codex, backend startup, and
+  app-server pass-through.
+- `remote turn start --wait` final-answer readback.
+- `--params-json` and `--params-file` for PowerShell-safe JSON params.
+- Remote command args through `CODEX_FLOWS_REMOTE_CODEX_ARGS`,
+  `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS`, `--remote-codex-arg`, and
+  `--remote-workspace-backend-arg`.
 
 Before retrying, make sure the local shell resolves this upgraded CLI. The
 Codex plugin/skill alone is not enough; the local shell must be able to run
@@ -57,7 +67,7 @@ Then verify from PowerShell:
 
 ```powershell
 ssh rammstein 'pwd'
-ssh rammstein 'cd /home/peezy/load-game-workspace && command -v node && command -v codex && command -v codex-workspace-backend-local'
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn remote preflight
 ```
 
 If this fails only because PATH differs between interactive and non-interactive
@@ -93,7 +103,8 @@ Run these from the local Windows machine:
 ```powershell
 codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn fetch
 codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn workspace doctor --json
-codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn app thread/list '{"limit":20,"sourceKinds":[]}'
+$params = @{ limit = 20; sourceKinds = @() } | ConvertTo-Json -Compress
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn app thread/list --params-json $params
 ```
 
 Expected:
@@ -108,7 +119,7 @@ Expected:
 Run:
 
 ```powershell
-codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn remote turn start --via workspace --sandbox danger-full-access --approval-policy never --prompt "scan current folder"
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn turn run "scan current folder" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 Expected:
@@ -116,6 +127,7 @@ Expected:
 - A remote thread is created in `/home/peezy/load-game-workspace`.
 - A turn starts through the transient remote workspace backend.
 - Shell tools run under the requested remote turn sandbox.
+- The final assistant message is printed locally.
 - The transient SSH/backend process exits when the command finishes.
 
 ## Cleanup Old Workarounds

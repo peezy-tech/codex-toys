@@ -351,7 +351,7 @@ async function readRolloutSessionMeta(
 			}
 			let parsed: unknown;
 			try {
-				parsed = JSON.parse(line) as unknown;
+					parsed = JSON.parse(stripJsonBom(line)) as unknown;
 			} catch {
 				continue;
 			}
@@ -369,6 +369,10 @@ async function readRolloutSessionMeta(
 	} finally {
 		lines.close();
 	}
+}
+
+function stripJsonBom(text: string): string {
+	return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
 async function inspectRolloutPath(

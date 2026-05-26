@@ -140,16 +140,18 @@ local backend and utility CLIs:
 ```bash
 codex-flows fetch
 codex-flows remote status
+codex-flows --ssh devbox --cwd /repo remote preflight
 codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
-codex-flows remote turn start --via workspace --prompt "Check workspace status"
+codex-flows remote turn start --via workspace --prompt "Check workspace status" --wait
+codex-flows turn run "Check workspace status" --wait
 codex-flows automation list
 codex-flows automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo fetch
-codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh devbox --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Scan current folder"
-codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
+codex-flows app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-flows workspace app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace doctor
 codex-flows workspace backend init local
 codex-flows workspace backend status
@@ -166,10 +168,12 @@ See `docs/pages/reference/cli.md` for the full command surface.
 
 SSH is a connection provider, not a product UI surface. With `--ssh`, the local
 CLI can target a remote workspace, tunnel or spawn the remote workspace backend,
-route `remote turn start` through the same provider, and fall back to a remote
-app-server over stdio for app-only commands. For non-interactive SSH PATH
-differences, set `CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute remote command
-overrides instead of adding wrapper scripts on the remote host.
+run prompts with `turn run`, route `remote turn start --wait` through the same
+provider, and fall back to a remote app-server over stdio for app-only commands.
+For non-interactive SSH PATH differences, set `CODEX_FLOWS_REMOTE_PATH_PREPEND`,
+absolute remote command overrides, or `CODEX_FLOWS_REMOTE_CODEX_ARGS` /
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS` JSON arrays instead of adding wrapper
+scripts on the remote host.
 
 ## Development Scripts
 

@@ -53,6 +53,10 @@ import {
 	startRemoteTurn,
 } from "./remote-control.ts";
 import {
+	collectRemotePreflight,
+	formatRemotePreflight,
+} from "./remote-preflight.ts";
+import {
 	applyTurnAutomationDefaults,
 	createTurnAutomationHost,
 	formatTurnAutomationList,
@@ -139,27 +143,47 @@ async function main(): Promise<void> {
 			: formatRemoteStatusInfo(info));
 		return;
 	}
+	if (parsed.type === "remote-preflight") {
+		const result = await collectRemotePreflight(parsed);
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatRemotePreflight(result));
+		if (!result.ok) {
+			process.exitCode = 1;
+		}
+		return;
+	}
 	if (parsed.type === "remote-turn-start") {
 		const result = await startRemoteTurn({
 			prompt: parsed.prompt,
+			threadId: parsed.threadId,
 			cwd: parsed.cwd,
 			via: parsed.via,
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
 			timeoutMs: parsed.timeoutMs,
+			wait: parsed.wait,
 			sandbox: parsed.sandbox,
 			approvalPolicy: parsed.approvalPolicy,
 			permissions: parsed.permissions,
+			model: parsed.model,
 			sshTarget: parsed.sshTarget,
 			remoteMode: parsed.remoteMode,
 			localPort: parsed.localPort,
 			remoteHost: parsed.remoteHost,
 			remotePort: parsed.remotePort,
 			remotePathPrepend: parsed.remotePathPrepend,
+			remoteCodexCommand: parsed.remoteCodexCommand,
+			remoteCodexArgs: parsed.remoteCodexArgs,
+			remoteWorkspaceBackendCommand: parsed.remoteWorkspaceBackendCommand,
+			remoteWorkspaceBackendArgs: parsed.remoteWorkspaceBackendArgs,
 		});
 		write(parsed.json
 			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
 			: formatRemoteTurnStartResult(result));
+		if (parsed.wait && (result.status === "failed" || result.status === "timed_out")) {
+			process.exitCode = 1;
+		}
 		return;
 	}
 	if (parsed.type === "remote-tunnel-start") {
@@ -184,7 +208,7 @@ async function main(): Promise<void> {
 		});
 		const prompt = parsed.prompt ?? target.prompt;
 		const cwd = parsed.cwd ?? target.cwd;
-		const run = await runTurnAutomationForCli(target, {
+			const run = await runTurnAutomationForCli(target, {
 			event,
 			prompt,
 			cwd,
@@ -195,9 +219,14 @@ async function main(): Promise<void> {
 			sshTarget: parsed.sshTarget,
 			remoteMode: parsed.remoteMode,
 			localPort: parsed.localPort,
-			remoteHost: parsed.remoteHost,
-			remotePort: parsed.remotePort,
-		});
+				remoteHost: parsed.remoteHost,
+				remotePort: parsed.remotePort,
+				remotePathPrepend: parsed.remotePathPrepend,
+				remoteCodexCommand: parsed.remoteCodexCommand,
+				remoteCodexArgs: parsed.remoteCodexArgs,
+				remoteWorkspaceBackendCommand: parsed.remoteWorkspaceBackendCommand,
+				remoteWorkspaceBackendArgs: parsed.remoteWorkspaceBackendArgs,
+			});
 		const decision = run.decision
 			? applyTurnAutomationDefaults(run.decision, {
 					prompt,
@@ -229,9 +258,53 @@ async function main(): Promise<void> {
 	}
 	if (parsed.type === "app-call") {
 		writeJson(
-			await callAppServer(parsed.method, await readParams(parsed.paramsText), parsed),
+			await callAppServer(
+				parsed.method,
+				await readParams(parsed.paramsText, parsed.paramsFile),
+				parsed,
+			),
 			parsed.pretty,
 		);
+		return;
+	}
+	if (parsed.type === "turn-run") {
+		const result = await startRemoteTurn({
+			prompt: parsed.prompt,
+			threadId: parsed.threadId,
+			cwd: parsed.cwd,
+			via: "workspace",
+			appUrl: parsed.appUrl,
+			workspaceUrl: parsed.workspaceUrl,
+			timeoutMs: parsed.timeoutMs,
+			wait: parsed.wait,
+			sandbox: parsed.sandbox,
+			approvalPolicy: parsed.approvalPolicy,
+			permissions: parsed.permissions,
+			model: parsed.model,
+			sshTarget: parsed.sshTarget,
+			remoteMode: parsed.remoteMode,
+			localPort: parsed.localPort,
+			remoteHost: parsed.remoteHost,
+			remotePort: parsed.remotePort,
+			remotePathPrepend: parsed.remotePathPrepend,
+			remoteCodexCommand: parsed.remoteCodexCommand,
+			remoteCodexArgs: parsed.remoteCodexArgs,
+			remoteWorkspaceBackendCommand: parsed.remoteWorkspaceBackendCommand,
+			remoteWorkspaceBackendArgs: parsed.remoteWorkspaceBackendArgs,
+		});
+		write(parsed.json
+			? `${JSON.stringify({
+				threadId: result.threadId,
+				turnId: result.turnId,
+				status: result.status,
+				cwd: result.cwd ?? parsed.cwd ?? null,
+				finalMessage: result.finalMessage,
+				error: result.error,
+			}, null, parsed.pretty ? 2 : 0)}\n`
+			: formatRemoteTurnStartResult(result));
+		if (parsed.wait && (result.status === "failed" || result.status === "timed_out")) {
+			process.exitCode = 1;
+		}
 		return;
 	}
 	if (parsed.type === "workspace-methods") {
@@ -250,17 +323,22 @@ async function main(): Promise<void> {
 		const migrated = await maybeMigrateWorkspaceConfig(context);
 		const info = await collectWorkspaceDoctorInfo(context);
 		const backendSetup = await collectWorkspaceBackendSetupInfo(context);
-		const backend = await collectBackendInfo({
-			appUrl: parsed.appUrl,
-			workspaceUrl: backendSetup.workspaceBackendUrl,
-			timeoutMs: parsed.timeoutMs,
-			sshTarget: parsed.sshTarget,
-			cwd: parsed.cwd,
-			remoteMode: parsed.remoteMode,
-			localPort: parsed.localPort,
-			remoteHost: parsed.remoteHost,
-			remotePort: parsed.remotePort,
-		});
+			const backend = await collectBackendInfo({
+				appUrl: parsed.appUrl,
+				workspaceUrl: backendSetup.workspaceBackendUrl,
+				timeoutMs: parsed.timeoutMs,
+				sshTarget: parsed.sshTarget,
+				cwd: parsed.cwd,
+				remoteMode: parsed.remoteMode,
+				localPort: parsed.localPort,
+				remoteHost: parsed.remoteHost,
+				remotePort: parsed.remotePort,
+				remotePathPrepend: parsed.remotePathPrepend,
+				remoteCodexCommand: parsed.remoteCodexCommand,
+				remoteCodexArgs: parsed.remoteCodexArgs,
+				remoteWorkspaceBackendCommand: parsed.remoteWorkspaceBackendCommand,
+				remoteWorkspaceBackendArgs: parsed.remoteWorkspaceBackendArgs,
+			});
 		const result = { ...info, migratedConfig: migrated, backend, backendSetup };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
@@ -289,17 +367,22 @@ async function main(): Promise<void> {
 			mode: "local",
 		});
 		const setup = await collectWorkspaceBackendSetupInfo(context);
-		const backend = await collectBackendInfo({
-			appUrl: parsed.appUrl,
-			workspaceUrl: setup.workspaceBackendUrl,
-			timeoutMs: parsed.timeoutMs,
-			sshTarget: parsed.sshTarget,
-			cwd: parsed.cwd,
-			remoteMode: parsed.remoteMode,
-			localPort: parsed.localPort,
-			remoteHost: parsed.remoteHost,
-			remotePort: parsed.remotePort,
-		});
+			const backend = await collectBackendInfo({
+				appUrl: parsed.appUrl,
+				workspaceUrl: setup.workspaceBackendUrl,
+				timeoutMs: parsed.timeoutMs,
+				sshTarget: parsed.sshTarget,
+				cwd: parsed.cwd,
+				remoteMode: parsed.remoteMode,
+				localPort: parsed.localPort,
+				remoteHost: parsed.remoteHost,
+				remotePort: parsed.remotePort,
+				remotePathPrepend: parsed.remotePathPrepend,
+				remoteCodexCommand: parsed.remoteCodexCommand,
+				remoteCodexArgs: parsed.remoteCodexArgs,
+				remoteWorkspaceBackendCommand: parsed.remoteWorkspaceBackendCommand,
+				remoteWorkspaceBackendArgs: parsed.remoteWorkspaceBackendArgs,
+			});
 		const result = { setup, backend };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
@@ -370,10 +453,10 @@ async function main(): Promise<void> {
 	if (parsed.type === "workspace-call") {
 		writeJson(
 			await callWorkspaceBackend(
-				parsed.method,
-				await readParams(parsed.paramsText),
-				parsed,
-			),
+					parsed.method,
+					await readParams(parsed.paramsText, parsed.paramsFile),
+					parsed,
+				),
 			parsed.pretty,
 		);
 		return;
@@ -383,9 +466,9 @@ async function main(): Promise<void> {
 			await callWorkspaceBackend(
 				APP_SERVER_CALL_METHOD,
 				{
-					method: parsed.method,
-					params: await readParams(parsed.paramsText),
-				},
+						method: parsed.method,
+						params: await readParams(parsed.paramsText, parsed.paramsFile),
+					},
 				parsed,
 			),
 			parsed.pretty,
@@ -1260,9 +1343,15 @@ function compactUndefined<T extends Record<string, unknown>>(value: T): T {
 	return result as T;
 }
 
-async function readParams(paramsText: string | undefined): Promise<unknown> {
+async function readParams(
+	paramsText: string | undefined,
+	paramsFile: string | undefined,
+): Promise<unknown> {
 	if (paramsText !== undefined) {
 		return parseJson(paramsText);
+	}
+	if (paramsFile !== undefined) {
+		return await readJsonFile(paramsFile, "JSON params file");
 	}
 	if (process.stdin.isTTY) {
 		return undefined;
@@ -1299,22 +1388,30 @@ Usage:
   codex-flows neofetch [--json] [--no-color]
   codex-flows --ssh <target> --cwd <remote-workspace> fetch
 
-  codex-flows remote status [--json]
-  codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
-  codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>]
-  codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text>
+	  codex-flows remote status [--json]
+	  codex-flows --ssh <target> --cwd <remote-workspace> remote preflight [--json]
+	  codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
+	  codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>] [--wait]
+	  codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text> [--wait]
 
-  codex-flows automation list [--json]
-  codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
+	  codex-flows turn run <prompt> [--wait] [--thread-id <id>]
+	  codex-flows --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 
-  codex-flows app <method> [params-json]
-  codex-flows app call <method> [params-json]
-  echo '<params-json>' | codex-flows app <method>
-  codex-flows app actions
+	  codex-flows automation list [--json]
+	  codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
 
-  codex-flows workspace <method> [params-json]
-  codex-flows workspace call <method> [params-json]
-  codex-flows workspace app <method> [params-json]
+	  codex-flows app <method> [params-json]
+	  codex-flows app <method> --params-json <json>
+	  codex-flows app <method> --params-file <file>
+	  codex-flows app call <method> [params-json]
+	  echo '<params-json>' | codex-flows app <method>
+	  codex-flows app actions
+
+	  codex-flows workspace <method> [params-json]
+	  codex-flows workspace <method> --params-json <json>
+	  codex-flows workspace <method> --params-file <file>
+	  codex-flows workspace call <method> [params-json]
+	  codex-flows workspace app <method> [params-json]
   codex-flows workspace methods
   codex-flows workspace doctor [--mode auto|local|actions] [--json]
   codex-flows workspace backend init local [--overwrite] [--json]

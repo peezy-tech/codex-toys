@@ -23,6 +23,26 @@ describe("codex-flows CLI args", () => {
 				paramsText: "{\"limit\":1}",
 				url: "ws://127.0.0.1:3585",
 			});
+		expect(parseArgs([
+			"app",
+			"thread/list",
+			"--params-json",
+			"{\"limit\":20,\"sourceKinds\":[]}",
+		], {})).toMatchObject({
+			type: "app-call",
+			method: "thread/list",
+			paramsText: "{\"limit\":20,\"sourceKinds\":[]}",
+		});
+		expect(parseArgs([
+			"app",
+			"thread/turns/list",
+			"--params-file",
+			"params.json",
+		], {})).toMatchObject({
+			type: "app-call",
+			method: "thread/turns/list",
+			paramsFile: "params.json",
+		});
 	});
 
 	test("parses workspace-owned method calls", () => {
@@ -88,12 +108,26 @@ describe("codex-flows CLI args", () => {
 			json: false,
 			pretty: true,
 		});
-		expect(parseArgs([
-			"remote",
-			"turn",
-			"start",
-			"--prompt",
-			"hello remote",
+			expect(parseArgs([
+				"--ssh",
+				"devbox",
+				"--cwd",
+				"/work",
+				"remote",
+				"preflight",
+				"--json",
+			], {})).toMatchObject({
+				type: "remote-preflight",
+				cwd: "/work",
+				sshTarget: "devbox",
+				json: true,
+			});
+			expect(parseArgs([
+				"remote",
+				"turn",
+				"start",
+				"--prompt",
+				"hello remote",
 			"--via",
 			"workspace",
 			"--cwd",
@@ -104,20 +138,64 @@ describe("codex-flows CLI args", () => {
 			"/home/peezy/.local/bin:/home/peezy/.bun/bin",
 			"--sandbox",
 			"danger-full-access",
-			"--approval-policy",
-			"never",
-		], {})).toMatchObject({
-			type: "remote-turn-start",
-			prompt: "hello remote",
+				"--approval-policy",
+				"never",
+				"--wait",
+				"--model",
+				"gpt-5.2",
+			], {})).toMatchObject({
+				type: "remote-turn-start",
+				prompt: "hello remote",
 			via: "workspace",
 			cwd: "/work",
 			sshTarget: "devbox",
 			remoteMode: "spawn",
 			remotePathPrepend: "/home/peezy/.local/bin:/home/peezy/.bun/bin",
-			sandbox: "danger-full-access",
-			approvalPolicy: "never",
+				sandbox: "danger-full-access",
+				approvalPolicy: "never",
+				wait: true,
+				model: "gpt-5.2",
+			});
 		});
-	});
+
+		test("parses turn run as the core prompt primitive", () => {
+			expect(parseArgs([
+				"--ssh",
+				"devbox",
+				"--cwd",
+				"/repo",
+				"--remote-mode",
+				"spawn",
+				"--remote-codex-command",
+				"/opt/codex",
+				"--remote-codex-arg",
+				"-s",
+				"--remote-codex-arg",
+				"danger-full-access",
+				"--remote-workspace-backend-command",
+				"/opt/backend",
+				"turn",
+				"run",
+				"scan current folder",
+				"--wait",
+				"--sandbox",
+				"danger-full-access",
+				"--approval-policy",
+				"never",
+			], {})).toMatchObject({
+				type: "turn-run",
+				prompt: "scan current folder",
+				sshTarget: "devbox",
+				cwd: "/repo",
+				remoteMode: "spawn",
+				remoteCodexCommand: "/opt/codex",
+				remoteCodexArgs: ["-s", "danger-full-access"],
+				remoteWorkspaceBackendCommand: "/opt/backend",
+				wait: true,
+				sandbox: "danger-full-access",
+				approvalPolicy: "never",
+			});
+		});
 
 	test("parses turn automation commands", () => {
 		expect(parseArgs([
@@ -204,17 +282,28 @@ describe("codex-flows CLI args", () => {
 	});
 
 	test("parses app-server pass-through through the workspace backend", () => {
-		expect(parseArgs([
-			"workspace",
-			"app",
-			"thread/list",
-			"{\"limit\":2}",
-		], {})).toMatchObject({
-			type: "workspace-app-call",
-			method: "thread/list",
-			paramsText: "{\"limit\":2}",
+			expect(parseArgs([
+				"workspace",
+				"app",
+				"thread/list",
+				"{\"limit\":2}",
+			], {})).toMatchObject({
+				type: "workspace-app-call",
+				method: "thread/list",
+				paramsText: "{\"limit\":2}",
+			});
+			expect(parseArgs([
+				"workspace",
+				"app",
+				"thread/list",
+				"--params-file",
+				"params.json",
+			], {})).toMatchObject({
+				type: "workspace-app-call",
+				method: "thread/list",
+				paramsFile: "params.json",
+			});
 		});
-	});
 
 	test("parses Actions helper commands and workspace Actions scaffolding", () => {
 		expect(parseArgs(["actions", "prepare-auth", "--workspace-root", "/work"], {}))

@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { v2 } from "../app-server/generated/index.ts";
+import { parseJsonText } from "./json.ts";
 
 const MODULE_RESULT_PREFIX = "TURN_AUTOMATION_MODULE_RESULT ";
 const DEFAULT_TURN_WAIT_TIMEOUT_MS = 30 * 60 * 1000;
@@ -549,7 +550,7 @@ async function loadTurnAutomationManifest(
 	manifestPath: string,
 ): Promise<LoadedTurnAutomation> {
 	const root = path.dirname(manifestPath);
-	const parsed = JSON.parse(await readFile(manifestPath, "utf8")) as unknown;
+	const parsed = parseJsonText(await readFile(manifestPath, "utf8"), manifestPath);
 	if (!isRecord(parsed)) {
 		throw new Error(`Turn automation manifest must be an object: ${manifestPath}`);
 	}
@@ -620,7 +621,10 @@ function parseModuleResult(stdout: string): unknown {
 		if (index === -1) {
 			continue;
 		}
-		return JSON.parse(line.slice(index + MODULE_RESULT_PREFIX.length).trim());
+			return parseJsonText(
+				line.slice(index + MODULE_RESULT_PREFIX.length).trim(),
+				"turn automation module result",
+			);
 	}
 	throw new Error("Turn automation module did not return a result");
 }

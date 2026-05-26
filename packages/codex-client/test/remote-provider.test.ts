@@ -55,17 +55,36 @@ describe("SSH remote provider", () => {
 			},
 		});
 		expect(plan.workspaceUrl).toBe("ws://127.0.0.1:4596");
-		expect(plan.command).toEqual([
-			"ssh",
-			"-T",
-			"-o",
-			"ExitOnForwardFailure=yes",
-			"-L",
-			"4596:127.0.0.1:3587",
-			"devbox",
-			"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && CODEX_APP_SERVER_CODEX_COMMAND='/opt/codex' exec /opt/codex-workspace-backend-local 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/work/it'\\''s here'",
-		]);
-	});
+			expect(plan.command).toEqual([
+				"ssh",
+				"-T",
+				"-o",
+				"ExitOnForwardFailure=yes",
+				"-L",
+				"4596:127.0.0.1:3587",
+				"devbox",
+				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && CODEX_APP_SERVER_CODEX_COMMAND=''\\''/opt/codex'\\''' exec '/opt/codex-workspace-backend-local' 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/work/it'\\''s here'",
+			]);
+		});
+
+		test("plans remote Codex and backend command args without wrappers", () => {
+			const plan = createSshSpawnBackendPlan({
+				sshTarget: "devbox",
+				cwd: "/repo",
+				localPort: 4596,
+				remotePort: 3587,
+				timeoutMs: 1_000,
+				env: {
+					CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/opt/codex",
+					CODEX_FLOWS_REMOTE_CODEX_ARGS: "[\"-s\",\"danger-full-access\"]",
+					CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND: "/opt/backend",
+					CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS: "[\"--verbose\"]",
+				},
+			});
+			expect(plan.command.at(-1)).toBe(
+				"cd '/repo' && CODEX_APP_SERVER_CODEX_COMMAND=''\\''/opt/codex'\\'' '\\''-s'\\'' '\\''danger-full-access'\\''' exec '/opt/backend' '--verbose' 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/repo'",
+			);
+		});
 
 	test("plans direct app-server stdio over SSH", () => {
 		const plan = createSshAppServerPlan({
@@ -76,13 +95,13 @@ describe("SSH remote provider", () => {
 				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/opt/codex",
 			},
 		});
-		expect(plan.command).toEqual([
-			"ssh",
-			"-T",
-			"devbox",
-			"cd '/repo' && exec /opt/codex 'app-server' '--listen' 'stdio://' '--enable' 'apps' '--enable' 'hooks'",
-		]);
-	});
+			expect(plan.command).toEqual([
+				"ssh",
+				"-T",
+				"devbox",
+				"cd '/repo' && exec '/opt/codex' 'app-server' '--listen' 'stdio://' '--enable' 'apps' '--enable' 'hooks'",
+			]);
+		});
 
 	test("resolves env defaults and remote mode", () => {
 		expect(resolveSshRemoteOptions({
@@ -94,21 +113,25 @@ describe("SSH remote provider", () => {
 				CODEX_FLOWS_REMOTE_TUNNEL_PORT: "4597",
 				CODEX_FLOWS_REMOTE_BACKEND_HOST: "127.0.0.2",
 				CODEX_FLOWS_REMOTE_BACKEND_PORT: "3590",
-				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/env/node/bin:/env/bun/bin",
-				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/env/codex",
-				CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND: "/env/backend",
-			},
-		})).toMatchObject({
+					CODEX_FLOWS_REMOTE_PATH_PREPEND: "/env/node/bin:/env/bun/bin",
+					CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/env/codex",
+					CODEX_FLOWS_REMOTE_CODEX_ARGS: "[\"-s\",\"danger-full-access\"]",
+					CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND: "/env/backend",
+					CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS: "[\"--log-level\",\"debug\"]",
+				},
+			})).toMatchObject({
 			sshTarget: "envbox",
 			cwd: "/env/repo",
 			remoteMode: "spawn",
 			localPort: 4597,
 			remoteHost: "127.0.0.2",
 			remotePort: 3590,
-			remotePathPrepend: "/env/node/bin:/env/bun/bin",
-			remoteCodexCommand: "/env/codex",
-			remoteWorkspaceBackendCommand: "/env/backend",
-		});
+				remotePathPrepend: "/env/node/bin:/env/bun/bin",
+				remoteCodexCommand: "/env/codex",
+				remoteCodexArgs: ["-s", "danger-full-access"],
+				remoteWorkspaceBackendCommand: "/env/backend",
+				remoteWorkspaceBackendArgs: ["--log-level", "debug"],
+			});
 		expect(parseRemoteMode(undefined)).toBe("spawn");
 		expect(() => parseRemoteMode("bad")).toThrow(
 			"--remote-mode must be existing or spawn",

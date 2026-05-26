@@ -109,10 +109,14 @@ function authJsonFromEnv(
 
 function parseAuthJson(text: string, source: string): unknown {
 	try {
-		return JSON.parse(text) as unknown;
+		return JSON.parse(stripJsonBom(text)) as unknown;
 	} catch (error) {
 		throw new Error(`${source} must contain JSON: ${errorMessage(error)}`);
 	}
+}
+
+function stripJsonBom(text: string): string {
+	return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
 async function listFiles(

@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { parseJsonText } from "./json.ts";
 import type { WorkspaceContext } from "./workspace-autonomy.ts";
 
 export const LOCAL_BACKEND_ENV_RELATIVE_PATH = ".codex/workspace/backend.local.env";
@@ -414,9 +415,10 @@ async function findPluginHookFiles(
 
 async function pluginName(pluginRoot: string): Promise<string | undefined> {
 	try {
-		const manifest = JSON.parse(
-			await readFile(path.join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
-		) as { name?: unknown };
+			const manifest = parseJsonText(
+				await readFile(path.join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
+				path.join(pluginRoot, ".codex-plugin", "plugin.json"),
+			) as { name?: unknown };
 		return typeof manifest.name === "string" ? manifest.name : undefined;
 	} catch {
 		return undefined;

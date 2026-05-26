@@ -4,6 +4,7 @@ import { CodexAppServerClient } from "../app-server/client.ts";
 import { CodexStdioTransport } from "../app-server/stdio-transport.ts";
 import { CodexWebSocketTransport } from "../app-server/websocket-transport.ts";
 import { WORKSPACE_BACKEND_INITIALIZE_METHOD } from "../workspace-backend/protocol.ts";
+import { parseJsonText } from "./json.ts";
 
 export type RemoteMode = "existing" | "spawn";
 
@@ -15,6 +16,10 @@ export type SshRemoteProviderOptions = {
 	remoteHost?: string;
 	remotePort?: number;
 	remotePathPrepend?: string;
+	remoteCodexCommand?: string;
+	remoteCodexArgs?: string[];
+	remoteWorkspaceBackendCommand?: string;
+	remoteWorkspaceBackendArgs?: string[];
 	timeoutMs: number;
 	env?: Record<string, string | undefined>;
 };
@@ -29,7 +34,9 @@ export type ResolvedSshRemoteOptions = {
 	remotePathPrepend?: string;
 	sshCommand: string;
 	remoteCodexCommand: string;
+	remoteCodexArgs: string[];
 	remoteWorkspaceBackendCommand: string;
+	remoteWorkspaceBackendArgs: string[];
 	timeoutMs: number;
 };
 
@@ -80,10 +87,13 @@ export function resolveSshRemoteOptions(
 			"SSH remote provider requires --ssh <target> or CODEX_FLOWS_REMOTE_SSH_TARGET",
 		);
 	}
-	const remoteCodexCommand = env.CODEX_FLOWS_REMOTE_CODEX_COMMAND ?? "codex";
+	const remoteCodexCommand = options.remoteCodexCommand ??
+		env.CODEX_FLOWS_REMOTE_CODEX_COMMAND ??
+		"codex";
 	const remoteWorkspaceBackendCommand =
+		options.remoteWorkspaceBackendCommand ??
 		env.CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND ??
-			"codex-workspace-backend-local";
+		"codex-workspace-backend-local";
 	rejectInlineEnvCommand(
 		"CODEX_FLOWS_REMOTE_CODEX_COMMAND",
 		remoteCodexCommand,
@@ -112,7 +122,16 @@ export function resolveSshRemoteOptions(
 			: {}),
 		sshCommand: env.CODEX_FLOWS_SSH_COMMAND ?? "ssh",
 		remoteCodexCommand,
+		remoteCodexArgs: options.remoteCodexArgs ??
+			envJsonStringArray(env.CODEX_FLOWS_REMOTE_CODEX_ARGS, "CODEX_FLOWS_REMOTE_CODEX_ARGS") ??
+			[],
 		remoteWorkspaceBackendCommand,
+		remoteWorkspaceBackendArgs: options.remoteWorkspaceBackendArgs ??
+			envJsonStringArray(
+				env.CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS,
+				"CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS",
+			) ??
+			[],
 		timeoutMs: options.timeoutMs,
 	};
 }
@@ -149,12 +168,22 @@ export function createSshSpawnBackendPlan(
 		"--local-app-server",
 		...(resolved.cwd ? ["--cwd", resolved.cwd] : []),
 	];
-	const envPrefix = resolved.remoteCodexCommand === "codex"
+	const codexCommand = shellCommand(
+		resolved.remoteCodexCommand,
+		resolved.remoteCodexArgs,
+	);
+	const envPrefix = resolved.remoteCodexCommand === "codex" &&
+			resolved.remoteCodexArgs.length === 0
 		? ""
-		: `CODEX_APP_SERVER_CODEX_COMMAND=${shellQuote(resolved.remoteCodexCommand)} `;
+		: `CODEX_APP_SERVER_CODEX_COMMAND=${shellQuote(codexCommand)} `;
 	const remoteCommand = withRemoteBootstrap(
 		resolved,
-		`${envPrefix}exec ${shellCommand(resolved.remoteWorkspaceBackendCommand, args)}`,
+		`${envPrefix}exec ${
+			shellCommand(resolved.remoteWorkspaceBackendCommand, [
+				...resolved.remoteWorkspaceBackendArgs,
+				...args,
+			])
+		}`,
 	);
 	return {
 		kind: "spawn-backend",
@@ -188,7 +217,10 @@ export function createSshAppServerPlan(
 	];
 	const remoteCommand = withRemoteBootstrap(
 		resolved,
-		`exec ${shellCommand(resolved.remoteCodexCommand, args)}`,
+		`exec ${shellCommand(resolved.remoteCodexCommand, [
+			...resolved.remoteCodexArgs,
+			...args,
+		])}`,
 	);
 	return {
 		kind: "app-server",
@@ -214,10 +246,10 @@ export async function startSshWorkspaceBackend(
 				"ssh-existing-backend",
 				resolved.timeoutMs,
 			);
-		} catch (error) {
-			failures.push(`existing backend: ${errorMessage(error)}`);
-			throw remoteProviderError(failures);
-		}
+			} catch (error) {
+				failures.push(`existing backend: ${errorMessage(error)}`);
+				throw remoteProviderError(failures, resolved);
+			}
 	}
 	try {
 		return await startWorkspacePlan(
@@ -228,7 +260,7 @@ export async function startSshWorkspaceBackend(
 	} catch (error) {
 		failures.push(`spawn backend: ${errorMessage(error)}`);
 	}
-	throw remoteProviderError(failures);
+	throw remoteProviderError(failures, resolved);
 }
 
 export function createSshAppServerClient(
@@ -380,7 +412,7 @@ function withRemoteBootstrap(
 }
 
 function shellCommand(command: string, args: string[]): string {
-	return [command, ...args.map(shellQuote)].join(" ");
+	return [shellQuote(command), ...args.map(shellQuote)].join(" ");
 }
 
 function shellQuote(value: string): string {
@@ -422,13 +454,25 @@ function signalChild(child: ChildProcess, signal: NodeJS.Signals): void {
 
 function processOutputSuffix(processHandle: ProcessHandle): string {
 	const output = [...processHandle.stderr, ...processHandle.stdout].join("").trim();
-	return output ? `\n${output}` : "";
+	return output ? `\n${redact(output).split(/\r?\n/).slice(0, 20).join("\n")}` : "";
 }
 
-function remoteProviderError(failures: string[]): Error {
+function remoteProviderError(
+	failures: string[],
+	resolved: ResolvedSshRemoteOptions,
+): Error {
 	return new Error(
 		[
 			"SSH remote provider could not connect to a workspace backend.",
+			`target: ${resolved.sshTarget}`,
+			`cwd: ${resolved.cwd ?? "(not set)"}`,
+			`remote path prepend: ${resolved.remotePathPrepend ?? "(not set)"}`,
+			`remote codex command: ${
+				[resolved.remoteCodexCommand, ...resolved.remoteCodexArgs].join(" ")
+			}`,
+			`remote workspace backend command: ${
+				[resolved.remoteWorkspaceBackendCommand, ...resolved.remoteWorkspaceBackendArgs].join(" ")
+			}`,
 			...failures.map((failure) => `- ${failure}`),
 			"Ensure the remote non-interactive SSH environment has node, codex-workspace-backend-local, and codex on PATH.",
 			"Set CODEX_FLOWS_REMOTE_PATH_PREPEND for remote bin directories, or use absolute CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND / CODEX_FLOWS_REMOTE_CODEX_COMMAND values.",
@@ -457,6 +501,23 @@ function rejectInlineEnvCommand(label: string, command: string): void {
 				"Set CODEX_FLOWS_REMOTE_PATH_PREPEND for PATH changes or use an absolute command path.",
 		);
 	}
+}
+
+function redact(value: string): string {
+	return value
+		.replace(/(token|password|secret|key)=\S+/gi, "$1=<redacted>")
+		.replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+=*/g, "$1<redacted>");
+}
+
+function envJsonStringArray(value: string | undefined, label: string): string[] | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const parsed = parseJsonText(value, label);
+	if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== "string")) {
+		throw new Error(`${label} must be a JSON array of strings`);
+	}
+	return parsed as string[];
 }
 
 function errorMessage(error: unknown): string {

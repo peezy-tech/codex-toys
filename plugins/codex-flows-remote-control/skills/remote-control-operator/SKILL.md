@@ -52,6 +52,7 @@ Selection rules:
 Build commands from the discovered values:
 
 ```bash
+codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> remote preflight
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> fetch
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> workspace doctor
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> automation run <name> --event event.json
@@ -75,7 +76,7 @@ codex-flows --ssh workbox --cwd /srv/repo fetch
 Before running CodexFlows, verify the local shell can use the same connection:
 
 ```bash
-ssh <discovered-host-or-alias> 'cd <discovered-remote-project-path> && command -v node && command -v codex && command -v codex-workspace-backend-local'
+codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> remote preflight
 ```
 
 If this fails because Codex App has a managed identity but OpenSSH does not,
@@ -92,11 +93,12 @@ machine with `codex-flows --ssh ...`.
 Start with an explicit remote target and remote workspace cwd:
 
 ```bash
+codex-flows --ssh <user@host> --cwd <remote-workspace> remote preflight
 codex-flows --ssh <user@host> --cwd <remote-workspace> fetch
 codex-flows --ssh <user@host> --cwd <remote-workspace> workspace doctor
-codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json
-codex-flows --ssh <user@host> --cwd <remote-workspace> remote turn start --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
+codex-flows --ssh <user@host> --cwd <remote-workspace> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 Use `--remote-mode spawn` by default. It starts a transient remote
@@ -118,15 +120,18 @@ CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
 CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
 CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/user/.local/bin:/home/user/.bun/bin:/home/user/.cargo/bin
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
+CODEX_FLOWS_REMOTE_CODEX_ARGS=["-s","danger-full-access"]
 CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
+CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS=["--verbose"]
 ```
 
 Non-interactive SSH may not load the same PATH as an interactive shell. Use
 `CODEX_FLOWS_REMOTE_PATH_PREPEND` for remote Node, Bun, Cargo, and local bin
 directories, or use absolute `CODEX_FLOWS_REMOTE_CODEX_COMMAND` and
-`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` values. Keep environment setup
-out of `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND`; do not use inline
-`PATH=... command` there.
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` values. Use the JSON-array args
+variables when a remote command needs flags. Keep environment setup out of
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND`; do not use inline `PATH=...
+command` there.
 
 If a remote binary is missing, report the command hint. The local machine needs
 `codex-flows`; the remote machine needs `node`, `codex`, and
@@ -199,7 +204,7 @@ codex-flows remote status --workspace-url ws://127.0.0.1:3586
 Start a turn on the remote backend:
 
 ```bash
-codex-flows remote turn start --via workspace --prompt "Check workspace status"
+codex-flows remote turn start --via workspace --prompt "Check workspace status" --wait
 ```
 
 Use `--cwd <path>` when the remote app-server should start the thread in a
@@ -208,7 +213,7 @@ specific remote workspace path.
 For the one-shot SSH provider path, start the turn directly through `--ssh`:
 
 ```bash
-codex-flows --ssh <user@host> --cwd <remote-workspace> remote turn start --via workspace --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
+codex-flows --ssh <user@host> --cwd <remote-workspace> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 ## Troubleshooting
@@ -227,3 +232,5 @@ codex-flows --ssh <user@host> --cwd <remote-workspace> remote turn start --via w
 - `remote turn start` cannot run shell commands: retry with
   `--sandbox danger-full-access` or a named `--permissions <profile>` that
   exists on the remote Codex config.
+- Inline JSON fails on PowerShell: use `--params-json $params` or
+  `--params-file params.json`.

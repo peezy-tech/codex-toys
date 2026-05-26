@@ -58,14 +58,13 @@ remote target.
 Start with a probe:
 
 ```bash
+codex-flows --ssh <user@host> --cwd <remote-workspace> remote preflight
 codex-flows --ssh <user@host> --cwd <remote-workspace> fetch
 codex-flows --ssh <user@host> --cwd <remote-workspace> workspace doctor
 ```
 
 Provider modes:
 
-- `auto`: probe an existing remote backend, then spawn a transient remote
-  `codex-workspace-backend-local serve --local-app-server`.
 - `existing`: require a remote backend already listening on the configured
   host/port.
 - `spawn`: always own a transient remote backend for this command.
@@ -75,8 +74,8 @@ Examples:
 ```bash
 codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode existing workspace methods
 codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode spawn automation run check-release --event event.json
-codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh <user@host> --cwd <remote-workspace> remote turn start --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
+codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh <user@host> --cwd <remote-workspace> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 Do not auto-install remote binaries. The local side needs `codex-flows`; the
@@ -112,7 +111,7 @@ With a manual tunnel up, a remote turn can still be started through the
 tunneled backend:
 
 ```bash
-codex-flows remote turn start --via workspace --prompt "Check workspace status"
+codex-flows remote turn start --via workspace --prompt "Check workspace status" --wait
 ```
 
 ## Checks

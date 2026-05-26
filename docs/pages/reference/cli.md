@@ -32,9 +32,10 @@ leaving local credentials alone.
 
 ```bash
 codex-flows remote status [--json]
+codex-flows --ssh <target> --cwd <remote-workspace> remote preflight [--json]
 codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
-codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>]
-codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text>
+codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>] [--wait]
+codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text> [--wait]
 ```
 
 These commands are for the local-Codex-App-to-remote-VPS use case. `remote
@@ -42,20 +43,24 @@ status` probes both the local app-server `remoteControl/status/read` method and
 the configured workspace backend URL. No backend is a valid status result, not a
 fatal setup error. `remote tunnel start` runs an OpenSSH local forward from
 `127.0.0.1:<local-port>` to the remote backend address, defaulting to
-`127.0.0.1:3586` on both sides. `remote turn start` creates a thread and starts
-a turn through the workspace backend tunnel when available. With `--ssh`, it
-uses the same transient or existing SSH-backed provider as `fetch`,
-`workspace`, `app`, and `automation`.
+`127.0.0.1:3586` on both sides. `remote preflight` checks SSH reachability,
+remote cwd, remote Node/Codex/backend commands, transient backend startup, and
+app-server pass-through. `remote turn start` creates a thread and starts a turn
+through the workspace backend tunnel when available. With `--wait`, it polls the
+turn until completion and prints the final assistant message. With `--ssh`, it
+uses the same transient or existing SSH-backed provider as `fetch`, `workspace`,
+`app`, and `automation`.
 
 The global `--ssh` provider is the remote-first automation path. App-server,
 workspace backend, automation, and fetch commands can run locally while
 targeting a remote workspace:
 
 ```bash
-codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo remote preflight
+codex-flows --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh devbox --cwd /repo workspace delegation.list
 codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
-codex-flows --ssh devbox --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Scan current folder"
+codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 By default the provider starts a transient `codex-workspace-backend-local serve
@@ -75,6 +80,9 @@ Useful options and environment:
 --remote-port 3586
 --remote-mode spawn
 --remote-path-prepend /home/me/.local/bin:/home/me/.bun/bin:/home/me/.cargo/bin
+--remote-codex-command /home/me/.local/bin/codex
+--remote-codex-arg -s --remote-codex-arg danger-full-access
+--remote-workspace-backend-command /home/me/.bun/bin/codex-workspace-backend-local
 
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@tailscale-host>
 CODEX_FLOWS_REMOTE_CWD=/repo
@@ -84,7 +92,9 @@ CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
 CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
 CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/me/.local/bin:/home/me/.bun/bin:/home/me/.cargo/bin
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
+CODEX_FLOWS_REMOTE_CODEX_ARGS=["-s","danger-full-access"]
 CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
+CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS=["--verbose"]
 ```
 
 Remote commands run through non-interactive SSH, so login-shell PATH setup may
@@ -92,6 +102,19 @@ not apply. Prefer `CODEX_FLOWS_REMOTE_PATH_PREPEND` for remote bin directories
 or absolute command overrides. Do not rely on inline `PATH=... command` strings
 inside `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND`; keep command lookup and
 remote environment setup separate.
+
+## Turn Run
+
+```bash
+codex-flows turn run <prompt> [--wait] [--thread-id <id>]
+codex-flows --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
+```
+
+`turn run` is the prompt primitive for local and SSH-backed workspaces. It starts
+or reuses a Codex thread, starts a turn, prints the thread and turn ids, and with
+`--wait` blocks until the turn completes or the timeout expires. `--sandbox` and
+`--permissions` are mutually exclusive. Use `--json` for machine-readable
+`threadId`, `turnId`, `status`, `cwd`, `finalMessage`, and `error` output.
 
 ## Turn Automation
 
@@ -136,6 +159,8 @@ the remote workspace through the SSH provider. See [Turn automation](../guides/t
 
 ```bash
 codex-flows app <method> [params-json]
+codex-flows app <method> --params-json <json>
+codex-flows app <method> --params-file params.json
 codex-flows app call <method> [params-json]
 echo '<params-json>' | codex-flows app <method>
 codex-flows app actions
@@ -143,14 +168,27 @@ codex-flows app actions
 
 The direct app-server path defaults to `CODEX_WORKSPACE_APP_SERVER_WS_URL` or
 `ws://127.0.0.1:3585`. Use `--app-url`, `--app-server-url`, `--url`, or
-`--ws-url` to override it. Use `stdio://` to spawn a local app-server.
+`--ws-url` to override it. Use `stdio://` to spawn a local app-server. On
+PowerShell, prefer `--params-json $params` or `--params-file params.json`:
+
+```powershell
+$params = @{ limit = 20; sourceKinds = @() } | ConvertTo-Json -Compress
+codex-flows app thread/list --params-json $params
+
+@{ threadId = "019e..." } | ConvertTo-Json -Compress | Set-Content params.json
+codex-flows app thread/turns/list --params-file params.json
+```
 
 ## Workspace Backend Calls
 
 ```bash
 codex-flows workspace <method> [params-json]
+codex-flows workspace <method> --params-json <json>
+codex-flows workspace <method> --params-file params.json
 codex-flows workspace call <method> [params-json]
 codex-flows workspace app <method> [params-json]
+codex-flows workspace app <method> --params-json <json>
+codex-flows workspace app <method> --params-file params.json
 codex-flows workspace methods
 ```
 
@@ -320,16 +358,25 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--no-backup` | Disable overwrite or merge backups. |
 | `--forgejo` | Generate a Forgejo workflow with `workspace init actions`. |
 | `--github` | Generate a GitHub Actions workflow with `workspace init actions`. |
+| `--wait` | Wait for `turn run` or `remote turn start` completion and print the final assistant message. |
+| `--thread-id <id>` | Reuse an existing thread for `turn run` or `remote turn start`. |
+| `--model <model>` | Model override for `turn run` or `remote turn start`. |
+| `--params-json <json>` | Explicit JSON params for `app`, `workspace`, or `workspace app` calls. |
+| `--params-file <path>` | Read JSON params for `app`, `workspace`, or `workspace app` calls from a file. UTF-8 BOMs are tolerated. |
 | `--via <workspace\|app>` | Turn surface for remote turns and automation. Defaults to `workspace`. |
-| `--sandbox <danger-full-access\|workspace-write\|read-only>` | Sandbox for `remote turn start`. |
-| `--approval-policy <never\|on-failure\|on-request\|untrusted>` | Approval policy for `remote turn start`. |
-| `--permissions <profile>` | Named permissions profile for `remote turn start`; cannot be combined with `--sandbox`. |
+| `--sandbox <danger-full-access\|workspace-write\|read-only>` | Sandbox for `turn run` or `remote turn start`. |
+| `--approval-policy <never\|on-failure\|on-request\|untrusted>` | Approval policy for `turn run` or `remote turn start`. |
+| `--permissions <profile>` | Named permissions profile for `turn run` or `remote turn start`; cannot be combined with `--sandbox`. |
 | `--ssh`, `--ssh-target <target>` | SSH target for remote CodexFlows operation. |
 | `--remote-mode <existing\|spawn>` | SSH backend mode. Defaults to `spawn`; `existing` only tunnels to an already-running backend. |
 | `--local-port <port>` | Local SSH tunnel port. Defaults to `3586`. |
 | `--remote-host <host>` | Remote backend bind host. Defaults to `127.0.0.1`. |
 | `--remote-port <port>` | Remote backend port. Defaults to `3586`. |
 | `--remote-path-prepend <paths>` | Colon-separated remote PATH entries for non-interactive SSH commands. |
+| `--remote-codex-command <cmd>` | Remote Codex command path/name. |
+| `--remote-codex-arg <arg>` | Extra remote Codex command arg; repeatable. |
+| `--remote-workspace-backend-command <cmd>` | Remote workspace backend command path/name. |
+| `--remote-workspace-backend-arg <arg>` | Extra remote backend command arg; repeatable. |
 | `--cwd <path>` | Remote workspace cwd when used with `--ssh`. |
 
 ## Environment
@@ -352,4 +399,6 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_FLOWS_REMOTE_BACKEND_PORT` | Default remote backend port. |
 | `CODEX_FLOWS_REMOTE_PATH_PREPEND` | Colon-separated remote PATH entries prepended before transient SSH commands. |
 | `CODEX_FLOWS_REMOTE_CODEX_COMMAND` | Remote Codex command for transient workspace backend startup or explicit `--via app` turns. |
+| `CODEX_FLOWS_REMOTE_CODEX_ARGS` | JSON string array of extra remote Codex command args. |
 | `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` | Remote workspace backend command for transient SSH backend startup. |
+| `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS` | JSON string array of extra remote backend command args. |

@@ -126,8 +126,9 @@ start a turn through that backend:
 
 ```bash
 codex-flows remote status
+codex-flows --ssh <user@tailscale-host> --cwd /repo remote preflight
 codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
-codex-flows remote turn start --via workspace --prompt "Check workspace status"
+codex-flows remote turn start --via workspace --prompt "Check workspace status" --wait
 ```
 
 On the VPS, run the backend from the target workspace with
@@ -138,7 +139,7 @@ For one-shot automation, prefer the global SSH provider:
 
 ```bash
 codex-flows --ssh <user@tailscale-host> --cwd /repo automation run check-release --event event.json
-codex-flows --ssh <user@tailscale-host> --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
+codex-flows --ssh <user@tailscale-host> --cwd /repo turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 That command runs the automation script locally, then starts the resulting
@@ -149,9 +150,11 @@ The SSH provider starts commands through a non-interactive shell, so the VPS
 may not inherit login-shell PATH setup. Set `CODEX_FLOWS_REMOTE_PATH_PREPEND`
 for remote Node, Bun, Cargo, and local bin directories, or set absolute
 `CODEX_FLOWS_REMOTE_CODEX_COMMAND` and
-`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` values. The local machine needs
-`codex-flows`; the remote target needs `node`, `codex`, and
-`codex-workspace-backend-local`.
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` values. If a remote command needs
+flags, use `CODEX_FLOWS_REMOTE_CODEX_ARGS` or
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS` as JSON string arrays rather than
+wrapper scripts. The local machine needs `codex-flows`; the remote target needs
+`node`, `codex`, and `codex-workspace-backend-local`.
 
 ## What the plugin does not install
 

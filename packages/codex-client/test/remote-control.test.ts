@@ -42,7 +42,7 @@ describe("remote control operator", () => {
 		expect(info.recommendation.preferred).toBe("none");
 	});
 
-	test("probes a workspace backend and starts a turn through it", async () => {
+		test("probes a workspace backend and starts a turn through it", async () => {
 		const server = await startFakeWorkspaceBackend();
 		try {
 			const info = await collectRemoteStatusInfo({
@@ -91,9 +91,40 @@ describe("remote control operator", () => {
 		} finally {
 			await server.close();
 		}
-	});
+		});
 
-	test("rejects incompatible sandbox and permissions turn options", async () => {
+		test("waits for a started workspace turn and reads the final message", async () => {
+			const server = await startFakeWorkspaceBackend();
+			try {
+				const turn = await startRemoteTurn({
+					prompt: "hello remote",
+					cwd: "/srv/workspace",
+					via: "workspace",
+					workspaceUrl: server.url,
+					appUrl: `ws://127.0.0.1:${await unusedPort()}`,
+					timeoutMs: 1_000,
+					wait: true,
+				});
+				expect(turn).toMatchObject({
+					threadId: "thread-1",
+					turnId: "turn-1",
+					status: "completed",
+					finalMessage: "done from remote",
+					durationMs: 42,
+				});
+				expect(server.methods).toEqual([
+					"workspace.initialize",
+					"thread/start",
+					"turn/start",
+					"thread/turns/list",
+					"thread/turns/items/list",
+				]);
+			} finally {
+				await server.close();
+			}
+		});
+
+		test("rejects incompatible sandbox and permissions turn options", async () => {
 		await expect(startRemoteTurn({
 			prompt: "hello remote",
 			cwd: "/srv/workspace",
@@ -139,7 +170,8 @@ async function startFakeWorkspaceBackend(): Promise<{
 				result: fakeResult(method, message.params),
 			}));
 		});
-	});
+
+		});
 
 	return {
 		url: `ws://127.0.0.1:${address.port}`,
@@ -177,10 +209,38 @@ function fakeResult(method: string, params: unknown): unknown {
 		if (appMethod === "thread/start") {
 			return { thread: { id: "thread-1" } };
 		}
-		if (appMethod === "turn/start") {
-			return { turn: { id: "turn-1" } };
+			if (appMethod === "turn/start") {
+				return { turn: { id: "turn-1", status: "inProgress", items: [] } };
+			}
+			if (appMethod === "thread/turns/list") {
+				return {
+					data: [{
+						id: "turn-1",
+						status: "completed",
+						items: [],
+						durationMs: 42,
+						error: null,
+					}],
+					nextCursor: null,
+					backwardsCursor: null,
+				};
+			}
+			if (appMethod === "thread/turns/items/list") {
+				return {
+					data: [
+						{
+							type: "agentMessage",
+							id: "item-1",
+							text: "done from remote",
+							phase: null,
+							memoryCitation: null,
+						},
+					],
+					nextCursor: null,
+					backwardsCursor: null,
+				};
+			}
 		}
-	}
 	return {};
 }
 

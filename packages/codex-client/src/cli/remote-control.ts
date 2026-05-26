@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import type { v2 } from "../app-server/generated/index.ts";
 import { CodexAppServerClient } from "../app-server/client.ts";
 import { CodexWebSocketTransport } from "../app-server/websocket-transport.ts";
@@ -34,9 +35,15 @@ export type RemoteStatusInfo = {
 
 export type RemoteTurnStartResult = {
 	via: "workspace" | "app-server";
+	surface: "workspace" | "app-server";
 	url: string;
 	threadId: string;
 	turnId: string;
+	cwd?: string;
+	status: v2.TurnStatus | "accepted" | "timed_out";
+	finalMessage: string | null;
+	error: string | null;
+	durationMs: number | null;
 	thread: unknown;
 	turn: unknown;
 };
@@ -60,6 +67,8 @@ export type RemoteTunnelPlan = {
 	dryRun: boolean;
 };
 
+type AppServerRequest = <T = unknown>(method: string, params?: unknown) => Promise<T>;
+
 export async function collectRemoteStatusInfo(options: {
 	appUrl: string;
 	workspaceUrl: string;
@@ -76,14 +85,17 @@ export async function collectRemoteStatusInfo(options: {
 
 export async function startRemoteTurn(options: {
 	prompt: string;
+	threadId?: string;
 	cwd?: string;
 	via: RemoteVia;
 	appUrl: string;
 	workspaceUrl: string;
 	timeoutMs: number;
+	wait?: boolean;
 	sandbox?: v2.SandboxMode;
 	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
+	model?: string;
 } & SshRemoteProviderOptions): Promise<RemoteTurnStartResult> {
 	validateTurnOptions(options);
 	if (hasSshRemote(options)) {
@@ -170,11 +182,19 @@ export function formatRemoteStatusInfo(info: RemoteStatusInfo): string {
 }
 
 export function formatRemoteTurnStartResult(result: RemoteTurnStartResult): string {
-	return [
+	const lines = [
 		`turn surface        ${result.via} (${result.url})`,
 		`thread id           ${result.threadId}`,
 		`turn id             ${result.turnId}`,
-	].join("\n") + "\n";
+		`status              ${result.status}`,
+	];
+	if (result.finalMessage) {
+		lines.push("", result.finalMessage);
+	}
+	if (result.error) {
+		lines.push(`error               ${result.error}`);
+	}
+	return lines.join("\n") + "\n";
 }
 
 export function formatRemoteTunnelPlan(plan: RemoteTunnelPlan): string {
@@ -304,12 +324,15 @@ async function probeAppServerRemoteControlWebSocket(options: {
 
 async function startTurnViaWorkspace(options: {
 	prompt: string;
+	threadId?: string;
 	cwd?: string;
 	workspaceUrl: string;
 	timeoutMs: number;
+	wait?: boolean;
 	sandbox?: v2.SandboxMode;
 	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
+	model?: string;
 }): Promise<RemoteTurnStartResult> {
 	const transport = new CodexWebSocketTransport({
 		url: options.workspaceUrl,
@@ -319,26 +342,13 @@ async function startTurnViaWorkspace(options: {
 	try {
 		return await withTimeout(async () => {
 			await initializeWorkspaceTransport(transport);
-			const threadResponse = await workspaceAppServerRequest(
-				transport,
-				"thread/start",
-				threadStartParams(options),
+			return await startTurnWithRequest(
+				"workspace",
+				options.workspaceUrl,
+				options,
+				async (method, params) =>
+					await workspaceAppServerRequest(transport, method, params),
 			);
-			const threadId = nestedId(threadResponse, "thread", "thread/start");
-			const turnResponse = await workspaceAppServerRequest(
-				transport,
-				"turn/start",
-				turnStartParams(threadId, options),
-			);
-			const turnId = nestedId(turnResponse, "turn", "turn/start");
-			return {
-				via: "workspace",
-				url: options.workspaceUrl,
-				threadId,
-				turnId,
-				thread: record(threadResponse).thread,
-				turn: record(turnResponse).turn,
-			};
 		}, options.timeoutMs, `workspace remote turn start timed out after ${
 			options.timeoutMs
 		}ms`);
@@ -350,12 +360,15 @@ async function startTurnViaWorkspace(options: {
 async function startTurnViaSshWorkspace(
 	options: {
 		prompt: string;
+		threadId?: string;
 		cwd?: string;
 		workspaceUrl: string;
 		timeoutMs: number;
+		wait?: boolean;
 		sandbox?: v2.SandboxMode;
 		approvalPolicy?: v2.AskForApproval;
 		permissions?: string;
+		model?: string;
 	} & SshRemoteProviderOptions,
 ): Promise<RemoteTurnStartResult> {
 	const backend = await startSshWorkspaceBackend(options);
@@ -371,12 +384,15 @@ async function startTurnViaSshWorkspace(
 
 async function startTurnViaAppServer(options: {
 	prompt: string;
+	threadId?: string;
 	cwd?: string;
 	appUrl: string;
 	timeoutMs: number;
+	wait?: boolean;
 	sandbox?: v2.SandboxMode;
 	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
+	model?: string;
 }): Promise<RemoteTurnStartResult> {
 	if (options.appUrl !== "stdio://") {
 		return await startTurnViaAppServerWebSocket(options);
@@ -388,12 +404,15 @@ async function startTurnViaAppServer(options: {
 async function startTurnViaSshAppServer(
 	options: {
 		prompt: string;
+		threadId?: string;
 		cwd?: string;
 		appUrl: string;
 		timeoutMs: number;
+		wait?: boolean;
 		sandbox?: v2.SandboxMode;
 		approvalPolicy?: v2.AskForApproval;
 		permissions?: string;
+		model?: string;
 	} & SshRemoteProviderOptions,
 ): Promise<RemoteTurnStartResult> {
 	const client = createSshAppServerClient(options, {
@@ -407,11 +426,14 @@ async function startTurnViaAppServerClient(
 	client: CodexAppServerClient,
 	options: {
 		prompt: string;
+		threadId?: string;
 		cwd?: string;
 		timeoutMs: number;
+		wait?: boolean;
 		sandbox?: v2.SandboxMode;
 		approvalPolicy?: v2.AskForApproval;
 		permissions?: string;
+		model?: string;
 	},
 	url: string,
 ): Promise<RemoteTurnStartResult> {
@@ -426,20 +448,12 @@ async function startTurnViaAppServerClient(
 	try {
 		return await withTimeout(async () => {
 			await client.connect();
-			const threadResponse = await client.startThread(threadStartParams(options));
-			const threadId = nestedId(threadResponse, "thread", "thread/start");
-			const turnResponse = await client.startTurn(
-				turnStartParams(threadId, options),
-			);
-			const turnId = nestedId(turnResponse, "turn", "turn/start");
-			return {
-				via: "app-server",
+			return await startTurnWithRequest(
+				"app-server",
 				url,
-				threadId,
-				turnId,
-				thread: record(threadResponse).thread,
-				turn: record(turnResponse).turn,
-			};
+				options,
+				async (method, params) => await client.request(method, params),
+			);
 		}, options.timeoutMs, `app-server remote turn start timed out after ${
 			options.timeoutMs
 		}ms`);
@@ -450,12 +464,15 @@ async function startTurnViaAppServerClient(
 
 async function startTurnViaAppServerWebSocket(options: {
 	prompt: string;
+	threadId?: string;
 	cwd?: string;
 	appUrl: string;
 	timeoutMs: number;
+	wait?: boolean;
 	sandbox?: v2.SandboxMode;
 	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
+	model?: string;
 }): Promise<RemoteTurnStartResult> {
 	const transport = new CodexWebSocketTransport({
 		url: options.appUrl,
@@ -465,24 +482,12 @@ async function startTurnViaAppServerWebSocket(options: {
 	try {
 		return await withTimeout(async () => {
 			await initializeAppServerTransport(transport);
-			const threadResponse = await transport.request(
-				"thread/start",
-				threadStartParams(options),
+			return await startTurnWithRequest(
+				"app-server",
+				options.appUrl,
+				options,
+				async (method, params) => await transport.request(method, params),
 			);
-			const threadId = nestedId(threadResponse, "thread", "thread/start");
-			const turnResponse = await transport.request(
-				"turn/start",
-				turnStartParams(threadId, options),
-			);
-			const turnId = nestedId(turnResponse, "turn", "turn/start");
-			return {
-				via: "app-server",
-				url: options.appUrl,
-				threadId,
-				turnId,
-				thread: record(threadResponse).thread,
-				turn: record(turnResponse).turn,
-			};
 		}, options.timeoutMs, `app-server remote turn start timed out after ${
 			options.timeoutMs
 		}ms`);
@@ -521,8 +526,10 @@ function threadStartParams(options: {
 	sandbox?: v2.SandboxMode;
 	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
+	model?: string;
 }): v2.ThreadStartParams {
 	return compactUndefined({
+		model: options.model,
 		cwd: options.cwd,
 		sandbox: options.sandbox,
 		approvalPolicy: options.approvalPolicy,
@@ -534,18 +541,20 @@ function threadStartParams(options: {
 
 function turnStartParams(
 	threadId: string,
-	options: {
-		prompt: string;
-		cwd?: string;
-		approvalPolicy?: v2.AskForApproval;
-		permissions?: string;
-	},
+		options: {
+			prompt: string;
+			cwd?: string;
+			approvalPolicy?: v2.AskForApproval;
+			permissions?: string;
+			model?: string;
+		},
 ): v2.TurnStartParams {
 	return compactUndefined({
 		threadId,
 		cwd: options.cwd,
 		approvalPolicy: options.approvalPolicy,
 		permissions: options.permissions,
+		model: options.model,
 		input: [
 			{
 				type: "text",
@@ -554,6 +563,175 @@ function turnStartParams(
 			},
 		],
 	});
+}
+
+async function startTurnWithRequest(
+	surface: "workspace" | "app-server",
+	url: string,
+	options: {
+		prompt: string;
+		threadId?: string;
+		cwd?: string;
+		timeoutMs: number;
+		wait?: boolean;
+		sandbox?: v2.SandboxMode;
+		approvalPolicy?: v2.AskForApproval;
+		permissions?: string;
+		model?: string;
+	},
+	request: AppServerRequest,
+): Promise<RemoteTurnStartResult> {
+	const startedAt = Date.now();
+	let threadResponse: unknown;
+	const threadId = options.threadId ??
+		nestedId(
+			threadResponse = await request("thread/start", threadStartParams(options)),
+			"thread",
+			"thread/start",
+		);
+	const turnResponse = await request("turn/start", turnStartParams(threadId, options));
+	const turn = record(record(turnResponse).turn);
+	const turnId = stringValue(turn.id) ?? nestedId(turnResponse, "turn", "turn/start");
+	const initialStatus = turnStatus(turn.status) ?? "accepted";
+	let status: RemoteTurnStartResult["status"] = initialStatus;
+	let finalMessage: string | null = null;
+	let error: string | null = null;
+	let durationMs: number | null = null;
+	if (options.wait) {
+		const waited = await waitForTurn({
+			threadId,
+			turnId,
+			timeoutMs: Math.max(1, options.timeoutMs - (Date.now() - startedAt) - 100),
+			request,
+		});
+		status = waited.status;
+		finalMessage = waited.finalMessage;
+		error = waited.error;
+		durationMs = waited.durationMs;
+	}
+	return {
+		via: surface,
+		surface,
+		url,
+		threadId,
+		turnId,
+		...(options.cwd ? { cwd: options.cwd } : {}),
+		status,
+		finalMessage,
+		error,
+		durationMs,
+		thread: threadResponse ? record(threadResponse).thread : null,
+		turn: record(turnResponse).turn,
+	};
+}
+
+async function waitForTurn(options: {
+	threadId: string;
+	turnId: string;
+	timeoutMs: number;
+	request: AppServerRequest;
+}): Promise<{
+	status: v2.TurnStatus | "timed_out";
+	finalMessage: string | null;
+	error: string | null;
+	durationMs: number | null;
+}> {
+	const deadline = Date.now() + options.timeoutMs;
+	let latestTurn: Record<string, unknown> | undefined;
+	while (Date.now() <= deadline) {
+		const response = await options.request<v2.ThreadTurnsListResponse>(
+			"thread/turns/list",
+			{
+				threadId: options.threadId,
+				limit: 50,
+				sortDirection: "desc",
+				itemsView: "summary",
+			},
+		);
+		latestTurn = arrayValue(record(response).data)
+			.map(record)
+			.find((turn) => stringValue(turn.id) === options.turnId);
+		const status = turnStatus(latestTurn?.status);
+		if (status && status !== "inProgress") {
+			const items = await readTurnItems(options);
+			return {
+				status,
+				finalMessage: finalAgentMessage(items),
+				error: turnError(latestTurn),
+				durationMs: numberValue(latestTurn?.durationMs),
+			};
+		}
+		await delay(Math.min(500, Math.max(1, deadline - Date.now())));
+	}
+	return {
+		status: "timed_out",
+		finalMessage: latestTurn ? finalAgentMessage(arrayValue(latestTurn.items)) : null,
+		error: `turn did not complete within ${options.timeoutMs}ms`,
+		durationMs: null,
+	};
+}
+
+async function readTurnItems(options: {
+	threadId: string;
+	turnId: string;
+	request: AppServerRequest;
+}): Promise<unknown[]> {
+	try {
+		const response = await options.request<v2.ThreadTurnsItemsListResponse>(
+			"thread/turns/items/list",
+			{
+				threadId: options.threadId,
+				turnId: options.turnId,
+				limit: 200,
+				sortDirection: "asc",
+			},
+		);
+		return arrayValue(record(response).data);
+	} catch {
+		const response = await options.request<v2.ThreadTurnsListResponse>(
+			"thread/turns/list",
+			{
+				threadId: options.threadId,
+				limit: 50,
+				sortDirection: "desc",
+				itemsView: "full",
+			},
+		);
+		const turn = arrayValue(record(response).data)
+			.map(record)
+			.find((entry) => stringValue(entry.id) === options.turnId);
+		return arrayValue(turn?.items);
+	}
+}
+
+function finalAgentMessage(items: unknown[]): string | null {
+	for (const item of items.slice().reverse()) {
+		const entry = record(item);
+		if (entry.type === "agentMessage") {
+			const text = stringValue(entry.text);
+			if (text) {
+				return text;
+			}
+		}
+	}
+	return null;
+}
+
+function turnStatus(value: unknown): v2.TurnStatus | undefined {
+	if (
+		value === "completed" ||
+		value === "interrupted" ||
+		value === "failed" ||
+		value === "inProgress"
+	) {
+		return value;
+	}
+	return undefined;
+}
+
+function turnError(turn: Record<string, unknown> | undefined): string | null {
+	const error = record(turn?.error);
+	return stringValue(error.message) ?? null;
 }
 
 async function initializeWorkspaceTransport(
@@ -680,6 +858,14 @@ function record(value: unknown): Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 		? value as Record<string, unknown>
 		: {};
+}
+
+function arrayValue(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : [];
+}
+
+function numberValue(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function stringValue(value: unknown): string | undefined {
