@@ -61,6 +61,31 @@ test("explicit stdio command wins over package command", () => {
 	});
 });
 
+test("resolves extra Codex args from env JSON", () => {
+	expect(
+		resolveCodexStdioCommand(
+			{},
+			{
+				CODEX_APP_SERVER_CODEX_COMMAND: "/tmp/codex",
+				CODEX_APP_SERVER_CODEX_ARGS: "[\"-s\",\"danger-full-access\"]",
+			},
+		),
+	).toEqual({
+		command: "/tmp/codex",
+		args: [
+			"-s",
+			"danger-full-access",
+			"app-server",
+			"--listen",
+			"stdio://",
+			"--enable",
+			"apps",
+			"--enable",
+			"hooks",
+		],
+	});
+});
+
 function fakeAppServerSource(): string {
 	return `
 console.error("fake-ready");

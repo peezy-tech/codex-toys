@@ -168,14 +168,7 @@ export function createSshSpawnBackendPlan(
 		"--local-app-server",
 		...(resolved.cwd ? ["--cwd", resolved.cwd] : []),
 	];
-	const codexCommand = shellCommand(
-		resolved.remoteCodexCommand,
-		resolved.remoteCodexArgs,
-	);
-	const envPrefix = resolved.remoteCodexCommand === "codex" &&
-			resolved.remoteCodexArgs.length === 0
-		? ""
-		: `CODEX_APP_SERVER_CODEX_COMMAND=${shellQuote(codexCommand)} `;
+	const envPrefix = appServerCodexEnvPrefix(resolved);
 	const remoteCommand = withRemoteBootstrap(
 		resolved,
 		`${envPrefix}exec ${
@@ -200,6 +193,23 @@ export function createSshSpawnBackendPlan(
 		],
 		remoteCommand,
 	};
+}
+
+function appServerCodexEnvPrefix(
+	resolved: Pick<ResolvedSshRemoteOptions, "remoteCodexCommand" | "remoteCodexArgs">,
+): string {
+	const assignments: string[] = [];
+	if (resolved.remoteCodexCommand !== "codex") {
+		assignments.push(
+			`CODEX_APP_SERVER_CODEX_COMMAND=${shellQuote(resolved.remoteCodexCommand)}`,
+		);
+	}
+	if (resolved.remoteCodexArgs.length > 0) {
+		assignments.push(
+			`CODEX_APP_SERVER_CODEX_ARGS=${shellQuote(JSON.stringify(resolved.remoteCodexArgs))}`,
+		);
+	}
+	return assignments.length === 0 ? "" : `${assignments.join(" ")} `;
 }
 
 export function createSshAppServerPlan(

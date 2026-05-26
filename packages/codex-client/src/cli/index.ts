@@ -107,7 +107,7 @@ import {
 	initLocalWorkspaceBackend,
 	startLocalWorkspaceBackend,
 } from "./workspace-backend-setup.ts";
-import { parseJsonText, readJsonFile } from "./json.ts";
+import { parseJsonParamsText, readJsonFile } from "./json.ts";
 
 await main().catch((error) => {
 	process.stderr.write(`${errorMessage(error)}\n`);
@@ -1369,7 +1369,7 @@ async function readStdin(): Promise<string> {
 }
 
 function parseJson(text: string): unknown {
-	return parseJsonText(text, "JSON params");
+	return parseJsonParamsText(text, "JSON params");
 }
 
 function writeJson(value: unknown, pretty: boolean): void {

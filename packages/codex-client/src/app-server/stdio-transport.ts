@@ -209,7 +209,10 @@ export function resolveCodexStdioCommand(
 ): ResolvedCodexStdioCommand {
 	const explicitCommand = options.codexCommand ?? env.CODEX_APP_SERVER_CODEX_COMMAND;
 	const appServerSocket = options.appServerSocket ?? env.CODEX_WORKSPACE_APP_SERVER_SOCK;
-	const args = options.args ?? defaultCodexArgs(appServerSocket);
+	const args = [
+		...envJsonStringArray(env.CODEX_APP_SERVER_CODEX_ARGS, "CODEX_APP_SERVER_CODEX_ARGS"),
+		...(options.args ?? defaultCodexArgs(appServerSocket)),
+	];
 	if (explicitCommand?.trim()) {
 		return { command: explicitCommand, args };
 	}
@@ -230,6 +233,21 @@ export function resolveCodexStdioCommand(
 	}
 
 	return { command: DEFAULT_CODEX_COMMAND, args };
+}
+
+function envJsonStringArray(value: string | undefined, label: string): string[] {
+	if (!value?.trim()) {
+		return [];
+	}
+	const parsed = JSON.parse(stripJsonBom(value)) as unknown;
+	if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== "string")) {
+		throw new Error(`${label} must be a JSON array of strings`);
+	}
+	return parsed as string[];
+}
+
+function stripJsonBom(text: string): string {
+	return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
 function killChildProcessGroup(

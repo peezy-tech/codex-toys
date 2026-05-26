@@ -19,15 +19,15 @@ Upgrade the local Windows-side CLI to the released package that includes these
 fixes:
 
 ```powershell
-npm install -g @peezy.tech/codex-flows@0.132.7
+npm install -g @peezy.tech/codex-flows@0.132.8
 codex-flows fetch --no-color
 ```
 
-The `fetch` output should report `@peezy.tech/codex-flows@0.132.7`. If the
-local agent is running from a source checkout instead of npm, pull the `0.132.7`
+The `fetch` output should report `@peezy.tech/codex-flows@0.132.8`. If the
+local agent is running from a source checkout instead of npm, pull the `0.132.8`
 release commit or newer.
 
-Version `0.132.7` includes the first SSH provider fix set plus the remote
+Version `0.132.8` includes the first SSH provider fix set plus the remote
 workflow improvements below:
 
 - `remote turn start` accepts and uses the SSH provider when `--ssh` is set.
@@ -45,6 +45,10 @@ workflow improvements below:
 - Remote command args through `CODEX_FLOWS_REMOTE_CODEX_ARGS`,
   `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS`, `--remote-codex-arg`, and
   `--remote-workspace-backend-arg`.
+- Absolute `CODEX_FLOWS_REMOTE_CODEX_COMMAND` values are handed to the remote
+  backend without literal shell quotes.
+- `--params-json` tolerates the common PowerShell-stripped form such as
+  `{limit:3,sourceKinds:[]}`.
 
 Before retrying, make sure the local shell resolves this upgraded CLI. The
 Codex plugin/skill alone is not enough; the local shell must be able to run

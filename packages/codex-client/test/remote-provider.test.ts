@@ -53,8 +53,8 @@ describe("SSH remote provider", () => {
 					"/opt/codex-workspace-backend-local",
 				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/bun/bin",
 			},
-		});
-		expect(plan.workspaceUrl).toBe("ws://127.0.0.1:4596");
+			});
+			expect(plan.workspaceUrl).toBe("ws://127.0.0.1:4596");
 			expect(plan.command).toEqual([
 				"ssh",
 				"-T",
@@ -63,7 +63,7 @@ describe("SSH remote provider", () => {
 				"-L",
 				"4596:127.0.0.1:3587",
 				"devbox",
-				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && CODEX_APP_SERVER_CODEX_COMMAND=''\\''/opt/codex'\\''' exec '/opt/codex-workspace-backend-local' 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/work/it'\\''s here'",
+				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && CODEX_APP_SERVER_CODEX_COMMAND='/opt/codex' exec '/opt/codex-workspace-backend-local' 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/work/it'\\''s here'",
 			]);
 		});
 
@@ -82,7 +82,7 @@ describe("SSH remote provider", () => {
 				},
 			});
 			expect(plan.command.at(-1)).toBe(
-				"cd '/repo' && CODEX_APP_SERVER_CODEX_COMMAND=''\\''/opt/codex'\\'' '\\''-s'\\'' '\\''danger-full-access'\\''' exec '/opt/backend' '--verbose' 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/repo'",
+				"cd '/repo' && CODEX_APP_SERVER_CODEX_COMMAND='/opt/codex' CODEX_APP_SERVER_CODEX_ARGS='[\"-s\",\"danger-full-access\"]' exec '/opt/backend' '--verbose' 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/repo'",
 			);
 		});
 

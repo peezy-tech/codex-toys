@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/codex-flows",
-	"version": "0.132.7",
+	"version": "0.132.8",
 	"description": "Codex app-server clients, turn automation, workspace backend helpers, and runnable local backend bins.",
 	"type": "module",
 	"license": "Apache-2.0",

@@ -53,8 +53,9 @@ client.close();
 ```
 
 `CodexAppServerClient` defaults to a stdio transport that starts
-`codex app-server`. Set `CODEX_APP_SERVER_CODEX_COMMAND` or pass
-`transportOptions.codexCommand` when a specific binary should be used.
+`codex app-server`. Set `CODEX_APP_SERVER_CODEX_COMMAND`,
+`CODEX_APP_SERVER_CODEX_ARGS`, or pass `transportOptions.codexCommand` when a
+specific binary or launch flags should be used.
 
 Browser entry:
 

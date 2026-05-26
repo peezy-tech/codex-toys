@@ -6,13 +6,23 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "../src/cli/args.ts";
 import { formatFetchInfo, type FetchInfo } from "../src/cli/fetch.ts";
-import { parseJsonText } from "../src/cli/json.ts";
+import { parseJsonParamsText, parseJsonText } from "../src/cli/json.ts";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 describe("codex-flows CLI args", () => {
 	test("parses JSON text with a UTF-8 BOM", () => {
 		expect(parseJsonText("\uFEFF{\"ok\":true}", "params")).toEqual({ ok: true });
+	});
+
+	test("parses PowerShell-stripped JSON params", () => {
+		expect(parseJsonParamsText("{limit:3,sourceKinds:[]}", "params")).toEqual({
+			limit: 3,
+			sourceKinds: [],
+		});
+		expect(parseJsonParamsText("{threadId:019e649c-1452}", "params")).toEqual({
+			threadId: "019e649c-1452",
+		});
 	});
 
 	test("parses direct app-server calls", () => {

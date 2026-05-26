@@ -179,6 +179,10 @@ codex-flows app thread/list --params-json $params
 codex-flows app thread/turns/list --params-file params.json
 ```
 
+If an older PowerShell native-command mode strips JSON quotes before argv
+delivery, `--params-json` also accepts the common stripped shape for simple
+objects, for example `{limit:3,sourceKinds:[]}`.
+
 ## Workspace Backend Calls
 
 ```bash
@@ -361,7 +365,7 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--wait` | Wait for `turn run` or `remote turn start` completion and print the final assistant message. |
 | `--thread-id <id>` | Reuse an existing thread for `turn run` or `remote turn start`. |
 | `--model <model>` | Model override for `turn run` or `remote turn start`. |
-| `--params-json <json>` | Explicit JSON params for `app`, `workspace`, or `workspace app` calls. |
+| `--params-json <json>` | Explicit JSON params for `app`, `workspace`, or `workspace app` calls; tolerates common PowerShell-stripped object keys. |
 | `--params-file <path>` | Read JSON params for `app`, `workspace`, or `workspace app` calls from a file. UTF-8 BOMs are tolerated. |
 | `--via <workspace\|app>` | Turn surface for remote turns and automation. Defaults to `workspace`. |
 | `--sandbox <danger-full-access\|workspace-write\|read-only>` | Sandbox for `turn run` or `remote turn start`. |
@@ -391,6 +395,7 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_AUTH_JSON` | Raw JSON auth payload consumed by `actions prepare-auth`. |
 | `OPENAI_API_KEY` | API key consumed by `actions prepare-auth` when JSON auth is not provided. |
 | `CODEX_APP_SERVER_CODEX_COMMAND` | Overrides the Codex command for stdio app-server launches. |
+| `CODEX_APP_SERVER_CODEX_ARGS` | JSON string array of extra args prepended before `app-server` for stdio app-server launches. |
 | `CODEX_FLOWS_REMOTE_SSH_TARGET` | Default SSH target for remote CodexFlows operation. |
 | `CODEX_FLOWS_REMOTE_CWD` | Default remote workspace cwd. |
 | `CODEX_FLOWS_REMOTE_MODE` | Default SSH backend mode: `existing` or `spawn`. |
