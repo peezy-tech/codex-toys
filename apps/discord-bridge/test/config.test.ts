@@ -201,8 +201,6 @@ describe("parseConfig", () => {
 				"workspace-forum",
 				"--task-threads-channel-id",
 				"task-channel",
-				"--flow-backend-url",
-				"http://127.0.0.1:8089",
 			],
 			{},
 		);
@@ -213,7 +211,6 @@ describe("parseConfig", () => {
 				CODEX_DISCORD_GATEWAY_MAIN_THREAD_ID: "env-thread",
 				CODEX_DISCORD_GATEWAY_WORKSPACE_FORUM_CHANNEL_ID: "env-workspace-forum",
 				CODEX_DISCORD_GATEWAY_TASK_THREADS_CHANNEL_ID: "env-task-channel",
-				CODEX_FLOW_BACKEND_URL: "http://127.0.0.1:8090",
 			},
 		);
 
@@ -226,14 +223,12 @@ describe("parseConfig", () => {
 				workspaceForumChannelId: "workspace-forum",
 				taskThreadsChannelId: "task-channel",
 			});
-			expect(fromFlag.config.flowBackendUrl).toBe("http://127.0.0.1:8089");
 			expect(fromEnv.config.workspace).toEqual({
 				homeChannelId: "env-home",
 				mainThreadId: "env-thread",
 				workspaceForumChannelId: "env-workspace-forum",
 				taskThreadsChannelId: "env-task-channel",
 			});
-			expect(fromEnv.config.flowBackendUrl).toBe("http://127.0.0.1:8090");
 		}
 	});
 

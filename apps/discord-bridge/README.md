@@ -24,7 +24,6 @@ CODEX_DISCORD_WORKSPACE_FORUM_CHANNEL_ID=1502107617512919221
 CODEX_DISCORD_TASK_THREADS_CHANNEL_ID=1502107617512919222
 CODEX_DISCORD_ALLOWED_CHANNEL_IDS=1502107617512919220
 CODEX_DISCORD_DIR=/home/peezy
-CODEX_FLOW_BACKEND_URL=http://127.0.0.1:8090
 CODEX_DISCORD_HOOK_SPOOL_DIR=/home/peezy/.codex/discord-bridge/stop-hooks
 ```
 
@@ -89,19 +88,16 @@ are attached only to that main thread and expose:
 - `set_delegation_policy`
 - `flush_delegation_results`
 - `list_delegation_groups`
-- `list_flow_runs`
-- `list_flow_events`
 
 Those tools can:
 
-- list tracked delegated Codex sessions and backend runs/events
+- list tracked delegated Codex sessions
 - start a delegated Codex session in a requested cwd
 - resume a delegated Codex session by thread id
 - send a turn to a delegated session
 - observe or summarize delegated session state
 - group delegations for fan-out/fan-in coordination
 - record completed delegation results into the main operator thread
-- inspect flow backend state through `CODEX_FLOW_BACKEND_URL`
 
 Workspace state stores delegation records, including optional Discord detail
 thread ids for noisy work. Delegated Codex sessions do not receive the privileged

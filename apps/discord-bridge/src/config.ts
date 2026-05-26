@@ -137,10 +137,6 @@ export function parseConfig(argv: string[], env: NodeJS.ProcessEnv): ParsedConfi
 			),
 			statePath,
 			workspace: workspaceConfig(args, env, cwd),
-			flowBackendUrl:
-				stringFlag(args, "flow-backend-url") ??
-				env.CODEX_FLOW_BACKEND_URL ??
-				env.CODEX_GATEWAY_BACKEND_URL,
 			cwd,
 			model: stringFlag(args, "model") ?? env.CODEX_DISCORD_MODEL,
 			modelProvider:
@@ -661,7 +657,6 @@ Options:
   --workspace-forum-channel-id <id>
                                   Optional workbench forum channel for workspace posts
   --task-threads-channel-id <id>  Optional workbench text channel for task threads
-  --flow-backend-url <url>        Optional workspace flow HTTP backend URL
   --hook-spool-dir <path>         Directory drained for Codex hook events
   [dir]                           Optional Codex thread directory, resolved from home
   --dir <path>                    Codex thread directory, resolved from home

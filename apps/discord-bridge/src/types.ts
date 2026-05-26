@@ -11,7 +11,6 @@ export type DiscordBridgeConfig = {
 	allowedChannelIds: Set<string>;
 	statePath: string;
 	workspace?: DiscordWorkspaceConfig;
-	flowBackendUrl?: string;
 	cwd?: string;
 	model?: string;
 	modelProvider?: string;

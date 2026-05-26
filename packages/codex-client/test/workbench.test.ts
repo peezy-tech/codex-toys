@@ -63,7 +63,7 @@ test("derives goal, plan, running command, activity, and final answer state", ()
 		params: {
 			threadId: "thread-1",
 			turnId: "turn-1",
-			item: dynamicToolItem("tool-1", "codex_workspace", "list_flow_runs", "completed"),
+			item: dynamicToolItem("tool-1", "codex_workspace", "list_delegations", "completed"),
 			completedAtMs: fixedNow.getTime(),
 		},
 	}, { now: fixedNow });
@@ -102,7 +102,7 @@ test("derives goal, plan, running command, activity, and final answer state", ()
 			expect.objectContaining({
 				itemId: "tool-1",
 				kind: "tool",
-				label: "codex_workspace.list_flow_runs",
+				label: "codex_workspace.list_delegations",
 				status: "completed",
 			}),
 		]),

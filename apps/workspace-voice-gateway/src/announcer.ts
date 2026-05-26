@@ -1,4 +1,3 @@
-import { createCodexFlowClient, type CodexFlowClient } from "@peezy.tech/codex-flows/flows";
 import type { ReasoningEffort, v2 } from "@peezy.tech/codex-flows/generated";
 import {
 	CodexWorkspaceBackendClient,
@@ -66,7 +65,6 @@ export class CodexTurnAnnouncer implements TurnAnnouncer {
 	#logger: Logger;
 	#clientOptions: Partial<CodexWorkspaceBackendClientOptions>;
 	#client?: CodexWorkspaceBackendClient;
-	#flow?: CodexFlowClient;
 	#threadId?: string;
 
 	constructor(options: CodexTurnAnnouncerOptions) {
@@ -85,37 +83,34 @@ export class CodexTurnAnnouncer implements TurnAnnouncer {
 	}
 
 	async polish(context: TurnCompletionContext): Promise<AnnouncerDecision> {
-		const flow = await this.#ensureFlow();
+		const client = await this.#ensureClient();
 		const threadId = await this.#ensureThread();
 		const prompt = JSON.stringify({
 			task: "polish-workspace-voice-announcement",
 			maxCharacters: this.#maxPhraseChars,
 			turn: context,
 		});
-		const result = await flow.startFlow({
+		const started = await client.startTurn({
 			threadId,
-			resume: false,
-			input: prompt,
+			input: [{ type: "text", text: prompt, text_elements: [] }],
 			model: this.#model,
 			cwd: this.#cwd,
 			approvalPolicy: "never",
-			sandbox: "read-only",
-			baseInstructions: announcerInstructions,
-			turn: {
-				effort: this.#reasoningEffort,
-				outputSchema: announcerOutputSchema(this.#maxPhraseChars),
-			},
-			wait: {
-				timeoutMs: this.#timeoutMs,
-				throwOnFailure: true,
-			},
+			sandboxPolicy: { type: "readOnly", networkAccess: false },
+			effort: this.#reasoningEffort,
+			outputSchema: announcerOutputSchema(this.#maxPhraseChars),
 		});
-		const text = result.completedTurn ? finalTextFromTurn(result.completedTurn) : "";
+		const completedTurn = await waitForTurn(client, {
+			threadId,
+			turnId: started.turn.id,
+			timeoutMs: this.#timeoutMs,
+		});
+		const text = finalTextFromTurn(completedTurn);
 		const decision = parseAnnouncerDecision(text);
 		if (!decision) {
 			this.#logger.warn("announcer.invalidOutput", {
-				threadId: result.threadId,
-				turnId: result.turnId,
+				threadId,
+				turnId: started.turn.id,
 			});
 			return new TemplateTurnAnnouncer().polish(context);
 		}
@@ -123,13 +118,12 @@ export class CodexTurnAnnouncer implements TurnAnnouncer {
 	}
 
 	close(): void {
-		this.#flow?.close();
 		this.#client?.close();
 	}
 
-	async #ensureFlow(): Promise<CodexFlowClient> {
-		if (this.#flow) {
-			return this.#flow;
+	async #ensureClient(): Promise<CodexWorkspaceBackendClient> {
+		if (this.#client) {
+			return this.#client;
 		}
 		this.#client = new CodexWorkspaceBackendClient({
 			...this.#clientOptions,
@@ -142,19 +136,12 @@ export class CodexTurnAnnouncer implements TurnAnnouncer {
 			clientTitle: "Codex Workspace Voice Announcer",
 			clientVersion: "0.1.0",
 		});
-		this.#flow = createCodexFlowClient({
-			client: this.#client,
-			closeInjectedClient: false,
-			clientName: "codex-workspace-voice-announcer",
-			clientTitle: "Codex Workspace Voice Announcer",
-			clientVersion: "0.1.0",
-		});
-		await this.#flow.connect();
-		return this.#flow;
+		await this.#client.connect();
+		return this.#client;
 	}
 
 	async #ensureThread(): Promise<string> {
-		await this.#ensureFlow();
+		await this.#ensureClient();
 		if (this.#threadId) {
 			return this.#threadId;
 		}
@@ -227,6 +214,41 @@ function announcerOutputSchema(
 			text: { type: "string", maxLength: maxPhraseChars },
 		},
 	};
+}
+
+async function waitForTurn(
+	client: CodexWorkspaceBackendClient,
+	options: {
+		threadId: string;
+		turnId: string;
+		timeoutMs: number;
+	},
+): Promise<v2.Turn> {
+	const startedAt = Date.now();
+	while (true) {
+		const response = await client.readThread({
+			threadId: options.threadId,
+			includeTurns: true,
+		});
+		const turn = response.thread.turns.find((entry) => entry.id === options.turnId);
+		if (!turn) {
+			throw new Error(`Announcer turn ${options.turnId} was not found`);
+		}
+		if (turn.status !== "inProgress") {
+			if (turn.status === "failed") {
+				throw new Error(turn.error?.message ?? `Announcer turn ${options.turnId} failed`);
+			}
+			return turn;
+		}
+		if (Date.now() - startedAt >= options.timeoutMs) {
+			throw new Error(`Timed out waiting for announcer turn ${options.turnId}`);
+		}
+		await delay(Math.min(1000, Math.max(0, options.timeoutMs - (Date.now() - startedAt))));
+	}
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function parseJsonObject(rawText: string): Record<string, unknown> | undefined {

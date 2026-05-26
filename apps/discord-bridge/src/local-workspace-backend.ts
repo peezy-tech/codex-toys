@@ -12,10 +12,6 @@ import {
 	type WorkspaceDelegation,
 	type WorkspacePendingWake,
 } from "@peezy.tech/codex-flows/workspace-backend";
-import {
-	createFlowBackendHttpClient,
-	type FlowBackendClient,
-} from "@peezy.tech/codex-flows/flow-runtime/backend-client";
 
 import type { DiscordConsoleOutput } from "./console-output.ts";
 import type {
@@ -137,7 +133,6 @@ export type LocalCodexWorkspaceBackendOptions = {
 	now?: () => Date;
 	logger?: DiscordBridgeLogger;
 	consoleOutput?: DiscordConsoleOutput;
-	flowBackendClient?: FlowBackendClient;
 };
 
 export class LocalCodexWorkspaceBackend implements CodexWorkspaceBackend {
@@ -156,7 +151,6 @@ export class LocalCodexWorkspaceBackend implements CodexWorkspaceBackend {
 	#workspaceStopHookWatcher: FSWatcher | undefined;
 	#workspaceStopHookDrainTimer: ReturnType<typeof setTimeout> | undefined;
 	#workspaceStopHookDrainChain: Promise<void> = Promise.resolve();
-	#flowBackendClient: FlowBackendClient | undefined;
 	#transportStarted = false;
 	#threadPickersByMessage = new Map<string, WorkspaceThreadPicker>();
 	#threadPickersById = new Map<string, WorkspaceThreadPicker>();
@@ -175,9 +169,8 @@ export class LocalCodexWorkspaceBackend implements CodexWorkspaceBackend {
 				debug: this.config.debug,
 				logLevel: this.config.logLevel,
 				now: this.#now,
-			});
+		});
 		this.#consoleOutput = options.consoleOutput;
-		this.#flowBackendClient = options.flowBackendClient;
 	}
 
 	async start(): Promise<void> {
@@ -1165,7 +1158,6 @@ export class LocalCodexWorkspaceBackend implements CodexWorkspaceBackend {
 			"",
 			"**Delegation Backend**",
 			`Status: ${state.workspace?.toolsVersion === workspaceToolsVersion ? "privileged workspace tools available to the main Codex operator thread" : "waiting for a tool-enabled main Codex operator thread"}.`,
-			`Flow backend: \`${this.config.flowBackendUrl ?? "not configured"}\``,
 			"",
 			"**Workbench**",
 			workbench
@@ -1288,12 +1280,6 @@ export class LocalCodexWorkspaceBackend implements CodexWorkspaceBackend {
 			return {
 				groups: this.#delegationGroups(),
 			};
-		}
-		if (tool === "list_flow_runs") {
-			return await this.#listFlowRuns(args);
-		}
-		if (tool === "list_flow_events") {
-			return await this.#listFlowEvents(args);
 		}
 		throw new Error(`Unknown workspace tool: ${tool}`);
 	}
@@ -3024,40 +3010,6 @@ export class LocalCodexWorkspaceBackend implements CodexWorkspaceBackend {
 		return true;
 	}
 
-	async #listFlowRuns(args: Record<string, unknown>): Promise<unknown> {
-		const result = await this.#requireFlowBackendClient().listRuns({
-			eventId: stringValue(args.eventId),
-			status: stringValue(args.status),
-			limit: positiveIntegerValue(args.limit),
-		});
-		return {
-			...(result.eventId ? { eventId: result.eventId } : {}),
-			runs: result.runs,
-		};
-	}
-
-	async #listFlowEvents(args: Record<string, unknown>): Promise<unknown> {
-		const result = await this.#requireFlowBackendClient().listEvents({
-			type: stringValue(args.type),
-			limit: positiveIntegerValue(args.limit),
-		});
-		return {
-			events: result.events,
-		};
-	}
-
-	#requireFlowBackendClient(): FlowBackendClient {
-		if (this.#flowBackendClient) {
-			return this.#flowBackendClient;
-		}
-		const baseUrl = this.config.flowBackendUrl;
-		if (!baseUrl) {
-			throw new Error("No flow backend URL configured.");
-		}
-		this.#flowBackendClient = createFlowBackendHttpClient({ baseUrl });
-		return this.#flowBackendClient;
-	}
-
 	#delegationForThread(threadId: string): DiscordWorkspaceDelegation | undefined {
 		return this.#workspaceDelegations().find((delegation) =>
 			delegation.codexThreadId === threadId
@@ -3640,25 +3592,6 @@ function workspaceToolSpecs(): v2.DynamicToolSpec[] {
 			description: "List delegation groups and their terminal/active counts.",
 			inputSchema: objectSchema({}),
 		},
-		{
-			namespace: "codex_workspace",
-			name: "list_flow_runs",
-			description: "List runs from the configured workspace flow backend.",
-			inputSchema: objectSchema({
-				eventId: optionalStringSchema("Optional event id filter."),
-				status: optionalStringSchema("Optional run status filter."),
-				limit: optionalStringSchema("Optional max result count."),
-			}),
-		},
-		{
-			namespace: "codex_workspace",
-			name: "list_flow_events",
-			description: "List events from the configured workspace flow backend.",
-			inputSchema: objectSchema({
-				type: optionalStringSchema("Optional event type filter."),
-				limit: optionalStringSchema("Optional max result count."),
-			}),
-		},
 	];
 }
 
@@ -4102,17 +4035,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function positiveIntegerValue(value: unknown): number | undefined {
-	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-		return Math.trunc(value);
-	}
-	if (typeof value !== "string" || !value.trim()) {
-		return undefined;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function compactId(value: string): string {

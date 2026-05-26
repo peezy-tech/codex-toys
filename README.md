@@ -106,8 +106,8 @@ The canonical user-facing package is:
 
 - `@peezy.tech/codex-flows`
 
-Older flow runtime packages may still exist in the monorepo during conversion,
-but they are no longer part of the primary product surface.
+Legacy automation packages have been removed from the monorepo; new automation
+surface belongs in the core package and plugin-native turn automation.
 
 Release procedure and remote policy are in [`RELEASE.md`](RELEASE.md). In short:
 jojo.build is the canonical development remote, Codeberg is a push mirror, and

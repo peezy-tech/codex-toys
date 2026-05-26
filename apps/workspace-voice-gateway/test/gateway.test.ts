@@ -93,7 +93,6 @@ class FakeWorkspaceTransport extends CodexEventEmitter {
 			capabilities: {
 				appServerPassThrough: true,
 				workspaceMethods: [],
-				flowInspection: false,
 			},
 		} satisfies WorkspaceBackendInitializeResponse as T;
 	}
