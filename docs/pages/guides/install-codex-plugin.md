@@ -121,19 +121,19 @@ discovery, hook spool state, and a suggested next command.
 For a Windows Codex App controlling a VPS over Tailscale, install the hookless
 `codex-flows-remote-control` plugin locally. It does not start a local backend
 or install local hooks. Instead, it guides Codex to probe the local app-server
-remote-control surface, open an SSH tunnel to the remote workspace backend, and
-start a turn through that backend:
+remote-control surface and use the SSH remote-agent provider for remote
+workspace commands:
 
 ```bash
 codex-flows remote status
 codex-flows --ssh <user@tailscale-host> --cwd /repo remote preflight
-codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
-codex-flows remote turn start --via workspace --prompt "Check workspace status" --wait
+codex-flows --ssh <user@tailscale-host> --cwd /repo remote turn start --via workspace --prompt "Check workspace status" --wait
 ```
 
-On the VPS, run the backend from the target workspace with
-`codex-flows workspace backend start`. The SSH tunnel can forward local
-`ws://127.0.0.1:3586` to the remote backend's `127.0.0.1:3586`.
+The local command starts `codex-flows remote-agent serve` on the VPS over SSH.
+The agent starts Codex app-server on the remote host and speaks workspace
+JSON-RPC over the SSH stdio stream. You do not pre-run a backend or open a
+tunnel.
 
 For one-shot automation, prefer the global SSH provider:
 
@@ -149,12 +149,10 @@ native Codex turn against the remote workspace if the script returns
 The SSH provider starts commands through a non-interactive shell, so the VPS
 may not inherit login-shell PATH setup. Set `CODEX_FLOWS_REMOTE_PATH_PREPEND`
 for remote Node, Bun, Cargo, and local bin directories, or set absolute
-`CODEX_FLOWS_REMOTE_CODEX_COMMAND` and
-`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` values. If a remote command needs
-flags, use `CODEX_FLOWS_REMOTE_CODEX_ARGS` or
-`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS` as JSON string arrays rather than
-wrapper scripts. The local machine needs `codex-flows`; the remote target needs
-`node`, `codex`, and `codex-workspace-backend-local`.
+`CODEX_FLOWS_REMOTE_AGENT_COMMAND` and `CODEX_FLOWS_REMOTE_CODEX_COMMAND`
+values. If Codex needs flags, use `CODEX_FLOWS_REMOTE_CODEX_ARGS` as a JSON
+string array rather than wrapper scripts. The local machine needs
+`codex-flows`; the remote target needs `node`, `codex-flows`, and `codex`.
 
 ## What the plugin does not install
 

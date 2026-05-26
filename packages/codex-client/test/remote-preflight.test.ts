@@ -1,26 +1,21 @@
 import { describe, expect, test } from "vite-plus/test";
 import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { collectRemotePreflight } from "../src/cli/remote-preflight.ts";
 
 describe("remote preflight", () => {
-	test("checks SSH setup and a transient workspace backend", async () => {
+	test("checks SSH setup and the remote-agent bridge", async () => {
 		const fakeSsh = await createPreflightSsh();
-		const port = await unusedPort();
 		const result = await collectRemotePreflight({
 			sshTarget: "devbox",
 			cwd: "/repo",
-			localPort: port,
-			remotePort: 3587,
 			timeoutMs: 1_000,
 			env: {
 				CODEX_FLOWS_SSH_COMMAND: fakeSsh.command,
+				CODEX_FLOWS_REMOTE_AGENT_COMMAND: "/opt/codex-flows",
 				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/opt/codex",
-				CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND: "/opt/backend",
-				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/bun/bin",
+				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/npm/bin",
 			},
 		});
 		expect(result.ok).toBe(true);
@@ -28,12 +23,15 @@ describe("remote preflight", () => {
 			expect.objectContaining({ name: "SSH", status: "ok" }),
 			expect.objectContaining({ name: "cwd", status: "ok", detail: "/repo" }),
 			expect.objectContaining({ name: "node", status: "ok", version: "v24.15.0" }),
-			expect.objectContaining({ name: "transient backend", status: "ok" }),
+			expect.objectContaining({ name: "codex-flows", status: "ok" }),
+			expect.objectContaining({ name: "codex", status: "ok" }),
+			expect.objectContaining({ name: "remote agent", status: "ok" }),
 			expect.objectContaining({ name: "app-server initialize", status: "ok" }),
 		]));
 		expect(await fakeSsh.readLog()).toEqual(expect.arrayContaining([
 			expect.objectContaining({ mode: "shell", command: "true" }),
-			expect.objectContaining({ mode: "workspace-listening", port }),
+			expect.objectContaining({ mode: "agent-request", method: "remoteAgent/status" }),
+			expect.objectContaining({ mode: "agent-request", method: "appServer.call" }),
 		]));
 	});
 });
@@ -65,18 +63,15 @@ async function createPreflightSsh(): Promise<{
 function preflightSshScript(logPath: string): string {
 	return `#!/usr/bin/env node
 import { appendFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { stdin, stdout } from "node:process";
 
-const require = createRequire(process.cwd() + "/package.json");
-const { WebSocketServer } = require("ws");
 const LOG_PATH = ${JSON.stringify(logPath)};
 const args = process.argv.slice(2);
-const port = localPort(args);
 const remoteCommand = args.at(-1) ?? "";
 
-if (port) {
-  log({ mode: "spawn", port, remoteCommand });
-  await serveWorkspace(port);
+if (remoteCommand.includes("remote-agent")) {
+  log({ mode: "agent", command: remoteCommand });
+  serveAgent();
 } else {
   log({ mode: "shell", command: remoteCommand });
   if (remoteCommand === "true") process.exit(0);
@@ -89,62 +84,59 @@ if (port) {
     console.log("v24.15.0");
     process.exit(0);
   }
+  if (remoteCommand.includes("'/opt/codex-flows'")) {
+    console.log("/opt/codex-flows");
+    console.log("codex-flows controls Codex app-server and workspace backend surfaces.");
+    process.exit(0);
+  }
   if (remoteCommand.includes("'/opt/codex'")) {
     console.log("/opt/codex");
     console.log("codex-cli 0.0.0");
-    process.exit(0);
-  }
-  if (remoteCommand.includes("'/opt/backend'")) {
-    console.log("/opt/backend");
-    console.log("0.132.6");
     process.exit(0);
   }
   console.error("unhandled command: " + remoteCommand);
   process.exit(1);
 }
 
-function log(entry) {
-  appendFileSync(LOG_PATH, JSON.stringify({ ...entry, args }) + "\\n");
-}
-
-function localPort(values) {
-  const index = values.indexOf("-L");
-  if (index < 0) return undefined;
-  const portText = String(values[index + 1] ?? "").split(":")[0];
-  const parsed = Number.parseInt(portText, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-}
-
-async function serveWorkspace(port) {
-  const wss = new WebSocketServer({ host: "127.0.0.1", port });
+function serveAgent() {
   process.on("SIGTERM", () => {
     log({ mode: "signal", signal: "SIGTERM" });
-    wss.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 100).unref();
+    process.exit(0);
   });
-  wss.on("connection", (socket) => {
-    socket.on("message", (data) => {
-      const message = JSON.parse(data.toString());
-      const appMethod = message.method === "appServer.call" ? message.params.method : message.method;
-      log({ mode: "workspace-request", method: appMethod });
-      socket.send(JSON.stringify({
-        jsonrpc: "2.0",
-        id: message.id,
-        result: resultFor(message.method, message.params),
-      }));
-    });
+  let buffer = "";
+  stdin.setEncoding("utf8");
+  stdin.on("data", (chunk) => {
+    buffer += chunk;
+    let newline = buffer.indexOf("\\n");
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (line) handleAgentLine(line);
+      newline = buffer.indexOf("\\n");
+    }
   });
-  await new Promise((resolve) => wss.once("listening", resolve));
-  log({ mode: "workspace-listening", port });
   setInterval(() => {}, 1_000);
 }
 
+function handleAgentLine(line) {
+  const message = JSON.parse(line);
+  log({ mode: "agent-request", method: message.method });
+  stdout.write(JSON.stringify({
+    jsonrpc: "2.0",
+    id: message.id,
+    result: resultFor(message.method, message.params),
+  }) + "\\n");
+}
+
 function resultFor(method, params) {
+  if (method === "remoteAgent/status") {
+    return { ok: true, cwd: "/repo", node: "v24.15.0" };
+  }
   if (method === "workspace.initialize") {
     return {
       ok: true,
-      serverInfo: { name: "fake-preflight-workspace", version: "0.1.0" },
-      capabilities: { appServerPassThrough: true, workspaceMethods: [] },
+      serverInfo: { name: "fake-remote-agent", version: "0.1.0" },
+      capabilities: { appServerPassThrough: true, workspaceMethods: ["remoteAgent/status"] },
     };
   }
   if (method === "appServer.call" && params.method === "thread/list") {
@@ -152,15 +144,9 @@ function resultFor(method, params) {
   }
   return {};
 }
-`;
-}
 
-async function unusedPort(): Promise<number> {
-	const server = createServer();
-	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-	const port = (server.address() as AddressInfo).port;
-	await new Promise<void>((resolve, reject) => {
-		server.close((error) => error ? reject(error) : resolve());
-	});
-	return port;
+function log(entry) {
+  appendFileSync(LOG_PATH, JSON.stringify({ ...entry, args }) + "\\n");
+}
+`;
 }

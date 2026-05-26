@@ -28,19 +28,15 @@ export {
 	type CodexWebSocketTransportOptions,
 } from "./app-server/websocket-transport.ts";
 export {
-	createSshAppServerClient,
-	createSshAppServerPlan,
-	createSshExistingBackendTunnelPlan,
-	createSshSpawnBackendPlan,
+	createSshRemoteAgentPlan,
+	createSshRemoteAgentTransport,
 	hasSshRemote,
-	parseRemoteMode,
 	resolveSshRemoteOptions,
-	startSshWorkspaceBackend,
-	type RemoteMode,
+	withSshRemoteWorkspaceTransport,
 	type ResolvedSshRemoteOptions,
-	type SshCommandPlan,
+	type SshRemoteAgentPlan,
+	type SshRemoteAgentTransport,
 	type SshRemoteProviderOptions,
-	type SshWorkspaceBackendHandle,
 } from "./cli/remote-provider.ts";
 export {
 	applyTurnAutomationDefaults,

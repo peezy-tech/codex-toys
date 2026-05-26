@@ -4,31 +4,10 @@ import type { AddressInfo } from "node:net";
 import { WebSocketServer } from "ws";
 import {
 	collectRemoteStatusInfo,
-	createRemoteTunnelPlan,
 	startRemoteTurn,
 } from "../src/cli/remote-control.ts";
 
 describe("remote control operator", () => {
-	test("plans an SSH tunnel from a local Codex App to a remote backend", () => {
-		const plan = createRemoteTunnelPlan({
-			sshTarget: "peezy@vps-tailnet",
-			localPort: 4596,
-			remoteHost: "127.0.0.1",
-			remotePort: 3586,
-			dryRun: true,
-		});
-		expect(plan).toMatchObject({
-			workspaceUrl: "ws://127.0.0.1:4596",
-			command: [
-				"ssh",
-				"-N",
-				"-L",
-				"4596:127.0.0.1:3586",
-				"peezy@vps-tailnet",
-			],
-		});
-	});
-
 	test("reports no backend as an unavailable but valid status", async () => {
 		const workspacePort = await unusedPort();
 		const appPort = await unusedPort();

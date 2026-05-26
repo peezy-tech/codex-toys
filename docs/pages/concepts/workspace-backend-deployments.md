@@ -43,10 +43,10 @@ automation and remote operation.
 ## SSH remote
 
 SSH remote mode keeps the operator command local and runs Codex workspace
-capabilities on the target host. The local CLI starts a transient
-`codex-workspace-backend-local serve --local-app-server` process on the remote
-by default. Use `--remote-mode existing` when the remote already runs a backend
-and the local command should only open a tunnel.
+capabilities on the target host. The local CLI starts
+`codex-flows remote-agent serve` over SSH and speaks workspace JSON-RPC over the
+SSH stdio stream. The remote agent starts Codex app-server on the remote host;
+it does not expose a WebSocket port or tunnel to an already-running backend.
 
 The remote host owns its checkout, `CODEX_HOME`, installed tools, and
 credentials. The local CLI reads local command inputs such as `--event`, while
@@ -54,10 +54,10 @@ Codex tools and generated state happen on the remote workspace.
 
 Remote SSH commands are non-interactive. If the target only exposes Node, Bun,
 Cargo, or local user bins from login shell startup files, set
-`CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute remote command overrides before
-starting the provider. `remote turn start` can also use this SSH provider and
-accepts turn policy flags such as `--sandbox danger-full-access` and
-`--approval-policy never`.
+`CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute remote command overrides for
+`CODEX_FLOWS_REMOTE_AGENT_COMMAND` and `CODEX_FLOWS_REMOTE_CODEX_COMMAND`.
+`remote turn start` can also use this SSH provider and accepts turn policy flags
+such as `--sandbox danger-full-access` and `--approval-policy never`.
 
 ## Future remote
 

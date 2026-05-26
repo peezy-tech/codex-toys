@@ -91,7 +91,7 @@ describe("codex-flows CLI args", () => {
 			});
 	});
 
-	test("parses remote backend operator commands", () => {
+	test("parses remote agent operator commands", () => {
 		expect(parseArgs(["remote", "status", "--json"], {}))
 			.toMatchObject({
 				type: "remote-status",
@@ -99,45 +99,37 @@ describe("codex-flows CLI args", () => {
 				workspaceUrl: "ws://127.0.0.1:3586",
 			});
 		expect(parseArgs([
-			"remote",
-			"tunnel",
-			"start",
 			"--ssh",
-			"peezy@vps-tailnet",
-			"--local-port=4596",
-			"--remote-port",
-			"3586",
-			"--dry-run",
-		], {})).toEqual({
-			type: "remote-tunnel-start",
-			sshTarget: "peezy@vps-tailnet",
-			localPort: 4596,
-			remoteHost: undefined,
-			remotePort: 3586,
-			dryRun: true,
-			json: false,
-			pretty: true,
+			"devbox",
+			"--cwd",
+			"/work",
+			"remote",
+			"preflight",
+			"--json",
+		], {})).toMatchObject({
+			type: "remote-preflight",
+			cwd: "/work",
+			sshTarget: "devbox",
+			json: true,
 		});
-			expect(parseArgs([
-				"--ssh",
-				"devbox",
-				"--cwd",
-				"/work",
-				"remote",
-				"preflight",
-				"--json",
-			], {})).toMatchObject({
-				type: "remote-preflight",
-				cwd: "/work",
-				sshTarget: "devbox",
-				json: true,
-			});
-			expect(parseArgs([
-				"remote",
-				"turn",
-				"start",
-				"--prompt",
-				"hello remote",
+		expect(parseArgs([
+			"--cwd",
+			"/work",
+			"remote-agent",
+			"serve",
+			"--remote-codex-command",
+			"/opt/codex",
+		], {})).toMatchObject({
+			type: "remote-agent-serve",
+			cwd: "/work",
+			remoteCodexCommand: "/opt/codex",
+		});
+		expect(parseArgs([
+			"remote",
+			"turn",
+			"start",
+			"--prompt",
+			"hello remote",
 			"--via",
 			"workspace",
 			"--cwd",
@@ -154,18 +146,17 @@ describe("codex-flows CLI args", () => {
 				"--model",
 				"gpt-5.2",
 			], {})).toMatchObject({
-				type: "remote-turn-start",
-				prompt: "hello remote",
+			type: "remote-turn-start",
+			prompt: "hello remote",
 			via: "workspace",
 			cwd: "/work",
 			sshTarget: "devbox",
-			remoteMode: "spawn",
 			remotePathPrepend: "/home/peezy/.local/bin:/home/peezy/.bun/bin",
-				sandbox: "danger-full-access",
-				approvalPolicy: "never",
-				wait: true,
-				model: "gpt-5.2",
-			});
+			sandbox: "danger-full-access",
+			approvalPolicy: "never",
+			wait: true,
+			model: "gpt-5.2",
+		});
 		});
 
 		test("parses turn run as the core prompt primitive", () => {
@@ -174,16 +165,14 @@ describe("codex-flows CLI args", () => {
 				"devbox",
 				"--cwd",
 				"/repo",
-				"--remote-mode",
-				"spawn",
+				"--remote-agent-command",
+				"/opt/codex-flows",
 				"--remote-codex-command",
 				"/opt/codex",
 				"--remote-codex-arg",
 				"-s",
 				"--remote-codex-arg",
 				"danger-full-access",
-				"--remote-workspace-backend-command",
-				"/opt/backend",
 				"turn",
 				"run",
 				"scan current folder",
@@ -197,10 +186,9 @@ describe("codex-flows CLI args", () => {
 				prompt: "scan current folder",
 				sshTarget: "devbox",
 				cwd: "/repo",
-				remoteMode: "spawn",
+				remoteAgentCommand: "/opt/codex-flows",
 				remoteCodexCommand: "/opt/codex",
 				remoteCodexArgs: ["-s", "danger-full-access"],
-				remoteWorkspaceBackendCommand: "/opt/backend",
 				wait: true,
 				sandbox: "danger-full-access",
 				approvalPolicy: "never",
@@ -231,7 +219,6 @@ describe("codex-flows CLI args", () => {
 			via: "workspace",
 			sshTarget: "devbox",
 			cwd: "/repo",
-			remoteMode: "spawn",
 			json: true,
 		});
 		expect(parseArgs(["automation", "list", "--workspace-root", "/work"], {}))
@@ -245,24 +232,18 @@ describe("codex-flows CLI args", () => {
 		const remote = {
 			sshTarget: "devbox",
 			cwd: "/repo",
-			remoteMode: "spawn",
-			localPort: 4596,
-			remoteHost: "127.0.0.1",
-			remotePort: 3586,
+			remotePathPrepend: "/opt/node/bin",
+			remoteAgentCommand: "/opt/codex-flows",
 		};
 		expect(parseArgs([
 			"--ssh",
 			"devbox",
 			"--cwd",
 			"/repo",
-			"--remote-mode",
-			"spawn",
-			"--local-port",
-			"4596",
-			"--remote-host",
-			"127.0.0.1",
-			"--remote-port",
-			"3586",
+			"--remote-path-prepend",
+			"/opt/node/bin",
+			"--remote-agent-command",
+			"/opt/codex-flows",
 			"fetch",
 		], {})).toMatchObject({ type: "fetch", ...remote });
 		expect(parseArgs([
@@ -274,7 +255,6 @@ describe("codex-flows CLI args", () => {
 			type: "app-call",
 			sshTarget: "devbox",
 			cwd: "/repo",
-			remoteMode: "spawn",
 		});
 		expect(parseArgs([
 			"--ssh",
@@ -287,7 +267,6 @@ describe("codex-flows CLI args", () => {
 			type: "workspace-call",
 			sshTarget: "devbox",
 			cwd: "/repo",
-			remoteMode: "spawn",
 		});
 	});
 

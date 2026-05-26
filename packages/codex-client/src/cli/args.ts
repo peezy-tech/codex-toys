@@ -1,20 +1,14 @@
 import { validateMethodName } from "./actions.ts";
-import { parseRemoteMode, type RemoteMode } from "./remote-provider.ts";
 import { parseMode, type WorkspaceModeInput } from "./workspace-autonomy.ts";
 import type { MemoryTransplantDirection } from "./memories.ts";
 
 export type ParsedRemoteOptions = {
 	sshTarget?: string;
 	cwd?: string;
-	remoteMode?: RemoteMode;
-	localPort?: number;
-	remoteHost?: string;
-	remotePort?: number;
 	remotePathPrepend?: string;
+	remoteAgentCommand?: string;
 	remoteCodexCommand?: string;
 	remoteCodexArgs?: string[];
-	remoteWorkspaceBackendCommand?: string;
-	remoteWorkspaceBackendArgs?: string[];
 };
 
 export type RemoteTurnApprovalPolicy =
@@ -70,16 +64,11 @@ type ParsedCliBase =
 				json: boolean;
 				pretty: boolean;
 		  }
-	| {
-			type: "remote-tunnel-start";
-			sshTarget?: string;
-			localPort?: number;
-			remoteHost?: string;
-			remotePort?: number;
-			dryRun: boolean;
-			json: boolean;
-			pretty: boolean;
-	  }
+		| {
+				type: "remote-agent-serve";
+				cwd?: string;
+				timeoutMs: number;
+		  }
 	| {
 			type: "automation-run";
 			target: string;
@@ -324,15 +313,10 @@ export function parseArgs(
 	let cwd: string | undefined = env.CODEX_FLOWS_REMOTE_CWD;
 	let via: "workspace" | "app" = "workspace";
 	let sshTarget: string | undefined = env.CODEX_FLOWS_REMOTE_SSH_TARGET;
-	let remoteMode: RemoteMode = parseRemoteMode(env.CODEX_FLOWS_REMOTE_MODE);
-	let localPort: number | undefined;
-	let remoteHost: string | undefined;
-	let remotePort: number | undefined;
 	let remotePathPrepend: string | undefined = env.CODEX_FLOWS_REMOTE_PATH_PREPEND;
+	let remoteAgentCommand: string | undefined;
 	let remoteCodexCommand: string | undefined;
 	const remoteCodexArgs: string[] = [];
-	let remoteWorkspaceBackendCommand: string | undefined;
-	const remoteWorkspaceBackendArgs: string[] = [];
 	let sandbox: RemoteTurnSandbox | undefined;
 	let approvalPolicy: RemoteTurnApprovalPolicy | undefined;
 	let permissions: string | undefined;
@@ -639,14 +623,6 @@ export function parseArgs(
 			permissions = arg.slice("--permissions=".length);
 			continue;
 		}
-		if (arg === "--remote-mode") {
-			remoteMode = parseRemoteMode(required(argv, ++index, arg));
-			continue;
-		}
-		if (arg.startsWith("--remote-mode=")) {
-			remoteMode = parseRemoteMode(arg.slice("--remote-mode=".length));
-			continue;
-		}
 		if (arg === "--ssh" || arg === "--ssh-target") {
 			sshTarget = required(argv, ++index, arg);
 			continue;
@@ -659,36 +635,20 @@ export function parseArgs(
 			sshTarget = arg.slice("--ssh-target=".length);
 			continue;
 		}
-		if (arg === "--local-port") {
-			localPort = positiveInteger(required(argv, ++index, arg), arg);
-			continue;
-		}
-		if (arg.startsWith("--local-port=")) {
-			localPort = positiveInteger(arg.slice("--local-port=".length), "--local-port");
-			continue;
-		}
-		if (arg === "--remote-host") {
-			remoteHost = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--remote-host=")) {
-			remoteHost = arg.slice("--remote-host=".length);
-			continue;
-		}
-		if (arg === "--remote-port") {
-			remotePort = positiveInteger(required(argv, ++index, arg), arg);
-			continue;
-		}
-		if (arg.startsWith("--remote-port=")) {
-			remotePort = positiveInteger(arg.slice("--remote-port=".length), "--remote-port");
-			continue;
-		}
 		if (arg === "--remote-path-prepend") {
 			remotePathPrepend = required(argv, ++index, arg);
 			continue;
 		}
 			if (arg.startsWith("--remote-path-prepend=")) {
 				remotePathPrepend = arg.slice("--remote-path-prepend=".length);
+				continue;
+			}
+			if (arg === "--remote-agent-command") {
+				remoteAgentCommand = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--remote-agent-command=")) {
+				remoteAgentCommand = arg.slice("--remote-agent-command=".length);
 				continue;
 			}
 			if (arg === "--remote-codex-command") {
@@ -707,22 +667,6 @@ export function parseArgs(
 				remoteCodexArgs.push(arg.slice("--remote-codex-arg=".length));
 				continue;
 			}
-			if (arg === "--remote-workspace-backend-command") {
-				remoteWorkspaceBackendCommand = required(argv, ++index, arg);
-				continue;
-			}
-			if (arg.startsWith("--remote-workspace-backend-command=")) {
-				remoteWorkspaceBackendCommand = arg.slice("--remote-workspace-backend-command=".length);
-				continue;
-			}
-			if (arg === "--remote-workspace-backend-arg") {
-				remoteWorkspaceBackendArgs.push(required(argv, ++index, arg));
-				continue;
-			}
-			if (arg.startsWith("--remote-workspace-backend-arg=")) {
-				remoteWorkspaceBackendArgs.push(arg.slice("--remote-workspace-backend-arg=".length));
-				continue;
-			}
 		if (arg === "--") {
 			positionals.push(...argv.slice(index + 1));
 			break;
@@ -737,34 +681,21 @@ export function parseArgs(
 		const fields: ParsedRemoteOptions = {};
 		if (sshTarget) {
 			fields.sshTarget = sshTarget;
-			fields.remoteMode = remoteMode;
 			if (cwd) {
 				fields.cwd = cwd;
 			}
 		}
-		if (localPort !== undefined) {
-			fields.localPort = localPort;
-		}
-		if (remoteHost !== undefined) {
-			fields.remoteHost = remoteHost;
-		}
-		if (remotePort !== undefined) {
-			fields.remotePort = remotePort;
-		}
 			if (remotePathPrepend !== undefined) {
 				fields.remotePathPrepend = remotePathPrepend;
+			}
+			if (remoteAgentCommand !== undefined) {
+				fields.remoteAgentCommand = remoteAgentCommand;
 			}
 			if (remoteCodexCommand !== undefined) {
 				fields.remoteCodexCommand = remoteCodexCommand;
 			}
 			if (remoteCodexArgs.length > 0) {
 				fields.remoteCodexArgs = remoteCodexArgs;
-			}
-			if (remoteWorkspaceBackendCommand !== undefined) {
-				fields.remoteWorkspaceBackendCommand = remoteWorkspaceBackendCommand;
-			}
-			if (remoteWorkspaceBackendArgs.length > 0) {
-				fields.remoteWorkspaceBackendArgs = remoteWorkspaceBackendArgs;
 			}
 			return fields;
 		};
@@ -834,23 +765,31 @@ export function parseArgs(
 					...remoteFields(),
 				};
 		}
-		if (subcommand === "tunnel") {
-			const action = requiredPositional(positionals, 2, "remote tunnel requires start");
-			if (action !== "start") {
-				throw new Error("remote tunnel currently supports only start");
+			if (subcommand === "agent" || subcommand === "remote-agent") {
+				const action = requiredPositional(positionals, 2, "remote agent requires serve");
+				if (action !== "serve") {
+					throw new Error("remote agent currently supports only serve");
+				}
+				return {
+					type: "remote-agent-serve",
+					cwd,
+					timeoutMs,
+					...remoteFields(),
+				};
+			}
+			throw new Error("remote requires status, preflight, turn, or agent");
+		}
+		if (command === "remote-agent") {
+			const subcommand = requiredPositional(positionals, 1, "remote-agent requires serve");
+			if (subcommand !== "serve") {
+				throw new Error("remote-agent currently supports only serve");
 			}
 			return {
-				type: "remote-tunnel-start",
-				sshTarget,
-				localPort,
-				remoteHost,
-				remotePort,
-				dryRun,
-				json,
-				pretty,
+				type: "remote-agent-serve",
+				cwd,
+				timeoutMs,
+				...remoteFields(),
 			};
-		}
-			throw new Error("remote requires status, preflight, turn, or tunnel");
 		}
 		if (command === "turn") {
 			const subcommand = positionals[1];

@@ -149,7 +149,8 @@ await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows w
 await expectIncludes("docs/pages/guides/turn-automation.md", "export default async function run");
 await expectIncludes("docs/pages/guides/turn-automation.md", "codex-flows --ssh devbox --cwd /repo automation run");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote status");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote tunnel start --ssh <user@tailscale-host>");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote-agent serve");
+await expectIncludes("docs/pages/reference/cli.md", "CODEX_FLOWS_REMOTE_AGENT_COMMAND");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote turn start --prompt <text>");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows automation run <name>");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "pack repo");

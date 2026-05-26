@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
-import { CodexWebSocketTransport } from "../app-server/websocket-transport.ts";
+import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
 import {
 	APP_SERVER_CALL_METHOD,
 	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 } from "../workspace-backend/protocol.ts";
 import {
+	createSshRemoteAgentTransport,
 	resolveSshRemoteOptions,
-	startSshWorkspaceBackend,
 	type ResolvedSshRemoteOptions,
 	type SshRemoteProviderOptions,
 } from "./remote-provider.ts";
@@ -17,7 +17,6 @@ export type RemotePreflightCheck = {
 	detail?: string;
 	path?: string;
 	version?: string;
-	url?: string;
 	error?: string;
 	suggestion?: string;
 	stderr?: string;
@@ -28,10 +27,9 @@ export type RemotePreflightResult = {
 	sshTarget: string;
 	cwd?: string;
 	remotePathPrepend?: string;
+	remoteAgentCommand: string;
 	remoteCodexCommand: string;
 	remoteCodexArgs: string[];
-	remoteWorkspaceBackendCommand: string;
-	remoteWorkspaceBackendArgs: string[];
 	checks: RemotePreflightCheck[];
 };
 
@@ -52,10 +50,9 @@ export async function collectRemotePreflight(
 		sshTarget: resolved.sshTarget,
 		...(resolved.cwd ? { cwd: resolved.cwd } : {}),
 		...(resolved.remotePathPrepend ? { remotePathPrepend: resolved.remotePathPrepend } : {}),
+		remoteAgentCommand: resolved.remoteAgentCommand,
 		remoteCodexCommand: resolved.remoteCodexCommand,
 		remoteCodexArgs: resolved.remoteCodexArgs,
-		remoteWorkspaceBackendCommand: resolved.remoteWorkspaceBackendCommand,
-		remoteWorkspaceBackendArgs: resolved.remoteWorkspaceBackendArgs,
 		checks,
 	};
 
@@ -106,53 +103,32 @@ export async function collectRemotePreflight(
 	));
 	checks.push(await commandCheck(
 		resolved,
+		"codex-flows",
+		resolved.remoteAgentCommand,
+		["--help"],
+		options.timeoutMs,
+		{
+			suggestion:
+				"Install @peezy.tech/codex-flows on the SSH target or set CODEX_FLOWS_REMOTE_AGENT_COMMAND to its remote path.",
+		},
+	));
+	checks.push(await commandCheck(
+		resolved,
 		"codex",
 		resolved.remoteCodexCommand,
 		["--version"],
 		options.timeoutMs,
 		{
-			suggestion: "Set CODEX_FLOWS_REMOTE_CODEX_COMMAND to the remote Codex binary path.",
-		},
-	));
-	checks.push(await commandCheck(
-		resolved,
-		"workspace backend",
-		resolved.remoteWorkspaceBackendCommand,
-		["--version"],
-		options.timeoutMs,
-		{
-			suggestion:
-				"Set CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND or install @peezy.tech/codex-flows remotely.",
+			suggestion: "Set CODEX_FLOWS_REMOTE_CODEX_COMMAND to the remote Codex binary path or add it through CODEX_FLOWS_REMOTE_PATH_PREPEND.",
 		},
 	));
 
 	if (checks.some((check) => check.status === "fail")) {
-		result.ok = false;
 		return result;
 	}
 
-	let backend: Awaited<ReturnType<typeof startSshWorkspaceBackend>> | undefined;
-	try {
-		backend = await startSshWorkspaceBackend({ ...options, remoteMode: "spawn" });
-		checks.push({
-			name: "transient backend",
-			status: "ok",
-			url: backend.workspaceUrl,
-		});
-		const appServer = await probeAppServer(backend.workspaceUrl, options.timeoutMs);
-		checks.push(appServer);
-	} catch (error) {
-		checks.push({
-			name: "transient backend",
-			status: "fail",
-			error: errorMessage(error),
-			suggestion:
-				"Check remote stderr above, PATH, CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND, and CODEX_FLOWS_REMOTE_CODEX_COMMAND.",
-		});
-	} finally {
-		backend?.close();
-	}
-
+	const agent = await probeRemoteAgent(options);
+	checks.push(...agent);
 	result.ok = checks.every((check) => check.status !== "fail");
 	return result;
 }
@@ -163,7 +139,7 @@ export function formatRemotePreflight(result: RemotePreflightResult): string {
 		if (check.status === "ok") {
 			return `${label}ok${check.path ? ` ${check.path}` : ""}${
 				check.version ? ` ${check.version}` : ""
-			}${check.detail ? ` ${check.detail}` : ""}${check.url ? ` ${check.url}` : ""}`;
+			}${check.detail ? ` ${check.detail}` : ""}`;
 		}
 		if (check.status === "skip") {
 			return `${label}skip${check.suggestion ? ` ${check.suggestion}` : ""}`;
@@ -173,6 +149,53 @@ export function formatRemotePreflight(result: RemotePreflightResult): string {
 			check.suggestion,
 		].filter(Boolean).join(" ")}`;
 	}).join("\n") + "\n";
+}
+
+async function probeRemoteAgent(
+	options: SshRemoteProviderOptions,
+): Promise<RemotePreflightCheck[]> {
+	const transport = createSshRemoteAgentTransport(options);
+	try {
+		transport.start();
+		const status = await transport.request("remoteAgent/status", {});
+		const detail = statusDetail(status);
+		await initializeWorkspaceTransport(transport);
+		await transport.request(APP_SERVER_CALL_METHOD, {
+			method: "thread/list",
+			params: { limit: 1, sourceKinds: [] },
+		});
+		return [
+			{ name: "remote agent", status: "ok", detail },
+			{ name: "app-server initialize", status: "ok" },
+		];
+	} catch (error) {
+		const stderr = transport.remoteAgentStderr.join("\n").trim();
+		return [{
+			name: "remote agent",
+			status: "fail",
+			error: errorMessage(error),
+			suggestion:
+				"Inspect remote stderr, ensure codex-flows and codex run from non-interactive SSH, and adjust CODEX_FLOWS_REMOTE_PATH_PREPEND if needed.",
+			...(stderr ? { stderr: redact(stderr) } : {}),
+		}];
+	} finally {
+		transport.close();
+	}
+}
+
+async function initializeWorkspaceTransport(
+	transport: CodexWorkspaceBackendTransport,
+): Promise<void> {
+	await transport.request(WORKSPACE_BACKEND_INITIALIZE_METHOD, {
+		clientInfo: {
+			name: "codex-flows-remote-preflight",
+			title: "Codex Flows Remote Preflight",
+			version: "0.1.0",
+		},
+		capabilities: {
+			appServerPassThrough: true,
+		},
+	});
 }
 
 async function commandCheck(
@@ -226,41 +249,6 @@ async function commandCheck(
 		path,
 		...(version ? { version } : {}),
 	};
-}
-
-async function probeAppServer(
-	workspaceUrl: string,
-	timeoutMs: number,
-): Promise<RemotePreflightCheck> {
-	const transport = new CodexWebSocketTransport({ url: workspaceUrl, requestTimeoutMs: timeoutMs });
-	transport.on("error", () => {});
-	try {
-		transport.start();
-		await transport.request(WORKSPACE_BACKEND_INITIALIZE_METHOD, {
-			clientInfo: {
-				name: "codex-flows-remote-preflight",
-				title: "Codex Flows Remote Preflight",
-				version: "0.1.0",
-			},
-			capabilities: {
-				appServerPassThrough: true,
-			},
-		});
-		await transport.request(APP_SERVER_CALL_METHOD, {
-			method: "thread/list",
-			params: { limit: 1, sourceKinds: [] },
-		});
-		return { name: "app-server initialize", status: "ok" };
-	} catch (error) {
-		return {
-			name: "app-server initialize",
-			status: "fail",
-			error: errorMessage(error),
-			suggestion: "Inspect remote backend/app-server stderr and Codex authentication on the SSH target.",
-		};
-	} finally {
-		transport.close();
-	}
 }
 
 async function runRemoteShell(
@@ -330,6 +318,15 @@ function failCheck(
 		suggestion,
 		...(stderr ? { stderr } : {}),
 	};
+}
+
+function statusDetail(value: unknown): string | undefined {
+	const record = typeof value === "object" && value !== null
+		? value as Record<string, unknown>
+		: {};
+	const cwd = typeof record.cwd === "string" ? record.cwd : undefined;
+	const node = typeof record.node === "string" ? record.node : undefined;
+	return [cwd, node].filter(Boolean).join(" ") || undefined;
 }
 
 function firstLine(text: string): string | undefined {

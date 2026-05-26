@@ -142,7 +142,6 @@ local backend and utility CLIs:
 codex-flows fetch
 codex-flows remote status
 codex-flows --ssh devbox --cwd /repo remote preflight
-codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
 codex-flows remote turn start --via workspace --prompt "Check workspace status" --wait
 codex-flows turn run "Check workspace status" --wait
 codex-flows automation list
@@ -168,13 +167,13 @@ codex-workspace-backend-local serve --local-app-server
 See `docs/pages/reference/cli.md` for the full command surface.
 
 SSH is a connection provider, not a product UI surface. With `--ssh`, the local
-CLI can target a remote workspace, tunnel or spawn the remote workspace backend,
-run prompts with `turn run`, route `remote turn start --wait` through the same
-provider, and fall back to a remote app-server over stdio for app-only commands.
-For non-interactive SSH PATH differences, set `CODEX_FLOWS_REMOTE_PATH_PREPEND`,
-absolute remote command overrides, or `CODEX_FLOWS_REMOTE_CODEX_ARGS` /
-`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS` JSON arrays instead of adding wrapper
-scripts on the remote host.
+CLI starts `codex-flows remote-agent serve` on the target, speaks workspace
+JSON-RPC over the SSH stdio stream, runs prompts with `turn run`, routes
+`remote turn start --wait` through the same provider, and passes app calls
+through the remote workspace bridge. For non-interactive SSH PATH differences,
+set `CODEX_FLOWS_REMOTE_PATH_PREPEND`, absolute remote command overrides, or
+`CODEX_FLOWS_REMOTE_CODEX_ARGS` JSON arrays instead of adding wrapper scripts on
+the remote host. The remote target needs `node`, `codex-flows`, and `codex`.
 
 ## Development Scripts
 

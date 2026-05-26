@@ -2,8 +2,8 @@
 
 Date: 2026-05-26
 
-Goal: rerun the Windows local Codex App to SSH remote CodexFlows path without
-temporary remote wrappers. The local CLI should own orchestration, while Codex
+Goal: rerun the Windows local Codex App to SSH remote CodexFlows path through
+the remote-agent provider. The local CLI owns orchestration, while Codex
 workspace execution happens on the remote host.
 
 ## Target
@@ -13,46 +13,24 @@ workspace execution happens on the remote host.
 - Remote workspace: `/home/peezy/load-game-workspace`.
 - Golden-path prompt: `scan current folder`.
 
-## Required Updated Package
+## Required Package
 
-Upgrade the local Windows-side CLI to the released package that includes these
-fixes:
+Upgrade both the local Windows-side CLI and the remote host to the release that
+includes the remote-agent provider:
 
 ```powershell
-npm install -g @peezy.tech/codex-flows@0.132.8
+npm install -g @peezy.tech/codex-flows@latest
 codex-flows fetch --no-color
 ```
 
-The `fetch` output should report `@peezy.tech/codex-flows@0.132.8`. If the
-local agent is running from a source checkout instead of npm, pull the `0.132.8`
-release commit or newer.
+On the remote host, `codex-flows` must also resolve from non-interactive SSH.
+The SSH provider now starts:
 
-Version `0.132.8` includes the first SSH provider fix set plus the remote
-workflow improvements below:
+```bash
+codex-flows remote-agent serve --cwd /home/peezy/load-game-workspace
+```
 
-- `remote turn start` accepts and uses the SSH provider when `--ssh` is set.
-- SSH provider accepts `--remote-path-prepend` and
-  `CODEX_FLOWS_REMOTE_PATH_PREPEND`.
-- `remote turn start` accepts `--sandbox`, `--approval-policy`, and
-  `--permissions`.
-- CLI JSON parsing tolerates a leading UTF-8 BOM.
-
-- `turn run <prompt>` as the primary prompt primitive.
-- `remote preflight` diagnostics for SSH, cwd, Node, Codex, backend startup, and
-  app-server pass-through.
-- `remote turn start --wait` final-answer readback.
-- `--params-json` and `--params-file` for PowerShell-safe JSON params.
-- Remote command args through `CODEX_FLOWS_REMOTE_CODEX_ARGS`,
-  `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS`, `--remote-codex-arg`, and
-  `--remote-workspace-backend-arg`.
-- Absolute `CODEX_FLOWS_REMOTE_CODEX_COMMAND` values are handed to the remote
-  backend without literal shell quotes.
-- `--params-json` tolerates the common PowerShell-stripped form such as
-  `{limit:3,sourceKinds:[]}`.
-
-Before retrying, make sure the local shell resolves this upgraded CLI. The
-Codex plugin/skill alone is not enough; the local shell must be able to run
-`codex-flows`.
+over SSH automatically. Do not pre-run this command manually during normal use.
 
 ## Local SSH Setup
 
@@ -71,7 +49,7 @@ Then verify from PowerShell:
 
 ```powershell
 ssh rammstein 'pwd'
-codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn remote preflight
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace remote preflight
 ```
 
 If this fails only because PATH differs between interactive and non-interactive
@@ -85,37 +63,42 @@ different active install path on `rammstein`.
 
 ```powershell
 $env:CODEX_FLOWS_REMOTE_PATH_PREPEND="/home/peezy/.local/bin:/home/peezy/.bun/bin:/home/peezy/.cargo/bin:/home/peezy/.local/share/fnm/node-versions/v24.15.0/installation/bin"
+$env:CODEX_FLOWS_REMOTE_AGENT_COMMAND="codex-flows"
 $env:CODEX_FLOWS_REMOTE_CODEX_COMMAND="codex"
-$env:CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND="codex-workspace-backend-local"
 ```
 
 If command lookup still fails, switch to absolute command paths:
 
 ```powershell
+$env:CODEX_FLOWS_REMOTE_AGENT_COMMAND="/home/peezy/.local/bin/codex-flows"
 $env:CODEX_FLOWS_REMOTE_CODEX_COMMAND="/home/peezy/.local/bin/codex"
-$env:CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND="/home/peezy/.bun/bin/codex-workspace-backend-local"
 ```
 
-Do not set `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` to an inline
-`PATH=... command` string. PATH setup belongs in
-`CODEX_FLOWS_REMOTE_PATH_PREPEND`.
+Do not set removed backend/tunnel variables such as
+`CODEX_FLOWS_REMOTE_MODE`, `CODEX_FLOWS_REMOTE_TUNNEL_PORT`,
+`CODEX_FLOWS_REMOTE_BACKEND_HOST`,
+`CODEX_FLOWS_REMOTE_BACKEND_PORT`,
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND`, or
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS`. The new provider intentionally
+rejects them so stale setup cannot mask the remote-agent path.
 
 ## Smoke Tests
 
 Run these from the local Windows machine:
 
 ```powershell
-codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn fetch
-codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn workspace doctor --json
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace remote preflight
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace fetch
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace workspace doctor --json
 $params = @{ limit = 20; sourceKinds = @() } | ConvertTo-Json -Compress
-codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn app thread/list --params-json $params
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace app thread/list --params-json $params
 ```
 
 Expected:
 
-- The provider starts a transient remote
-  `codex-workspace-backend-local serve --local-app-server`.
-- No remote `codex-flows` binary is required for these provider commands.
+- The local CLI starts `codex-flows remote-agent serve` on the remote host.
+- The remote agent starts Codex app-server on the remote host.
+- No WebSocket port or SSH tunnel is opened.
 - No local credentials are copied to the remote host.
 
 ## Golden Path Command
@@ -123,22 +106,22 @@ Expected:
 Run:
 
 ```powershell
-codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace --remote-mode spawn turn run "scan current folder" --wait --sandbox danger-full-access --approval-policy never
+codex-flows --ssh rammstein --cwd /home/peezy/load-game-workspace turn run "scan current folder" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 Expected:
 
 - A remote thread is created in `/home/peezy/load-game-workspace`.
-- A turn starts through the transient remote workspace backend.
+- A turn starts through the remote-agent workspace bridge.
 - Shell tools run under the requested remote turn sandbox.
 - The final assistant message is printed locally.
-- The transient SSH/backend process exits when the command finishes.
+- The SSH remote-agent process exits when the command finishes.
 
 ## Cleanup Old Workarounds
 
-These temporary remote wrappers were removed on `rammstein` during this handoff.
-If they are recreated during debugging, remove them after the updated provider
-path works:
+These temporary remote wrappers are no longer part of the supported path. If
+they are recreated during debugging, remove them after the remote-agent path
+works:
 
 ```bash
 rm -f /home/peezy/.local/bin/codex-danger-full-access
@@ -149,11 +132,10 @@ rm -f /home/peezy/.local/bin/codex-workspace-backend-local-path
 
 - `node` missing: update `CODEX_FLOWS_REMOTE_PATH_PREPEND` with the active fnm
   Node installation bin directory.
+- `codex-flows` missing: install `@peezy.tech/codex-flows` on the remote host or
+  set `CODEX_FLOWS_REMOTE_AGENT_COMMAND` to the absolute remote CLI path.
 - `codex` missing: set `CODEX_FLOWS_REMOTE_CODEX_COMMAND` to the absolute remote
   Codex binary.
-- `codex-workspace-backend-local` missing: set
-  `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` to the absolute remote backend
-  binary, or install the package on the remote host.
 - SSH connection fails: fix local OpenSSH config or use `--ssh peezy@rammstein`
   if the identity is already discoverable.
 - Turn starts but tools cannot execute: keep `--sandbox danger-full-access`, or
