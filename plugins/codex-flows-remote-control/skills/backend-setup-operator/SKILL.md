@@ -50,36 +50,61 @@ hook events.
 
 ## Remote Backend Flow
 
-For a remote backend, do not start local hooks or a local backend process.
-Capture the endpoint and authentication model first. When the local Codex App
-is on Windows and the target backend is on a Tailscale VPS, prefer the hookless
-`codex-flows-remote-control` plugin plus an SSH tunnel.
+For a remote backend, do not start local hooks or a local backend process. The
+preferred automation path is the SSH-backed provider: the local CLI reads local
+inputs, while Codex tools, `CODEX_HOME`, and workspace execution happen on the
+remote target.
 
-Probe the local app and expected backend URL:
-
-```bash
-codex-flows remote status
-```
-
-Preview and then start the tunnel:
+Start with a probe:
 
 ```bash
-codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
-codex-flows remote tunnel start --ssh <user@tailscale-host>
+codex-flows --ssh <user@host> --cwd <remote-workspace> fetch
+codex-flows --ssh <user@host> --cwd <remote-workspace> workspace doctor
 ```
 
-Start a turn through the tunneled backend:
+Provider modes:
+
+- `auto`: probe an existing remote backend, then spawn a transient remote
+  `codex-workspace-backend-local serve --local-app-server`.
+- `existing`: require a remote backend already listening on the configured
+  host/port.
+- `spawn`: always own a transient remote backend for this command.
+
+Examples:
 
 ```bash
-codex-flows remote turn start --via workspace --prompt "Check workspace status"
+codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode existing workspace methods
+codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode spawn automation run check-release --event event.json
+codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list '{"limit":20,"sourceKinds":[]}'
 ```
+
+Do not auto-install remote binaries. If `codex`, `codex-flows`, or
+`codex-workspace-backend-local` is missing, report the command override hints
+and let the user install or configure the remote environment.
 
 Useful variables:
 
 ```bash
-CODEX_FLOWS_REMOTE_BACKEND_URL=
-CODEX_FLOWS_REMOTE_BACKEND_TOKEN=
-CODEX_FLOWS_REMOTE_SSH_TARGET=
+CODEX_FLOWS_REMOTE_SSH_TARGET=<user@host>
+CODEX_FLOWS_REMOTE_CWD=<remote-workspace>
+CODEX_FLOWS_REMOTE_MODE=spawn
+CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
+CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
+```
+
+Manual tunnels remain useful for long-lived sessions or diagnostics:
+
+```bash
+codex-flows remote status
+codex-flows remote tunnel start --ssh <user@tailscale-host> --dry-run
+codex-flows remote tunnel start --ssh <user@tailscale-host>
+```
+
+With a manual tunnel up, a remote turn can still be started through the
+tunneled backend:
+
+```bash
+codex-flows remote turn start --via workspace --prompt "Check workspace status"
 ```
 
 ## Checks

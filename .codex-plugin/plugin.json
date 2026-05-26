@@ -36,6 +36,7 @@
     "defaultPrompt": [
       "Author a turn automation script that can skip or start a Codex turn.",
       "Set up the local Codex workspace backend.",
+      "Discover my Codex App remote connections and run codex-flows over SSH.",
       "Run codex-flows against a remote Codex workspace over SSH.",
       "Coordinate delegated workspace work."
     ],
