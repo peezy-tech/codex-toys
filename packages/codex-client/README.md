@@ -147,6 +147,7 @@ codex-flows automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo fetch
 codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Scan current folder"
 codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace doctor
@@ -165,7 +166,10 @@ See `docs/pages/reference/cli.md` for the full command surface.
 
 SSH is a connection provider, not a product UI surface. With `--ssh`, the local
 CLI can target a remote workspace, tunnel or spawn the remote workspace backend,
-and fall back to a remote app-server over stdio for app-only commands.
+route `remote turn start` through the same provider, and fall back to a remote
+app-server over stdio for app-only commands. For non-interactive SSH PATH
+differences, set `CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute remote command
+overrides instead of adding wrapper scripts on the remote host.
 
 ## Development Scripts
 

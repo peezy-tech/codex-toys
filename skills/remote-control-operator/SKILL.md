@@ -75,7 +75,7 @@ codex-flows --ssh workbox --cwd /srv/repo fetch
 Before running CodexFlows, verify the local shell can use the same connection:
 
 ```bash
-ssh <discovered-host-or-alias> 'cd <discovered-remote-project-path> && command -v codex && command -v codex-workspace-backend-local'
+ssh <discovered-host-or-alias> 'cd <discovered-remote-project-path> && command -v node && command -v codex && command -v codex-workspace-backend-local'
 ```
 
 If this fails because Codex App has a managed identity but OpenSSH does not,
@@ -96,6 +96,7 @@ codex-flows --ssh <user@host> --cwd <remote-workspace> fetch
 codex-flows --ssh <user@host> --cwd <remote-workspace> workspace doctor
 codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json
+codex-flows --ssh <user@host> --cwd <remote-workspace> remote turn start --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
 ```
 
 Use `--remote-mode spawn` by default. It starts a transient remote
@@ -115,12 +116,22 @@ CODEX_FLOWS_REMOTE_MODE=spawn
 CODEX_FLOWS_REMOTE_TUNNEL_PORT=3586
 CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
 CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
+CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/user/.local/bin:/home/user/.bun/bin:/home/user/.cargo/bin
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
 CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
 ```
 
-If the remote binary is missing, report the command hint. Do not auto-install
-Codex or codex-flows on the remote machine.
+Non-interactive SSH may not load the same PATH as an interactive shell. Use
+`CODEX_FLOWS_REMOTE_PATH_PREPEND` for remote Node, Bun, Cargo, and local bin
+directories, or use absolute `CODEX_FLOWS_REMOTE_CODEX_COMMAND` and
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` values. Keep environment setup
+out of `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND`; do not use inline
+`PATH=... command` there.
+
+If a remote binary is missing, report the command hint. The local machine needs
+`codex-flows`; the remote machine needs `node`, `codex`, and
+`codex-workspace-backend-local`. Do not auto-install Codex or codex-flows on the
+remote machine.
 
 ## Remote Status
 
@@ -194,10 +205,17 @@ codex-flows remote turn start --via workspace --prompt "Check workspace status"
 Use `--cwd <path>` when the remote app-server should start the thread in a
 specific remote workspace path.
 
+For the one-shot SSH provider path, start the turn directly through `--ssh`:
+
+```bash
+codex-flows --ssh <user@host> --cwd <remote-workspace> remote turn start --via workspace --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
+```
+
 ## Troubleshooting
 
 - `--ssh` unavailable: SSH target unreachable, local forwarded port in use,
-  remote backend binary missing, or remote `codex` command missing.
+  remote backend binary missing, remote `codex` command missing, or
+  non-interactive SSH PATH missing Node/Bun/Cargo/local bin directories.
 - `existing` mode unavailable: no remote backend is listening on the configured
   remote host/port.
 - `spawn` mode unavailable: transient backend could not start on the remote
@@ -206,5 +224,6 @@ specific remote workspace path.
 - `remoteControl/status/read` unavailable on the app-server: the local Codex App
   may not expose the remote-control API yet; continue through the workspace
   backend tunnel if that is reachable.
-- `remote turn start` fails through `auto`: retry with `--via workspace` to make
-  the intended tunnel path explicit.
+- `remote turn start` cannot run shell commands: retry with
+  `--sandbox danger-full-access` or a named `--permissions <profile>` that
+  exists on the remote Codex config.

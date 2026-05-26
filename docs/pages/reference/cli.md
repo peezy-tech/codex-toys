@@ -34,6 +34,7 @@ leaving local credentials alone.
 codex-flows remote status [--json]
 codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
 codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>]
+codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text>
 ```
 
 These commands are for the local-Codex-App-to-remote-VPS use case. `remote
@@ -42,7 +43,9 @@ the configured workspace backend URL. No backend is a valid status result, not a
 fatal setup error. `remote tunnel start` runs an OpenSSH local forward from
 `127.0.0.1:<local-port>` to the remote backend address, defaulting to
 `127.0.0.1:3586` on both sides. `remote turn start` creates a thread and starts
-a turn through the workspace backend tunnel when available.
+a turn through the workspace backend tunnel when available. With `--ssh`, it
+uses the same transient or existing SSH-backed provider as `fetch`,
+`workspace`, `app`, and `automation`.
 
 The global `--ssh` provider is the remote-first automation path. App-server,
 workspace backend, automation, and fetch commands can run locally while
@@ -52,6 +55,7 @@ targeting a remote workspace:
 codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh devbox --cwd /repo workspace delegation.list
 codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
+codex-flows --ssh devbox --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Scan current folder"
 ```
 
 By default the provider starts a transient `codex-workspace-backend-local serve
@@ -70,6 +74,7 @@ Useful options and environment:
 --remote-host 127.0.0.1
 --remote-port 3586
 --remote-mode spawn
+--remote-path-prepend /home/me/.local/bin:/home/me/.bun/bin:/home/me/.cargo/bin
 
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@tailscale-host>
 CODEX_FLOWS_REMOTE_CWD=/repo
@@ -77,9 +82,16 @@ CODEX_FLOWS_REMOTE_MODE=spawn
 CODEX_FLOWS_REMOTE_TUNNEL_PORT=3586
 CODEX_FLOWS_REMOTE_BACKEND_HOST=127.0.0.1
 CODEX_FLOWS_REMOTE_BACKEND_PORT=3586
+CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/me/.local/bin:/home/me/.bun/bin:/home/me/.cargo/bin
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
 CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
 ```
+
+Remote commands run through non-interactive SSH, so login-shell PATH setup may
+not apply. Prefer `CODEX_FLOWS_REMOTE_PATH_PREPEND` for remote bin directories
+or absolute command overrides. Do not rely on inline `PATH=... command` strings
+inside `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND`; keep command lookup and
+remote environment setup separate.
 
 ## Turn Automation
 
@@ -309,11 +321,15 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--forgejo` | Generate a Forgejo workflow with `workspace init actions`. |
 | `--github` | Generate a GitHub Actions workflow with `workspace init actions`. |
 | `--via <workspace\|app>` | Turn surface for remote turns and automation. Defaults to `workspace`. |
+| `--sandbox <danger-full-access\|workspace-write\|read-only>` | Sandbox for `remote turn start`. |
+| `--approval-policy <never\|on-failure\|on-request\|untrusted>` | Approval policy for `remote turn start`. |
+| `--permissions <profile>` | Named permissions profile for `remote turn start`; cannot be combined with `--sandbox`. |
 | `--ssh`, `--ssh-target <target>` | SSH target for remote CodexFlows operation. |
 | `--remote-mode <existing\|spawn>` | SSH backend mode. Defaults to `spawn`; `existing` only tunnels to an already-running backend. |
 | `--local-port <port>` | Local SSH tunnel port. Defaults to `3586`. |
 | `--remote-host <host>` | Remote backend bind host. Defaults to `127.0.0.1`. |
 | `--remote-port <port>` | Remote backend port. Defaults to `3586`. |
+| `--remote-path-prepend <paths>` | Colon-separated remote PATH entries for non-interactive SSH commands. |
 | `--cwd <path>` | Remote workspace cwd when used with `--ssh`. |
 
 ## Environment
@@ -334,5 +350,6 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `CODEX_FLOWS_REMOTE_TUNNEL_PORT` | Default local SSH tunnel port. |
 | `CODEX_FLOWS_REMOTE_BACKEND_HOST` | Default remote backend host. |
 | `CODEX_FLOWS_REMOTE_BACKEND_PORT` | Default remote backend port. |
+| `CODEX_FLOWS_REMOTE_PATH_PREPEND` | Colon-separated remote PATH entries prepended before transient SSH commands. |
 | `CODEX_FLOWS_REMOTE_CODEX_COMMAND` | Remote Codex command for transient workspace backend startup or explicit `--via app` turns. |
 | `CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` | Remote workspace backend command for transient SSH backend startup. |

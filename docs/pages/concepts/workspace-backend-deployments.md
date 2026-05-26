@@ -52,6 +52,13 @@ The remote host owns its checkout, `CODEX_HOME`, installed tools, and
 credentials. The local CLI reads local command inputs such as `--event`, while
 Codex tools and generated state happen on the remote workspace.
 
+Remote SSH commands are non-interactive. If the target only exposes Node, Bun,
+Cargo, or local user bins from login shell startup files, set
+`CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute remote command overrides before
+starting the provider. `remote turn start` can also use this SSH provider and
+accepts turn policy flags such as `--sandbox danger-full-access` and
+`--approval-policy never`.
+
 ## Future remote
 
 A remote workspace backend should expose the same logical capabilities behind a

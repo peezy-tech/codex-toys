@@ -6,10 +6,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "../src/cli/args.ts";
 import { formatFetchInfo, type FetchInfo } from "../src/cli/fetch.ts";
+import { parseJsonText } from "../src/cli/json.ts";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 describe("codex-flows CLI args", () => {
+	test("parses JSON text with a UTF-8 BOM", () => {
+		expect(parseJsonText("\uFEFF{\"ok\":true}", "params")).toEqual({ ok: true });
+	});
+
 	test("parses direct app-server calls", () => {
 		expect(parseArgs(["app", "thread/list", "{\"limit\":1}"], {}))
 			.toMatchObject({
@@ -93,11 +98,24 @@ describe("codex-flows CLI args", () => {
 			"workspace",
 			"--cwd",
 			"/work",
+			"--ssh",
+			"devbox",
+			"--remote-path-prepend",
+			"/home/peezy/.local/bin:/home/peezy/.bun/bin",
+			"--sandbox",
+			"danger-full-access",
+			"--approval-policy",
+			"never",
 		], {})).toMatchObject({
 			type: "remote-turn-start",
 			prompt: "hello remote",
 			via: "workspace",
 			cwd: "/work",
+			sshTarget: "devbox",
+			remoteMode: "spawn",
+			remotePathPrepend: "/home/peezy/.local/bin:/home/peezy/.bun/bin",
+			sandbox: "danger-full-access",
+			approvalPolicy: "never",
 		});
 	});
 

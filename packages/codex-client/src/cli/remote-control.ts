@@ -6,6 +6,12 @@ import {
 	APP_SERVER_CALL_METHOD,
 	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 } from "../workspace-backend/protocol.ts";
+import {
+	createSshAppServerClient,
+	hasSshRemote,
+	startSshWorkspaceBackend,
+	type SshRemoteProviderOptions,
+} from "./remote-provider.ts";
 
 export type RemoteVia = "workspace" | "app";
 
@@ -75,7 +81,16 @@ export async function startRemoteTurn(options: {
 	appUrl: string;
 	workspaceUrl: string;
 	timeoutMs: number;
-}): Promise<RemoteTurnStartResult> {
+	sandbox?: v2.SandboxMode;
+	approvalPolicy?: v2.AskForApproval;
+	permissions?: string;
+} & SshRemoteProviderOptions): Promise<RemoteTurnStartResult> {
+	validateTurnOptions(options);
+	if (hasSshRemote(options)) {
+		return options.via === "workspace"
+			? await startTurnViaSshWorkspace(options)
+			: await startTurnViaSshAppServer(options);
+	}
 	return options.via === "workspace"
 		? await startTurnViaWorkspace(options)
 		: await startTurnViaAppServer(options);
@@ -292,6 +307,9 @@ async function startTurnViaWorkspace(options: {
 	cwd?: string;
 	workspaceUrl: string;
 	timeoutMs: number;
+	sandbox?: v2.SandboxMode;
+	approvalPolicy?: v2.AskForApproval;
+	permissions?: string;
 }): Promise<RemoteTurnStartResult> {
 	const transport = new CodexWebSocketTransport({
 		url: options.workspaceUrl,
@@ -304,13 +322,13 @@ async function startTurnViaWorkspace(options: {
 			const threadResponse = await workspaceAppServerRequest(
 				transport,
 				"thread/start",
-				threadStartParams(options.cwd),
+				threadStartParams(options),
 			);
 			const threadId = nestedId(threadResponse, "thread", "thread/start");
 			const turnResponse = await workspaceAppServerRequest(
 				transport,
 				"turn/start",
-				turnStartParams(threadId, options.prompt, options.cwd),
+				turnStartParams(threadId, options),
 			);
 			const turnId = nestedId(turnResponse, "turn", "turn/start");
 			return {
@@ -329,16 +347,74 @@ async function startTurnViaWorkspace(options: {
 	}
 }
 
+async function startTurnViaSshWorkspace(
+	options: {
+		prompt: string;
+		cwd?: string;
+		workspaceUrl: string;
+		timeoutMs: number;
+		sandbox?: v2.SandboxMode;
+		approvalPolicy?: v2.AskForApproval;
+		permissions?: string;
+	} & SshRemoteProviderOptions,
+): Promise<RemoteTurnStartResult> {
+	const backend = await startSshWorkspaceBackend(options);
+	try {
+		return await startTurnViaWorkspace({
+			...options,
+			workspaceUrl: backend.workspaceUrl,
+		});
+	} finally {
+		backend.close();
+	}
+}
+
 async function startTurnViaAppServer(options: {
 	prompt: string;
 	cwd?: string;
 	appUrl: string;
 	timeoutMs: number;
+	sandbox?: v2.SandboxMode;
+	approvalPolicy?: v2.AskForApproval;
+	permissions?: string;
 }): Promise<RemoteTurnStartResult> {
 	if (options.appUrl !== "stdio://") {
 		return await startTurnViaAppServerWebSocket(options);
 	}
 	const client = appServerClient(options.appUrl, options.timeoutMs);
+	return await startTurnViaAppServerClient(client, options, options.appUrl);
+}
+
+async function startTurnViaSshAppServer(
+	options: {
+		prompt: string;
+		cwd?: string;
+		appUrl: string;
+		timeoutMs: number;
+		sandbox?: v2.SandboxMode;
+		approvalPolicy?: v2.AskForApproval;
+		permissions?: string;
+	} & SshRemoteProviderOptions,
+): Promise<RemoteTurnStartResult> {
+	const client = createSshAppServerClient(options, {
+		name: "codex-flows-remote-control",
+		title: "Codex Flows Remote Control",
+	});
+	return await startTurnViaAppServerClient(client, options, "ssh://app-server");
+}
+
+async function startTurnViaAppServerClient(
+	client: CodexAppServerClient,
+	options: {
+		prompt: string;
+		cwd?: string;
+		timeoutMs: number;
+		sandbox?: v2.SandboxMode;
+		approvalPolicy?: v2.AskForApproval;
+		permissions?: string;
+	},
+	url: string,
+): Promise<RemoteTurnStartResult> {
 	client.on("error", () => {});
 	client.on("request", (message) => {
 		client.respondError(
@@ -350,15 +426,15 @@ async function startTurnViaAppServer(options: {
 	try {
 		return await withTimeout(async () => {
 			await client.connect();
-			const threadResponse = await client.startThread(threadStartParams(options.cwd));
+			const threadResponse = await client.startThread(threadStartParams(options));
 			const threadId = nestedId(threadResponse, "thread", "thread/start");
 			const turnResponse = await client.startTurn(
-				turnStartParams(threadId, options.prompt, options.cwd),
+				turnStartParams(threadId, options),
 			);
 			const turnId = nestedId(turnResponse, "turn", "turn/start");
 			return {
 				via: "app-server",
-				url: options.appUrl,
+				url,
 				threadId,
 				turnId,
 				thread: record(threadResponse).thread,
@@ -377,6 +453,9 @@ async function startTurnViaAppServerWebSocket(options: {
 	cwd?: string;
 	appUrl: string;
 	timeoutMs: number;
+	sandbox?: v2.SandboxMode;
+	approvalPolicy?: v2.AskForApproval;
+	permissions?: string;
 }): Promise<RemoteTurnStartResult> {
 	const transport = new CodexWebSocketTransport({
 		url: options.appUrl,
@@ -388,12 +467,12 @@ async function startTurnViaAppServerWebSocket(options: {
 			await initializeAppServerTransport(transport);
 			const threadResponse = await transport.request(
 				"thread/start",
-				threadStartParams(options.cwd),
+				threadStartParams(options),
 			);
 			const threadId = nestedId(threadResponse, "thread", "thread/start");
 			const turnResponse = await transport.request(
 				"turn/start",
-				turnStartParams(threadId, options.prompt, options.cwd),
+				turnStartParams(threadId, options),
 			);
 			const turnId = nestedId(turnResponse, "turn", "turn/start");
 			return {
@@ -428,9 +507,26 @@ function appServerClient(url: string, timeoutMs: number): CodexAppServerClient {
 	});
 }
 
-function threadStartParams(cwd: string | undefined): v2.ThreadStartParams {
+function validateTurnOptions(options: {
+	sandbox?: v2.SandboxMode;
+	permissions?: string;
+}): void {
+	if (options.sandbox && options.permissions) {
+		throw new Error("--sandbox cannot be combined with --permissions");
+	}
+}
+
+function threadStartParams(options: {
+	cwd?: string;
+	sandbox?: v2.SandboxMode;
+	approvalPolicy?: v2.AskForApproval;
+	permissions?: string;
+}): v2.ThreadStartParams {
 	return compactUndefined({
-		cwd,
+		cwd: options.cwd,
+		sandbox: options.sandbox,
+		approvalPolicy: options.approvalPolicy,
+		permissions: options.permissions,
 		experimentalRawEvents: false,
 		persistExtendedHistory: false,
 	});
@@ -438,16 +534,22 @@ function threadStartParams(cwd: string | undefined): v2.ThreadStartParams {
 
 function turnStartParams(
 	threadId: string,
-	prompt: string,
-	cwd: string | undefined,
+	options: {
+		prompt: string;
+		cwd?: string;
+		approvalPolicy?: v2.AskForApproval;
+		permissions?: string;
+	},
 ): v2.TurnStartParams {
 	return compactUndefined({
 		threadId,
-		cwd,
+		cwd: options.cwd,
+		approvalPolicy: options.approvalPolicy,
+		permissions: options.permissions,
 		input: [
 			{
 				type: "text",
-				text: prompt,
+				text: options.prompt,
 				text_elements: [],
 			},
 		],

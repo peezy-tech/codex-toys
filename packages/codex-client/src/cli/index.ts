@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
 import {
 	CodexAppServerClient,
 	CodexWebSocketTransport,
@@ -104,6 +103,7 @@ import {
 	initLocalWorkspaceBackend,
 	startLocalWorkspaceBackend,
 } from "./workspace-backend-setup.ts";
+import { parseJsonText, readJsonFile } from "./json.ts";
 
 await main().catch((error) => {
 	process.stderr.write(`${errorMessage(error)}\n`);
@@ -147,6 +147,15 @@ async function main(): Promise<void> {
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
 			timeoutMs: parsed.timeoutMs,
+			sandbox: parsed.sandbox,
+			approvalPolicy: parsed.approvalPolicy,
+			permissions: parsed.permissions,
+			sshTarget: parsed.sshTarget,
+			remoteMode: parsed.remoteMode,
+			localPort: parsed.localPort,
+			remoteHost: parsed.remoteHost,
+			remotePort: parsed.remotePort,
+			remotePathPrepend: parsed.remotePathPrepend,
 		});
 		write(parsed.json
 			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
@@ -168,7 +177,7 @@ async function main(): Promise<void> {
 	}
 	if (parsed.type === "automation-run") {
 		const event = parsed.eventPath
-			? JSON.parse(await readFile(parsed.eventPath, "utf8")) as unknown
+			? await readJsonFile(parsed.eventPath)
 			: undefined;
 		const target = await resolveTurnAutomationTarget(parsed.target, {
 			cwd: parsed.workspaceRoot,
@@ -1271,11 +1280,7 @@ async function readStdin(): Promise<string> {
 }
 
 function parseJson(text: string): unknown {
-	try {
-		return JSON.parse(text) as unknown;
-	} catch (error) {
-		throw new Error(`Failed to parse JSON params: ${errorMessage(error)}`);
-	}
+	return parseJsonText(text, "JSON params");
 }
 
 function writeJson(value: unknown, pretty: boolean): void {
@@ -1297,6 +1302,7 @@ Usage:
   codex-flows remote status [--json]
   codex-flows remote tunnel start --ssh <user@tailscale-host> [--dry-run]
   codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>]
+  codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text>
 
   codex-flows automation list [--json]
   codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
@@ -1376,6 +1382,11 @@ Options:
   --prompt <text>                            Prompt text for remote turn start or
                                              automation script context.
   --via <workspace|app>                      Turn surface. Defaults to workspace.
+  --sandbox <mode>                           Remote turn sandbox: danger-full-access,
+                                             workspace-write, or read-only.
+  --approval-policy <policy>                 Remote turn approval policy: never,
+                                             on-failure, on-request, or untrusted.
+  --permissions <profile>                    Remote turn permissions profile.
   --ssh, --ssh-target <target>               SSH target for remote CodexFlows operation
                                              or a Tailscale-backed tunnel.
                                              Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
@@ -1384,6 +1395,8 @@ Options:
   --local-port <port>                        Local tunnel port. Defaults to 3586.
   --remote-host <host>                       Remote backend host. Defaults to 127.0.0.1.
   --remote-port <port>                       Remote backend port. Defaults to 3586.
+  --remote-path-prepend <paths>              Colon-separated remote PATH entries for
+                                             non-interactive SSH commands.
   --cwd <path>                               Remote workspace cwd for SSH operation.
   -h, --help                                 Show this help.
 
@@ -1394,6 +1407,7 @@ Examples:
   codex-flows remote status --workspace-url ws://127.0.0.1:3586
   codex-flows remote tunnel start --ssh peezy@vps-tailnet --dry-run
   codex-flows remote turn start --prompt "Check workspace status"
+  codex-flows --ssh devbox --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Scan current folder"
   codex-flows automation list
   codex-flows automation run check-release --event event.json
   codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json

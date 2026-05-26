@@ -68,6 +68,7 @@ codex-flows automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo fetch
 codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Scan current folder"
 codex-flows workspace doctor
 codex-flows workspace backend status
 codex-flows memories transplant global-to-workspace

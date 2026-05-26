@@ -138,11 +138,20 @@ For one-shot automation, prefer the global SSH provider:
 
 ```bash
 codex-flows --ssh <user@tailscale-host> --cwd /repo automation run check-release --event event.json
+codex-flows --ssh <user@tailscale-host> --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
 ```
 
 That command runs the automation script locally, then starts the resulting
 native Codex turn against the remote workspace if the script returns
 `{"action":"turn"}`.
+
+The SSH provider starts commands through a non-interactive shell, so the VPS
+may not inherit login-shell PATH setup. Set `CODEX_FLOWS_REMOTE_PATH_PREPEND`
+for remote Node, Bun, Cargo, and local bin directories, or set absolute
+`CODEX_FLOWS_REMOTE_CODEX_COMMAND` and
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND` values. The local machine needs
+`codex-flows`; the remote target needs `node`, `codex`, and
+`codex-workspace-backend-local`.
 
 ## What the plugin does not install
 

@@ -76,11 +76,13 @@ Examples:
 codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode existing workspace methods
 codex-flows --ssh <user@host> --cwd <remote-workspace> --remote-mode spawn automation run check-release --event event.json
 codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh <user@host> --cwd <remote-workspace> remote turn start --sandbox danger-full-access --approval-policy never --prompt "Check workspace status"
 ```
 
-Do not auto-install remote binaries. If `codex`, `codex-flows`, or
-`codex-workspace-backend-local` is missing, report the command override hints
-and let the user install or configure the remote environment.
+Do not auto-install remote binaries. The local side needs `codex-flows`; the
+remote side needs `node`, `codex`, and `codex-workspace-backend-local`. If a
+remote command is missing, report the command override and PATH hints and let
+the user install or configure the remote environment.
 
 Useful variables:
 
@@ -88,9 +90,15 @@ Useful variables:
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@host>
 CODEX_FLOWS_REMOTE_CWD=<remote-workspace>
 CODEX_FLOWS_REMOTE_MODE=spawn
+CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/user/.local/bin:/home/user/.bun/bin:/home/user/.cargo/bin
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
 CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND=codex-workspace-backend-local
 ```
+
+Non-interactive SSH does not necessarily load login-shell PATH setup. Prefer
+`CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute command overrides; do not put
+inline `PATH=... command` strings in
+`CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND`.
 
 Manual tunnels remain useful for long-lived sessions or diagnostics:
 

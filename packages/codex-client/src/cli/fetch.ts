@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -6,6 +5,7 @@ import {
 	createWorkspaceContext,
 	type WorkspaceDoctorInfo,
 } from "./workspace-autonomy.ts";
+import { readJsonFile } from "./json.ts";
 
 export type FetchInfo = {
 	package: string;
@@ -211,7 +211,7 @@ function compactId(id: string): string {
 
 async function readPackageJson(): Promise<{ name: string; version: string }> {
 	const packageUrl = new URL("../../package.json", import.meta.url);
-	const parsed = JSON.parse(await readFile(packageUrl, "utf8")) as unknown;
+	const parsed = await readJsonFile(packageUrl, "package.json");
 	if (!isRecord(parsed) || typeof parsed.name !== "string" || typeof parsed.version !== "string") {
 		return { name: "@peezy.tech/codex-flows", version: "unknown" };
 	}

@@ -51,6 +51,7 @@ describe("SSH remote provider", () => {
 				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/opt/codex",
 				CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND:
 					"/opt/codex-workspace-backend-local",
+				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/bun/bin",
 			},
 		});
 		expect(plan.workspaceUrl).toBe("ws://127.0.0.1:4596");
@@ -62,7 +63,7 @@ describe("SSH remote provider", () => {
 			"-L",
 			"4596:127.0.0.1:3587",
 			"devbox",
-			"cd '/work/it'\\''s here' && CODEX_APP_SERVER_CODEX_COMMAND='/opt/codex' exec /opt/codex-workspace-backend-local 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/work/it'\\''s here'",
+			"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && CODEX_APP_SERVER_CODEX_COMMAND='/opt/codex' exec /opt/codex-workspace-backend-local 'serve' '--host' '127.0.0.1' '--port' '3587' '--local-app-server' '--cwd' '/work/it'\\''s here'",
 		]);
 	});
 
@@ -93,6 +94,7 @@ describe("SSH remote provider", () => {
 				CODEX_FLOWS_REMOTE_TUNNEL_PORT: "4597",
 				CODEX_FLOWS_REMOTE_BACKEND_HOST: "127.0.0.2",
 				CODEX_FLOWS_REMOTE_BACKEND_PORT: "3590",
+				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/env/node/bin:/env/bun/bin",
 				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/env/codex",
 				CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND: "/env/backend",
 			},
@@ -103,6 +105,7 @@ describe("SSH remote provider", () => {
 			localPort: 4597,
 			remoteHost: "127.0.0.2",
 			remotePort: 3590,
+			remotePathPrepend: "/env/node/bin:/env/bun/bin",
 			remoteCodexCommand: "/env/codex",
 			remoteWorkspaceBackendCommand: "/env/backend",
 		});
@@ -110,6 +113,17 @@ describe("SSH remote provider", () => {
 		expect(() => parseRemoteMode("bad")).toThrow(
 			"--remote-mode must be existing or spawn",
 		);
+	});
+
+	test("rejects inline env assignment command overrides", () => {
+		expect(() => resolveSshRemoteOptions({
+			sshTarget: "devbox",
+			timeoutMs: 1_000,
+			env: {
+				CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND:
+					"PATH=/opt/node/bin:$PATH /opt/codex-workspace-backend-local",
+			},
+		})).toThrow("CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND must be a command");
 	});
 
 	test("reuses an existing backend through a fake SSH tunnel", async () => {

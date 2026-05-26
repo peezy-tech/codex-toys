@@ -10,7 +10,19 @@ export type ParsedRemoteOptions = {
 	localPort?: number;
 	remoteHost?: string;
 	remotePort?: number;
+	remotePathPrepend?: string;
 };
+
+export type RemoteTurnApprovalPolicy =
+	| "never"
+	| "on-failure"
+	| "on-request"
+	| "untrusted";
+
+export type RemoteTurnSandbox =
+	| "danger-full-access"
+	| "read-only"
+	| "workspace-write";
 
 type ParsedCliBase =
 	| { type: "help" }
@@ -38,6 +50,9 @@ type ParsedCliBase =
 			appUrl: string;
 			workspaceUrl: string;
 			timeoutMs: number;
+			sandbox?: RemoteTurnSandbox;
+			approvalPolicy?: RemoteTurnApprovalPolicy;
+			permissions?: string;
 			json: boolean;
 			pretty: boolean;
 	  }
@@ -275,6 +290,10 @@ export function parseArgs(
 	let localPort: number | undefined;
 	let remoteHost: string | undefined;
 	let remotePort: number | undefined;
+	let remotePathPrepend: string | undefined = env.CODEX_FLOWS_REMOTE_PATH_PREPEND;
+	let sandbox: RemoteTurnSandbox | undefined;
+	let approvalPolicy: RemoteTurnApprovalPolicy | undefined;
+	let permissions: string | undefined;
 	const include: string[] = [];
 	const exclude: string[] = [];
 
@@ -516,6 +535,32 @@ export function parseArgs(
 			via = parseRemoteVia(arg.slice("--via=".length));
 			continue;
 		}
+		if (arg === "--sandbox") {
+			sandbox = parseRemoteTurnSandbox(required(argv, ++index, arg));
+			continue;
+		}
+		if (arg.startsWith("--sandbox=")) {
+			sandbox = parseRemoteTurnSandbox(arg.slice("--sandbox=".length));
+			continue;
+		}
+		if (arg === "--approval-policy") {
+			approvalPolicy = parseRemoteTurnApprovalPolicy(required(argv, ++index, arg));
+			continue;
+		}
+		if (arg.startsWith("--approval-policy=")) {
+			approvalPolicy = parseRemoteTurnApprovalPolicy(
+				arg.slice("--approval-policy=".length),
+			);
+			continue;
+		}
+		if (arg === "--permissions") {
+			permissions = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--permissions=")) {
+			permissions = arg.slice("--permissions=".length);
+			continue;
+		}
 		if (arg === "--remote-mode") {
 			remoteMode = parseRemoteMode(required(argv, ++index, arg));
 			continue;
@@ -560,6 +605,14 @@ export function parseArgs(
 			remotePort = positiveInteger(arg.slice("--remote-port=".length), "--remote-port");
 			continue;
 		}
+		if (arg === "--remote-path-prepend") {
+			remotePathPrepend = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--remote-path-prepend=")) {
+			remotePathPrepend = arg.slice("--remote-path-prepend=".length);
+			continue;
+		}
 		if (arg === "--") {
 			positionals.push(...argv.slice(index + 1));
 			break;
@@ -587,6 +640,9 @@ export function parseArgs(
 		}
 		if (remotePort !== undefined) {
 			fields.remotePort = remotePort;
+		}
+		if (remotePathPrepend !== undefined) {
+			fields.remotePathPrepend = remotePathPrepend;
 		}
 		return fields;
 	};
@@ -635,8 +691,12 @@ export function parseArgs(
 				appUrl,
 				workspaceUrl,
 				timeoutMs,
+				sandbox,
+				approvalPolicy,
+				permissions,
 				json,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand === "tunnel") {
@@ -976,6 +1036,29 @@ function parseRemoteVia(value: string): "workspace" | "app" {
 		return value;
 	}
 	throw new Error("--via must be workspace or app");
+}
+
+function parseRemoteTurnSandbox(value: string): RemoteTurnSandbox {
+	if (
+		value === "danger-full-access" ||
+		value === "read-only" ||
+		value === "workspace-write"
+	) {
+		return value;
+	}
+	throw new Error("--sandbox must be danger-full-access, workspace-write, or read-only");
+}
+
+function parseRemoteTurnApprovalPolicy(value: string): RemoteTurnApprovalPolicy {
+	if (
+		value === "never" ||
+		value === "on-failure" ||
+		value === "on-request" ||
+		value === "untrusted"
+	) {
+		return value;
+	}
+	throw new Error("--approval-policy must be never, on-failure, on-request, or untrusted");
 }
 
 function required(args: string[], index: number, flag: string): string {

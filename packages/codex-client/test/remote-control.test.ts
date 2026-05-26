@@ -64,6 +64,8 @@ describe("remote control operator", () => {
 				workspaceUrl: server.url,
 				appUrl: `ws://127.0.0.1:${await unusedPort()}`,
 				timeoutMs: 1_000,
+				sandbox: "danger-full-access",
+				approvalPolicy: "never",
 			});
 			expect(turn).toMatchObject({
 				via: "workspace",
@@ -78,29 +80,59 @@ describe("remote control operator", () => {
 				"thread/start",
 				"turn/start",
 			]);
+			expect(server.requests.find((request) => request.method === "thread/start"))
+				?.toMatchObject({
+					params: {
+						cwd: "/srv/workspace",
+						sandbox: "danger-full-access",
+						approvalPolicy: "never",
+					},
+				});
 		} finally {
 			await server.close();
 		}
+	});
+
+	test("rejects incompatible sandbox and permissions turn options", async () => {
+		await expect(startRemoteTurn({
+			prompt: "hello remote",
+			cwd: "/srv/workspace",
+			via: "workspace",
+			workspaceUrl: `ws://127.0.0.1:${await unusedPort()}`,
+			appUrl: `ws://127.0.0.1:${await unusedPort()}`,
+			timeoutMs: 100,
+			sandbox: "danger-full-access",
+			permissions: "trusted",
+		})).rejects.toThrow("--sandbox cannot be combined with --permissions");
 	});
 });
 
 async function startFakeWorkspaceBackend(): Promise<{
 	url: string;
 	methods: string[];
+	requests: Array<{ method: string; params: unknown }>;
 	close(): Promise<void>;
 }> {
 	const wss = new WebSocketServer({ host: "127.0.0.1", port: 0 });
 	await new Promise<void>((resolve) => wss.once("listening", resolve));
 	const address = wss.address() as AddressInfo;
 	const methods: string[] = [];
+	const requests: Array<{ method: string; params: unknown }> = [];
 
 	wss.on("connection", (socket) => {
 		socket.on("message", (data) => {
 			const message = JSON.parse(data.toString()) as Record<string, unknown>;
 			const method = String(message.method);
-			methods.push(method === "appServer.call"
+			const appMethod = method === "appServer.call"
 				? String(record(message.params).method)
-				: method);
+				: method;
+			methods.push(appMethod);
+			requests.push({
+				method: appMethod,
+				params: method === "appServer.call"
+					? record(message.params).params
+					: message.params,
+			});
 			socket.send(JSON.stringify({
 				jsonrpc: "2.0",
 				id: message.id,
@@ -112,6 +144,7 @@ async function startFakeWorkspaceBackend(): Promise<{
 	return {
 		url: `ws://127.0.0.1:${address.port}`,
 		methods,
+		requests,
 		close: async () => {
 			await new Promise<void>((resolve, reject) => {
 				wss.close((error) => error ? reject(error) : resolve());

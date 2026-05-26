@@ -14,6 +14,7 @@ export type SshRemoteProviderOptions = {
 	localPort?: number;
 	remoteHost?: string;
 	remotePort?: number;
+	remotePathPrepend?: string;
 	timeoutMs: number;
 	env?: Record<string, string | undefined>;
 };
@@ -25,6 +26,7 @@ export type ResolvedSshRemoteOptions = {
 	localPort: number;
 	remoteHost: string;
 	remotePort: number;
+	remotePathPrepend?: string;
 	sshCommand: string;
 	remoteCodexCommand: string;
 	remoteWorkspaceBackendCommand: string;
@@ -78,6 +80,18 @@ export function resolveSshRemoteOptions(
 			"SSH remote provider requires --ssh <target> or CODEX_FLOWS_REMOTE_SSH_TARGET",
 		);
 	}
+	const remoteCodexCommand = env.CODEX_FLOWS_REMOTE_CODEX_COMMAND ?? "codex";
+	const remoteWorkspaceBackendCommand =
+		env.CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND ??
+			"codex-workspace-backend-local";
+	rejectInlineEnvCommand(
+		"CODEX_FLOWS_REMOTE_CODEX_COMMAND",
+		remoteCodexCommand,
+	);
+	rejectInlineEnvCommand(
+		"CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND",
+		remoteWorkspaceBackendCommand,
+	);
 	return {
 		sshTarget,
 		...(options.cwd ?? env.CODEX_FLOWS_REMOTE_CWD
@@ -93,11 +107,12 @@ export function resolveSshRemoteOptions(
 		remotePort: options.remotePort ??
 			envInteger(env.CODEX_FLOWS_REMOTE_BACKEND_PORT) ??
 			3586,
+		...(options.remotePathPrepend ?? env.CODEX_FLOWS_REMOTE_PATH_PREPEND
+			? { remotePathPrepend: options.remotePathPrepend ?? env.CODEX_FLOWS_REMOTE_PATH_PREPEND }
+			: {}),
 		sshCommand: env.CODEX_FLOWS_SSH_COMMAND ?? "ssh",
-		remoteCodexCommand: env.CODEX_FLOWS_REMOTE_CODEX_COMMAND ?? "codex",
-		remoteWorkspaceBackendCommand:
-			env.CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND ??
-				"codex-workspace-backend-local",
+		remoteCodexCommand,
+		remoteWorkspaceBackendCommand,
 		timeoutMs: options.timeoutMs,
 	};
 }
@@ -137,8 +152,8 @@ export function createSshSpawnBackendPlan(
 	const envPrefix = resolved.remoteCodexCommand === "codex"
 		? ""
 		: `CODEX_APP_SERVER_CODEX_COMMAND=${shellQuote(resolved.remoteCodexCommand)} `;
-	const remoteCommand = withRemoteCwd(
-		resolved.cwd,
+	const remoteCommand = withRemoteBootstrap(
+		resolved,
 		`${envPrefix}exec ${shellCommand(resolved.remoteWorkspaceBackendCommand, args)}`,
 	);
 	return {
@@ -171,8 +186,8 @@ export function createSshAppServerPlan(
 		"--enable",
 		"hooks",
 	];
-	const remoteCommand = withRemoteCwd(
-		resolved.cwd,
+	const remoteCommand = withRemoteBootstrap(
+		resolved,
 		`exec ${shellCommand(resolved.remoteCodexCommand, args)}`,
 	);
 	return {
@@ -347,8 +362,21 @@ function workspaceUrl(localPort: number): string {
 	return `ws://127.0.0.1:${localPort}`;
 }
 
-function withRemoteCwd(cwd: string | undefined, command: string): string {
-	return cwd ? `cd ${shellQuote(cwd)} && ${command}` : command;
+function withRemoteBootstrap(
+	options: Pick<ResolvedSshRemoteOptions, "cwd" | "remotePathPrepend">,
+	command: string,
+): string {
+	const parts = [];
+	if (options.cwd) {
+		parts.push(`cd ${shellQuote(options.cwd)}`);
+	}
+	if (options.remotePathPrepend) {
+		parts.push(
+			`export PATH=${shellQuote(options.remotePathPrepend)}\${PATH:+":$PATH"}`,
+		);
+	}
+	parts.push(command);
+	return parts.join(" && ");
 }
 
 function shellCommand(command: string, args: string[]): string {
@@ -402,7 +430,8 @@ function remoteProviderError(failures: string[]): Error {
 		[
 			"SSH remote provider could not connect to a workspace backend.",
 			...failures.map((failure) => `- ${failure}`),
-			"Ensure the remote has codex-workspace-backend-local and codex on PATH, or set CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND / CODEX_FLOWS_REMOTE_CODEX_COMMAND.",
+			"Ensure the remote non-interactive SSH environment has node, codex-workspace-backend-local, and codex on PATH.",
+			"Set CODEX_FLOWS_REMOTE_PATH_PREPEND for remote bin directories, or use absolute CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND / CODEX_FLOWS_REMOTE_CODEX_COMMAND values.",
 		].join("\n"),
 	);
 }
@@ -419,6 +448,15 @@ function envInteger(value: string | undefined): number | undefined {
 	}
 	const parsed = Number.parseInt(value, 10);
 	return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function rejectInlineEnvCommand(label: string, command: string): void {
+	if (/^\s*[A-Za-z_][A-Za-z0-9_]*=.*\s+\S/.test(command)) {
+		throw new Error(
+			`${label} must be a command name or path, not an inline environment assignment. ` +
+				"Set CODEX_FLOWS_REMOTE_PATH_PREPEND for PATH changes or use an absolute command path.",
+		);
+	}
 }
 
 function errorMessage(error: unknown): string {
