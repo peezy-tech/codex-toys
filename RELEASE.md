@@ -83,27 +83,22 @@ Canonical user-facing package:
 
 - `@peezy.tech/codex-flows`
 
-Gateway packages:
-
-- `@peezy.tech/codex-discord-bridge`
-- `@peezy.tech/codex-workspace-voice-gateway`
-
 The GitHub publish workflow checks whether each package version already exists
-on npm. It publishes new versions and skips versions that are already present.
-Published packages are packed with `pnpm pack` and then handed to `npm publish`
-so workspace and catalog dependency specifiers are converted before the npm
-registry sees the package while GitHub provenance still comes from npm.
+on npm. It publishes a new `@peezy.tech/codex-flows` version and skips versions
+that are already present. Published packages are packed with `pnpm pack` and
+then handed to `npm publish` so workspace and catalog dependency specifiers are
+converted before the npm registry sees the package while GitHub provenance still
+comes from npm.
 Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
 line is `0.132.x`, a breaking codex-flows stack release should usually advance
-to `0.132.1` rather than `0.133.0`. Keep public package versions aligned across
-the stack.
+to `0.132.1` rather than `0.133.0`.
 
 New public core runtime surfaces should be exported through
 `@peezy.tech/codex-flows` first, including reusable protocol helpers and
 runnable local backend bins. Product- or channel-specific gateways, such as
 Discord text or voice packages, should publish separately and depend on
-`@peezy.tech/codex-flows`.
+`@peezy.tech/codex-flows` from their own repositories.
 
 Before publishing:
 
@@ -129,6 +124,4 @@ To publish through GitHub trusted publishing:
 
 ```bash
 npm dist-tag ls @peezy.tech/codex-flows
-npm dist-tag ls @peezy.tech/codex-discord-bridge
-npm dist-tag ls @peezy.tech/codex-workspace-voice-gateway
 ```

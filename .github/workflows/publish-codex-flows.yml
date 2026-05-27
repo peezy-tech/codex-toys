@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_package:
-        description: "Type a package name to publish, or publish-codex-flows-packages for all"
+        description: "Type @peezy.tech/codex-flows or publish-codex-flows-packages"
         required: true
         type: string
 
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   publish:
-    if: inputs.confirm_package == 'publish-codex-flows-packages' || inputs.confirm_package == '@peezy.tech/codex-flows' || inputs.confirm_package == '@peezy.tech/codex-discord-bridge' || inputs.confirm_package == '@peezy.tech/codex-workspace-voice-gateway'
+    if: inputs.confirm_package == 'publish-codex-flows-packages' || inputs.confirm_package == '@peezy.tech/codex-flows'
     runs-on: ubuntu-latest
     environment: npm-publish
     steps:
@@ -52,36 +52,6 @@ jobs:
           version=$(node -p "require('./package.json').version")
           if npm view "@peezy.tech/codex-flows@$version" version --json >/dev/null 2>&1; then
             echo "@peezy.tech/codex-flows@$version is already published"
-          else
-            tmpdir=$(mktemp -d)
-            trap 'rm -rf "$tmpdir"' EXIT
-            pnpm pack --pack-destination "$tmpdir"
-            tarball=$(find "$tmpdir" -maxdepth 1 -name '*.tgz' -print -quit)
-            npm publish "$tarball" --access public --provenance
-          fi
-
-      - name: Publish @peezy.tech/codex-discord-bridge
-        if: inputs.confirm_package == 'publish-codex-flows-packages' || inputs.confirm_package == '@peezy.tech/codex-discord-bridge'
-        working-directory: apps/discord-bridge
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if npm view "@peezy.tech/codex-discord-bridge@$version" version --json >/dev/null 2>&1; then
-            echo "@peezy.tech/codex-discord-bridge@$version is already published"
-          else
-            tmpdir=$(mktemp -d)
-            trap 'rm -rf "$tmpdir"' EXIT
-            pnpm pack --pack-destination "$tmpdir"
-            tarball=$(find "$tmpdir" -maxdepth 1 -name '*.tgz' -print -quit)
-            npm publish "$tarball" --access public --provenance
-          fi
-
-      - name: Publish @peezy.tech/codex-workspace-voice-gateway
-        if: inputs.confirm_package == 'publish-codex-flows-packages' || inputs.confirm_package == '@peezy.tech/codex-workspace-voice-gateway'
-        working-directory: apps/workspace-voice-gateway
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if npm view "@peezy.tech/codex-workspace-voice-gateway@$version" version --json >/dev/null 2>&1; then
-            echo "@peezy.tech/codex-workspace-voice-gateway@$version is already published"
           else
             tmpdir=$(mktemp -d)
             trap 'rm -rf "$tmpdir"' EXIT

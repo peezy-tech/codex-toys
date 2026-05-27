@@ -28,11 +28,13 @@ or docs surface that solves the problem:
 - `packages/codex-client` owns the public `@peezy.tech/codex-flows` package,
   app-server clients, generated protocol types, workspace helpers, and bundled
   bins.
-- `apps/discord-bridge` and `apps/workspace-voice-gateway` are gateway packages
-  that depend on `@peezy.tech/codex-flows`.
 - `apps/workspace-backend`, `apps/web`, and `apps/cli` are
   workspace-local apps that are also bundled into the core package where
   appropriate.
+- Discord gateway integrations are extracted from the main monorepo lifecycle.
+  Keep shared runtime surfaces in `@peezy.tech/codex-flows`; channel-specific
+  packages should live in their own repository and depend on the published core
+  package.
 - `docs/pages` is the canonical user documentation.
 
 Generated app-server protocol files live under
