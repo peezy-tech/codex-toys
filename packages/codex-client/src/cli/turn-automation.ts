@@ -741,12 +741,20 @@ function sendChildMessage(
 function nodeCommandPath(scriptPath: string): string[] {
 	const tsxLoader = import.meta.resolve("tsx");
 	return [
-		process.execPath,
+		nodeRuntimeCommand(),
 		"--import",
 		tsxLoader,
 		siblingRuntimePath("turn-automation-module-runner"),
 		scriptPath,
 	];
+}
+
+function nodeRuntimeCommand(): string {
+	return isBunRuntime() ? "node" : process.execPath;
+}
+
+function isBunRuntime(): boolean {
+	return typeof process.versions.bun === "string";
 }
 
 function siblingRuntimePath(basename: string): string {
