@@ -14,7 +14,6 @@ const setupKeys = [
 	"CODEX_WORKSPACE_BACKEND_APP_SERVER_URL",
 	"CODEX_WORKSPACE_BACKEND_WS_URL",
 	"CODEX_FLOWS_HOOK_SPOOL_DIR",
-	"CODEX_DISCORD_HOOK_SPOOL_DIR",
 ] as const;
 
 type SetupKey = typeof setupKeys[number];
@@ -121,14 +120,11 @@ export async function collectWorkspaceBackendSetupInfo(
 	const effective = effectiveLocalBackendEnv(context, env, envFile.values);
 	const hookSpoolSource = effective.CODEX_FLOWS_HOOK_SPOOL_DIR
 		? "CODEX_FLOWS_HOOK_SPOOL_DIR"
-		: effective.CODEX_DISCORD_HOOK_SPOOL_DIR
-			? "CODEX_DISCORD_HOOK_SPOOL_DIR"
-			: "default";
+		: "default";
 	const hookSpoolPath = absoluteFromWorkspace(
 		context,
 		effective.CODEX_FLOWS_HOOK_SPOOL_DIR ??
-			effective.CODEX_DISCORD_HOOK_SPOOL_DIR ??
-			path.join(os.homedir(), ".codex", "discord-bridge", "stop-hooks"),
+			".codex/workspace/local/hook-spool",
 	);
 	const pendingPath = path.join(hookSpoolPath, "pending");
 	const pluginHooks = await findCodexFlowsPluginHooks(context.runtimeCodexHome);
@@ -255,7 +251,6 @@ function localBackendDefaults(context: WorkspaceContext): Record<SetupKey, strin
 		CODEX_WORKSPACE_BACKEND_APP_SERVER_URL: undefined,
 		CODEX_WORKSPACE_BACKEND_WS_URL: `ws://${host}:${port}`,
 		CODEX_FLOWS_HOOK_SPOOL_DIR: ".codex/workspace/local/hook-spool",
-		CODEX_DISCORD_HOOK_SPOOL_DIR: undefined,
 	};
 }
 

@@ -95,6 +95,6 @@ Return: <summary, files changed, verification>
 - Do not ask delegated threads to manage delegation lifecycle.
 - Do not duplicate work across delegations.
 - Do not delegate vague ownership such as "fix everything".
-- Do not treat Discord, web, or CLI presenter details as core delegation state.
+- Do not treat presenter-specific details as core delegation state.
 - Preserve the workspace backend boundary: app-server methods stay native and
   delegation state stays in the backend.

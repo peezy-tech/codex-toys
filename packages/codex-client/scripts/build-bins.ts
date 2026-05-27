@@ -20,7 +20,7 @@ const selfExternals = ["@peezy.tech/codex-flows", "@peezy.tech/codex-flows/*"];
 const builds: BinBuild[] = [
 	{
 		name: "codex-app",
-		entry: "apps/cli/src/index.ts",
+		entry: "packages/codex-client/src/bin/codex-app/index.ts",
 		external: selfExternals,
 	},
 	{

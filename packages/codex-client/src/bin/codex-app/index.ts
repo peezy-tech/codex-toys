@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { CodexAppServerClient } from "@peezy.tech/codex-flows";
+import { CodexAppServerClient } from "../../app-server/client.ts";
 
 import { APP_SERVER_ACTIONS } from "./actions.ts";
 import { DEFAULT_WS_URL, parseArgs } from "./args.ts";
@@ -33,7 +33,7 @@ async function callAction(args: CallArgs) {
 			url: args.url,
 			requestTimeoutMs: args.timeoutMs,
 		},
-		clientName: "codex-app-cli",
+		clientName: "codex-app",
 		clientTitle: "Codex App CLI",
 		clientVersion: "0.1.0",
 	});

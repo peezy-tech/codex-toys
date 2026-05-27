@@ -53,8 +53,7 @@ async function writeHookSpoolEvent(event) {
 
 function hookSpoolDirFromEnv(env = process.env) {
 	return env.CODEX_FLOWS_HOOK_SPOOL_DIR ||
-		env.CODEX_DISCORD_HOOK_SPOOL_DIR ||
-		path.join(os.homedir(), ".codex", "discord-bridge", "stop-hooks");
+		path.join(os.homedir(), ".codex", "codex-flows", "hook-spool");
 }
 
 function hookSpoolPaths(spoolDir) {

@@ -215,14 +215,7 @@ export async function loadWorkspaceConfig(context: WorkspaceContext): Promise<Wo
 		throw new Error(`workspace.toml must contain a table: ${context.configPath}`);
 	}
 	const workspace = isRecord(parsed.workspace) ? parsed.workspace : undefined;
-	const legacySurfaces = isRecord(parsed.discord) &&
-		isRecord(parsed.discord.gateway) &&
-		Array.isArray(parsed.discord.gateway.surfaces)
-		? parsed.discord.gateway.surfaces
-		: undefined;
-	const surfacesInput = Array.isArray(workspace?.surfaces)
-		? workspace.surfaces
-		: legacySurfaces ?? [];
+	const surfacesInput = Array.isArray(workspace?.surfaces) ? workspace.surfaces : [];
 	const tasksInput = Array.isArray(workspace?.tasks) ? workspace.tasks : [];
 	const reactiveInput = Array.isArray(workspace?.reactive) ? workspace.reactive : [];
 	const tasks = tasksInput.map(parseTask);
@@ -240,40 +233,6 @@ export async function loadWorkspaceConfig(context: WorkspaceContext): Promise<Wo
 		reactive: reactiveInput.map(parseReactiveRule),
 		path: context.configPath,
 	};
-}
-
-export async function migrateWorkspaceConfig(context: WorkspaceContext): Promise<boolean> {
-	const text = await readFile(context.configPath, "utf8");
-	if (!text.includes("[[discord.gateway.surfaces]]") || text.includes("[workspace]")) {
-		return false;
-	}
-	const parsed = parseToml(text) as unknown;
-	if (!isRecord(parsed) || !isRecord(parsed.discord) || !isRecord(parsed.discord.gateway) ||
-		!Array.isArray(parsed.discord.gateway.surfaces)) {
-		return false;
-	}
-	const lines = [`[workspace]`, `name = ${tomlString(path.basename(context.repoRoot))}`, ""];
-	for (const surface of parsed.discord.gateway.surfaces) {
-		if (!isRecord(surface)) {
-			continue;
-		}
-		lines.push("[[workspace.surfaces]]");
-		lines.push(`key = ${tomlString(stringValue(surface.key, "default"))}`);
-		lines.push(`kind = "discord"`);
-		for (const [source, target] of [
-			["home_channel_id", "home_channel_id"],
-			["workspace_forum_channel_id", "workspace_forum_channel_id"],
-			["task_threads_channel_id", "task_threads_channel_id"],
-		] as const) {
-			const value = surface[source];
-			if (typeof value === "string") {
-				lines.push(`${target} = ${tomlString(value)}`);
-			}
-		}
-		lines.push("");
-	}
-	await writeFile(context.configPath, `${lines.join("\n").trimEnd()}\n`);
-	return true;
 }
 
 export async function collectWorkspaceDoctorInfo(context: WorkspaceContext): Promise<WorkspaceDoctorInfo> {
@@ -928,7 +887,7 @@ function parseSurface(input: unknown): WorkspaceSurface {
 	}
 	return {
 		key: requiredString(input.key, "workspace surface key"),
-		kind: stringValue(input.kind, "discord"),
+		kind: stringValue(input.kind, "local"),
 		homeChannelId: optionalString(input.home_channel_id),
 		workspaceForumChannelId: optionalString(input.workspace_forum_channel_id),
 		taskThreadsChannelId: optionalString(input.task_threads_channel_id),

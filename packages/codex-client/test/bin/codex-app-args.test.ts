@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { parseArgs } from "../src/args.ts";
+import { parseArgs } from "../../src/bin/codex-app/args.ts";
 
 test("parses a direct action call with params JSON", () => {
 	expect(parseArgs(["thread/list", "{\"limit\":10}"], {})).toEqual({

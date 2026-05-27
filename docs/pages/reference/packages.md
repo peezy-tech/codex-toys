@@ -83,5 +83,4 @@ history, rewrite ids, or call app-server import APIs.
 
 - `codex-workspace-backend-local`: local workspace backend process with
   control WebSocket. It is exposed as a bin from `@peezy.tech/codex-flows`.
-- `codex-app-cli`: JSON-RPC CLI for app-server actions. It is exposed as the
-  `codex-app` bin from `@peezy.tech/codex-flows`.
+- `codex-app`: JSON-RPC CLI for app-server actions.

@@ -89,7 +89,6 @@ import {
 	commitActionsWorkspaceState,
 	createWorkspaceContext,
 	formatWorkspaceDoctorInfo,
-	migrateWorkspaceConfig,
 	runWorkspaceTaskById,
 	scaffoldActionsWorkspace,
 	tickWorkspace,
@@ -283,7 +282,6 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			mode: parsed.mode,
 		});
-		const migrated = await maybeMigrateWorkspaceConfig(context);
 		const info = await collectWorkspaceDoctorInfo(context);
 		const backendSetup = await collectWorkspaceBackendSetupInfo(context);
 			const backend = await collectBackendInfo({
@@ -297,13 +295,13 @@ async function main(): Promise<void> {
 				remoteCodexCommand: parsed.remoteCodexCommand,
 				remoteCodexArgs: parsed.remoteCodexArgs,
 			});
-		const result = { ...info, migratedConfig: migrated, backend, backendSetup };
+		const result = { ...info, backend, backendSetup };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
 			: `${formatWorkspaceDoctorInfo(info)}${formatWorkspaceBackendSetupInfo(backendSetup, {
 				backendLabel: backendLabelForDoctor(backend),
 				nextCommand: nextBackendCommand(backendSetup.nextCommand, backend),
-			})}${migrated ? "config migration   migrated legacy discord.gateway.surfaces\n" : ""}`);
+			})}`);
 		return;
 	}
 	if (parsed.type === "workspace-backend-init-local") {
@@ -363,7 +361,6 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			mode: parsed.mode,
 		});
-		await maybeMigrateWorkspaceConfig(context);
 		const result = await tickWorkspace(context, {
 			callWorkspaceBackend: async (method, params) =>
 				await callWorkspaceBackend(method, params, parsed),
@@ -380,7 +377,6 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			mode: parsed.mode,
 		});
-		await maybeMigrateWorkspaceConfig(context);
 		const run = await runWorkspaceTaskById(context, parsed.taskId, {
 			callWorkspaceBackend: async (method, params) =>
 				await callWorkspaceBackend(method, params, parsed),
@@ -511,16 +507,6 @@ async function main(): Promise<void> {
 			? `${JSON.stringify(result, null, 2)}\n`
 			: formatPackList(result));
 		return;
-	}
-}
-
-async function maybeMigrateWorkspaceConfig(
-	context: Awaited<ReturnType<typeof createWorkspaceContext>>,
-): Promise<boolean> {
-	try {
-		return await migrateWorkspaceConfig(context);
-	} catch {
-		return false;
 	}
 }
 

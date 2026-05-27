@@ -95,9 +95,7 @@ node "${PLUGIN_ROOT}/hooks/hook-event.mjs"
 
 Codex expands `${PLUGIN_ROOT}` from the installed plugin bundle. The command is
 self-contained and writes lifecycle events into the hook spool used by
-workspace surfaces. Override the spool with `CODEX_FLOWS_HOOK_SPOOL_DIR`, or
-with `CODEX_DISCORD_HOOK_SPOOL_DIR` for external Discord bridge and voice
-gateway consumers.
+workspace surfaces. Override the spool with `CODEX_FLOWS_HOOK_SPOOL_DIR`.
 
 ## Local backend setup
 

@@ -120,7 +120,7 @@ name = "demo"
 
 [[workspace.surfaces]]
 key = "default"
-kind = "discord"
+kind = "local"
 home_channel_id = "1"
 
 [[workspace.tasks]]
@@ -141,7 +141,7 @@ skill = "skill-repair"
 		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "actions", env: {} });
 		const config = await loadWorkspaceConfig(context);
 		expect(config.name).toBe("demo");
-		expect(config.surfaces[0]?.kind).toBe("discord");
+		expect(config.surfaces[0]?.kind).toBe("local");
 		expect(config.tasks.map((task) => task.id)).toEqual(["daily"]);
 		expect(config.reactive[0]?.skill).toBe("skill-repair");
 		expect(context.runtimeCodexHome).toBe(path.join(root, ".codex"));
