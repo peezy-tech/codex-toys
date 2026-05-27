@@ -1,12 +1,12 @@
 ---
 title: Workspace backend deployments
-description: Embedded, networked local, and future remote workspace backend shapes.
+description: Embedded local, networked local, and SSH-backed workspace backend shapes.
 ---
 
 # Workspace backend deployments
 
-The workspace backend is a capability model first. It can run embedded with a
-presenter, as a local networked process, or behind a future remote transport.
+The workspace backend is a capability model first. The product surface is local
+workspace operation plus SSH-backed remote operation.
 
 ## Embedded local
 
@@ -26,9 +26,15 @@ persisted workspace state.
 
 ## Networked local
 
-Networked local mode runs `codex-workspace-backend-local` as one process. It can
-connect to an existing app-server or spawn a local stdio app-server, and it can
-mount the control WebSocket surface.
+Networked local mode runs `codex-workspace-backend-local` as one process. It
+binds to `127.0.0.1` by default, can connect to an existing app-server or spawn
+a local stdio app-server, and can be installed as a user service from a named
+profile:
+
+```bash
+codex-flows workspace backend init local --global --profile home
+codex-flows workspace backend service install --profile home
+```
 
 The control protocol has two lanes:
 
@@ -38,7 +44,7 @@ The control protocol has two lanes:
 | workspace-owned | `workspace.*`, `delegation.*`, and `workspace.event` | Codex workspace backend |
 
 The networked local process is the normal target for workspace-backed turn
-automation and remote operation.
+automation on the operator machine.
 
 ## SSH remote
 
@@ -59,16 +65,6 @@ Cargo, or local user bins from login shell startup files, set
 `remote turn start` can also use this SSH provider and accepts turn policy flags
 such as `--sandbox danger-full-access` and `--approval-policy never`.
 
-## Future remote
-
-A remote workspace backend should expose the same logical capabilities behind a
-remote transport. The transport-facing contract should stay small:
-
-| Direction | Shape | Purpose |
-|-----------|-------|---------|
-| presenter to backend | transport-specific inbound events or workspace JSON-RPC | lifecycle, commands, and event delivery |
-| backend to presenter | presenter operations or `workspace.event` notifications | UI output and presentation updates |
-| backend to app-server | app-server adapter calls | app-server-native thread, turn, auth, goal, and tool behavior |
 The backend boundary should not redefine app-server semantics. It owns
 workspace orchestration and policy; app-server capabilities keep their native
 contracts.

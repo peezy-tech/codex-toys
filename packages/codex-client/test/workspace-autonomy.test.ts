@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "../src/cli/args.ts";
@@ -15,7 +15,10 @@ import {
 } from "../src/cli/workspace-autonomy.ts";
 import {
 	collectWorkspaceBackendSetupInfo,
+	initGlobalLocalWorkspaceBackend,
 	initLocalWorkspaceBackend,
+	installWorkspaceBackendService,
+	readWorkspaceBackendProfile,
 	startLocalWorkspaceBackend,
 } from "../src/cli/workspace-backend-setup.ts";
 
@@ -65,10 +68,14 @@ describe("workspace autonomy", () => {
 			.toMatchObject({ type: "workspace-run", taskId: "morning-brief" });
 		expect(parseArgs(["workspace", "backend", "init", "local", "--overwrite"], {}))
 			.toMatchObject({ type: "workspace-backend-init-local", overwrite: true });
+		expect(parseArgs(["workspace", "backend", "init", "local", "--global", "--profile", "home"], {}))
+			.toMatchObject({ type: "workspace-backend-init-local", globalProfile: true, profile: "home" });
 		expect(parseArgs(["workspace", "backend", "status", "--json"], {}))
 			.toMatchObject({ type: "workspace-backend-status", json: true });
 		expect(parseArgs(["workspace", "backend", "start", "--dry-run"], {}))
 			.toMatchObject({ type: "workspace-backend-start", dryRun: true });
+		expect(parseArgs(["workspace", "backend", "service", "install", "--dry-run"], {}))
+			.toMatchObject({ type: "workspace-backend-service-install", dryRun: true });
 		expect(parseArgs(["workspace", "call", "delegation.list"], {}))
 			.toMatchObject({ type: "workspace-call", method: "delegation.list" });
 		expect(parseArgs(["memories", "transplant", "global-to-workspace", "--apply"], {}))
@@ -109,7 +116,79 @@ describe("workspace autonomy", () => {
 			"--cwd",
 			root,
 			"--local-app-server",
+			"--codex-home",
+			path.join(root, "codex-home"),
 		]);
+	});
+
+	test("initializes a global local backend profile and user service unit", async () => {
+		const root = await tempWorkspace();
+		const configHome = await mkdtemp(path.join(os.tmpdir(), "codex-backend-config-"));
+		const codexHome = path.join(root, "global-codex-home");
+		const env = { XDG_CONFIG_HOME: configHome };
+
+		const init = await initGlobalLocalWorkspaceBackend({
+			profile: "home",
+			workspaceRoot: root,
+			codexHome,
+			env,
+		});
+		expect(init.profilePath).toBe(path.join(configHome, "codex-flows", "backends", "home.toml"));
+		expect(init.nextCommand).toBe("codex-flows workspace backend service install --profile home");
+		expect(await readFile(init.profilePath, "utf8")).toContain(`root = "${root}"`);
+		expect((await stat(
+			path.join(root, ".codex", "workspace", "local", "hook-spool", "pending"),
+		)).isDirectory()).toBe(true);
+
+		const profile = await readWorkspaceBackendProfile("home", env);
+		expect(profile).toMatchObject({
+			name: "home",
+			workspaceRoot: root,
+			codexHome,
+			workspaceBackendUrl: "ws://127.0.0.1:3586",
+		});
+
+		const context = await createWorkspaceContext({
+			workspaceRoot: profile.workspaceRoot,
+			mode: "local",
+			env: { ...env, CODEX_HOME: profile.codexHome },
+		});
+		const setup = await collectWorkspaceBackendSetupInfo(context, env, {
+			profile: "home",
+		});
+		expect(setup.envPath).toBe(init.profilePath);
+		expect(setup.workspaceBackendUrl).toBe("ws://127.0.0.1:3586");
+		expect(setup.effectiveEnv.CODEX_WORKSPACE_BACKEND_CODEX_HOME).toBe(codexHome);
+		expect(setup.hookSpool.path).toBe(path.join(root, ".codex", "workspace", "local", "hook-spool"));
+
+		const start = await startLocalWorkspaceBackend(context, {
+			dryRun: true,
+			command: "backend-bin",
+			profile: "home",
+			env,
+		});
+		expect(start.command).toEqual([
+			"backend-bin",
+			"serve",
+			"--host",
+			"127.0.0.1",
+			"--port",
+			"3586",
+			"--cwd",
+			root,
+			"--local-app-server",
+			"--codex-home",
+			codexHome,
+		]);
+
+		const service = await installWorkspaceBackendService({
+			profile: "home",
+			dryRun: true,
+			env,
+		});
+		expect(service.unitPath).toBe(path.join(configHome, "systemd", "user", "codex-flows-backend-home.service"));
+		expect(service.unit).toContain(`--cwd ${root}`);
+		expect(service.unit).toContain(`--codex-home ${codexHome}`);
 	});
 
 	test("loads migrated workspace config and validates tasks", async () => {

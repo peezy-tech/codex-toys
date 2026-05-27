@@ -99,6 +99,8 @@ function createAppServerClient(
 		transport: args.localAppServer
 			? new CodexStdioTransport({
 					args: localAppServerArgs(),
+					cwd: args.cwd,
+					env: args.codexHome ? { CODEX_HOME: args.codexHome } : undefined,
 					requestTimeoutMs: 90_000,
 				})
 			: undefined,

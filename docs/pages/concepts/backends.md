@@ -22,14 +22,14 @@ The workspace backend is the normal automation surface. It owns app-server
 pass-through, delegation, hook-spool routing, workspace state, and repo-local
 task execution. Turn automation uses `--via workspace` by default.
 
-Use it when automation should respect workspace policy or target a remote
-checkout through the SSH provider.
+Use it when automation should respect workspace policy on the local machine.
+A persistent local backend can be installed from a user profile with
+`workspace backend init local --global` and `workspace backend service install`.
 
 ## SSH provider
 
 The SSH provider keeps the CLI local while targeting a remote workspace. It can
-tunnel to an existing workspace backend or start a transient backend when
-configured to spawn.
+start a transient remote agent over SSH without exposing a WebSocket port.
 
 Use it for remote-first prompt automation where scripts run locally but Codex
 turns run against the remote checkout.

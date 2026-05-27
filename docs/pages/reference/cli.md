@@ -196,8 +196,10 @@ The workspace path defaults to `CODEX_WORKSPACE_BACKEND_WS_URL` or
 ```bash
 codex-flows workspace doctor [--mode auto|local|actions] [--json]
 codex-flows workspace backend init local [--overwrite] [--json]
-codex-flows workspace backend status [--json]
-codex-flows workspace backend start [--dry-run] [--json]
+codex-flows workspace backend init local --global [--profile <name>] [--workspace-root <path>] [--codex-home <home>]
+codex-flows workspace backend status [--profile <name>] [--json]
+codex-flows workspace backend start [--profile <name>] [--dry-run] [--json]
+codex-flows workspace backend service install [--profile <name>] [--dry-run]
 codex-flows workspace tick [--mode auto|local|actions]
 codex-flows workspace run <task-id> [--mode auto|local|actions]
 codex-flows workspace init actions [--forgejo|--github]
@@ -211,11 +213,18 @@ codex-flows workspace init actions [--forgejo|--github]
   would use a Codex home outside the repository `.codex` directory.
 - `backend init local` writes `.codex/workspace/backend.local.env`, creates the
   local hook-spool directories, and adds local runtime paths to `.gitignore`.
+  Add `--global` to write a named profile under
+  `$XDG_CONFIG_HOME/codex-flows/backends/<name>.toml` instead; by default that
+  profile uses the user home directory as the workspace and `~/.codex` as
+  `CODEX_HOME`.
 - `backend status` reports the same local backend, Node, plugin-hook, and
-  hook-spool diagnostics without the rest of the workspace autonomy report.
+  hook-spool diagnostics without the rest of the workspace autonomy report. Use
+  `--profile <name>` to inspect a global backend profile.
 - `backend start` starts `codex-workspace-backend-local serve` in the foreground
-  using the local env file. Use `--dry-run` to print the command without
-  starting it.
+  using either the local env file or a global profile. Use `--dry-run` to print
+  the command without starting it.
+- `backend service install` writes a user systemd unit for a global profile. Use
+  `--dry-run` to preview the unit path and next `systemctl --user` commands.
 - `tick` runs due scheduled tasks and reactive rules.
 - `run <task-id>` runs one task immediately.
 - `init actions` scaffolds `.codex/workspace.toml`, `.codex/config.toml`,
@@ -335,9 +344,11 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--no-color` | Disable ANSI colors for fetch. |
 | `--mode <auto|local|actions>` | Workspace execution mode. |
 | `--workspace-root <path>` | Workspace root. Defaults to discovery. |
+| `--profile`, `--name <name>` | Workspace backend profile name. |
+| `--global` | With `workspace backend init local`, create a user backend profile instead of a repo-local env file. |
 | `--global-codex-home <path>` | Global Codex home for memory transplant. |
 | `--workspace-codex-home <path>` | Workspace Codex home for memory transplant. |
-| `--codex-home <path>` | Codex home for thread transplant. |
+| `--codex-home <path>` | Codex home for thread transplant or backend profile init. |
 | `--from-codex-home <path>` | Source Codex home for direct thread transplant. |
 | `--to-codex-home <path>` | Target Codex home for direct thread transplant. |
 | `--apply` | Apply memory transplant or pack install changes. |
@@ -372,6 +383,7 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 |----------|---------|
 | `CODEX_WORKSPACE_APP_SERVER_WS_URL` | Default direct app-server WebSocket URL. |
 | `CODEX_WORKSPACE_BACKEND_WS_URL` | Default workspace backend WebSocket URL. |
+| `CODEX_WORKSPACE_BACKEND_CODEX_HOME` | `CODEX_HOME` used by `codex-workspace-backend-local` when it spawns a local app-server. |
 | `CODEX_WORKSPACE_MODE` | Default workspace autonomy mode: `auto`, `local`, or `actions`. |
 | `CODEX_HOME` | Active Codex home. Actions mode sets it to the repo `.codex`. |
 | `CODEX_AUTH_JSON_B64` | Base64 JSON auth payload consumed by `actions prepare-auth`. |

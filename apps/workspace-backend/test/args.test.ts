@@ -32,6 +32,24 @@ describe("parseArgs", () => {
 		});
 	});
 
+	test("accepts codex home for local app-server startup", () => {
+		expect(
+			parseArgs([
+				"serve",
+				"--local-app-server",
+				"--codex-home",
+				"/home/peezy/.codex",
+				"--cwd",
+				"/home/peezy",
+			], {}),
+		).toMatchObject({
+			type: "serve",
+			localAppServer: true,
+			codexHome: "/home/peezy/.codex",
+			cwd: "/home/peezy",
+		});
+	});
+
 	test("rejects local stdio and explicit WebSocket app-server together", () => {
 		expect(() =>
 			parseArgs([
@@ -49,6 +67,7 @@ describe("parseArgs", () => {
 				CODEX_WORKSPACE_BACKEND_HOST: "0.0.0.0",
 				CODEX_WORKSPACE_BACKEND_PORT: "4599",
 				CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER: "yes",
+				CODEX_WORKSPACE_BACKEND_CODEX_HOME: "/tmp/codex-home",
 			}),
 		).toMatchObject({
 			type: "serve",
@@ -56,6 +75,7 @@ describe("parseArgs", () => {
 			port: 4599,
 			appServerUrl: undefined,
 			localAppServer: true,
+			codexHome: "/tmp/codex-home",
 		});
 	});
 });

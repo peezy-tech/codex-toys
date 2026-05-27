@@ -5,6 +5,7 @@ export type WorkspaceBackendCliArgs =
 			hostname: string;
 			appServerUrl?: string;
 			localAppServer: boolean;
+			codexHome?: string;
 			cwd?: string;
 	  }
 	| {
@@ -25,6 +26,8 @@ export function parseArgs(
 	}
 	const appServerUrl =
 		stringFlag(argv, "app-server-url") ?? env.CODEX_WORKSPACE_BACKEND_APP_SERVER_URL;
+	const codexHome = stringFlag(argv, "codex-home") ??
+		env.CODEX_WORKSPACE_BACKEND_CODEX_HOME;
 	const localAppServer = booleanFlag(argv, "local-app-server") ||
 		booleanEnv(env.CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER);
 	if (appServerUrl && localAppServer) {
@@ -38,6 +41,7 @@ export function parseArgs(
 		hostname: stringFlag(argv, "host") ?? env.CODEX_WORKSPACE_BACKEND_HOST ?? "127.0.0.1",
 		appServerUrl,
 		localAppServer,
+		codexHome,
 		cwd: stringFlag(argv, "cwd"),
 	};
 }
@@ -90,6 +94,7 @@ Options:
   --port <port>              Port to bind. Defaults to 3586.
   --app-server-url <url>     Existing app-server WebSocket URL.
   --local-app-server         Start a local app-server over stdio.
+  --codex-home <dir>         CODEX_HOME for local app-server startup.
   --cwd <dir>                Workspace root for local app-server startup.
   --help, -h                 Show this help.
 
@@ -98,5 +103,6 @@ Environment:
   CODEX_WORKSPACE_BACKEND_PORT
   CODEX_WORKSPACE_BACKEND_APP_SERVER_URL
   CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER
+  CODEX_WORKSPACE_BACKEND_CODEX_HOME
 `;
 }

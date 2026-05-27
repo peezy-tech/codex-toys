@@ -73,21 +73,50 @@ describe("codex-flows CLI args", () => {
 			.toEqual({
 				type: "workspace-backend-init-local",
 				workspaceRoot: undefined,
+				codexHome: undefined,
+				profile: undefined,
+				globalProfile: false,
 				overwrite: true,
 				json: false,
 				pretty: true,
 			});
+		expect(parseArgs([
+			"workspace",
+			"backend",
+			"init",
+			"local",
+			"--global",
+			"--profile",
+			"home",
+			"--workspace-root",
+			"/home/peezy",
+			"--codex-home",
+			"/home/peezy/.codex",
+		], {})).toMatchObject({
+			type: "workspace-backend-init-local",
+			globalProfile: true,
+			profile: "home",
+			workspaceRoot: "/home/peezy",
+			codexHome: "/home/peezy/.codex",
+		});
 		expect(parseArgs(["workspace", "backend", "status", "--json"], {}))
 			.toMatchObject({
 				type: "workspace-backend-status",
 				json: true,
 				workspaceUrl: "ws://127.0.0.1:3586",
 			});
-		expect(parseArgs(["workspace", "backend", "start", "--dry-run", "--json"], {}))
+		expect(parseArgs(["workspace", "backend", "start", "--dry-run", "--json", "--profile=home"], {}))
 			.toMatchObject({
 				type: "workspace-backend-start",
+				profile: "home",
 				dryRun: true,
 				json: true,
+			});
+		expect(parseArgs(["workspace", "backend", "service", "install", "--profile", "home", "--dry-run"], {}))
+			.toMatchObject({
+				type: "workspace-backend-service-install",
+				profile: "home",
+				dryRun: true,
 			});
 	});
 

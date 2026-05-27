@@ -100,8 +100,19 @@ workspace surfaces. Override the spool with `CODEX_FLOWS_HOOK_SPOOL_DIR`.
 ## Local backend setup
 
 Plugin install does not start a long-running process. After installing
-`codex-flows-local-workspace`, let Codex or the CLI create the local backend
-defaults and start the foreground process explicitly:
+`codex-flows-local-workspace`, create either a user-level backend profile or a
+repo-local env file.
+
+For the normal always-on local backend, create a profile that points at the
+user home directory and the user's Codex home, then install the user service:
+
+```bash
+codex-flows workspace backend init local --global --profile home
+codex-flows workspace backend status --profile home
+codex-flows workspace backend service install --profile home
+```
+
+For a project-local foreground backend, keep using the repo-local env flow:
 
 ```bash
 codex-flows workspace backend init local
@@ -111,6 +122,9 @@ codex-flows workspace backend start
 
 `workspace backend init local` writes `.codex/workspace/backend.local.env`,
 creates `.codex/workspace/local/hook-spool`, and ignores local runtime state.
+With `--global`, it writes
+`$XDG_CONFIG_HOME/codex-flows/backends/<name>.toml` instead and leaves the repo
+unchanged.
 `workspace doctor` reports backend reachability, Node version, plugin hook
 discovery, hook spool state, and a suggested next command.
 

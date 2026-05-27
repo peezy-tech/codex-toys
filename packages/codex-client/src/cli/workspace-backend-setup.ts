@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { parseJsonText } from "./json.ts";
 import type { WorkspaceContext } from "./workspace-autonomy.ts";
 
@@ -11,6 +12,7 @@ const setupKeys = [
 	"CODEX_WORKSPACE_BACKEND_HOST",
 	"CODEX_WORKSPACE_BACKEND_PORT",
 	"CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER",
+	"CODEX_WORKSPACE_BACKEND_CODEX_HOME",
 	"CODEX_WORKSPACE_BACKEND_APP_SERVER_URL",
 	"CODEX_WORKSPACE_BACKEND_WS_URL",
 	"CODEX_FLOWS_HOOK_SPOOL_DIR",
@@ -27,6 +29,36 @@ export type WorkspaceBackendInitLocalResult = {
 		action: "created" | "updated" | "unchanged";
 	}>;
 	nextCommand: string;
+};
+
+export type WorkspaceBackendProfileInitResult = {
+	profile: string;
+	profilePath: string;
+	workspaceRoot: string;
+	codexHome: string;
+	action: "created" | "updated" | "unchanged";
+	nextCommand: string;
+};
+
+export type WorkspaceBackendServiceInstallResult = {
+	profile: string;
+	unitPath: string;
+	unit: string;
+	action: "created" | "updated" | "unchanged";
+	dryRun: boolean;
+	nextCommands: string[];
+};
+
+export type WorkspaceBackendProfile = {
+	name: string;
+	path: string;
+	workspaceRoot: string;
+	codexHome: string;
+	host: string;
+	port: string;
+	localAppServer: boolean;
+	appServerUrl?: string;
+	workspaceBackendUrl: string;
 };
 
 export type WorkspaceBackendSetupInfo = {
@@ -67,6 +99,52 @@ export type WorkspaceBackendStartResult = {
 	exitCode?: number | null;
 };
 
+export async function initGlobalLocalWorkspaceBackend(
+	options: {
+		profile?: string;
+		workspaceRoot?: string;
+		codexHome?: string;
+		overwrite?: boolean;
+		env?: Record<string, string | undefined>;
+	} = {},
+): Promise<WorkspaceBackendProfileInitResult> {
+	const name = backendProfileName(options.profile);
+	const profilePath = backendProfilePath(name, options.env);
+	const workspaceRoot = path.resolve(expandHome(options.workspaceRoot ?? os.homedir()));
+	const codexHome = path.resolve(expandHome(options.codexHome ?? path.join(os.homedir(), ".codex")));
+	const text = backendProfileToml({
+		name,
+		path: profilePath,
+		workspaceRoot,
+		codexHome,
+		host: "127.0.0.1",
+		port: "3586",
+		localAppServer: true,
+		workspaceBackendUrl: "ws://127.0.0.1:3586",
+	});
+	await mkdir(path.dirname(profilePath), { recursive: true });
+	const current = await readTextIfExists(profilePath);
+	const action = current === undefined
+		? "created"
+		: current === text
+			? "unchanged"
+			: options.overwrite === true
+				? "updated"
+				: "unchanged";
+	if (action === "created" || action === "updated") {
+		await writeFile(profilePath, text);
+	}
+	await prepareHookSpool(path.join(workspaceRoot, ".codex", "workspace", "local", "hook-spool"));
+	return {
+		profile: name,
+		profilePath,
+		workspaceRoot,
+		codexHome,
+		action,
+		nextCommand: `codex-flows workspace backend service install --profile ${name}`,
+	};
+}
+
 export async function initLocalWorkspaceBackend(
 	context: WorkspaceContext,
 	options: { overwrite?: boolean } = {},
@@ -93,9 +171,7 @@ export async function initLocalWorkspaceBackend(
 		context,
 		defaults.CODEX_FLOWS_HOOK_SPOOL_DIR ?? ".codex/workspace/local/hook-spool",
 	);
-	for (const child of ["pending", "processed", "ignored", "failed"]) {
-		await mkdir(path.join(spoolDir, child), { recursive: true });
-	}
+	await prepareHookSpool(spoolDir);
 
 	files.push(await appendGitignoreEntries(context.repoRoot, [
 		".codex/workspace/backend.local.env",
@@ -114,10 +190,16 @@ export async function initLocalWorkspaceBackend(
 export async function collectWorkspaceBackendSetupInfo(
 	context: WorkspaceContext,
 	env: Record<string, string | undefined> = process.env,
+	options: { profile?: string } = {},
 ): Promise<WorkspaceBackendSetupInfo> {
-	const envPath = localBackendEnvPath(context);
 	const envFile = await readLocalBackendEnv(context);
-	const effective = effectiveLocalBackendEnv(context, env, envFile.values);
+	const profile = options.profile ? await readBackendProfile(options.profile, env) : undefined;
+	const envPath = profile?.path ?? localBackendEnvPath(context);
+	const effective = effectiveLocalBackendEnv(
+		context,
+		env,
+		profile ? profileEnv(profile) : envFile.values,
+	);
 	const hookSpoolSource = effective.CODEX_FLOWS_HOOK_SPOOL_DIR
 		? "CODEX_FLOWS_HOOK_SPOOL_DIR"
 		: "default";
@@ -131,7 +213,7 @@ export async function collectWorkspaceBackendSetupInfo(
 	return {
 		workspaceRoot: context.repoRoot,
 		envPath,
-		envExists: envFile.exists,
+		envExists: profile ? true : envFile.exists,
 		workspaceBackendUrl: workspaceBackendUrlFromEnv(effective),
 		node: nodeInfo(),
 		hookSpool: {
@@ -143,7 +225,11 @@ export async function collectWorkspaceBackendSetupInfo(
 		},
 		pluginHooks,
 		effectiveEnv: pickSetupEnv(effective),
-		nextCommand: suggestedBackendSetupCommand(envFile.exists, pluginHooks.status),
+		nextCommand: suggestedBackendSetupCommand(
+			profile ? true : envFile.exists,
+			pluginHooks.status,
+			profile?.name,
+		),
 	};
 }
 
@@ -153,11 +239,17 @@ export async function startLocalWorkspaceBackend(
 		dryRun?: boolean;
 		env?: Record<string, string | undefined>;
 		command?: string;
+		profile?: string;
 	} = {},
 ): Promise<WorkspaceBackendStartResult> {
 	const sourceEnv = options.env ?? process.env;
 	const envFile = await readLocalBackendEnv(context);
-	const effective = effectiveLocalBackendEnv(context, sourceEnv, envFile.values);
+	const profile = options.profile ? await readBackendProfile(options.profile, sourceEnv) : undefined;
+	const effective = effectiveLocalBackendEnv(
+		context,
+		sourceEnv,
+		profile ? profileEnv(profile) : envFile.values,
+	);
 	const command = options.command ?? sourceEnv.CODEX_WORKSPACE_BACKEND_COMMAND ??
 		defaultBackendCommand;
 	const args = localBackendStartArgs(context, effective);
@@ -190,6 +282,68 @@ export async function startLocalWorkspaceBackend(
 	return { ...result, exitCode };
 }
 
+export async function installWorkspaceBackendService(
+	options: {
+		profile?: string;
+		dryRun?: boolean;
+		overwrite?: boolean;
+		env?: Record<string, string | undefined>;
+	} = {},
+): Promise<WorkspaceBackendServiceInstallResult> {
+	const profile = await readBackendProfile(backendProfileName(options.profile), options.env);
+	const unitPath = path.join(
+		systemdUserUnitDir(options.env),
+		`codex-flows-backend-${profile.name}.service`,
+	);
+	const command = localBackendCommandForProfile(profile);
+	const unit = [
+		"[Unit]",
+		`Description=Codex Flows workspace backend (${profile.name})`,
+		"After=network-online.target",
+		"",
+		"[Service]",
+		"Type=simple",
+		`ExecStart=${shellCommand(command)}`,
+		"Restart=on-failure",
+		"RestartSec=2",
+		"",
+		"[Install]",
+		"WantedBy=default.target",
+		"",
+	].join("\n");
+	const current = await readTextIfExists(unitPath);
+	const action = current === undefined
+		? "created"
+		: current === unit
+			? "unchanged"
+			: options.overwrite === true
+				? "updated"
+				: "unchanged";
+	if (options.dryRun !== true && (action === "created" || action === "updated")) {
+		await mkdir(path.dirname(unitPath), { recursive: true });
+		await writeFile(unitPath, unit);
+	}
+	return {
+		profile: profile.name,
+		unitPath,
+		unit,
+		action,
+		dryRun: options.dryRun === true,
+		nextCommands: [
+			"systemctl --user daemon-reload",
+			`systemctl --user enable --now codex-flows-backend-${profile.name}.service`,
+			`systemctl --user status codex-flows-backend-${profile.name}.service`,
+		],
+	};
+}
+
+export async function readWorkspaceBackendProfile(
+	name = "home",
+	env: Record<string, string | undefined> = process.env,
+): Promise<WorkspaceBackendProfile> {
+	return await readBackendProfile(name, env);
+}
+
 export function formatWorkspaceBackendInitLocalResult(
 	result: WorkspaceBackendInitLocalResult,
 ): string {
@@ -204,6 +358,19 @@ export function formatWorkspaceBackendInitLocalResult(
 		}
 		rows.push(["file", `${file.path} (${file.action})`]);
 	}
+	return `${rows.map(([label, value]) => `${label.padEnd(19)} ${value}`).join("\n")}\n`;
+}
+
+export function formatWorkspaceBackendProfileInitResult(
+	result: WorkspaceBackendProfileInitResult,
+): string {
+	const rows: Array<[string, string]> = [
+		["profile", result.profile],
+		["profile path", `${result.profilePath} (${result.action})`],
+		["workspace", result.workspaceRoot],
+		["CODEX_HOME", result.codexHome],
+		["next", result.nextCommand],
+	];
 	return `${rows.map(([label, value]) => `${label.padEnd(19)} ${value}`).join("\n")}\n`;
 }
 
@@ -237,6 +404,17 @@ export function formatWorkspaceBackendStartResult(result: WorkspaceBackendStartR
 	return `${rows.map(([label, value]) => `${label.padEnd(19)} ${value}`).join("\n")}\n`;
 }
 
+export function formatWorkspaceBackendServiceInstallResult(
+	result: WorkspaceBackendServiceInstallResult,
+): string {
+	const rows: Array<[string, string]> = [
+		["profile", result.profile],
+		["unit", `${result.unitPath} (${result.dryRun ? "dry-run" : result.action})`],
+		...result.nextCommands.map((command): [string, string] => ["next", command]),
+	];
+	return `${rows.map(([label, value]) => `${label.padEnd(19)} ${value}`).join("\n")}\n`;
+}
+
 function localBackendEnvPath(context: WorkspaceContext): string {
 	return path.join(context.repoRoot, LOCAL_BACKEND_ENV_RELATIVE_PATH);
 }
@@ -248,6 +426,7 @@ function localBackendDefaults(context: WorkspaceContext): Record<SetupKey, strin
 		CODEX_WORKSPACE_BACKEND_HOST: host,
 		CODEX_WORKSPACE_BACKEND_PORT: port,
 		CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER: "1",
+		CODEX_WORKSPACE_BACKEND_CODEX_HOME: context.globalCodexHome,
 		CODEX_WORKSPACE_BACKEND_APP_SERVER_URL: undefined,
 		CODEX_WORKSPACE_BACKEND_WS_URL: `ws://${host}:${port}`,
 		CODEX_FLOWS_HOOK_SPOOL_DIR: ".codex/workspace/local/hook-spool",
@@ -262,6 +441,7 @@ function localBackendEnvText(context: WorkspaceContext): string {
 		`CODEX_WORKSPACE_BACKEND_HOST=${defaults.CODEX_WORKSPACE_BACKEND_HOST}`,
 		`CODEX_WORKSPACE_BACKEND_PORT=${defaults.CODEX_WORKSPACE_BACKEND_PORT}`,
 		`CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER=${defaults.CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER}`,
+		`CODEX_WORKSPACE_BACKEND_CODEX_HOME=${defaults.CODEX_WORKSPACE_BACKEND_CODEX_HOME}`,
 		`CODEX_WORKSPACE_BACKEND_WS_URL=${defaults.CODEX_WORKSPACE_BACKEND_WS_URL}`,
 		`CODEX_FLOWS_HOOK_SPOOL_DIR=${defaults.CODEX_FLOWS_HOOK_SPOOL_DIR}`,
 		"",
@@ -338,6 +518,9 @@ function localBackendStartArgs(
 	if (env.CODEX_WORKSPACE_BACKEND_APP_SERVER_URL) {
 		args.push("--app-server-url", env.CODEX_WORKSPACE_BACKEND_APP_SERVER_URL);
 	}
+	if (env.CODEX_WORKSPACE_BACKEND_CODEX_HOME) {
+		args.push("--codex-home", env.CODEX_WORKSPACE_BACKEND_CODEX_HOME);
+	}
 	return args;
 }
 
@@ -348,6 +531,111 @@ function workspaceBackendUrlFromEnv(env: Record<SetupKey, string | undefined>): 
 	return `ws://${env.CODEX_WORKSPACE_BACKEND_HOST ?? "127.0.0.1"}:${
 		env.CODEX_WORKSPACE_BACKEND_PORT ?? "3586"
 	}`;
+}
+
+async function readBackendProfile(
+	name: string,
+	env: Record<string, string | undefined> = process.env,
+): Promise<WorkspaceBackendProfile> {
+	const profileName = backendProfileName(name);
+	const filePath = backendProfilePath(profileName, env);
+	const text = await readFile(filePath, "utf8");
+	const parsed = parseToml(text) as unknown;
+	if (!isRecord(parsed) || !isRecord(parsed.backend)) {
+		throw new Error(`backend profile must contain [backend]: ${filePath}`);
+	}
+	const backend = parsed.backend;
+	const host = stringValue(backend.host, "127.0.0.1");
+	const port = String(numberOrString(backend.port, "3586"));
+	const workspaceRoot = path.resolve(expandHome(requiredString(backend.root, "backend.root")));
+	const codexHome = path.resolve(expandHome(stringValue(
+		backend.codex_home,
+		path.join(os.homedir(), ".codex"),
+	)));
+	const appServerUrl = optionalString(backend.app_server_url);
+	return {
+		name: profileName,
+		path: filePath,
+		workspaceRoot,
+		codexHome,
+		host,
+		port,
+		localAppServer: booleanValue(backend.local_app_server, true),
+		...(appServerUrl ? { appServerUrl } : {}),
+		workspaceBackendUrl: stringValue(backend.workspace_backend_url, `ws://${host}:${port}`),
+	};
+}
+
+function profileEnv(profile: WorkspaceBackendProfile): Partial<Record<SetupKey, string>> {
+	return {
+		CODEX_WORKSPACE_BACKEND_HOST: profile.host,
+		CODEX_WORKSPACE_BACKEND_PORT: profile.port,
+		CODEX_WORKSPACE_BACKEND_LOCAL_APP_SERVER: profile.localAppServer ? "1" : "0",
+		CODEX_WORKSPACE_BACKEND_CODEX_HOME: profile.codexHome,
+		...(profile.appServerUrl
+			? { CODEX_WORKSPACE_BACKEND_APP_SERVER_URL: profile.appServerUrl }
+			: {}),
+		CODEX_WORKSPACE_BACKEND_WS_URL: profile.workspaceBackendUrl,
+		CODEX_FLOWS_HOOK_SPOOL_DIR: path.join(profile.workspaceRoot, ".codex", "workspace", "local", "hook-spool"),
+	};
+}
+
+function backendProfileName(name = "home"): string {
+	if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(name)) {
+		throw new Error(`Invalid backend profile name: ${name}`);
+	}
+	return name;
+}
+
+function backendProfilePath(
+	name: string,
+	env: Record<string, string | undefined> = process.env,
+): string {
+	return path.join(configHome(env), "codex-flows", "backends", `${name}.toml`);
+}
+
+function configHome(env: Record<string, string | undefined>): string {
+	return path.resolve(expandHome(env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config")));
+}
+
+function systemdUserUnitDir(env: Record<string, string | undefined> = process.env): string {
+	return path.join(configHome(env), "systemd", "user");
+}
+
+function backendProfileToml(profile: WorkspaceBackendProfile): string {
+	const lines = [
+		"[backend]",
+		`root = ${tomlString(profile.workspaceRoot)}`,
+		`codex_home = ${tomlString(profile.codexHome)}`,
+		`host = ${tomlString(profile.host)}`,
+		`port = ${profile.port}`,
+		`local_app_server = ${profile.localAppServer ? "true" : "false"}`,
+		`workspace_backend_url = ${tomlString(profile.workspaceBackendUrl)}`,
+		"",
+	];
+	return lines.join("\n");
+}
+
+function localBackendCommandForProfile(profile: WorkspaceBackendProfile): string[] {
+	const command = [
+		"codex-workspace-backend-local",
+		"serve",
+		"--host",
+		profile.host,
+		"--port",
+		profile.port,
+		"--cwd",
+		profile.workspaceRoot,
+		"--codex-home",
+		profile.codexHome,
+	];
+	if (profile.localAppServer && !profile.appServerUrl) {
+		command.push("--local-app-server");
+	}
+	if (profile.appServerUrl) {
+		command.push("--app-server-url", profile.appServerUrl);
+	}
+	return command;
 }
 
 function nodeInfo(): WorkspaceBackendSetupInfo["node"] {
@@ -420,12 +708,25 @@ async function pluginName(pluginRoot: string): Promise<string | undefined> {
 	}
 }
 
-function suggestedBackendSetupCommand(envExists: boolean, hooksStatus: "installed" | "missing"): string {
+async function prepareHookSpool(spoolDir: string): Promise<void> {
+	for (const child of ["pending", "processed", "ignored", "failed"]) {
+		await mkdir(path.join(spoolDir, child), { recursive: true });
+	}
+}
+
+function suggestedBackendSetupCommand(
+	envExists: boolean,
+	hooksStatus: "installed" | "missing",
+	profile?: string,
+): string {
 	if (!envExists) {
 		return "codex-flows workspace backend init local";
 	}
 	if (hooksStatus === "missing") {
 		return "codex plugin add codex-flows-local-workspace@codex-flows";
+	}
+	if (profile) {
+		return `codex-flows workspace backend start --profile ${profile}`;
 	}
 	return "codex-flows workspace backend start";
 }
@@ -486,6 +787,47 @@ function absoluteFromWorkspace(context: WorkspaceContext, value: string): string
 		return value;
 	}
 	return path.join(context.repoRoot, value);
+}
+
+function expandHome(value: string): string {
+	if (value === "~") {
+		return os.homedir();
+	}
+	if (value.startsWith("~/")) {
+		return path.join(os.homedir(), value.slice(2));
+	}
+	return value;
+}
+
+function tomlString(value: string): string {
+	return JSON.stringify(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requiredString(value: unknown, label: string): string {
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error(`${label} must be a string`);
+	}
+	return value;
+}
+
+function optionalString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function stringValue(value: unknown, fallback: string): string {
+	return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function numberOrString(value: unknown, fallback: string): string | number {
+	return typeof value === "number" || typeof value === "string" ? value : fallback;
+}
+
+function booleanValue(value: unknown, fallback: boolean): boolean {
+	return typeof value === "boolean" ? value : fallback;
 }
 
 function stripEnvQuotes(value: string): string {

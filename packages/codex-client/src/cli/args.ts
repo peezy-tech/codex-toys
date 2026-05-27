@@ -154,6 +154,9 @@ type ParsedCliBase =
 	| {
 			type: "workspace-backend-init-local";
 			workspaceRoot?: string;
+			codexHome?: string;
+			profile?: string;
+			globalProfile: boolean;
 			overwrite: boolean;
 			json: boolean;
 			pretty: boolean;
@@ -161,6 +164,7 @@ type ParsedCliBase =
 	| {
 			type: "workspace-backend-status";
 			workspaceRoot?: string;
+			profile?: string;
 			appUrl: string;
 			workspaceUrl: string;
 			timeoutMs: number;
@@ -170,7 +174,16 @@ type ParsedCliBase =
 	| {
 			type: "workspace-backend-start";
 			workspaceRoot?: string;
+			profile?: string;
 			dryRun: boolean;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-backend-service-install";
+			profile?: string;
+			dryRun: boolean;
+			overwrite: boolean;
 			json: boolean;
 			pretty: boolean;
 	  }
@@ -290,6 +303,8 @@ export function parseArgs(
 	let eventPath: string | undefined;
 	let mode: WorkspaceModeInput | undefined;
 	let workspaceRoot: string | undefined;
+	let backendProfile: string | undefined;
+	let globalBackendProfile = false;
 	let globalCodexHome: string | undefined;
 	let workspaceCodexHome: string | undefined;
 	let codexHome: string | undefined;
@@ -431,6 +446,22 @@ export function parseArgs(
 		}
 		if (arg.startsWith("--workspace-root=")) {
 			workspaceRoot = arg.slice("--workspace-root=".length);
+			continue;
+		}
+		if (arg === "--profile" || arg === "--name") {
+			backendProfile = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--profile=")) {
+			backendProfile = arg.slice("--profile=".length);
+			continue;
+		}
+		if (arg.startsWith("--name=")) {
+			backendProfile = arg.slice("--name=".length);
+			continue;
+		}
+		if (arg === "--global") {
+			globalBackendProfile = true;
 			continue;
 		}
 		if (arg === "--cwd") {
@@ -945,6 +976,9 @@ export function parseArgs(
 				return {
 					type: "workspace-backend-init-local",
 					workspaceRoot,
+					codexHome,
+					profile: backendProfile,
+					globalProfile: globalBackendProfile,
 					overwrite,
 					json,
 					pretty,
@@ -954,6 +988,7 @@ export function parseArgs(
 				return {
 					type: "workspace-backend-status",
 					workspaceRoot,
+					profile: backendProfile,
 					appUrl,
 					workspaceUrl,
 					timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
@@ -966,12 +1001,41 @@ export function parseArgs(
 				return {
 					type: "workspace-backend-start",
 					workspaceRoot,
+					profile: backendProfile,
 					dryRun,
 					json,
 					pretty,
 				};
 			}
-			throw new Error("workspace backend requires init, status, or start");
+			if (backendCommand === "service") {
+				const serviceCommand = requiredPositional(
+					positionals,
+					3,
+					"workspace backend service requires install",
+				);
+				if (serviceCommand !== "install") {
+					throw new Error("workspace backend service currently supports only install");
+				}
+				return {
+					type: "workspace-backend-service-install",
+					profile: backendProfile,
+					dryRun,
+					overwrite,
+					json,
+					pretty,
+				};
+			}
+			if (backendCommand === "install-service") {
+				return {
+					type: "workspace-backend-service-install",
+					profile: backendProfile,
+					dryRun,
+					overwrite,
+					json,
+					pretty,
+				};
+			}
+			throw new Error("workspace backend requires init, status, start, or service");
 		}
 		if (subcommand === "app") {
 			const method = requiredPositional(

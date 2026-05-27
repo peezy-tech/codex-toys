@@ -151,9 +151,10 @@ codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --san
 codex-flows app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace doctor
-codex-flows workspace backend init local
-codex-flows workspace backend status
-codex-flows workspace backend start --dry-run
+codex-flows workspace backend init local --global --profile home
+codex-flows workspace backend status --profile home
+codex-flows workspace backend service install --profile home --dry-run
+codex-flows workspace backend start --profile home --dry-run
 codex-flows workspace tick --mode local
 codex-flows memories transplant global-to-workspace
 codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex

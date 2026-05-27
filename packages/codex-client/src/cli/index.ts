@@ -96,9 +96,14 @@ import {
 import {
 	collectWorkspaceBackendSetupInfo,
 	formatWorkspaceBackendInitLocalResult,
+	formatWorkspaceBackendProfileInitResult,
+	formatWorkspaceBackendServiceInstallResult,
 	formatWorkspaceBackendSetupInfo,
 	formatWorkspaceBackendStartResult,
+	initGlobalLocalWorkspaceBackend,
 	initLocalWorkspaceBackend,
+	installWorkspaceBackendService,
+	readWorkspaceBackendProfile,
 	startLocalWorkspaceBackend,
 } from "./workspace-backend-setup.ts";
 import { parseJsonParamsText, readJsonFile } from "./json.ts";
@@ -305,9 +310,24 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "workspace-backend-init-local") {
+		if (parsed.globalProfile || parsed.profile) {
+			const result = await initGlobalLocalWorkspaceBackend({
+				profile: parsed.profile,
+				workspaceRoot: parsed.workspaceRoot,
+				codexHome: parsed.codexHome,
+				overwrite: parsed.overwrite,
+			});
+			write(parsed.json
+				? `${JSON.stringify(result, null, 2)}\n`
+				: formatWorkspaceBackendProfileInitResult(result));
+			return;
+		}
 		const context = await createWorkspaceContext({
 			workspaceRoot: parsed.workspaceRoot,
 			mode: "local",
+			env: parsed.codexHome
+				? { ...process.env, CODEX_HOME: parsed.codexHome }
+				: process.env,
 		});
 		const result = await initLocalWorkspaceBackend(context, {
 			overwrite: parsed.overwrite,
@@ -318,11 +338,17 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "workspace-backend-status") {
+		const profile = parsed.profile
+			? await readWorkspaceBackendProfile(parsed.profile)
+			: undefined;
 		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot,
+			workspaceRoot: parsed.workspaceRoot ?? profile?.workspaceRoot,
 			mode: "local",
+			env: profile ? { ...process.env, CODEX_HOME: profile.codexHome } : process.env,
 		});
-		const setup = await collectWorkspaceBackendSetupInfo(context);
+		const setup = await collectWorkspaceBackendSetupInfo(context, process.env, {
+			profile: profile?.name,
+		});
 			const backend = await collectBackendInfo({
 				appUrl: parsed.appUrl,
 				workspaceUrl: setup.workspaceBackendUrl,
@@ -344,16 +370,32 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "workspace-backend-start") {
+		const profile = parsed.profile
+			? await readWorkspaceBackendProfile(parsed.profile)
+			: undefined;
 		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot,
+			workspaceRoot: parsed.workspaceRoot ?? profile?.workspaceRoot,
 			mode: "local",
+			env: profile ? { ...process.env, CODEX_HOME: profile.codexHome } : process.env,
 		});
 		const result = await startLocalWorkspaceBackend(context, {
 			dryRun: parsed.dryRun,
+			profile: profile?.name,
 		});
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
 			: formatWorkspaceBackendStartResult(result));
+		return;
+	}
+	if (parsed.type === "workspace-backend-service-install") {
+		const result = await installWorkspaceBackendService({
+			profile: parsed.profile,
+			dryRun: parsed.dryRun,
+			overwrite: parsed.overwrite,
+		});
+		write(parsed.json
+			? `${JSON.stringify(result, null, 2)}\n`
+			: formatWorkspaceBackendServiceInstallResult(result));
 		return;
 	}
 	if (parsed.type === "workspace-tick") {
@@ -1268,8 +1310,10 @@ Usage:
   codex-flows workspace methods
   codex-flows workspace doctor [--mode auto|local|actions] [--json]
   codex-flows workspace backend init local [--overwrite] [--json]
-  codex-flows workspace backend status [--json]
-  codex-flows workspace backend start [--dry-run] [--json]
+  codex-flows workspace backend init local --global [--profile <name>] [--workspace-root <path>] [--codex-home <home>]
+  codex-flows workspace backend status [--profile <name>] [--json]
+  codex-flows workspace backend start [--profile <name>] [--dry-run] [--json]
+  codex-flows workspace backend service install [--profile <name>] [--dry-run]
   codex-flows workspace tick [--mode auto|local|actions]
   codex-flows workspace run <task-id> [--mode auto|local|actions]
   codex-flows workspace init actions [--forgejo|--github]
@@ -1308,6 +1352,7 @@ Options:
   --no-color                                 Disable ANSI colors for fetch.
   --mode <auto|local|actions>                Workspace execution mode.
   --workspace-root <path>                    Workspace root. Defaults to discovery.
+  --profile, --name <name>                   Workspace backend profile name.
   --global-codex-home <path>                 Global Codex home for memories transplant.
   --workspace-codex-home <path>              Workspace Codex home for memories transplant.
   --codex-home <path>                        Codex home for thread transplant.
@@ -1327,6 +1372,8 @@ Options:
                                              or workspace tasks.
   --forgejo                                  Generate a Forgejo Actions workflow.
   --github                                   Generate a GitHub Actions workflow.
+  --global                                   For backend init local, write a user profile
+                                             under XDG_CONFIG_HOME instead of this repo.
   --dry-run                                  Print the local backend start command.
   --prompt <text>                            Prompt text for remote turn start or
                                              automation script context.
@@ -1365,8 +1412,9 @@ Examples:
   codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace delegation.list
   codex-flows workspace doctor --mode actions
-  codex-flows workspace backend init local
-  codex-flows workspace backend start --dry-run
+  codex-flows workspace backend init local --global --profile home
+  codex-flows workspace backend service install --profile home --dry-run
+  codex-flows workspace backend start --profile home --dry-run
   codex-flows workspace init actions --forgejo
   codex-flows memories transplant global-to-workspace
   codex-flows threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex
