@@ -205,8 +205,6 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
-  packages/codex-opencode-go-router: {}
-
   packages/ui:
     dependencies:
       '@base-ui/react':
