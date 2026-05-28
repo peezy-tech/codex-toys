@@ -16,10 +16,13 @@ compose native Codex turns.
 - Export a default handler that receives a context object with `automation`,
   `runtime`, optional `event`, optional `prompt`, optional `cwd`, and host
   helpers.
-- Return `{ "action": "skip" }` when no Codex turn is needed.
-- Return `{ "action": "turn", "prompt": "..." }` when Codex should start a
-  native turn.
-- Return any other JSON object when the script has done the orchestration itself.
+- Return an ordinary JSON object. Use shapes such as
+  `{ "status": "skipped", "reason": "nothing changed" }` when no Codex turn is
+  needed.
+- Start native Codex turns from the script with `context.turn.start`, then
+  return the turn metadata or wait for it with `context.turn.wait`.
+- The CLI does not interpret returned `action` fields; the script owns its own
+  orchestration.
 - Scripts must `export default async function run(context)` or an equivalent
   default function.
 
@@ -46,12 +49,14 @@ automations/<name>/
 `automation.json` should include `script`, and may include `name`,
 `description`, `prompt`, `promptFile`, `cwd`, and advisory `skills`.
 
-## Turn Decision Fields
+## Turn Start Fields
 
-- `prompt`: required for `action = "turn"` unless the CLI supplies `--prompt`.
+- `prompt`: required for `context.turn.start` unless the CLI or manifest
+  supplies a default prompt.
 - `threadId`: continue an existing thread instead of creating a new one.
 - `cwd`: target workspace cwd. With `--ssh`, this is the remote cwd.
-- `model`, `serviceTier`, `permissions`: optional app-server turn settings.
+- `model`, `serviceTier`, `sandbox`, `approvalPolicy`, `permissions`: optional
+  app-server turn settings. Do not combine `sandbox` with `permissions`.
 - `responsesapiClientMetadata`: string metadata for the turn.
 - `outputSchema`: optional JSON Schema for the final assistant response.
 - `skills`: advisory routing metadata for now; current app-server builds do not
@@ -65,5 +70,7 @@ automations/<name>/
   reports; there is no codex-flows artifact helper on the context.
 - Keep external side effects small before the turn starts; the turn should own
   work that needs Codex reasoning, tools, or skill guidance.
-- Use the SSH provider for remote workspaces:
-  `codex-flows --ssh <target> --cwd /repo automation run <name>`.
+- Use the SSH provider for remote workspaces. In SSH mode, named resolution,
+  event loading, and script execution happen on the remote host, and `--event`
+  paths are remote paths relative to `--cwd` unless absolute:
+  `codex-flows --ssh <target> --cwd /repo automation run <name> --event .codex/events/name/manual.json --sandbox danger-full-access --approval-policy never`.

@@ -55,6 +55,7 @@ Build commands from the discovered values:
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> remote preflight
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> fetch
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> workspace doctor
+codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> automation list --json
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> automation run <name> --event event.json
 codex-flows --ssh <discovered-host-or-alias> --cwd <discovered-remote-project-path> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
@@ -89,13 +90,17 @@ codex-flows --ssh <user@host> --cwd <remote-workspace> remote preflight
 codex-flows --ssh <user@host> --cwd <remote-workspace> fetch
 codex-flows --ssh <user@host> --cwd <remote-workspace> workspace doctor
 codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json
+codex-flows --ssh <user@host> --cwd <remote-workspace> automation list --json
+codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json --sandbox danger-full-access --approval-policy never
 codex-flows --ssh <user@host> --cwd <remote-workspace> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
-Local files such as `--event event.json` are read locally. Codex tools,
-`CODEX_HOME`, and workspace execution happen on the remote target. Do not copy
-local credentials to the target; SSH config and the remote environment own auth.
+With `--ssh`, automation listing, named resolution, `--event` loading, and
+script execution happen on the remote target. Event paths such as
+`--event event.json` are remote paths resolved relative to `--cwd` unless
+absolute. Codex tools, `CODEX_HOME`, and workspace execution also happen on the
+remote target. Do not copy local credentials to the target; SSH config and the
+remote environment own auth.
 
 Useful defaults:
 

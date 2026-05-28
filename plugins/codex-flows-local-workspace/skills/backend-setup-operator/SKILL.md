@@ -51,8 +51,9 @@ hook events.
 ## Remote Backend Flow
 
 For a remote backend, do not start local hooks or a local backend process. The
-preferred automation path is the SSH-backed provider: the local CLI reads local
-inputs, while Codex tools, `CODEX_HOME`, and workspace execution happen on the
+preferred automation path is the SSH-backed provider: the local CLI starts a
+remote-agent over SSH, while automation discovery, event loading, script
+execution, Codex tools, `CODEX_HOME`, and workspace execution happen on the
 remote target.
 
 Start with a probe:
@@ -67,7 +68,8 @@ Examples:
 
 ```bash
 codex-flows --ssh <user@host> --cwd <remote-workspace> workspace methods
-codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json
+codex-flows --ssh <user@host> --cwd <remote-workspace> automation list --json
+codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json --sandbox danger-full-access --approval-policy never
 codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh <user@host> --cwd <remote-workspace> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
