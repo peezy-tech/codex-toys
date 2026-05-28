@@ -16,7 +16,7 @@ import { parse as parseToml } from "smol-toml";
 import { parseJsonText } from "./json.ts";
 import { discoverWorkspaceRoot } from "./workspace-autonomy.ts";
 
-export type PackKind = "skill" | "plugin" | "hook";
+export type PackKind = "skill" | "plugin" | "hook" | "automation";
 
 export type PackSourceDescriptor = {
 	input: string;
@@ -733,6 +733,7 @@ async function discoverPackByConvention(
 		...await discoverSkills(root, warnings),
 		...await discoverPlugins(root, warnings),
 		...await discoverHooks(root, warnings),
+		...await discoverAutomations(root, warnings),
 	];
 	return {
 		pack: { name: path.basename(root) },
@@ -813,6 +814,31 @@ async function discoverHooks(root: string, warnings: string[]): Promise<PackCapa
 	return capabilities;
 }
 
+async function discoverAutomations(root: string, warnings: string[]): Promise<PackCapability[]> {
+	const capabilities: PackCapability[] = [];
+	const automationsRoot = path.join(root, "automations");
+	for (const file of await walkFiles(automationsRoot)) {
+		if (path.basename(file) !== "automation.json") {
+			continue;
+		}
+		const sourcePath = path.dirname(file);
+		if (path.resolve(sourcePath) === path.resolve(automationsRoot)) {
+			continue;
+		}
+		const capability = await capabilityFromPath({
+			root,
+			name: path.basename(sourcePath),
+			kind: "automation",
+			sourcePath,
+			warnings,
+		});
+		if (capability) {
+			capabilities.push(capability);
+		}
+	}
+	return capabilities;
+}
+
 async function capabilityFromPath(options: {
 	root: string;
 	name: string;
@@ -849,6 +875,9 @@ function expectedFile(sourcePath: string, kind: PackKind): string {
 	}
 	if (kind === "plugin") {
 		return path.join(sourcePath, ".codex-plugin", "plugin.json");
+	}
+	if (kind === "automation") {
+		return path.join(sourcePath, "automation.json");
 	}
 	return path.join(sourcePath, "hooks.json");
 }
@@ -896,6 +925,9 @@ function destinationForItem(workspaceRoot: string, item: Pick<PackCapability, "k
 	}
 	if (item.kind === "plugin") {
 		return path.join(workspaceRoot, "plugins", item.name);
+	}
+	if (item.kind === "automation") {
+		return path.join(workspaceRoot, ".codex", "automations", item.name);
 	}
 	return path.join(workspaceRoot, ".codex", "hooks", item.name);
 }
@@ -1240,7 +1272,7 @@ function isSubpath(root: string, candidate: string): boolean {
 }
 
 function packKind(value: unknown): PackKind | undefined {
-	if (value === "skill" || value === "plugin" || value === "hook") {
+	if (value === "skill" || value === "plugin" || value === "hook" || value === "automation") {
 		return value;
 	}
 	return undefined;

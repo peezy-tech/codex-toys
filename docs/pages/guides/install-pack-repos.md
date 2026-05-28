@@ -1,6 +1,6 @@
 ---
 title: Install pack repos
-description: Copy repo-local skills, plugins, and hooks from capability pack repositories.
+description: Copy repo-local skills, plugins, hooks, and automations from capability pack repositories.
 ---
 
 # Install pack repos
@@ -11,9 +11,10 @@ parallel distribution model.
 
 Pack repos are the lower-level file-copy path for workspaces that intentionally
 want repo-local copies, such as skills under `.agents/skills`, local plugins
-under `plugins`, or direct hook config under `.codex/hooks`. For codex-flows
-itself, prefer the plugin install because its hooks are bundled in the plugin
-and discovered by Codex without a pack copy.
+under `plugins`, direct hook config under `.codex/hooks`, or automation
+templates under `.codex/automations`. For codex-flows itself, prefer the plugin
+install because its hooks are bundled in the plugin and discovered by Codex
+without a pack copy.
 
 A workspace repo is the operational target. `codex-flows pack add` installs
 selected capabilities into that repo's Codex-native locations. V1 is repo-local
@@ -27,6 +28,7 @@ Pack repos work without a manifest by scanning conventional folders:
 skills/**/<skill>/SKILL.md
 plugins/**/.codex-plugin/plugin.json
 hooks/<hook-pack>/hooks.json
+automations/<automation>/automation.json
 ```
 
 Only add `codex-pack.toml` when the repo needs display metadata or explicit
@@ -36,7 +38,7 @@ item names and paths:
 [pack]
 name = "engineering-capabilities"
 version = "0.1.0"
-description = "Reusable engineering skills, plugins, and hooks."
+description = "Reusable engineering skills, plugins, hooks, and automations."
 
 [[pack.items]]
 name = "tdd"
@@ -52,6 +54,11 @@ path = "plugins/repo-policy"
 name = "workspace-stop-hooks"
 kind = "hook"
 path = "hooks/workspace-stop"
+
+[[pack.items]]
+name = "release-candidate"
+kind = "automation"
+path = "automations/release-candidate"
 ```
 
 ## Inspect and install
@@ -92,6 +99,7 @@ Overwrite backs up replaced item directories under `.codex/pack-backups/<timesta
 | Skill | `skills/**/<skill>/SKILL.md` | `.agents/skills/<skill>` |
 | Plugin | `plugins/**/.codex-plugin/plugin.json` | `plugins/<plugin-name>` and `.agents/plugins/marketplace.json` |
 | Hook | `hooks/**/hooks.json` | `.codex/hooks/<hook-pack>` and `.codex/hooks.json` |
+| Automation | `automations/**/automation.json` | `.codex/automations/<automation>` |
 
 The installer writes `.codex/pack-lock.json` with source, ref or commit when
 known, selected capabilities, destination paths, and content hashes.
@@ -112,6 +120,14 @@ Plugin-bundled hooks remain inside the plugin. Codex discovers default plugin
 hooks from `hooks/hooks.json` when `[features].plugin_hooks = true`; the pack
 installer reports that requirement when it sees plugin hooks, but it does not
 enable the feature automatically.
+
+## Automations
+
+Automation packs are templates for codex-flows workspaces. Their bundle
+directory is copied under `.codex/automations/<automation>`, and execution stays
+with codex-flows commands, workspace policy, or forge runners. The pack
+installer does not schedule, retry, replay, or run automations while installing
+them.
 
 ## Inspect installed packs
 

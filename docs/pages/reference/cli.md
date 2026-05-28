@@ -301,15 +301,16 @@ codex-flows pack doctor [--json]
 codex-flows pack list [--json]
 ```
 
-`pack inspect` discovers skills, plugins, and hook bundles from a local
-directory, GitHub shorthand such as `owner/repo`, or a Git URL. Use
+`pack inspect` discovers skills, plugins, hook bundles, and automation
+templates from a local directory, GitHub shorthand such as `owner/repo`, or a Git URL. Use
 `--ref <ref>` with GitHub shorthand or Git URL sources. Prefer Codex plugin
 marketplaces for reusable skills; pack commands are for explicit repo-local file
 copies.
 
 `pack add` is dry-run by default and writes only with `--apply`. It installs
 repo-local capabilities into `.agents/skills`, `plugins`,
-`.agents/plugins/marketplace.json`, `.codex/hooks`, and `.codex/hooks.json`.
+`.agents/plugins/marketplace.json`, `.codex/hooks`, `.codex/hooks.json`, and
+`.codex/automations`.
 Changed destinations and same-name plugin marketplace entries from another source
 are conflicts unless `--overwrite` is set; overwrite backs up replaced paths
 under `.codex/pack-backups/<timestamp>/`.

@@ -24,6 +24,7 @@ describe("pack installer", () => {
 			version: "0.1.0",
 		});
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
+			"automation:release-candidate",
 			"hook:workspace-stop",
 			"plugin:repo-policy",
 			"skill:tdd",
@@ -43,7 +44,7 @@ describe("pack installer", () => {
 		expect(plan.items.filter((item) => item.action === "add").map((item) => item.name).sort())
 			.toEqual(["tdd", "workspace-stop"]);
 		expect(plan.items.filter((item) => item.action === "skip").map((item) => item.name).sort())
-			.toEqual(["repo-policy"]);
+			.toEqual(["release-candidate", "repo-policy"]);
 		expect(await exists(path.join(workspaceRoot, ".agents", "skills", "tdd"))).toBe(false);
 		expect(await exists(path.join(workspaceRoot, ".codex", "pack-lock.json"))).toBe(false);
 	});
@@ -61,6 +62,10 @@ describe("pack installer", () => {
 			.toContain("# TDD");
 		expect(await readFile(path.join(workspaceRoot, "plugins", "repo-policy", ".codex-plugin", "plugin.json"), "utf8"))
 			.toContain('"name": "repo-policy"');
+		expect(await readFile(
+			path.join(workspaceRoot, ".codex", "automations", "release-candidate", "automation.json"),
+			"utf8",
+		)).toContain('"name": "release-candidate"');
 
 		const marketplace = JSON.parse(
 			await readFile(path.join(workspaceRoot, ".agents", "plugins", "marketplace.json"), "utf8"),
@@ -78,13 +83,14 @@ describe("pack installer", () => {
 
 		const list = await listInstalledPacks({ workspaceRoot });
 		expect(list.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
+			"automation:release-candidate",
 			"hook:workspace-stop",
 			"plugin:repo-policy",
 			"skill:tdd",
 		]);
 
 		const doctor = await collectPackDoctor({ workspaceRoot });
-		expect(doctor.installedItems).toBe(3);
+		expect(doctor.installedItems).toBe(4);
 		expect(doctor.missingDestinations).toEqual([]);
 		expect(doctor.marketplace.valid).toBe(true);
 		expect(doctor.hooks.valid).toBe(true);
@@ -266,10 +272,12 @@ describe("pack installer", () => {
 		await writeFixtureFile(sourceRoot, "skills/demo/SKILL.md", "# Demo\n");
 		await writeFixtureFile(sourceRoot, "plugins/demo-plugin/.codex-plugin/plugin.json", '{"name":"demo-plugin"}');
 		await writeFixtureFile(sourceRoot, "hooks/demo-hooks/hooks.json", '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo stop"}]}]}}');
+		await writeFixtureFile(sourceRoot, "automations/demo-automation/automation.json", '{"name":"demo-automation"}');
 
 		const inspection = await inspectPackSource({ source: sourceRoot });
 
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
+			"automation:demo-automation",
 			"hook:demo-hooks",
 			"plugin:demo-plugin",
 			"skill:demo",
