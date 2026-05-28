@@ -4,7 +4,9 @@ import { CodexStdioTransport } from "../app-server/stdio-transport.ts";
 import {
 	CodexWorkspaceBackendProtocolServer,
 	type CodexWorkspaceBackendPeer,
+	type WorkspaceBackendMethodHandler,
 } from "../workspace-backend/server.ts";
+import { createRemoteAutomationMethods } from "./remote-automation.ts";
 
 export type RemoteAgentServeOptions = {
 	cwd?: string;
@@ -39,20 +41,39 @@ export async function serveRemoteAgent(
 	client.on("stderr", (line) => process.stderr.write(`${line}\n`));
 	await client.connect();
 
+	const methods: Record<string, WorkspaceBackendMethodHandler> = {};
+	const workspaceRequest = async (method: string, params: unknown) => {
+		const handler = methods[method];
+		if (!handler) {
+			throw new Error(`Unknown workspace backend method: ${method}`);
+		}
+		return await handler(params, {
+			jsonrpc: "2.0",
+			id: "remote-agent-internal",
+			method,
+			params,
+		});
+	};
+	methods["remoteAgent/status"] = () => ({
+		ok: true,
+		cwd: options.cwd ?? process.cwd(),
+		pid: process.pid,
+		node: process.version,
+		codexCommand: options.remoteCodexCommand ?? "codex",
+		codexArgs: options.remoteCodexArgs ?? [],
+	});
+	Object.assign(methods, createRemoteAutomationMethods({
+		cwd: options.cwd,
+		timeoutMs: options.timeoutMs,
+		appRequest: async (method, params) => await client.request(method, params),
+		workspaceRequest,
+	}));
+
 	const workspaceBackend = new CodexWorkspaceBackendProtocolServer({
 		appServer: client,
 		serverName: "codex-flows-remote-agent",
 		serverVersion: "0.1.0",
-		methods: {
-			"remoteAgent/status": () => ({
-				ok: true,
-				cwd: options.cwd ?? process.cwd(),
-				pid: process.pid,
-				node: process.version,
-				codexCommand: options.remoteCodexCommand ?? "codex",
-				codexArgs: options.remoteCodexArgs ?? [],
-			}),
-		},
+		methods,
 	});
 	const peer: CodexWorkspaceBackendPeer = {
 		send: (message) => stdout.write(`${message}\n`),

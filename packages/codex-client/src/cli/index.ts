@@ -72,6 +72,12 @@ import {
 	withSshRemoteWorkspaceTransport,
 	type SshRemoteProviderOptions,
 } from "./remote-provider.ts";
+import {
+	REMOTE_AUTOMATION_LIST_METHOD,
+	REMOTE_AUTOMATION_RUN_METHOD,
+	type RemoteAutomationListResponse,
+	type RemoteAutomationRunParams,
+} from "./remote-automation.ts";
 import { serveRemoteAgent } from "./remote-agent.ts";
 import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
 import {
@@ -190,6 +196,14 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "automation-run") {
+		validateAutomationTurnOptions(parsed);
+		if (hasSshRemote(parsed)) {
+			const run = await runRemoteTurnAutomationForCli(parsed);
+			write(parsed.json
+				? `${JSON.stringify(run, null, parsed.pretty ? 2 : 0)}\n`
+				: formatTurnAutomationRun(run));
+			return;
+		}
 		const event = parsed.eventPath
 			? await readJsonFile(parsed.eventPath)
 			: undefined;
@@ -198,7 +212,7 @@ async function main(): Promise<void> {
 		});
 		const prompt = parsed.prompt ?? target.prompt;
 		const cwd = parsed.cwd ?? target.cwd;
-			const run = await runTurnAutomationForCli(target, {
+		const run = await runTurnAutomationForCli(target, {
 			event,
 			prompt,
 			cwd,
@@ -206,19 +220,25 @@ async function main(): Promise<void> {
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
 			timeoutMs: parsed.timeoutMs,
+			sandbox: parsed.sandbox,
+			approvalPolicy: parsed.approvalPolicy,
+			permissions: parsed.permissions,
+			model: parsed.model,
 			sshTarget: parsed.sshTarget,
 			remotePathPrepend: parsed.remotePathPrepend,
 			remoteAgentCommand: parsed.remoteAgentCommand,
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
-			});
+		});
 		write(parsed.json
 			? `${JSON.stringify(run, null, parsed.pretty ? 2 : 0)}\n`
 			: formatTurnAutomationRun(run));
 		return;
 	}
 	if (parsed.type === "automation-list") {
-		const automations = await listTurnAutomations({ cwd: parsed.workspaceRoot });
+		const automations = hasSshRemote(parsed)
+			? await listRemoteTurnAutomationsForCli(parsed)
+			: await listTurnAutomations({ cwd: parsed.workspaceRoot });
 		write(parsed.json
 			? `${JSON.stringify({ automations }, null, parsed.pretty ? 2 : 0)}\n`
 			: formatTurnAutomationList(automations));
@@ -605,6 +625,71 @@ async function callAppServer(
 	}
 }
 
+async function listRemoteTurnAutomationsForCli(
+	options: {
+		workspaceRoot?: string;
+		cwd?: string;
+		timeoutMs: number;
+	} & SshRemoteProviderOptions,
+): Promise<RemoteAutomationListResponse["automations"]> {
+	return await withSshRemoteWorkspaceTransport(options, async (transport) => {
+		await initialize(transport);
+		const response = await transport.request<RemoteAutomationListResponse>(
+			REMOTE_AUTOMATION_LIST_METHOD,
+			{
+				workspaceRoot: options.workspaceRoot,
+				cwd: options.cwd,
+			},
+		);
+		return response.automations;
+	});
+}
+
+async function runRemoteTurnAutomationForCli(
+	options: {
+		target: string;
+		eventPath?: string;
+		prompt?: string;
+		workspaceRoot?: string;
+		cwd?: string;
+		via: "workspace" | "app";
+		timeoutMs: number;
+		sandbox?: RemoteAutomationRunParams["sandbox"];
+		approvalPolicy?: RemoteAutomationRunParams["approvalPolicy"];
+		permissions?: string;
+		model?: string;
+	} & SshRemoteProviderOptions,
+): Promise<TurnAutomationRun> {
+	return await withSshRemoteWorkspaceTransport(options, async (transport) => {
+		await initialize(transport);
+		return await transport.request<TurnAutomationRun>(
+			REMOTE_AUTOMATION_RUN_METHOD,
+			{
+				target: options.target,
+				eventPath: options.eventPath,
+				prompt: options.prompt,
+				workspaceRoot: options.workspaceRoot,
+				cwd: options.cwd,
+				via: options.via,
+				timeoutMs: options.timeoutMs,
+				sandbox: options.sandbox,
+				approvalPolicy: options.approvalPolicy,
+				permissions: options.permissions,
+				model: options.model,
+			} satisfies RemoteAutomationRunParams,
+		);
+	});
+}
+
+function validateAutomationTurnOptions(options: {
+	sandbox?: string;
+	permissions?: string;
+}): void {
+	if (options.sandbox && options.permissions) {
+		throw new Error("--sandbox cannot be combined with --permissions");
+	}
+}
+
 async function runTurnAutomationForCli(
 	target: TurnAutomationRunTarget,
 	options: {
@@ -615,6 +700,10 @@ async function runTurnAutomationForCli(
 		appUrl: string;
 		workspaceUrl: string;
 		timeoutMs: number;
+		sandbox?: RemoteAutomationRunParams["sandbox"];
+		approvalPolicy?: RemoteAutomationRunParams["approvalPolicy"];
+		permissions?: string;
+		model?: string;
 	} & SshRemoteProviderOptions,
 ): Promise<TurnAutomationRun> {
 	const host = createCliTurnAutomationHost({
@@ -623,6 +712,10 @@ async function runTurnAutomationForCli(
 			prompt: options.prompt,
 			cwd: options.cwd,
 			skills: target.skills,
+			sandbox: options.sandbox,
+			approvalPolicy: options.approvalPolicy,
+			permissions: options.permissions,
+			model: options.model,
 		},
 	});
 	try {
@@ -650,6 +743,10 @@ function createCliTurnAutomationHost(
 			prompt?: string;
 			cwd?: string;
 			skills?: string[];
+			sandbox?: RemoteAutomationRunParams["sandbox"];
+			approvalPolicy?: RemoteAutomationRunParams["approvalPolicy"];
+			permissions?: string;
+			model?: string;
 		};
 	} & SshRemoteProviderOptions,
 ): { handler: TurnAutomationHostHandler; close(): void } {
@@ -1294,6 +1391,8 @@ Usage:
 
 	  codex-flows automation list [--json]
 	  codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
+	  codex-flows --ssh <target> --cwd <remote-workspace> automation list [--json]
+	  codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
 
 	  codex-flows app <method> [params-json]
 	  codex-flows app <method> --params-json <json>
@@ -1345,7 +1444,8 @@ Options:
                                              or ${DEFAULT_WORKSPACE_BACKEND_WS_URL}.
   --url, --ws-url <url>                      Set both app and workspace URLs.
   --timeout-ms <ms>                          Request timeout. Defaults to 90000,
-                                             or 1500 for fetch probes.
+                                             1500 for fetch probes, or 1800000
+                                             for automation run and waited turns.
   --compact                                  Print compact JSON.
   --pretty                                   Print pretty JSON.
   --json                                     Print JSON for supported commands.
@@ -1378,11 +1478,11 @@ Options:
   --prompt <text>                            Prompt text for remote turn start or
                                              automation script context.
   --via <workspace|app>                      Turn surface. Defaults to workspace.
-  --sandbox <mode>                           Remote turn sandbox: danger-full-access,
+  --sandbox <mode>                           Turn sandbox: danger-full-access,
                                              workspace-write, or read-only.
-  --approval-policy <policy>                 Remote turn approval policy: never,
+  --approval-policy <policy>                 Turn approval policy: never,
                                              on-failure, on-request, or untrusted.
-  --permissions <profile>                    Remote turn permissions profile.
+  --permissions <profile>                    Turn permissions profile.
   --ssh, --ssh-target <target>               SSH target for remote CodexFlows operation
                                              Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
   --remote-path-prepend <paths>              Colon-separated remote PATH entries for
@@ -1405,6 +1505,7 @@ Examples:
   codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait
   codex-flows automation list
   codex-flows automation run check-release --event event.json
+  codex-flows --ssh devbox --cwd /repo automation list --json
   codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
   codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows --ssh devbox --cwd /repo workspace delegation.list

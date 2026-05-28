@@ -95,8 +95,7 @@ describe("remote control operator", () => {
 					"workspace.initialize",
 					"thread/start",
 					"turn/start",
-					"thread/turns/list",
-					"thread/turns/items/list",
+					"thread/read",
 				]);
 			} finally {
 				await server.close();
@@ -191,17 +190,26 @@ function fakeResult(method: string, params: unknown): unknown {
 			if (appMethod === "turn/start") {
 				return { turn: { id: "turn-1", status: "inProgress", items: [] } };
 			}
-			if (appMethod === "thread/turns/list") {
+			if (appMethod === "thread/read") {
 				return {
-					data: [{
-						id: "turn-1",
-						status: "completed",
-						items: [],
-						durationMs: 42,
-						error: null,
-					}],
-					nextCursor: null,
-					backwardsCursor: null,
+					thread: {
+						id: "thread-1",
+						turns: [{
+							id: "turn-1",
+							status: "completed",
+							durationMs: 42,
+							error: null,
+							items: [
+								{
+									type: "agentMessage",
+									id: "item-1",
+									text: "done from remote",
+									phase: null,
+									memoryCitation: null,
+								},
+							],
+						}],
+					},
 				};
 			}
 			if (appMethod === "thread/turns/items/list") {

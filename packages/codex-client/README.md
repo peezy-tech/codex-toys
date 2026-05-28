@@ -168,6 +168,7 @@ See `docs/pages/reference/cli.md` for the full command surface.
 SSH is a connection provider, not a product UI surface. With `--ssh`, the local
 CLI starts `codex-flows remote-agent serve` on the target, speaks workspace
 JSON-RPC over the SSH stdio stream, runs prompts with `turn run`, routes
+automation discovery and execution to the remote workspace, routes
 `remote turn start --wait` through the same provider, and passes app calls
 through the remote workspace bridge. For non-interactive SSH PATH differences,
 set `CODEX_FLOWS_REMOTE_PATH_PREPEND`, absolute remote command overrides, or

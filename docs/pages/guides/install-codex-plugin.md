@@ -35,7 +35,7 @@ lifecycle events for workspace surfaces.
 |--------|----------|
 | `codex-flows-author` | Turn automation authoring guidance. |
 | `codex-flows-local-workspace` | Local backend setup and plugin-bundled hooks. |
-| `codex-flows-remote-control` | Local Codex App guidance for remote-control status, SSH/Tailscale tunnels, and starting turns on a remote backend. |
+| `codex-flows-remote-control` | Local Codex App guidance for remote-control status, SSH remote-agent preflight, remote automation, and remote turns. |
 | `codex-flows` | Product-local full install for development and compatibility. |
 
 ## Install from GitHub
@@ -150,13 +150,15 @@ tunnel.
 For one-shot automation, prefer the global SSH provider:
 
 ```bash
+codex-flows --ssh <user@tailscale-host> --cwd /repo automation list --json
 codex-flows --ssh <user@tailscale-host> --cwd /repo automation run check-release --event event.json
 codex-flows --ssh <user@tailscale-host> --cwd /repo turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
-That command runs the automation script locally, then starts the resulting
-native Codex turn against the remote workspace if the script returns
-`{"action":"turn"}`.
+Those commands run automation discovery, event loading, and script execution on
+the remote host through the SSH remote-agent. In SSH mode `--event` is a remote
+path, relative to `--cwd` unless it is absolute. Automation scripts can start
+remote Codex turns and wait for them before returning their JSON result.
 
 The SSH provider starts commands through a non-interactive shell, so the VPS
 may not inherit login-shell PATH setup. Set `CODEX_FLOWS_REMOTE_PATH_PREPEND`

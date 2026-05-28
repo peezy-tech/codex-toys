@@ -30,7 +30,7 @@ side effects.
 | Call Codex app-server from TypeScript | [Packages](reference/packages) |
 | Inspect or call app-server and workspace backend methods from a terminal | [CLI reference](reference/cli) |
 | Run code before deciding whether to start a Codex prompt | [Turn automation](guides/turn-automation) |
-| Control a remote backend from a local Codex App | [Install the Codex plugin](guides/install-codex-plugin) and [CLI reference](reference/cli) |
+| Control a remote workspace from a local Codex App | [Install the Codex plugin](guides/install-codex-plugin) and [CLI reference](reference/cli) |
 | Schedule repo-local workspace tasks | [Workspace autonomy](guides/workspace-autonomy) |
 | Move durable Codex memories between global and repo homes | [Memory transplant](guides/memory-transplant) |
 | Move a Codex thread rollout between Codex homes | [Thread transplant](guides/thread-transplant) |
@@ -54,7 +54,7 @@ side effects.
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
 - `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
-  turn automation, remote backend control, workspace autonomy, memory
+  turn automation, remote workspace control, workspace autonomy, memory
   transplant, thread transplant, and optional pack repo install
 - `codex-workspace-backend-local`: local workspace backend process
 - `codex-app`: app-server JSON-RPC utility CLI
@@ -69,26 +69,29 @@ codex-flows automation list
 codex-flows automation run openai-codex-bindings --event event.json
 ```
 
-The script can skip:
+The script can return a skip-like result:
 
 ```json
 {
-  "action": "skip",
+  "status": "skipped",
   "reason": "nothing changed"
 }
 ```
 
-Or start a native turn:
+Or start a native turn through `context.turn.start` and return the turn
+metadata:
 
 ```json
 {
-  "action": "turn",
-  "cwd": "/repo",
-  "prompt": "Check this upstream release and prepare the fork update."
+  "status": "started",
+  "turn": {
+    "threadId": "019...",
+    "turnId": "019..."
+  }
 }
 ```
 
-The SSH provider lets the local script target a remote workspace:
+The SSH provider runs the automation inside the remote workspace:
 
 ```bash
 codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json

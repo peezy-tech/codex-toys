@@ -80,12 +80,17 @@ type ParsedCliBase =
 			appUrl: string;
 			workspaceUrl: string;
 			timeoutMs: number;
+			sandbox?: RemoteTurnSandbox;
+			approvalPolicy?: RemoteTurnApprovalPolicy;
+			permissions?: string;
+			model?: string;
 			json: boolean;
 			pretty: boolean;
 	  }
 	| {
 			type: "automation-list";
 			workspaceRoot?: string;
+			timeoutMs: number;
 			json: boolean;
 			pretty: boolean;
 	  }
@@ -287,6 +292,7 @@ export type ParsedCli = ParsedCliBase & ParsedRemoteOptions;
 export const DEFAULT_APP_SERVER_WS_URL = "ws://127.0.0.1:3585";
 export const DEFAULT_WORKSPACE_BACKEND_WS_URL = "ws://127.0.0.1:3586";
 const defaultTimeoutMs = 90_000;
+const defaultLongRunningTurnTimeoutMs = 30 * 60 * 1000;
 
 export function parseArgs(
 	argv: string[],
@@ -785,7 +791,7 @@ export function parseArgs(
 					via,
 					appUrl,
 					workspaceUrl,
-					timeoutMs,
+					timeoutMs: wait ? turnWaitTimeoutMs(timeoutMs) : timeoutMs,
 					wait,
 					sandbox,
 					approvalPolicy,
@@ -838,7 +844,7 @@ export function parseArgs(
 				cwd,
 				appUrl,
 				workspaceUrl,
-				timeoutMs,
+				timeoutMs: wait ? turnWaitTimeoutMs(timeoutMs) : timeoutMs,
 				wait,
 				sandbox,
 				approvalPolicy,
@@ -855,8 +861,10 @@ export function parseArgs(
 			return {
 				type: "automation-list",
 				workspaceRoot,
+				timeoutMs,
 				json,
 				pretty,
+				...remoteFields(),
 			};
 		}
 		if (subcommand !== "run") {
@@ -872,7 +880,11 @@ export function parseArgs(
 			via,
 			appUrl,
 			workspaceUrl,
-			timeoutMs,
+			timeoutMs: automationRunTimeoutMs(timeoutMs),
+			sandbox,
+			approvalPolicy,
+			permissions,
+			model,
 			json,
 			pretty,
 			...remoteFields(),
@@ -1245,6 +1257,14 @@ function parseRemoteTurnApprovalPolicy(value: string): RemoteTurnApprovalPolicy 
 		return value;
 	}
 	throw new Error("--approval-policy must be never, on-failure, on-request, or untrusted");
+}
+
+function turnWaitTimeoutMs(timeoutMs: number): number {
+	return timeoutMs === defaultTimeoutMs ? defaultLongRunningTurnTimeoutMs : timeoutMs;
+}
+
+function automationRunTimeoutMs(timeoutMs: number): number {
+	return timeoutMs === defaultTimeoutMs ? defaultLongRunningTurnTimeoutMs : timeoutMs;
 }
 
 function required(args: string[], index: number, flag: string): string {

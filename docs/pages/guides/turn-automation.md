@@ -135,7 +135,8 @@ Supported turn fields:
 - `prompt`: required text for the native turn.
 - `threadId`: continue an existing thread instead of creating a new one.
 - `cwd`: target workspace cwd for the turn.
-- `model`, `serviceTier`, `permissions`: forwarded to app-server when present.
+- `model`, `serviceTier`, `sandbox`, `approvalPolicy`, `permissions`:
+  forwarded to app-server when present.
 - `responsesapiClientMetadata`: string metadata forwarded to the turn.
 - `outputSchema`: JSON Schema for the final assistant response.
 - `skills`: forwarded as turn-scoped routing metadata for hosts that support it.
@@ -185,11 +186,19 @@ codex-flows automation run check-release --event event.json --via workspace
 The same command can target a remote workspace through the SSH provider:
 
 ```bash
+codex-flows --ssh devbox --cwd /repo automation list --json
 codex-flows --ssh devbox --cwd /repo automation run check-release \
   --event event.json \
+  --sandbox danger-full-access \
+  --approval-policy never \
   --via workspace
 ```
 
-With `--ssh`, the script still runs locally. The resulting turn targets the
-remote workspace. The provider uses the selected surface directly; it does not
-try a second turn surface if the selected one is unavailable.
+With `--ssh`, automation discovery, named resolution, event loading, and script
+execution happen on the remote host inside the remote workspace. `--event` is a
+remote path in this mode, resolved relative to `--cwd` unless it is absolute.
+The remote-agent stays alive until the automation script returns, so scripts
+can call `context.turn.start` and then `context.turn.wait` or
+`context.turn.waitAll` for long-running remote turns. The provider uses the
+selected surface directly; it does not try a second turn surface if the selected
+one is unavailable.

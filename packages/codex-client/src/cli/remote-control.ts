@@ -430,15 +430,22 @@ function turnStartParams(
 		options: {
 			prompt: string;
 			cwd?: string;
+			sandbox?: v2.SandboxMode;
 			approvalPolicy?: v2.AskForApproval;
 			permissions?: string;
 			model?: string;
 		},
+	flags: {
+		includeSandboxPolicy?: boolean;
+	} = {},
 ): v2.TurnStartParams {
 	return compactUndefined({
 		threadId,
 		cwd: options.cwd,
 		approvalPolicy: options.approvalPolicy,
+		sandboxPolicy: flags.includeSandboxPolicy
+			? sandboxPolicyFromMode(options.sandbox)
+			: undefined,
 		permissions: options.permissions,
 		model: options.model,
 		input: [
@@ -469,13 +476,19 @@ async function startTurnWithRequest(
 ): Promise<RemoteTurnStartResult> {
 	const startedAt = Date.now();
 	let threadResponse: unknown;
+	const existingThread = Boolean(options.threadId);
 	const threadId = options.threadId ??
 		nestedId(
 			threadResponse = await request("thread/start", threadStartParams(options)),
 			"thread",
 			"thread/start",
 		);
-	const turnResponse = await request("turn/start", turnStartParams(threadId, options));
+	const turnResponse = await request(
+		"turn/start",
+		turnStartParams(threadId, options, {
+			includeSandboxPolicy: existingThread,
+		}),
+	);
 	const turn = record(record(turnResponse).turn);
 	const turnId = stringValue(turn.id) ?? nestedId(turnResponse, "turn", "turn/start");
 	const initialStatus = turnStatus(turn.status) ?? "accepted";
@@ -525,26 +538,27 @@ async function waitForTurn(options: {
 	const deadline = Date.now() + options.timeoutMs;
 	let latestTurn: Record<string, unknown> | undefined;
 	while (Date.now() <= deadline) {
-		const response = await options.request<v2.ThreadTurnsListResponse>(
-			"thread/turns/list",
+		const response = await options.request<v2.ThreadReadResponse>(
+			"thread/read",
 			{
 				threadId: options.threadId,
-				limit: 50,
-				sortDirection: "desc",
-				itemsView: "summary",
+				includeTurns: true,
 			},
 		);
-		latestTurn = arrayValue(record(response).data)
+		const thread = record(record(response).thread ?? response);
+		latestTurn = arrayValue(thread.turns)
 			.map(record)
 			.find((turn) => stringValue(turn.id) === options.turnId);
 		const status = turnStatus(latestTurn?.status);
-		if (status && status !== "inProgress") {
-			const items = await readTurnItems(options);
+		const completedTurn = latestTurn;
+		if (completedTurn && status && status !== "inProgress") {
+			const items = arrayValue(completedTurn.items);
+			const finalItems = items.length > 0 ? items : await readTurnItems(options);
 			return {
 				status,
-				finalMessage: finalAgentMessage(items),
-				error: turnError(latestTurn),
-				durationMs: numberValue(latestTurn?.durationMs),
+				finalMessage: finalAgentMessage(finalItems),
+				error: turnError(completedTurn),
+				durationMs: numberValue(completedTurn.durationMs),
 			};
 		}
 		await delay(Math.min(500, Math.max(1, deadline - Date.now())));
@@ -611,6 +625,27 @@ function turnStatus(value: unknown): v2.TurnStatus | undefined {
 		value === "inProgress"
 	) {
 		return value;
+	}
+	return undefined;
+}
+
+function sandboxPolicyFromMode(
+	mode: v2.SandboxMode | undefined,
+): v2.SandboxPolicy | undefined {
+	if (mode === "danger-full-access") {
+		return { type: "dangerFullAccess" };
+	}
+	if (mode === "read-only") {
+		return { type: "readOnly", networkAccess: false };
+	}
+	if (mode === "workspace-write") {
+		return {
+			type: "workspaceWrite",
+			writableRoots: [],
+			networkAccess: false,
+			excludeTmpdirEnvVar: false,
+			excludeSlashTmp: false,
+		};
 	}
 	return undefined;
 }

@@ -239,6 +239,10 @@ describe("codex-flows CLI args", () => {
 			"default prompt",
 			"--via",
 			"workspace",
+			"--sandbox",
+			"danger-full-access",
+			"--approval-policy",
+			"never",
 			"--json",
 		], {})).toMatchObject({
 			type: "automation-run",
@@ -248,12 +252,31 @@ describe("codex-flows CLI args", () => {
 			via: "workspace",
 			sshTarget: "devbox",
 			cwd: "/repo",
+			sandbox: "danger-full-access",
+			approvalPolicy: "never",
 			json: true,
+			timeoutMs: 30 * 60 * 1000,
 		});
-		expect(parseArgs(["automation", "list", "--workspace-root", "/work"], {}))
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"automation",
+			"list",
+			"--workspace-root",
+			"/work",
+		], {}))
 			.toMatchObject({
 				type: "automation-list",
 				workspaceRoot: "/work",
+				sshTarget: "devbox",
+				cwd: "/repo",
+			});
+		expect(parseArgs(["turn", "run", "scan", "--wait"], {}))
+			.toMatchObject({
+				type: "turn-run",
+				timeoutMs: 30 * 60 * 1000,
 			});
 	});
 

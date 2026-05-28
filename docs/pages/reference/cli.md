@@ -109,16 +109,22 @@ or reuses a Codex thread, starts a turn, prints the thread and turn ids, and wit
 ```bash
 codex-flows automation list [--json]
 codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
+codex-flows --ssh <target> --cwd <remote-workspace> automation list [--json]
 codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
 ```
 
-`automation run` executes a pre-turn script and starts a native Codex turn only
-when the script returns `{"action":"turn"}`. Automations must be named
-manifests under `.codex/automations/*` or `automations/*`. The script exports a
-default TypeScript/JavaScript handler that receives `automation`, `runtime`,
-optional `event`, optional `prompt`, and optional `cwd` fields.
+`automation run` executes a pre-turn script and returns the script's JSON
+result. Scripts start, read, and wait on native Codex turns through
+`context.turn.*`; the CLI does not interpret returned `action` fields.
+Automations must be named manifests under `.codex/automations/*` or
+`automations/*`. The script exports a default TypeScript/JavaScript handler
+that receives `automation`, `runtime`, optional `event`, optional `prompt`, and
+optional `cwd` fields.
 `automation list` discovers named automations from `.codex/automations/*` and
-`automations/*`.
+`automations/*`. With `--ssh`, listing, named resolution, event loading, and
+script execution happen inside the remote `--cwd` workspace through the
+remote-agent. In SSH mode `--event` is resolved on the remote host, relative to
+the remote workspace unless it is absolute.
 
 Skip result:
 
@@ -129,13 +135,15 @@ Skip result:
 }
 ```
 
-Turn result:
+Started-turn result:
 
 ```json
 {
-  "action": "turn",
-  "prompt": "Inspect this release and prepare the update.",
-  "cwd": "/repo"
+  "status": "started",
+  "turn": {
+    "threadId": "019...",
+    "turnId": "019..."
+  }
 }
 ```
 
@@ -338,7 +346,7 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--app-url`, `--app-server-url <url>` | App-server WebSocket URL. |
 | `--workspace-url`, `--workspace-backend-url <url>` | Workspace backend WebSocket URL. |
 | `--url`, `--ws-url <url>` | Set both app-server and workspace backend URLs. |
-| `--timeout-ms <ms>` | Request timeout. Defaults to `90000`, or `1500` for fetch probes. |
+| `--timeout-ms <ms>` | Request timeout. Defaults to `90000`, `1500` for fetch probes, or `1800000` for `automation run` and waited turns. |
 | `--compact` | Print compact JSON. |
 | `--pretty` | Print pretty JSON. |
 | `--json` | Print JSON for commands that support it. |
@@ -364,13 +372,13 @@ codex-app thread/list '{"limit":20,"sourceKinds":[]}'
 | `--github` | Generate a GitHub Actions workflow with `workspace init actions`. |
 | `--wait` | Wait for `turn run` or `remote turn start` completion and print the final assistant message. |
 | `--thread-id <id>` | Reuse an existing thread for `turn run` or `remote turn start`. |
-| `--model <model>` | Model override for `turn run` or `remote turn start`. |
+| `--model <model>` | Model override for `turn run`, `remote turn start`, or automation-started turns. |
 | `--params-json <json>` | Explicit JSON params for `app`, `workspace`, or `workspace app` calls; tolerates common PowerShell-stripped object keys. |
 | `--params-file <path>` | Read JSON params for `app`, `workspace`, or `workspace app` calls from a file. UTF-8 BOMs are tolerated. |
 | `--via <workspace\|app>` | Turn surface for remote turns and automation. Defaults to `workspace`. |
-| `--sandbox <danger-full-access\|workspace-write\|read-only>` | Sandbox for `turn run` or `remote turn start`. |
-| `--approval-policy <never\|on-failure\|on-request\|untrusted>` | Approval policy for `turn run` or `remote turn start`. |
-| `--permissions <profile>` | Named permissions profile for `turn run` or `remote turn start`; cannot be combined with `--sandbox`. |
+| `--sandbox <danger-full-access\|workspace-write\|read-only>` | Sandbox for `turn run`, `remote turn start`, or automation-started turns. |
+| `--approval-policy <never\|on-failure\|on-request\|untrusted>` | Approval policy for `turn run`, `remote turn start`, or automation-started turns. |
+| `--permissions <profile>` | Named permissions profile for `turn run`, `remote turn start`, or automation-started turns; cannot be combined with `--sandbox`. |
 | `--ssh`, `--ssh-target <target>` | SSH target for remote CodexFlows operation. |
 | `--remote-path-prepend <paths>` | Colon-separated remote PATH entries for non-interactive SSH commands. |
 | `--remote-agent-command <cmd>` | Remote `codex-flows` command path/name. |

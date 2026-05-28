@@ -30,6 +30,8 @@ export type TurnAutomationTurnStartParams = {
 	cwd?: string;
 	model?: string;
 	serviceTier?: string;
+	sandbox?: v2.SandboxMode;
+	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
 	responsesapiClientMetadata?: Record<string, string>;
 	outputSchema?: unknown;
@@ -194,6 +196,10 @@ export type CreateTurnAutomationHostOptions = {
 		prompt?: string;
 		cwd?: string;
 		skills?: string[];
+		sandbox?: v2.SandboxMode;
+		approvalPolicy?: v2.AskForApproval;
+		permissions?: string;
+		model?: string;
 	};
 };
 
@@ -304,8 +310,10 @@ export async function startAutomationTurnWithRequest(
 	request: TurnAutomationBackendRequest,
 	id?: string,
 ): Promise<TurnAutomationStartedTurn> {
+	validateTurnPermissionOptions(turn);
 	let threadId = turn.threadId;
 	let thread: unknown = null;
+	const existingThread = Boolean(threadId);
 	if (!threadId) {
 		const threadResponse = await request(
 			"thread/start",
@@ -316,7 +324,9 @@ export async function startAutomationTurnWithRequest(
 	}
 	const turnResponse = await request(
 		"turn/start",
-		turnStartParamsFromAutomation(threadId, turn),
+		turnStartParamsFromAutomation(threadId, turn, {
+			includeSandboxPolicy: existingThread,
+		}),
 	);
 	return compactUndefined({
 		id,
@@ -584,9 +594,12 @@ function turnStartParamsFromHostParams(
 		prompt,
 		threadId: optionalString(params.threadId),
 		cwd: optionalString(params.cwd) ?? defaults.cwd,
-		model: optionalString(params.model),
+		model: optionalString(params.model) ?? defaults.model,
 		serviceTier: optionalString(params.serviceTier),
-		permissions: optionalString(params.permissions),
+		sandbox: sandboxModeValue(params.sandbox) ?? defaults.sandbox,
+		approvalPolicy: approvalPolicyValue(params.approvalPolicy) ??
+			defaults.approvalPolicy,
+		permissions: optionalString(params.permissions) ?? defaults.permissions,
 		responsesapiClientMetadata: stringRecord(params.responsesapiClientMetadata),
 		outputSchema: params.outputSchema,
 		skills: stringArray(params.skills) ?? defaults.skills,
@@ -625,6 +638,8 @@ function threadStartParamsFromAutomation(
 		cwd: turn.cwd,
 		model: turn.model,
 		serviceTier: turn.serviceTier,
+		sandbox: turn.sandbox,
+		approvalPolicy: turn.approvalPolicy,
 		permissions: turn.permissions,
 		experimentalRawEvents: false,
 		persistExtendedHistory: false,
@@ -634,6 +649,9 @@ function threadStartParamsFromAutomation(
 function turnStartParamsFromAutomation(
 	threadId: string,
 	turn: TurnAutomationTurnStartParams,
+	flags: {
+		includeSandboxPolicy?: boolean;
+	} = {},
 ): v2.TurnStartParams {
 	return compactUndefined({
 		threadId,
@@ -647,10 +665,70 @@ function turnStartParamsFromAutomation(
 		cwd: turn.cwd,
 		model: turn.model,
 		serviceTier: turn.serviceTier,
+		approvalPolicy: turn.approvalPolicy,
+		sandboxPolicy: flags.includeSandboxPolicy
+			? sandboxPolicyFromMode(turn.sandbox)
+			: undefined,
 		permissions: turn.permissions,
 		responsesapiClientMetadata: turn.responsesapiClientMetadata,
 		outputSchema: turn.outputSchema as v2.TurnStartParams["outputSchema"],
 	});
+}
+
+function validateTurnPermissionOptions(turn: TurnAutomationTurnStartParams): void {
+	if (turn.sandbox && turn.permissions) {
+		throw new Error("ctx.turn.start cannot combine sandbox and permissions");
+	}
+}
+
+function sandboxModeValue(value: unknown): v2.SandboxMode | undefined {
+	if (
+		value === "danger-full-access" ||
+		value === "read-only" ||
+		value === "workspace-write"
+	) {
+		return value;
+	}
+	if (value !== undefined) {
+		throw new Error("ctx.turn.start sandbox must be danger-full-access, workspace-write, or read-only");
+	}
+	return undefined;
+}
+
+function approvalPolicyValue(value: unknown): v2.AskForApproval | undefined {
+	if (
+		value === "never" ||
+		value === "on-failure" ||
+		value === "on-request" ||
+		value === "untrusted"
+	) {
+		return value;
+	}
+	if (value !== undefined) {
+		throw new Error("ctx.turn.start approvalPolicy must be never, on-failure, on-request, or untrusted");
+	}
+	return undefined;
+}
+
+function sandboxPolicyFromMode(
+	mode: v2.SandboxMode | undefined,
+): v2.SandboxPolicy | undefined {
+	if (mode === "danger-full-access") {
+		return { type: "dangerFullAccess" };
+	}
+	if (mode === "read-only") {
+		return { type: "readOnly", networkAccess: false };
+	}
+	if (mode === "workspace-write") {
+		return {
+			type: "workspaceWrite",
+			writableRoots: [],
+			networkAccess: false,
+			excludeTmpdirEnvVar: false,
+			excludeSlashTmp: false,
+		};
+	}
+	return undefined;
 }
 
 function nestedId(response: unknown, key: string, label: string): string {
