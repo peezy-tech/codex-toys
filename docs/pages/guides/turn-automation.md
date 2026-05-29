@@ -41,9 +41,15 @@ The manifest points to a module script and optional defaults:
   "description": "Start a turn when a release needs inspection.",
   "script": "check-release.ts",
   "promptFile": "prompt.md",
-  "cwd": "../.."
+  "cwd": "@/fork"
 }
 ```
+
+Manifest `cwd` supports three path forms:
+
+- `@`: the workspace root used to discover the automation.
+- `@/path`: a path inside that workspace root, such as `@/fork`.
+- Relative paths: legacy paths relative to the automation directory.
 
 The script exports a default handler and receives a context object:
 
@@ -63,7 +69,8 @@ The script exports a default handler and receives a context object:
     }
   },
   "prompt": "optional default prompt",
-  "cwd": "/repo"
+  "cwd": "/repo/fork",
+  "workspaceRoot": "/repo"
 }
 ```
 

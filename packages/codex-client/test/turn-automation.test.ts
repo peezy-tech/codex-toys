@@ -131,6 +131,53 @@ export default function run() {
 			.rejects.toThrow("must be a named automation");
 	});
 
+	test("resolves workspace-root cwd aliases in automation manifests", async () => {
+		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-workspace-root-"));
+		const automationRoot = path.join(root, ".codex", "automations", "release-check");
+		await mkdir(automationRoot, { recursive: true });
+		await writeFile(path.join(automationRoot, "check.ts"), `
+export default function run(context) {
+  return {
+    status: "ready",
+    cwd: context.cwd,
+    workspaceRoot: context.workspaceRoot
+  };
+}
+`);
+		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+			name: "release-check",
+			script: "check.ts",
+			cwd: "@/fork",
+		}));
+		const target = await resolveTurnAutomationTarget("release-check", { cwd: root });
+		expect(target.cwd).toBe(path.join(root, "fork"));
+		const run = await runTurnAutomationScript({
+			scriptPath: target.scriptPath,
+			automation: target.automation,
+			cwd: target.cwd,
+			timeoutMs: 5_000,
+		});
+		expect(run.result).toMatchObject({
+			status: "ready",
+			cwd: path.join(root, "fork"),
+			workspaceRoot: root,
+		});
+	});
+
+	test("rejects workspace-root cwd aliases that escape the workspace", async () => {
+		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-bad-workspace-root-"));
+		const automationRoot = path.join(root, ".codex", "automations", "release-check");
+		await mkdir(automationRoot, { recursive: true });
+		await writeFile(path.join(automationRoot, "check.ts"), "export default () => ({ status: 'skipped' });");
+		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+			name: "release-check",
+			script: "check.ts",
+			cwd: "@/../outside",
+		}));
+		await expect(resolveTurnAutomationTarget("release-check", { cwd: root }))
+			.rejects.toThrow("must stay inside workspace root");
+	});
+
 	test("CLI scripts start native turns through the programmable host", async () => {
 		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-cli-"));
 		const automationRoot = path.join(root, "automations", "release-check");

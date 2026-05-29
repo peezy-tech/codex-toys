@@ -22,6 +22,7 @@ export type TurnAutomationContext = {
 	event?: unknown;
 	prompt?: string;
 	cwd?: string;
+	workspaceRoot?: string;
 };
 
 export type TurnAutomationTurnStartParams = {
@@ -217,6 +218,7 @@ export type TurnAutomationManifest = {
 export type LoadedTurnAutomation = {
 	name: string;
 	root: string;
+	workspaceRoot: string;
 	manifestPath: string;
 	manifest: TurnAutomationManifest;
 	scriptPath: string;
@@ -411,7 +413,7 @@ export async function listTurnAutomations(
 	const seen = new Set<string>();
 	for (const root of roots) {
 		for (const manifestPath of await automationManifestPaths(root)) {
-			const automation = await loadTurnAutomationManifest(manifestPath);
+			const automation = await loadTurnAutomationManifest(manifestPath, cwd);
 			if (seen.has(automation.name)) {
 				continue;
 			}
@@ -471,6 +473,7 @@ function turnAutomationContext(
 		event: options.event,
 		prompt: options.prompt,
 		cwd: options.cwd,
+		workspaceRoot: options.automation?.workspaceRoot,
 	});
 }
 
@@ -493,8 +496,10 @@ async function automationManifestPaths(root: string): Promise<string[]> {
 
 async function loadTurnAutomationManifest(
 	manifestPath: string,
+	workspaceRoot: string,
 ): Promise<LoadedTurnAutomation> {
 	const root = path.dirname(manifestPath);
+	const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
 	const parsed = parseJsonText(await readFile(manifestPath, "utf8"), manifestPath);
 	if (!isRecord(parsed)) {
 		throw new Error(`Turn automation manifest must be an object: ${manifestPath}`);
@@ -520,11 +525,17 @@ async function loadTurnAutomationManifest(
 	return compactUndefined({
 		name,
 		root,
+		workspaceRoot: resolvedWorkspaceRoot,
 		manifestPath,
 		manifest,
 		scriptPath: path.resolve(root, script),
 		prompt,
-		cwd: manifest.cwd ? resolveMaybeRelative(root, manifest.cwd) : undefined,
+		cwd: manifest.cwd ? resolveAutomationPath({
+			automationRoot: root,
+			workspaceRoot: resolvedWorkspaceRoot,
+			value: manifest.cwd,
+			label: "cwd",
+		}) : undefined,
 		skills: manifest.skills,
 	});
 }
@@ -557,8 +568,29 @@ async function isDirectory(filePath: string): Promise<boolean> {
 	}
 }
 
-function resolveMaybeRelative(root: string, value: string): string {
-	return path.isAbsolute(value) ? value : path.resolve(root, value);
+function resolveAutomationPath(options: {
+	automationRoot: string;
+	workspaceRoot: string;
+	value: string;
+	label: string;
+}): string {
+	const { automationRoot, workspaceRoot, value, label } = options;
+	if (value === "@") {
+		return workspaceRoot;
+	}
+	if (value.startsWith("@/") || value.startsWith("@\\")) {
+		const resolved = path.resolve(workspaceRoot, value.slice(2));
+		if (!isPathInsideOrEqual(workspaceRoot, resolved)) {
+			throw new Error(`Turn automation manifest ${label} must stay inside workspace root when using @/: ${value}`);
+		}
+		return resolved;
+	}
+	return path.isAbsolute(value) ? value : path.resolve(automationRoot, value);
+}
+
+function isPathInsideOrEqual(parent: string, child: string): boolean {
+	const relative = path.relative(parent, child);
+	return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function parseModuleResult(stdout: string): unknown {
