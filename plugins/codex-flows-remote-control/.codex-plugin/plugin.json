@@ -1,6 +1,6 @@
 {
   "name": "codex-flows-remote-control",
-  "version": "0.133.4",
+  "version": "0.133.5",
   "description": "Operate remote Codex workspaces from a local Codex App over SSH.",
   "author": {
     "name": "Peezy",

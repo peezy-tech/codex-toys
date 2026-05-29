@@ -50,12 +50,7 @@ export type WorkspaceFunctionDefinition =
 
 export type WorkspaceFunctionDefinitions = Record<string, WorkspaceFunctionDefinition>;
 
-export type WorkspaceFunctionsModule =
-	| WorkspaceFunctionDefinitions
-	| {
-			default?: WorkspaceFunctionDefinitions;
-			functions?: WorkspaceFunctionDefinitions;
-	  };
+export type WorkspaceFunctionsModule = unknown;
 
 export type WorkspaceFunctionsListResponse = {
 	functions: WorkspaceFunctionMetadata[];
@@ -88,6 +83,17 @@ export function defineFunctions(
 ): WorkspaceFunctionDefinitions {
 	return functions;
 }
+
+type LoadedWorkspaceFunctionDefinition = {
+	handler: WorkspaceFunctionHandler;
+	description?: string;
+	inputSchema?: unknown;
+	outputSchema?: unknown;
+	examples?: unknown;
+	tags?: string[];
+	sideEffects: WorkspaceFunctionSideEffects;
+	timeoutMs?: number;
+};
 
 export function createWorkspaceFunctionMethods(
 	options: WorkspaceFunctionRuntimeOptions = {},
@@ -135,26 +141,17 @@ export class WorkspaceFunctionRuntime {
 		if (!definition) {
 			throw new Error(`Workspace function not found: ${name}`);
 		}
-		const result = await handlerFor(definition)(params, { cwd: this.#cwd, name });
+		const result = await definition.handler(params, { cwd: this.#cwd, name });
 		return { result: jsonRoundTrip(result, `Workspace function returned non-JSON data: ${name}`) };
 	}
 
-	async #load(): Promise<Map<string, WorkspaceFunctionDefinition>> {
+	async #load(): Promise<Map<string, LoadedWorkspaceFunctionDefinition>> {
 		const manifestPath = await findFunctionsManifest(this.#cwd);
 		if (!manifestPath) {
 			return new Map();
 		}
 		const module = await importFunctionsModule(manifestPath, this.#now());
-		const definitions = definitionsFromModule(module);
-		return new Map(Object.entries(definitions).map(([name, definition]) => {
-			if (!isFunctionName(name)) {
-				throw new Error(`Invalid workspace function name: ${name}`);
-			}
-			if (!isWorkspaceFunctionDefinition(definition)) {
-				throw new Error(`Invalid workspace function definition: ${name}`);
-			}
-			return [name, definition];
-		}));
+		return validateFunctionsManifest(manifestPath, module);
 	}
 }
 
@@ -175,65 +172,79 @@ async function importFunctionsModule(
 ): Promise<WorkspaceFunctionsModule> {
 	const url = pathToFileURL(manifestPath).href;
 	const version = encodeURIComponent(String((await stat(manifestPath)).mtimeMs || cacheBust));
-	if (manifestPath.endsWith(".ts")) {
-		return await tsImport(`${url}?v=${version}`, import.meta.url) as WorkspaceFunctionsModule;
+	try {
+		if (manifestPath.endsWith(".ts")) {
+			return await tsImport(`${url}?v=${version}`, import.meta.url) as WorkspaceFunctionsModule;
+		}
+		return await import(`${url}?v=${version}`) as WorkspaceFunctionsModule;
+	} catch (error) {
+		throw new Error(
+			`Failed to load workspace functions manifest ${manifestPath}: ${errorMessage(error)}`,
+		);
 	}
-	return await import(`${url}?v=${version}`) as WorkspaceFunctionsModule;
 }
 
-function definitionsFromModule(module: WorkspaceFunctionsModule): WorkspaceFunctionDefinitions {
-	const definitions = resolveDefinitions(module);
-	if (definitions) {
-		return definitions;
+function validateFunctionsManifest(
+	manifestPath: string,
+	module: WorkspaceFunctionsModule,
+): Map<string, LoadedWorkspaceFunctionDefinition> {
+	const value = exportedManifestValue(module);
+	if (!isRecord(value)) {
+		throw manifestError(
+			manifestPath,
+			"expected default export to be an object of function definitions",
+		);
 	}
-	throw new Error("Workspace functions manifest must export default functions or named functions");
+	const loaded = new Map<string, LoadedWorkspaceFunctionDefinition>();
+	for (const [name, definition] of Object.entries(value)) {
+		if (!isFunctionName(name)) {
+			throw manifestError(manifestPath, `invalid function name "${name}"`);
+		}
+		loaded.set(name, validateFunctionDefinition(manifestPath, name, definition));
+	}
+	return loaded;
 }
 
-function resolveDefinitions(
+function exportedManifestValue(module: WorkspaceFunctionsModule): unknown {
+	return unwrapModuleValue(module);
+}
+
+function unwrapModuleValue(
 	value: unknown,
 	depth = 0,
-): WorkspaceFunctionDefinitions | undefined {
+): unknown {
 	if (depth > 5) {
-		return undefined;
-	}
-	if (isWorkspaceFunctionDefinitions(value)) {
 		return value;
 	}
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return undefined;
+	if (!isRecord(value)) {
+		return value;
 	}
 	const input = value as {
 		default?: unknown;
 		functions?: unknown;
 		"module.exports"?: unknown;
 	};
-	return resolveDefinitions(input.default, depth + 1) ??
-		resolveDefinitions(input.functions, depth + 1) ??
-		resolveDefinitions(input["module.exports"], depth + 1);
-}
-
-function isWorkspaceFunctionDefinitions(
-	value: unknown,
-): value is WorkspaceFunctionDefinitions {
-	return Boolean(
-		value &&
-			typeof value === "object" &&
-			!Array.isArray(value) &&
-			Object.values(value).every(isWorkspaceFunctionDefinition),
-	);
+	const keys = Object.keys(value);
+	if (
+		"default" in input &&
+		(isModuleNamespace(value) || keys.length === 1 ||
+			(keys.length === 2 && keys.includes("module.exports")))
+	) {
+		return unwrapModuleValue(input.default, depth + 1);
+	}
+	if ("module.exports" in input && (isModuleNamespace(value) || keys.length === 1)) {
+		return unwrapModuleValue(input["module.exports"], depth + 1);
+	}
+	if ("functions" in input && isModuleNamespace(value)) {
+		return unwrapModuleValue(input.functions, depth + 1);
+	}
+	return value;
 }
 
 function metadataFor(
 	name: string,
-	definition: WorkspaceFunctionDefinition,
+	definition: LoadedWorkspaceFunctionDefinition,
 ): WorkspaceFunctionMetadata {
-	if (typeof definition === "function") {
-		return {
-			name,
-			description: "",
-			sideEffects: "read-only",
-		};
-	}
 	return {
 		name,
 		description: definition.description ?? "",
@@ -246,24 +257,62 @@ function metadataFor(
 	};
 }
 
-function handlerFor(definition: WorkspaceFunctionDefinition): WorkspaceFunctionHandler {
-	return typeof definition === "function" ? definition : definition.handler;
-}
-
-function isWorkspaceFunctionDefinition(
+function validateFunctionDefinition(
+	manifestPath: string,
+	name: string,
 	value: unknown,
-): value is WorkspaceFunctionDefinition {
+): LoadedWorkspaceFunctionDefinition {
 	if (typeof value === "function") {
-		return true;
+		return {
+			handler: value as WorkspaceFunctionHandler,
+			sideEffects: "read-only",
+		};
 	}
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return false;
+	if (!isRecord(value)) {
+		throw functionError(manifestPath, name, "must be an object with a handler function");
 	}
-	const input = value as { handler?: unknown; sideEffects?: unknown; tags?: unknown };
-	return typeof input.handler === "function" &&
-		(input.sideEffects === undefined || isSideEffects(input.sideEffects)) &&
-		(input.tags === undefined ||
-			(Array.isArray(input.tags) && input.tags.every((tag) => typeof tag === "string")));
+	const input = value as {
+		description?: unknown;
+		inputSchema?: unknown;
+		outputSchema?: unknown;
+		examples?: unknown;
+		tags?: unknown;
+		sideEffects?: unknown;
+		timeoutMs?: unknown;
+		handler?: unknown;
+	};
+	if (typeof input.handler !== "function") {
+		throw functionError(manifestPath, name, "handler must be a function");
+	}
+	if (input.description !== undefined && typeof input.description !== "string") {
+		throw functionError(manifestPath, name, "description must be a string");
+	}
+	if (input.sideEffects !== undefined && !isSideEffects(input.sideEffects)) {
+		throw functionError(
+			manifestPath,
+			name,
+			"sideEffects must be one of: none, read-only, writes-local, external-write",
+		);
+	}
+	if (
+		input.tags !== undefined &&
+		(!Array.isArray(input.tags) || input.tags.some((tag) => typeof tag !== "string"))
+	) {
+		throw functionError(manifestPath, name, "tags must be an array of strings");
+	}
+	if (input.timeoutMs !== undefined && typeof input.timeoutMs !== "number") {
+		throw functionError(manifestPath, name, "timeoutMs must be a number");
+	}
+	return {
+		handler: input.handler as WorkspaceFunctionHandler,
+		...(input.description !== undefined ? { description: input.description } : {}),
+		...(input.inputSchema !== undefined ? { inputSchema: input.inputSchema } : {}),
+		...(input.outputSchema !== undefined ? { outputSchema: input.outputSchema } : {}),
+		...(input.examples !== undefined ? { examples: input.examples } : {}),
+		...(input.tags !== undefined ? { tags: input.tags } : {}),
+		sideEffects: input.sideEffects ?? "read-only",
+		...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+	};
 }
 
 function isSideEffects(value: unknown): value is WorkspaceFunctionSideEffects {
@@ -314,6 +363,22 @@ function record(value: unknown): Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 		? value as Record<string, unknown>
 		: {};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isModuleNamespace(value: Record<string, unknown>): boolean {
+	return Object.prototype.toString.call(value) === "[object Module]";
+}
+
+function manifestError(manifestPath: string, message: string): Error {
+	return new Error(`Invalid workspace functions manifest ${manifestPath}: ${message}`);
+}
+
+function functionError(manifestPath: string, name: string, message: string): Error {
+	return manifestError(manifestPath, `function "${name}" ${message}`);
 }
 
 function stringValue(value: unknown): string | undefined {

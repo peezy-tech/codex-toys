@@ -57,23 +57,28 @@ internals.
 
 Workspace functions expose named JSON-in/JSON-out capabilities from a workspace
 manifest at `.codex/functions.ts`, `.codex/functions.js`, or
-`.codex/functions.mjs`.
+`.codex/functions.mjs`. The canonical manifest is a plain default-exported
+object with no imports, so remote workspaces do not need a local
+`@peezy.tech/codex-flows` dependency just to expose functions.
 
 ```ts
-import { defineFunctions } from "@peezy.tech/codex-flows/functions";
-
-export default defineFunctions({
+export default {
   portfolioSnapshot: {
     description: "Read the latest portfolio snapshot.",
     sideEffects: "read-only",
     handler: async () => ({ positions: [], cash: 0 }),
   },
-});
+};
 ```
 
 The CLI, workspace backend, SSH remote-agent, Vite plugin, and browser client
 use the same `functions.list`, `functions.describe`, and `functions.call`
 workspace methods.
+If a workspace does install `@peezy.tech/codex-flows` locally, authors may
+optionally import `defineFunctions` from
+`@peezy.tech/codex-flows/functions` for type-oriented editor help. Avoid bare
+imports in remote `.codex/functions.ts` unless those packages are installed in
+the remote workspace.
 
 ## `@peezy.tech/codex-flows/vite`
 

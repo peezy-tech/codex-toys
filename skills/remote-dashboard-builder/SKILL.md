@@ -16,6 +16,8 @@ workspace runs over SSH.
 - Use `@peezy.tech/codex-flows/vite` as the local SSH bridge.
 - Use `@peezy.tech/codex-flows/browser` from dashboard code.
 - Use `.codex/functions.ts` in the remote workspace for active data or actions.
+- Keep remote `.codex/functions.ts` self-contained unless the remote workspace
+  has its imported packages installed in local `node_modules`.
 
 ## Discovery Flow
 
@@ -70,12 +72,11 @@ Vite plugin owns the SSH connection and forwards requests to the remote-agent.
 ## Remote Workspace Functions
 
 Add narrow, named functions only when the dashboard needs active data that is
-not already exposed:
+not already exposed. The canonical format is a plain default-exported object
+with no imports:
 
 ```ts
-import { defineFunctions } from "@peezy.tech/codex-flows/functions";
-
-export default defineFunctions({
+export default {
   portfolioSnapshot: {
     description: "Read the latest portfolio snapshot.",
     sideEffects: "read-only",
@@ -83,13 +84,19 @@ export default defineFunctions({
       return { positions: [], cash: 0 };
     },
   },
-});
+};
 ```
 
 Keep functions JSON-in and JSON-out. Return plain objects, arrays, strings,
 numbers, booleans, or null. Avoid returning class instances, streams, circular
 objects, functions, BigInts, secrets, raw private keys, or broad filesystem
 contents.
+
+If the remote workspace installs `@peezy.tech/codex-flows` locally, TypeScript
+authors may optionally import `defineFunctions` from
+`@peezy.tech/codex-flows/functions` for type-oriented editor help. Do not use
+bare imports in `.codex/functions.ts` unless the remote workspace can resolve
+those packages locally.
 
 ## Safety Rules
 

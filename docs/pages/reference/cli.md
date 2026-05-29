@@ -196,7 +196,10 @@ Workspace functions are JSON-in/JSON-out helpers loaded from
 `.codex/functions.ts`, `.codex/functions.js`, or `.codex/functions.mjs` in the
 target workspace. They are intended for local dashboards and operators that need
 active workspace data without starting a Codex turn or exposing a remote HTTP
-server. With `--ssh`, calls run through the SSH remote-agent provider.
+server. The recommended manifest is a plain default-exported object with no
+imports, because remote manifests resolve imports from the remote workspace's
+local dependencies. With `--ssh`, calls run through the SSH remote-agent
+provider.
 
 ## Workspace Backend Calls
 

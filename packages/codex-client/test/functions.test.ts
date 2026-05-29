@@ -2,12 +2,15 @@ import { describe, expect, test } from "vite-plus/test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	WorkspaceFunctionRuntime,
 	createWorkspaceFunctionMethods,
 	defineFunctions,
 	findFunctionsManifest,
 } from "../src/functions.ts";
+
+const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 describe("workspace functions", () => {
 	test("defineFunctions returns definitions unchanged", () => {
@@ -17,7 +20,44 @@ describe("workspace functions", () => {
 		expect(Object.keys(definitions)).toEqual(["ping"]);
 	});
 
-	test("loads TypeScript manifest metadata and calls handlers", async () => {
+	test("loads plain TypeScript manifest metadata and calls handlers", async () => {
+		const root = path.join(testDir, "fixtures", "plain-functions");
+		const runtime = new WorkspaceFunctionRuntime({ cwd: root });
+
+		await expect(findFunctionsManifest(root)).resolves.toMatch(/functions\.ts$/);
+		await expect(runtime.list()).resolves.toEqual({
+			functions: [
+				{
+					name: "helloDashboard",
+					description: "Return a dashboard greeting.",
+					inputSchema: {
+						type: "object",
+						properties: { name: { type: "string" } },
+						additionalProperties: false,
+					},
+					examples: [
+						{
+							params: { name: "Peezy" },
+							result: { greeting: "Hello, Peezy" },
+						},
+					],
+					tags: ["dashboard"],
+					sideEffects: "read-only",
+				},
+			],
+		});
+		await expect(runtime.describe("helloDashboard")).resolves.toMatchObject({
+			function: {
+				name: "helloDashboard",
+				description: "Return a dashboard greeting.",
+			},
+		});
+		await expect(runtime.call("helloDashboard", { name: "Peezy" })).resolves.toEqual({
+			result: { greeting: "Hello, Peezy" },
+		});
+	});
+
+	test("loads typed helper manifests when the import resolves", async () => {
 		const root = await createWorkspace(`export default {
 			greet: {
 				description: "Greet a person.",
@@ -82,6 +122,61 @@ describe("workspace functions", () => {
 
 		await expect(runtime.call("circular")).rejects.toThrow("Workspace function returned non-JSON data: circular");
 		await expect(runtime.call("empty")).rejects.toThrow("Workspace function returned non-JSON data: empty");
+	});
+
+	test("validates missing handlers with manifest path and function name", async () => {
+		const root = await createWorkspace(`export default {
+			broken: {
+				description: "Missing handler."
+			}
+		};`);
+		const manifest = path.join(root, ".codex", "functions.ts");
+		const runtime = new WorkspaceFunctionRuntime({ cwd: root });
+
+		await expect(runtime.list()).rejects.toThrow(
+			`Invalid workspace functions manifest ${manifest}: function "broken" handler must be a function`,
+		);
+	});
+
+	test("validates sideEffects values with manifest path and function name", async () => {
+		const root = await createWorkspace(`export default {
+			broken: {
+				sideEffects: "launch-missiles",
+				handler: async () => ({ ok: true })
+			}
+		};`);
+		const manifest = path.join(root, ".codex", "functions.ts");
+		const runtime = new WorkspaceFunctionRuntime({ cwd: root });
+
+		await expect(runtime.list()).rejects.toThrow(
+			`Invalid workspace functions manifest ${manifest}: function "broken" sideEffects must be one of: none, read-only, writes-local, external-write`,
+		);
+	});
+
+	test("validates non-object default exports", async () => {
+		const root = await createWorkspace(`export default "nope";`);
+		const manifest = path.join(root, ".codex", "functions.ts");
+		const runtime = new WorkspaceFunctionRuntime({ cwd: root });
+
+		await expect(runtime.list()).rejects.toThrow(
+			`Invalid workspace functions manifest ${manifest}: expected default export to be an object of function definitions`,
+		);
+	});
+
+	test("validates bad function metadata", async () => {
+		const root = await createWorkspace(`export default {
+			broken: {
+				description: 42,
+				tags: ["ok", 99],
+				handler: async () => ({ ok: true })
+			}
+		};`);
+		const manifest = path.join(root, ".codex", "functions.ts");
+		const runtime = new WorkspaceFunctionRuntime({ cwd: root });
+
+		await expect(runtime.list()).rejects.toThrow(
+			`Invalid workspace functions manifest ${manifest}: function "broken" description must be a string`,
+		);
 	});
 
 	test("creates workspace backend methods", async () => {
