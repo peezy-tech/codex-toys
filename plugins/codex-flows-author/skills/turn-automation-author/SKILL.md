@@ -21,6 +21,8 @@ compose native Codex turns.
   needed.
 - Start native Codex turns from the script with `context.turn.start`, then
   return the turn metadata or wait for it with `context.turn.wait`.
+- When the work belongs in another checkout, start delegated Codex threads with
+  `context.delegate.start` while running through `--via workspace`.
 - The CLI does not interpret returned `action` fields; the script owns its own
   orchestration.
 - Scripts must `export default async function run(context)` or an equivalent
@@ -29,13 +31,17 @@ compose native Codex turns.
 ## Host Helpers
 
 - `context.app.call(method, params)` calls app-server.
-- `context.workspace.call(method, params)` calls the workspace backend when
+- `context.workspace.call(method, params)` calls the codex-flows agent when
   running through `--via workspace`.
 - `context.turn.start(params)` starts a native turn.
 - `context.turn.read(turn)` reads a started turn.
 - `context.turn.wait(turn, options)` waits for one turn and returns
   `status`, `outputText`, `thread`, and `turn`.
 - `context.turn.waitAll(turns, options)` waits for multiple turns.
+- `context.delegate.start(params)` starts a delegated Codex thread through the
+  agent. Use `cwd: "@/workspaces/name"` or `cwd: "@/repos/name"`.
+- `context.delegate.read(delegation)` and `context.delegate.wait(delegation,
+  options)` refresh or wait on a delegated thread record.
 
 ## Named Layout
 
@@ -61,6 +67,16 @@ automations/<name>/
 - `outputSchema`: optional JSON Schema for the final assistant response.
 - `skills`: advisory routing metadata for now; current app-server builds do not
   enforce turn-scoped skill filtering.
+
+## Delegation Start Fields
+
+- `cwd`: required target cwd. Prefer `@/workspaces/name` or `@/repos/name`
+  relative to the agent workspace root.
+- `prompt`, `title`, `groupId`, `returnMode`: optional delegation metadata and
+  first-turn prompt.
+- `model`, `serviceTier`, `sandbox`, `approvalPolicy`, `permissions`: optional
+  app-server settings. Do not combine `sandbox` with `permissions`.
+- `allowAbsoluteCwd`: permits an absolute cwd only for trusted local agents.
 
 ## Rules
 

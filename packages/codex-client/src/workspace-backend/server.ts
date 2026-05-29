@@ -24,6 +24,7 @@ import {
 	isWorkspaceBackendOwnedMethod,
 	type WorkspaceBackendEvent,
 	type WorkspaceBackendInitializeResponse,
+	type WorkspaceMethodMetadata,
 } from "./protocol.ts";
 
 export type WorkspaceBackendMethodHandler = (
@@ -50,6 +51,7 @@ export type CodexWorkspaceBackendProtocolServerOptions = {
 	serverName?: string;
 	serverVersion?: string;
 	workspaceMethods?: string[];
+	workspaceMethodMetadata?: WorkspaceMethodMetadata[];
 	methods?: Record<string, WorkspaceBackendMethodHandler>;
 };
 
@@ -60,16 +62,28 @@ export class CodexWorkspaceBackendProtocolServer {
 	#serverName: string;
 	#serverVersion: string;
 	#workspaceMethods: string[];
+	#workspaceMethodMetadata: WorkspaceMethodMetadata[];
 	#methods: Map<string, WorkspaceBackendMethodHandler>;
 
 	constructor(options: CodexWorkspaceBackendProtocolServerOptions) {
 		this.appServer = options.appServer;
 		this.#now = options.now ?? (() => new Date());
-		this.#serverName = options.serverName ?? "codex-workspace-backend-local";
+		this.#serverName = options.serverName ?? "codex-flows-agent";
 		this.#serverVersion = options.serverVersion ?? "0.1.0";
 		this.#methods = new Map(Object.entries(options.methods ?? {}));
 		this.#workspaceMethods = options.workspaceMethods ??
 			[...this.#methods.keys()].sort();
+		const metadata = new Map<string, WorkspaceMethodMetadata>();
+		for (const entry of options.workspaceMethodMetadata ?? []) {
+			metadata.set(entry.name, entry);
+		}
+		for (const name of this.#workspaceMethods) {
+			if (!metadata.has(name)) {
+				metadata.set(name, { name });
+			}
+		}
+		this.#workspaceMethodMetadata = [...metadata.values()]
+			.sort((left, right) => left.name.localeCompare(right.name));
 
 		this.appServer.on("notification", (message) => {
 			this.broadcastNotification(APP_SERVER_NOTIFICATION_METHOD, { message });
@@ -209,7 +223,7 @@ export class CodexWorkspaceBackendProtocolServer {
 					`Workspace backend method is not implemented: ${request.method}`,
 				);
 			}
-			return errorResponse(request.id, -32601, `Unknown workspace backend method: ${request.method}`);
+			return errorResponse(request.id, -32601, `Unknown workspace agent method: ${request.method}`);
 		} catch (error) {
 			return errorResponse(request.id, -32603, errorMessage(error));
 		}
@@ -256,6 +270,7 @@ export class CodexWorkspaceBackendProtocolServer {
 			capabilities: {
 				appServerPassThrough: true,
 				workspaceMethods: this.#workspaceMethods,
+				workspaceMethodMetadata: this.#workspaceMethodMetadata,
 			},
 		};
 	}

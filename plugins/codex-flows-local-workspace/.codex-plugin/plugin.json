@@ -1,7 +1,7 @@
 {
   "name": "codex-flows-local-workspace",
-  "version": "0.133.0",
-  "description": "Local Codex workspace backend operation and plugin-bundled hooks.",
+  "version": "0.134.0",
+  "description": "Local Codex workspace agent operation and plugin-bundled hooks.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -13,15 +13,15 @@
   "keywords": [
     "codex",
     "workspace",
-    "backend",
+    "agent",
     "hooks",
     "local-workspace"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-flows local workspace",
-    "shortDescription": "Operate a local workspace backend with plugin-bundled hooks.",
-    "longDescription": "codex-flows local workspace installs skills for local backend setup and passive Codex lifecycle hooks that write workspace hook-spool events. It does not automatically start or install a persistent backend service.",
+    "shortDescription": "Operate a local workspace agent with plugin-bundled hooks.",
+    "longDescription": "codex-flows local workspace installs skills for local agent operation and passive Codex lifecycle hooks that write workspace hook-spool events. It does not automatically start or install a persistent service.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -33,8 +33,8 @@
     "privacyPolicyURL": "https://peezy.tech/privacy",
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
-      "Set up the local Codex workspace backend.",
-      "Check workspace backend and hook status."
+      "Check the local Codex workspace agent.",
+      "Check workspace agent and hook status."
     ],
     "brandColor": "#7C3AED"
   }

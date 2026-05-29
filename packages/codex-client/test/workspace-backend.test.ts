@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vite-plus/test";
+import { mkdir, mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import {
 	CodexWorkspaceBackendClient,
 	CodexWorkspaceBackendProtocolServer,
+	createWorkspaceDelegationMethods,
 	type CodexWorkspaceBackendAppServer,
 	type CodexWorkspaceBackendPeer,
 } from "../src/workspace-backend/index.ts";
@@ -171,6 +175,81 @@ describe("Codex workspace backend protocol", () => {
 			},
 		]);
 	});
+
+	test("delegation methods resolve @ targets and persist records", async () => {
+		const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-flows-delegation-"));
+		const target = path.join(workspaceRoot, "workspaces", "trading");
+		await mkdir(target, { recursive: true });
+		const statePath = path.join(workspaceRoot, ".codex", "workspace", "local", "delegations.json");
+		const appServer = new FakeDelegationAppServer();
+		const methods = createWorkspaceDelegationMethods({
+			appServer,
+			workspaceRoot,
+			statePath,
+			now: () => new Date("2026-05-29T00:00:00.000Z"),
+		});
+
+		const start = await methods["delegation.start"]!({
+			cwd: "@/workspaces/trading",
+			prompt: "inspect trading workspace",
+			title: "Trading check",
+			sandbox: "danger-full-access",
+		}, jsonRpcRequest("start", "delegation.start")) as {
+			delegation: { id: string; cwd: string; workspaceKey?: string; metadata?: Record<string, unknown> };
+			turnId: string;
+		};
+
+		expect(start.turnId).toBe("turn-1");
+		expect(start.delegation.cwd).toBe(target);
+		expect(start.delegation.workspaceKey).toBe("@/workspaces/trading");
+		expect(start.delegation.metadata).toMatchObject({
+			workspaceRoot,
+			requestedCwd: "@/workspaces/trading",
+		});
+		expect(appServer.requests.map((entry) => entry.method)).toEqual([
+			"thread/start",
+			"thread/name/set",
+			"turn/start",
+		]);
+		expect(appServer.requests[0]?.params).toMatchObject({
+			cwd: target,
+			sandbox: "danger-full-access",
+		});
+
+		const list = await methods["delegation.list"]!(
+			{},
+			jsonRpcRequest("list", "delegation.list"),
+		) as {
+			delegations: unknown[];
+			targets: Array<{ id: string; cwd: string; kind: string }>;
+		};
+		expect(list.delegations).toHaveLength(1);
+		expect(list.targets).toContainEqual({
+			id: "@/workspaces/trading",
+			cwd: target,
+			label: "trading",
+			kind: "workspace",
+			source: "discovered",
+			exists: true,
+		});
+
+		const reloaded = createWorkspaceDelegationMethods({
+			appServer: new FakeDelegationAppServer(),
+			workspaceRoot,
+			statePath,
+		});
+		const persisted = await reloaded["delegation.list"]!(
+			{ includeTargets: false },
+			jsonRpcRequest("persisted", "delegation.list"),
+		) as { delegations: unknown[]; targets?: unknown[] };
+		expect(persisted.delegations).toHaveLength(1);
+		expect(persisted.targets).toBeUndefined();
+
+		await expect(methods["delegation.start"]!(
+			{ cwd: target, prompt: "absolute path without gate" },
+			jsonRpcRequest("absolute", "delegation.start"),
+		)).rejects.toThrow(/Absolute delegation cwd requires/);
+	});
 });
 
 class FakeAppServer extends CodexEventEmitter implements CodexWorkspaceBackendAppServer {
@@ -260,6 +339,52 @@ class FakeWorkspaceBackendTransport extends CodexEventEmitter {
 	}
 }
 
+class FakeDelegationAppServer {
+	requests: Array<{ method: string; params?: Record<string, unknown> }> = [];
+
+	async request<T = unknown>(method: string, params?: unknown): Promise<T> {
+		this.requests.push({ method, params: isRecord(params) ? params : undefined });
+		if (method === "thread/start") {
+			return { thread: { id: "thread-1", cwd: isRecord(params) ? params.cwd : undefined } } as T;
+		}
+		if (method === "thread/name/set") {
+			return {} as T;
+		}
+		if (method === "turn/start") {
+			return { turn: { id: "turn-1", status: "inProgress" } } as T;
+		}
+		if (method === "thread/read") {
+			return {
+				thread: {
+					turns: [
+						{
+							id: "turn-1",
+							status: "completed",
+							items: [
+								{
+									type: "agentMessage",
+									phase: "final_answer",
+									text: "done",
+								},
+							],
+						},
+					],
+				},
+			} as T;
+		}
+		throw new Error(`Unexpected app-server method: ${method}`);
+	}
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function jsonRpcRequest(id: JsonRpcId, method: string) {
+	return {
+		jsonrpc: "2.0" as const,
+		id,
+		method,
+		params: {},
+	};
 }

@@ -63,12 +63,20 @@ export type WorkspaceDelegationCapabilityOptions = {
 	client: WorkspaceDelegationAppServer;
 	state: WorkspaceDelegationState;
 	now?: () => Date;
-	threadStartParams(cwd: string): v2.ThreadStartParams;
-	threadResumeParams(threadId: string, cwd?: string): v2.ThreadResumeParams;
+	threadStartParams(input: {
+		cwd: string;
+		args: Record<string, unknown>;
+	}): v2.ThreadStartParams;
+	threadResumeParams(input: {
+		threadId: string;
+		cwd?: string;
+		args: Record<string, unknown>;
+	}): v2.ThreadResumeParams;
 	turnStartParams(input: {
 		threadId: string;
 		prompt: string;
 		cwd?: string | null;
+		args: Record<string, unknown>;
 	}): v2.TurnStartParams;
 	metadataFromArgs?: (args: Record<string, unknown>) => Record<string, unknown> | undefined;
 	surfaceKeyForCwd?: (cwd?: string) => string | undefined;
@@ -113,7 +121,10 @@ export class WorkspaceDelegationCapability {
 			args,
 			groupId ? "wake_on_group" : "wake_on_done",
 		);
-		const started = await this.#client.startThread(this.#options.threadStartParams(cwd));
+		const started = await this.#client.startThread(this.#options.threadStartParams({
+			cwd,
+			args,
+		}));
 		const codexThreadId = started.thread.id;
 		await this.#client.setThreadName({
 			threadId: codexThreadId,
@@ -126,6 +137,7 @@ export class WorkspaceDelegationCapability {
 			title,
 			status: prompt ? "active" : "idle",
 			cwd,
+			workspaceKey: this.#options.surfaceKeyForCwd?.(cwd),
 			groupId,
 			returnMode,
 			metadata: this.#options.metadataFromArgs?.(args),
@@ -138,6 +150,7 @@ export class WorkspaceDelegationCapability {
 				threadId: codexThreadId,
 				prompt,
 				cwd,
+				args,
 			}));
 			turnId = turn.turn.id;
 			delegation.lastTurnId = turnId;
@@ -150,7 +163,11 @@ export class WorkspaceDelegationCapability {
 		const cwd = stringValue(args.cwd);
 		const groupId = stringValue(args.groupId);
 		const resumed = await this.#client.resumeThread(
-			this.#options.threadResumeParams(codexThreadId, cwd),
+			this.#options.threadResumeParams({
+				threadId: codexThreadId,
+				cwd,
+				args,
+			}),
 		);
 		const now = this.#now().toISOString();
 		const resolvedCwd = cwd ?? resumeResponseCwd(resumed);
@@ -161,6 +178,7 @@ export class WorkspaceDelegationCapability {
 			title: stringValue(args.title) ?? `Delegated ${compactId(codexThreadId)}`,
 			status: "idle",
 			cwd: resolvedCwd,
+			workspaceKey: this.#options.surfaceKeyForCwd?.(resolvedCwd),
 			groupId,
 			returnMode: returnModeFromArgs(args, "manual"),
 			metadata: this.#options.metadataFromArgs?.(args),
@@ -188,6 +206,7 @@ export class WorkspaceDelegationCapability {
 			threadId: delegation.codexThreadId,
 			prompt,
 			cwd: delegation.cwd ?? null,
+			args,
 		}));
 		delegation.status = "active";
 		delegation.lastTurnId = turn.turn.id;

@@ -56,7 +56,7 @@ CODEX_WORKSPACE_MODE=actions codex-flows workspace doctor
 
 `doctor` reports mode, repo root, config path, runtime `CODEX_HOME`, state
 roots, task health, latest run, memory roots, memory summary presence, and
-workspace backend status when reachable. In Actions mode it reports an error if
+agent status when reachable. In Actions mode it reports an error if
 the runtime Codex home would not be `<repo>/.codex`.
 
 `tick` runs due scheduled tasks once and evaluates reactive rules.
@@ -131,9 +131,9 @@ var = "workspace status"
 
 Runs a named turn automation from `.codex/automations/*` or `automations/*`.
 The automation script can skip, start, wait on, or compose native Codex turns
-through the same workspace backend that `workspace tick` is using. With
+through the same codex-flows agent that `workspace tick` is using. With
 `--ssh --cwd /repo`, named automation resolution and script execution happen in
-the remote workspace through the SSH remote-agent.
+the remote workspace through the SSH agent.
 
 ```toml
 [[workspace.tasks]]

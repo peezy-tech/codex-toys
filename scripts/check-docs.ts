@@ -55,15 +55,14 @@ if (helpExit !== 0) {
 const cliDoc = await read("docs/pages/reference/cli.md");
 const requiredCliLines = [
 	"codex-flows fetch [--json] [--no-color]",
+	"codex-flows mcp serve",
+	"codex-flows agent serve [--cwd <path>]",
 	"codex-flows automation list [--json]",
 	"codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]",
 	"codex-flows app <method> [params-json]",
 	"codex-flows workspace doctor [--mode auto|local|actions] [--json]",
-	"codex-flows workspace backend init local [--overwrite] [--json]",
-	"codex-flows workspace backend init local --global [--profile <name>] [--workspace-root <path>] [--codex-home <home>]",
-	"codex-flows workspace backend status [--profile <name>] [--json]",
-	"codex-flows workspace backend start [--profile <name>] [--dry-run] [--json]",
-	"codex-flows workspace backend service install [--profile <name>] [--dry-run]",
+	"codex-flows workspace delegate list [--json]",
+	"codex-flows workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]",
 	"codex-flows workspace tick [--mode auto|local|actions]",
 	"codex-flows workspace run <task-id> [--mode auto|local|actions]",
 	"codex-flows memories transplant global-to-workspace [--apply]",
@@ -147,13 +146,14 @@ await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin 
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "hooks/hooks.json");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "plugin_hooks = true");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_FLOWS_HOOK_SPOOL_DIR");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows workspace backend init local");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows agent serve --cwd /repo");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows-proxy serve --cwd /repo --static ./dashboard");
 await expectIncludes("docs/pages/guides/turn-automation.md", "export default async function run");
 await expectIncludes("docs/pages/guides/turn-automation.md", "codex-flows --ssh devbox --cwd /repo automation run");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote status");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote-agent serve");
-await expectIncludes("docs/pages/reference/cli.md", "CODEX_FLOWS_REMOTE_AGENT_COMMAND");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows remote turn start --prompt <text>");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows agent serve [--cwd <path>]");
+await expectIncludes("docs/pages/reference/cli.md", "codex-flows-proxy serve --cwd <workspace> [--static <dir>]");
+await expectIncludes("docs/pages/reference/cli.md", "CODEX_FLOWS_AGENT_COMMAND");
+await expectIncludes("docs/pages/reference/cli.md", "POST /api/workspace/:method");
 await expectIncludes("docs/pages/reference/cli.md", "codex-flows automation run <name>");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "pack repo");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".codex/pack-lock.json");
@@ -162,8 +162,8 @@ await expectIncludes("docs/pages/guides/install-pack-repos.md", "[features].plug
 
 await expectIncludes("packages/codex-client/README.md", "codex-flows automation run");
 await expectIncludes("packages/codex-client/README.md", "codex-flows workspace doctor");
-await expectIncludes("packages/codex-client/README.md", "codex-flows workspace backend init local");
-await expectIncludes("packages/codex-client/README.md", "codex-flows remote status");
+await expectIncludes("packages/codex-client/README.md", "codex-flows agent serve --cwd /repo");
+await expectIncludes("packages/codex-client/README.md", "codex-flows-proxy serve --cwd /repo --static ./dashboard");
 await expectIncludes("packages/codex-client/README.md", "codex-flows memories transplant global-to-workspace");
 await expectIncludes("packages/codex-client/README.md", "codex-flows threads transplant <thread-id>");
 await expectIncludes("packages/codex-client/README.md", "guides/install-codex-plugin.md");

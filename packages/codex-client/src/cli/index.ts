@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 import {
-	CodexAppServerClient,
-	CodexWebSocketTransport,
-} from "../index.ts";
-import {
 	APP_SERVER_CALL_METHOD,
 	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 	type WorkspaceBackendInitializeResponse,
@@ -17,8 +13,6 @@ import {
 	prepareActionsCodexAuth,
 } from "../actions.ts";
 import {
-	DEFAULT_APP_SERVER_WS_URL,
-	DEFAULT_WORKSPACE_BACKEND_WS_URL,
 	parseArgs,
 	type ParsedCli,
 } from "./args.ts";
@@ -45,8 +39,6 @@ import {
 	listInstalledPacks,
 } from "./pack.ts";
 import {
-	collectRemoteStatusInfo,
-	formatRemoteStatusInfo,
 	formatRemoteTurnStartResult,
 	startRemoteTurn,
 } from "./remote-control.ts";
@@ -67,7 +59,8 @@ import {
 	type TurnAutomationRunTarget,
 } from "./turn-automation.ts";
 import {
-	createSshRemoteAgentTransport,
+	createLocalAgentTransport,
+	createSshAgentTransport,
 	hasSshRemote,
 	withSshRemoteWorkspaceTransport,
 	type SshRemoteProviderOptions,
@@ -87,7 +80,7 @@ import {
 	type WorkspaceFunctionsDescribeResponse,
 	type WorkspaceFunctionsListResponse,
 } from "../functions.ts";
-import { serveRemoteAgent } from "./remote-agent.ts";
+import { serveAgent } from "./agent.ts";
 import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
 import {
 	formatThreadRolloutInspection,
@@ -109,18 +102,12 @@ import {
 	tickWorkspace,
 } from "./workspace-autonomy.ts";
 import {
-	collectWorkspaceBackendSetupInfo,
-	formatWorkspaceBackendInitLocalResult,
-	formatWorkspaceBackendProfileInitResult,
-	formatWorkspaceBackendServiceInstallResult,
-	formatWorkspaceBackendSetupInfo,
-	formatWorkspaceBackendStartResult,
-	initGlobalLocalWorkspaceBackend,
-	initLocalWorkspaceBackend,
-	installWorkspaceBackendService,
-	readWorkspaceBackendProfile,
-	startLocalWorkspaceBackend,
-} from "./workspace-backend-setup.ts";
+	formatWorkspaceDelegationListResult,
+	formatWorkspaceDelegationStartResult,
+	startWorkspaceDelegationWithRequest,
+	type WorkspaceDelegationListResult,
+} from "./workspace-delegation.ts";
+import { serveCodexFlowsMcp } from "./mcp.ts";
 import { parseJsonParamsText, readJsonFile } from "./json.ts";
 
 await main().catch((error) => {
@@ -132,6 +119,12 @@ async function main(): Promise<void> {
 	const parsed = parseArgs(process.argv.slice(2), process.env);
 	if (parsed.type === "help") {
 		write(helpText());
+		return;
+	}
+	if (parsed.type === "mcp-serve") {
+		serveCodexFlowsMcp({
+			timeoutMs: parsed.timeoutMs,
+		});
 		return;
 	}
 	if (parsed.type === "fetch") {
@@ -146,17 +139,6 @@ async function main(): Promise<void> {
 			: formatFetchInfo(info, { color: parsed.color }));
 		return;
 	}
-	if (parsed.type === "remote-status") {
-		const info = await collectRemoteStatusInfo({
-			appUrl: parsed.appUrl,
-			workspaceUrl: parsed.workspaceUrl,
-			timeoutMs: parsed.timeoutMs,
-		});
-		write(parsed.json
-			? `${JSON.stringify(info, null, parsed.pretty ? 2 : 0)}\n`
-			: formatRemoteStatusInfo(info));
-		return;
-	}
 	if (parsed.type === "remote-preflight") {
 		const result = await collectRemotePreflight(parsed);
 		write(parsed.json
@@ -167,41 +149,13 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
-	if (parsed.type === "remote-agent-serve") {
-		await serveRemoteAgent({
+	if (parsed.type === "agent-serve") {
+		await serveAgent({
 			cwd: parsed.cwd,
 			timeoutMs: parsed.timeoutMs,
-			remoteCodexCommand: parsed.remoteCodexCommand,
-			remoteCodexArgs: parsed.remoteCodexArgs,
+			codexCommand: parsed.remoteCodexCommand,
+			codexArgs: parsed.remoteCodexArgs,
 		});
-		return;
-	}
-	if (parsed.type === "remote-turn-start") {
-		const result = await startRemoteTurn({
-			prompt: parsed.prompt,
-			threadId: parsed.threadId,
-			cwd: parsed.cwd,
-			via: parsed.via,
-			appUrl: parsed.appUrl,
-			workspaceUrl: parsed.workspaceUrl,
-			timeoutMs: parsed.timeoutMs,
-			wait: parsed.wait,
-			sandbox: parsed.sandbox,
-			approvalPolicy: parsed.approvalPolicy,
-			permissions: parsed.permissions,
-			model: parsed.model,
-			sshTarget: parsed.sshTarget,
-			remotePathPrepend: parsed.remotePathPrepend,
-			remoteAgentCommand: parsed.remoteAgentCommand,
-			remoteCodexCommand: parsed.remoteCodexCommand,
-			remoteCodexArgs: parsed.remoteCodexArgs,
-		});
-		write(parsed.json
-			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
-			: formatRemoteTurnStartResult(result));
-		if (parsed.wait && (result.status === "failed" || result.status === "timed_out")) {
-			process.exitCode = 1;
-		}
 		return;
 	}
 	if (parsed.type === "automation-run") {
@@ -235,7 +189,7 @@ async function main(): Promise<void> {
 			model: parsed.model,
 			sshTarget: parsed.sshTarget,
 			remotePathPrepend: parsed.remotePathPrepend,
-			remoteAgentCommand: parsed.remoteAgentCommand,
+			agentCommand: parsed.agentCommand,
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 		});
@@ -320,7 +274,7 @@ async function main(): Promise<void> {
 			model: parsed.model,
 			sshTarget: parsed.sshTarget,
 			remotePathPrepend: parsed.remotePathPrepend,
-			remoteAgentCommand: parsed.remoteAgentCommand,
+			agentCommand: parsed.agentCommand,
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 		});
@@ -347,120 +301,68 @@ async function main(): Promise<void> {
 		}, parsed.pretty);
 		return;
 	}
+	if (parsed.type === "workspace-delegate-list") {
+		const response = await callWorkspaceBackend(
+			"delegation.list",
+			{ includeTargets: true },
+			parsed,
+		) as WorkspaceDelegationListResult;
+		write(parsed.json
+			? `${JSON.stringify(response, null, parsed.pretty ? 2 : 0)}\n`
+			: formatWorkspaceDelegationListResult(response));
+		return;
+	}
+	if (parsed.type === "workspace-delegate-start") {
+		validateAutomationTurnOptions(parsed);
+		const result = await withWorkspaceTransport(parsed, async (transport) => {
+			await initialize(transport);
+			return await startWorkspaceDelegationWithRequest(
+				async (method, params) => await transport.request(method, params),
+				{
+					cwd: parsed.targetCwd,
+					prompt: parsed.prompt,
+					title: parsed.title,
+					groupId: parsed.groupId,
+					returnMode: parsed.returnMode,
+					wait: parsed.wait,
+					timeoutMs: parsed.timeoutMs,
+					allowAbsoluteCwd: parsed.allowAbsoluteCwd,
+					model: parsed.model,
+					sandbox: parsed.sandbox,
+					approvalPolicy: parsed.approvalPolicy,
+					permissions: parsed.permissions,
+				},
+			);
+		});
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatWorkspaceDelegationStartResult(result));
+		if (result.wait?.status === "failed") {
+			process.exitCode = 1;
+		}
+		return;
+	}
 	if (parsed.type === "workspace-doctor") {
 		const context = await createWorkspaceContext({
 			workspaceRoot: parsed.workspaceRoot,
 			mode: parsed.mode,
 		});
 		const info = await collectWorkspaceDoctorInfo(context);
-		const backendSetup = await collectWorkspaceBackendSetupInfo(context);
-			const backend = await collectBackendInfo({
-				appUrl: parsed.appUrl,
-				workspaceUrl: backendSetup.workspaceBackendUrl,
-				timeoutMs: parsed.timeoutMs,
-				sshTarget: parsed.sshTarget,
-				cwd: parsed.cwd,
-				remotePathPrepend: parsed.remotePathPrepend,
-				remoteAgentCommand: parsed.remoteAgentCommand,
-				remoteCodexCommand: parsed.remoteCodexCommand,
-				remoteCodexArgs: parsed.remoteCodexArgs,
-			});
-		const result = { ...info, backend, backendSetup };
+		const backend = await collectBackendInfo({
+			appUrl: parsed.appUrl,
+			workspaceUrl: parsed.workspaceUrl,
+			timeoutMs: parsed.timeoutMs,
+			sshTarget: parsed.sshTarget,
+			cwd: parsed.cwd,
+			remotePathPrepend: parsed.remotePathPrepend,
+			agentCommand: parsed.agentCommand,
+			remoteCodexCommand: parsed.remoteCodexCommand,
+			remoteCodexArgs: parsed.remoteCodexArgs,
+		});
+		const result = { ...info, backend };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
-			: `${formatWorkspaceDoctorInfo(info)}${formatWorkspaceBackendSetupInfo(backendSetup, {
-				backendLabel: backendLabelForDoctor(backend),
-				nextCommand: nextBackendCommand(backendSetup.nextCommand, backend),
-			})}`);
-		return;
-	}
-	if (parsed.type === "workspace-backend-init-local") {
-		if (parsed.globalProfile || parsed.profile) {
-			const result = await initGlobalLocalWorkspaceBackend({
-				profile: parsed.profile,
-				workspaceRoot: parsed.workspaceRoot,
-				codexHome: parsed.codexHome,
-				overwrite: parsed.overwrite,
-			});
-			write(parsed.json
-				? `${JSON.stringify(result, null, 2)}\n`
-				: formatWorkspaceBackendProfileInitResult(result));
-			return;
-		}
-		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot,
-			mode: "local",
-			env: parsed.codexHome
-				? { ...process.env, CODEX_HOME: parsed.codexHome }
-				: process.env,
-		});
-		const result = await initLocalWorkspaceBackend(context, {
-			overwrite: parsed.overwrite,
-		});
-		write(parsed.json
-			? `${JSON.stringify(result, null, 2)}\n`
-			: formatWorkspaceBackendInitLocalResult(result));
-		return;
-	}
-	if (parsed.type === "workspace-backend-status") {
-		const profile = parsed.profile
-			? await readWorkspaceBackendProfile(parsed.profile)
-			: undefined;
-		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot ?? profile?.workspaceRoot,
-			mode: "local",
-			env: profile ? { ...process.env, CODEX_HOME: profile.codexHome } : process.env,
-		});
-		const setup = await collectWorkspaceBackendSetupInfo(context, process.env, {
-			profile: profile?.name,
-		});
-			const backend = await collectBackendInfo({
-				appUrl: parsed.appUrl,
-				workspaceUrl: setup.workspaceBackendUrl,
-				timeoutMs: parsed.timeoutMs,
-				sshTarget: parsed.sshTarget,
-				cwd: parsed.cwd,
-				remotePathPrepend: parsed.remotePathPrepend,
-				remoteAgentCommand: parsed.remoteAgentCommand,
-				remoteCodexCommand: parsed.remoteCodexCommand,
-				remoteCodexArgs: parsed.remoteCodexArgs,
-			});
-		const result = { setup, backend };
-		write(parsed.json
-			? `${JSON.stringify(result, null, 2)}\n`
-			: formatWorkspaceBackendSetupInfo(setup, {
-				backendLabel: backendLabelForDoctor(backend),
-				nextCommand: nextBackendCommand(setup.nextCommand, backend),
-			}));
-		return;
-	}
-	if (parsed.type === "workspace-backend-start") {
-		const profile = parsed.profile
-			? await readWorkspaceBackendProfile(parsed.profile)
-			: undefined;
-		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot ?? profile?.workspaceRoot,
-			mode: "local",
-			env: profile ? { ...process.env, CODEX_HOME: profile.codexHome } : process.env,
-		});
-		const result = await startLocalWorkspaceBackend(context, {
-			dryRun: parsed.dryRun,
-			profile: profile?.name,
-		});
-		write(parsed.json
-			? `${JSON.stringify(result, null, 2)}\n`
-			: formatWorkspaceBackendStartResult(result));
-		return;
-	}
-	if (parsed.type === "workspace-backend-service-install") {
-		const result = await installWorkspaceBackendService({
-			profile: parsed.profile,
-			dryRun: parsed.dryRun,
-			overwrite: parsed.overwrite,
-		});
-		write(parsed.json
-			? `${JSON.stringify(result, null, 2)}\n`
-			: formatWorkspaceBackendServiceInstallResult(result));
+			: `${formatWorkspaceDoctorInfo(info)}agent              ${backendLabelForDoctor(backend)}\n`);
 		return;
 	}
 	if (parsed.type === "workspace-tick") {
@@ -624,50 +526,12 @@ function backendLabelForDoctor(backend: FetchBackendInfo): string {
 	return backend.error ? `unavailable (${backend.error})` : "unavailable";
 }
 
-function nextBackendCommand(current: string, backend: FetchBackendInfo): string {
-	if (backend.status === "connected") {
-		return "codex-flows workspace tick --mode local";
-	}
-	return current;
-}
-
 async function callAppServer(
 	method: string,
 	params: unknown,
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<unknown> {
-	if (hasSshRemote(options)) {
-		return await withSshRemoteWorkspaceTransport(options, async (transport) => {
-			await initialize(transport);
-			return await transport.request(APP_SERVER_CALL_METHOD, { method, params });
-		});
-	}
-	const client = new CodexAppServerClient({
-		...(options.url === "stdio://"
-			? { transportOptions: { requestTimeoutMs: options.timeoutMs } }
-			: {
-					webSocketTransportOptions: {
-						url: options.url,
-						requestTimeoutMs: options.timeoutMs,
-					},
-				}),
-		clientName: "codex-flows-cli",
-		clientTitle: "Codex Flows CLI",
-		clientVersion: "0.1.0",
-	});
-	client.on("request", (message) => {
-		client.respondError(
-			message.id,
-			-32603,
-			"codex-flows CLI does not handle app-server requests",
-		);
-	});
-	try {
-		await client.connect();
-		return await client.request(method, params);
-	} finally {
-		client.close();
-	}
+	return await callWorkspaceBackend(APP_SERVER_CALL_METHOD, { method, params }, options);
 }
 
 async function listRemoteTurnAutomationsForCli(
@@ -841,56 +705,10 @@ function createCliTurnAutomationHost(
 function createLazyAppServerRequester(
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
 ): { request: TurnAutomationBackendRequest; close(): void } {
-	if (hasSshRemote(options)) {
-		const requester = createLazyWorkspaceRequester({
-			...options,
-			url: DEFAULT_WORKSPACE_BACKEND_WS_URL,
-		});
-		return {
-			request: requester.appRequest,
-			close: requester.close,
-		};
-	}
-	let client: CodexAppServerClient | undefined;
-	const getClient = async (): Promise<CodexAppServerClient> => {
-		if (client) {
-			return client;
-		}
-		client = new CodexAppServerClient({
-					...(options.url === "stdio://"
-						? { transportOptions: { requestTimeoutMs: options.timeoutMs } }
-						: {
-								webSocketTransportOptions: {
-									url: options.url,
-									requestTimeoutMs: options.timeoutMs,
-								},
-							}),
-					clientName: "codex-flows-automation",
-					clientTitle: "Codex Flows Automation",
-					clientVersion: "0.1.0",
-				});
-		client.on("request", (message) => {
-			client?.respondError(
-				message.id,
-				-32603,
-				"codex-flows automation does not handle app-server requests",
-			);
-		});
-		try {
-			await client.connect();
-			return client;
-		} catch (error) {
-			client.close();
-			client = undefined;
-			throw error;
-		}
-	};
+	const requester = createLazyWorkspaceRequester(options);
 	return {
-		request: async (method, params) => await (await getClient()).request(method, params),
-		close: () => {
-			client?.close();
-			client = undefined;
-		},
+		request: requester.appRequest,
+		close: requester.close,
 	};
 }
 
@@ -907,12 +725,9 @@ function createLazyWorkspaceRequester(
 			return transport;
 		}
 		if (hasSshRemote(options)) {
-			transport = createSshRemoteAgentTransport(options);
+			transport = createSshAgentTransport(options);
 		} else {
-			transport = new CodexWebSocketTransport({
-				url: options.url,
-				requestTimeoutMs: options.timeoutMs,
-			});
+			transport = createLocalAgentTransport(options);
 		}
 		try {
 			transport.start();
@@ -966,17 +781,7 @@ async function withWorkspaceTransport<T>(
 	if (hasSshRemote(options)) {
 		return await withSshRemoteWorkspaceTransport(options, callback);
 	}
-	return await withWorkspaceWebSocket(options, callback);
-}
-
-async function withWorkspaceWebSocket<T>(
-	options: { url: string; timeoutMs: number },
-	callback: (transport: CodexWorkspaceBackendTransport) => Promise<T>,
-): Promise<T> {
-	const transport = new CodexWebSocketTransport({
-		url: options.url,
-		requestTimeoutMs: options.timeoutMs,
-	});
+	const transport = createLocalAgentTransport(options);
 	try {
 		transport.start();
 		return await callback(transport);
@@ -1011,27 +816,7 @@ async function collectBackendInfo(options: {
 	if (hasSshRemote(options)) {
 		return await collectSshBackendInfo(options);
 	}
-	const workspace = await tryCollectWorkspaceBackendInfo(options);
-	if (workspace.status === "connected") {
-		return workspace;
-	}
-	const appServer = await tryCollectAppServerInfo(options);
-	if (appServer.status === "connected") {
-		return {
-			...appServer,
-			error: workspace.error
-				? `Workspace probe failed: ${workspace.error}`
-				: undefined,
-		};
-	}
-	return {
-		mode: "local",
-		status: "unavailable",
-		error: [
-			workspace.error ? `workspace: ${workspace.error}` : undefined,
-			appServer.error ? `app-server: ${appServer.error}` : undefined,
-		].filter(Boolean).join("; ") || "No backend responded",
-	};
+	return await collectLocalAgentInfo(options);
 }
 
 async function collectSshBackendInfo(
@@ -1042,13 +827,13 @@ async function collectSshBackendInfo(
 	} & SshRemoteProviderOptions,
 ): Promise<FetchBackendInfo> {
 	try {
-		return await withSshRemoteWorkspaceTransport(options, async (transport) =>
-			await collectWorkspaceBackendInfoFromTransport(
-				transport,
-				"ssh://remote-agent",
-				options.timeoutMs,
-			)
-		);
+			return await withSshRemoteWorkspaceTransport(options, async (transport) =>
+				await collectWorkspaceBackendInfoFromTransport(
+					transport,
+					"ssh://agent",
+					options.timeoutMs,
+				)
+			);
 	} catch (error) {
 		return {
 			mode: "workspace",
@@ -1058,26 +843,23 @@ async function collectSshBackendInfo(
 	}
 }
 
-async function tryCollectWorkspaceBackendInfo(options: {
-	workspaceUrl: string;
+async function collectLocalAgentInfo(options: {
 	timeoutMs: number;
 }): Promise<FetchBackendInfo> {
-	const transport = new CodexWebSocketTransport({
-		url: options.workspaceUrl,
-		requestTimeoutMs: options.timeoutMs,
-	});
+	const transport = createLocalAgentTransport(options);
 	transport.on("error", () => {});
 	try {
+		transport.start();
 		return await collectWorkspaceBackendInfoFromTransport(
 			transport,
-			options.workspaceUrl,
+			"agent://local",
 			options.timeoutMs,
 		);
 	} catch (error) {
 		return {
 			mode: "workspace",
 			status: "unavailable",
-			url: options.workspaceUrl,
+			url: "agent://local",
 			error: errorMessage(error),
 		};
 	} finally {
@@ -1108,98 +890,8 @@ async function collectWorkspaceBackendInfoFromTransport(
 			threads,
 			...(delegations ? { delegations } : {}),
 		};
-	}, timeoutMs, `workspace backend probe timed out after ${timeoutMs}ms`);
-}
-
-async function tryCollectAppServerInfo(options: {
-	appUrl: string;
-	timeoutMs: number;
-}): Promise<FetchBackendInfo> {
-	if (options.appUrl !== "stdio://") {
-		return await tryCollectAppServerWebSocketInfo(options);
+		}, timeoutMs, `agent probe timed out after ${timeoutMs}ms`);
 	}
-	const client = new CodexAppServerClient({
-		transportOptions: { requestTimeoutMs: options.timeoutMs },
-		clientName: "codex-flows-fetch",
-		clientTitle: "Codex Flows Fetch",
-		clientVersion: "0.1.0",
-	});
-	client.on("request", (message) => {
-		client.respondError(
-			message.id,
-			-32603,
-			"codex-flows fetch does not handle app-server requests",
-		);
-	});
-	client.on("error", () => {});
-	try {
-		return await withProbeTimeout(async () => {
-			await client.connect();
-			return {
-				mode: "app-server",
-				status: "connected",
-				url: options.appUrl,
-				threads: await collectThreadsViaAppServer(client),
-			};
-		}, options.timeoutMs, `app-server probe timed out after ${options.timeoutMs}ms`);
-	} catch (error) {
-		return {
-			mode: "app-server",
-			status: "unavailable",
-			url: options.appUrl,
-			error: errorMessage(error),
-		};
-	} finally {
-		client.close();
-	}
-}
-
-async function tryCollectAppServerWebSocketInfo(options: {
-	appUrl: string;
-	timeoutMs: number;
-}): Promise<FetchBackendInfo> {
-	const transport = new CodexWebSocketTransport({
-		url: options.appUrl,
-		requestTimeoutMs: options.timeoutMs,
-	});
-	transport.on("error", () => {});
-	try {
-		return await withProbeTimeout(async () => {
-			await initializeAppServerTransport(transport);
-			return {
-				mode: "app-server",
-				status: "connected",
-				url: options.appUrl,
-				threads: await collectThreadsViaAppServer(transport),
-			};
-		}, options.timeoutMs, `app-server probe timed out after ${options.timeoutMs}ms`);
-	} catch (error) {
-		return {
-			mode: "app-server",
-			status: "unavailable",
-			url: options.appUrl,
-			error: errorMessage(error),
-		};
-	} finally {
-		transport.close();
-	}
-}
-
-async function initializeAppServerTransport(
-	transport: CodexWebSocketTransport,
-): Promise<void> {
-	await transport.request("initialize", {
-		clientInfo: {
-			name: "codex-flows-fetch",
-			title: "Codex Flows Fetch",
-			version: "0.1.0",
-		},
-		capabilities: {
-			experimentalApi: true,
-		},
-	});
-	transport.notify("initialized");
-}
 
 async function collectThreadsViaWorkspace(
 	transport: CodexWorkspaceBackendTransport,
@@ -1210,23 +902,6 @@ async function collectThreadsViaWorkspace(
 			params: threadListParams(),
 		});
 		return summarizeThreads(response);
-	} catch (error) {
-		return {
-			total: 0,
-			active: 0,
-			idle: 0,
-			other: 0,
-			latest: [],
-			error: errorMessage(error),
-		};
-	}
-}
-
-async function collectThreadsViaAppServer(
-	client: { request<T = unknown>(method: string, params?: unknown): Promise<T> },
-): Promise<FetchThreadsInfo> {
-	try {
-		return summarizeThreads(await client.request("thread/list", threadListParams()));
 	} catch (error) {
 		return {
 			total: 0,
@@ -1432,51 +1107,46 @@ function write(text: string): void {
 }
 
 function helpText(): string {
-	return `codex-flows controls Codex app-server and workspace backend surfaces.
+	return `codex-flows controls Codex-native local and SSH agent surfaces.
 
 Usage:
   codex-flows fetch [--json] [--no-color]
   codex-flows neofetch [--json] [--no-color]
   codex-flows --ssh <target> --cwd <remote-workspace> fetch
+  codex-flows agent serve [--cwd <path>]
+  codex-flows mcp serve
 
-	  codex-flows remote status [--json]
-	  codex-flows --ssh <target> --cwd <remote-workspace> remote preflight [--json]
-	  codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>] [--wait]
-	  codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text> [--wait]
-	  codex-flows remote-agent serve [--cwd <path>]
+  codex-flows --ssh <target> --cwd <remote-workspace> remote preflight [--json]
 
-	  codex-flows turn run <prompt> [--wait] [--thread-id <id>]
-	  codex-flows --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
+  codex-flows turn run <prompt> [--wait] [--thread-id <id>]
+  codex-flows --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 
-	  codex-flows automation list [--json]
-	  codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
-	  codex-flows --ssh <target> --cwd <remote-workspace> automation list [--json]
-	  codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
+  codex-flows automation list [--json]
+  codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
+  codex-flows --ssh <target> --cwd <remote-workspace> automation list [--json]
+  codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
 
-	  codex-flows app <method> [params-json]
-	  codex-flows app <method> --params-json <json>
-	  codex-flows app <method> --params-file <file>
-	  codex-flows app call <method> [params-json]
-	  echo '<params-json>' | codex-flows app <method>
-	  codex-flows app actions
+  codex-flows app <method> [params-json]
+  codex-flows app <method> --params-json <json>
+  codex-flows app <method> --params-file <file>
+  codex-flows app call <method> [params-json]
+  echo '<params-json>' | codex-flows app <method>
+  codex-flows app actions
 
-	  codex-flows functions list [--json]
-	  codex-flows functions describe <name> [--json]
-	  codex-flows functions call <name> [--params-json <json>] [--json]
-	  codex-flows --ssh <target> --cwd <remote-workspace> functions list [--json]
+  codex-flows functions list [--json]
+  codex-flows functions describe <name> [--json]
+  codex-flows functions call <name> [--params-json <json>] [--json]
+  codex-flows --ssh <target> --cwd <remote-workspace> functions list [--json]
 
-	  codex-flows workspace <method> [params-json]
-	  codex-flows workspace <method> --params-json <json>
-	  codex-flows workspace <method> --params-file <file>
-	  codex-flows workspace call <method> [params-json]
-	  codex-flows workspace app <method> [params-json]
+  codex-flows workspace <method> [params-json]
+  codex-flows workspace <method> --params-json <json>
+  codex-flows workspace <method> --params-file <file>
+  codex-flows workspace call <method> [params-json]
+  codex-flows workspace app <method> [params-json]
   codex-flows workspace methods
+  codex-flows workspace delegate list [--json]
+  codex-flows workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
   codex-flows workspace doctor [--mode auto|local|actions] [--json]
-  codex-flows workspace backend init local [--overwrite] [--json]
-  codex-flows workspace backend init local --global [--profile <name>] [--workspace-root <path>] [--codex-home <home>]
-  codex-flows workspace backend status [--profile <name>] [--json]
-  codex-flows workspace backend start [--profile <name>] [--dry-run] [--json]
-  codex-flows workspace backend service install [--profile <name>] [--dry-run]
   codex-flows workspace tick [--mode auto|local|actions]
   codex-flows workspace run <task-id> [--mode auto|local|actions]
   codex-flows workspace init actions [--forgejo|--github]
@@ -1498,15 +1168,6 @@ Usage:
   codex-flows pack list [--json]
 
 Options:
-  --app-url, --app-server-url <url>          App-server WebSocket URL.
-                                             Defaults to CODEX_WORKSPACE_APP_SERVER_WS_URL
-                                             or ${DEFAULT_APP_SERVER_WS_URL}.
-                                             Use stdio:// to spawn a local app-server.
-  --workspace-url, --workspace-backend-url <url>
-                                             Workspace backend WebSocket URL.
-                                             Defaults to CODEX_WORKSPACE_BACKEND_WS_URL
-                                             or ${DEFAULT_WORKSPACE_BACKEND_WS_URL}.
-  --url, --ws-url <url>                      Set both app and workspace URLs.
   --timeout-ms <ms>                          Request timeout. Defaults to 90000,
                                              1500 for fetch probes, or 1800000
                                              for automation run and waited turns.
@@ -1516,7 +1177,6 @@ Options:
   --no-color                                 Disable ANSI colors for fetch.
   --mode <auto|local|actions>                Workspace execution mode.
   --workspace-root <path>                    Workspace root. Defaults to discovery.
-  --profile, --name <name>                   Workspace backend profile name.
   --global-codex-home <path>                 Global Codex home for memories transplant.
   --workspace-codex-home <path>              Workspace Codex home for memories transplant.
   --codex-home <path>                        Codex home for thread transplant.
@@ -1536,11 +1196,17 @@ Options:
                                              or workspace tasks.
   --forgejo                                  Generate a Forgejo Actions workflow.
   --github                                   Generate a GitHub Actions workflow.
-  --global                                   For backend init local, write a user profile
-                                             under XDG_CONFIG_HOME instead of this repo.
-  --dry-run                                  Print the local backend start command.
-  --prompt <text>                            Prompt text for remote turn start or
-                                             automation script context.
+  --prompt <text>                            Prompt text for automation script context.
+  --title <text>                             Delegation thread title.
+  --group-id <id>                            Delegation group id.
+  --return-mode <mode>                       Delegation return mode: detached,
+                                             record_only, wake_on_done,
+                                             wake_on_group, or manual.
+  --allow-absolute-cwd                       Allow workspace delegation to target
+                                             an absolute cwd.
+  --target-cwd <path>                        Delegation target cwd. Useful with
+                                             --ssh, where --cwd selects the
+                                             remote workspace root.
   --via <workspace|app>                      Turn surface. Defaults to workspace.
   --sandbox <mode>                           Turn sandbox: danger-full-access,
                                              workspace-write, or read-only.
@@ -1551,21 +1217,23 @@ Options:
                                              Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
   --remote-path-prepend <paths>              Colon-separated remote PATH entries for
                                              non-interactive SSH commands.
-  --remote-agent-command <command>           Remote codex-flows command. Defaults to
-                                             CODEX_FLOWS_REMOTE_AGENT_COMMAND or codex-flows.
-  --remote-codex-command <command>           Remote Codex command used by the agent.
+  --agent-command <command>                  codex-flows command/path for spawned agents.
+                                             Defaults to CODEX_FLOWS_AGENT_COMMAND
+                                             or codex-flows.
+  --codex-command <command>                  Codex command used by the agent.
                                              Defaults to CODEX_FLOWS_REMOTE_CODEX_COMMAND or codex.
-  --remote-codex-arg <arg>                   Extra remote Codex argument. Repeatable.
+  --codex-arg <arg>                          Extra Codex argument. Repeatable.
   --cwd <path>                               Remote workspace cwd for SSH operation.
+                                             For local workspace delegate, also
+                                             accepts @/path relative to the
+                                             workspace root.
   -h, --help                                 Show this help.
 
 Examples:
   codex-flows fetch
+  codex-flows mcp serve
+  codex-flows agent serve --cwd /repo
   codex-flows --ssh devbox --cwd /repo fetch
-  codex-flows fetch --workspace-url ws://127.0.0.1:3586
-  codex-flows remote status --workspace-url ws://127.0.0.1:3586
-  codex-flows remote turn start --prompt "Check workspace status"
-  codex-flows --ssh devbox --cwd /repo remote turn start --sandbox danger-full-access --approval-policy never --prompt "Scan current folder"
   codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait
   codex-flows automation list
   codex-flows automation run check-release --event event.json
@@ -1578,10 +1246,8 @@ Examples:
   codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows workspace delegation.list
+  codex-flows workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
   codex-flows workspace doctor --mode actions
-  codex-flows workspace backend init local --global --profile home
-  codex-flows workspace backend service install --profile home --dry-run
-  codex-flows workspace backend start --profile home --dry-run
   codex-flows workspace init actions --forgejo
   codex-flows memories transplant global-to-workspace
   codex-flows threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex

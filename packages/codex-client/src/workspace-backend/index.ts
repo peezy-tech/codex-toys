@@ -3,6 +3,7 @@ export {
 	WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
 	WORKSPACE_FUNCTIONS_LIST_METHOD,
 	createWorkspaceFunctionMethods,
+	workspaceFunctionMethodMetadata,
 	type WorkspaceFunctionMetadata,
 	type WorkspaceFunctionsCallParams,
 	type WorkspaceFunctionsCallResponse,
@@ -50,6 +51,7 @@ export {
 	type WorkspaceBackendEventParams,
 	type WorkspaceBackendInitializeParams,
 	type WorkspaceBackendInitializeResponse,
+	type WorkspaceMethodMetadata,
 } from "./protocol.ts";
 export {
 	WorkspaceDelegationCapability,
@@ -64,3 +66,19 @@ export {
 	type WorkspaceDelegationStatus,
 	type WorkspacePendingWake,
 } from "./delegation.ts";
+export {
+	WORKSPACE_DELEGATION_FLUSH_RESULTS_METHOD,
+	WORKSPACE_DELEGATION_LIST_GROUPS_METHOD,
+	WORKSPACE_DELEGATION_LIST_METHOD,
+	WORKSPACE_DELEGATION_READ_METHOD,
+	WORKSPACE_DELEGATION_RESUME_METHOD,
+	WORKSPACE_DELEGATION_SEND_METHOD,
+	WORKSPACE_DELEGATION_SET_POLICY_METHOD,
+	WORKSPACE_DELEGATION_START_METHOD,
+	createWorkspaceDelegationMethods,
+	resolveDelegationCwd,
+	workspaceDelegationMethodMetadata,
+	type WorkspaceDelegationListResponse,
+	type WorkspaceDelegationRuntimeOptions,
+	type WorkspaceDelegationTarget,
+} from "./delegation-methods.ts";

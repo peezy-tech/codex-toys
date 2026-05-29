@@ -31,7 +31,7 @@ describe("codex-flows CLI args", () => {
 				type: "app-call",
 				method: "thread/list",
 				paramsText: "{\"limit\":1}",
-				url: "ws://127.0.0.1:3585",
+				url: "agent://local",
 			});
 		expect(parseArgs([
 			"app",
@@ -56,77 +56,81 @@ describe("codex-flows CLI args", () => {
 	});
 
 	test("parses workspace-owned method calls", () => {
-		expect(parseArgs([
-			"--workspace-url",
-			"ws://127.0.0.1:4596",
-			"workspace",
-			"delegation.list",
-		], {})).toMatchObject({
+		expect(parseArgs(["workspace", "delegation.list"], {})).toMatchObject({
 			type: "workspace-call",
 			method: "delegation.list",
-			url: "ws://127.0.0.1:4596",
+			url: "agent://local",
 		});
-	});
-
-	test("parses workspace backend setup commands", () => {
-		expect(parseArgs(["workspace", "backend", "init", "local", "--overwrite"], {}))
-			.toEqual({
-				type: "workspace-backend-init-local",
-				workspaceRoot: undefined,
-				codexHome: undefined,
-				profile: undefined,
-				globalProfile: false,
-				overwrite: true,
-				json: false,
-				pretty: true,
-			});
 		expect(parseArgs([
 			"workspace",
-			"backend",
-			"init",
-			"local",
-			"--global",
-			"--profile",
-			"home",
-			"--workspace-root",
-			"/home/peezy",
-			"--codex-home",
-			"/home/peezy/.codex",
+			"delegate",
+			"start",
+			"--cwd",
+			"@/workspaces/trading",
+			"--prompt",
+			"scan the workspace",
+			"--title",
+			"Trading scan",
+			"--group-id",
+			"ops",
+			"--return-mode",
+			"wake_on_group",
+			"--wait",
+			"--sandbox",
+			"danger-full-access",
+			"--approval-policy",
+			"never",
+			"--json",
 		], {})).toMatchObject({
-			type: "workspace-backend-init-local",
-			globalProfile: true,
-			profile: "home",
-			workspaceRoot: "/home/peezy",
-			codexHome: "/home/peezy/.codex",
+			type: "workspace-delegate-start",
+			targetCwd: "@/workspaces/trading",
+			prompt: "scan the workspace",
+			title: "Trading scan",
+			groupId: "ops",
+			returnMode: "wake_on_group",
+			wait: true,
+			sandbox: "danger-full-access",
+			approvalPolicy: "never",
+			json: true,
+			timeoutMs: 30 * 60 * 1000,
 		});
-		expect(parseArgs(["workspace", "backend", "status", "--json"], {}))
+		expect(parseArgs(["workspace", "delegate", "list", "--json"], {}))
 			.toMatchObject({
-				type: "workspace-backend-status",
-				json: true,
-				workspaceUrl: "ws://127.0.0.1:3586",
-			});
-		expect(parseArgs(["workspace", "backend", "start", "--dry-run", "--json", "--profile=home"], {}))
-			.toMatchObject({
-				type: "workspace-backend-start",
-				profile: "home",
-				dryRun: true,
+				type: "workspace-delegate-list",
 				json: true,
 			});
-		expect(parseArgs(["workspace", "backend", "service", "install", "--profile", "home", "--dry-run"], {}))
-			.toMatchObject({
-				type: "workspace-backend-service-install",
-				profile: "home",
-				dryRun: true,
-			});
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/home/peezy",
+			"workspace",
+			"delegate",
+			"start",
+			"--target-cwd",
+			"@/repos/patch.moi",
+			"inspect patch status",
+		], {})).toMatchObject({
+			type: "workspace-delegate-start",
+			sshTarget: "devbox",
+			cwd: "/home/peezy",
+			targetCwd: "@/repos/patch.moi",
+			prompt: "inspect patch status",
+		});
 	});
 
-	test("parses remote agent operator commands", () => {
-		expect(parseArgs(["remote", "status", "--json"], {}))
-			.toMatchObject({
-				type: "remote-status",
-				json: true,
-				workspaceUrl: "ws://127.0.0.1:3586",
-			});
+	test("rejects removed workspace backend setup commands", () => {
+		expect(() => parseArgs(["workspace", "backend", "init", "local", "--overwrite"], {}))
+			.toThrow("workspace backend service commands have been removed");
+		expect(() => parseArgs(["workspace", "backend", "status", "--json"], {}))
+			.toThrow("workspace backend service commands have been removed");
+		expect(() => parseArgs(["workspace", "backend", "start"], {}))
+			.toThrow("workspace backend service commands have been removed");
+	});
+
+	test("parses agent and SSH preflight commands", () => {
+		expect(() => parseArgs(["remote", "status", "--json"], {}))
+			.toThrow("remote supports only preflight");
 		expect(parseArgs([
 			"--ssh",
 			"devbox",
@@ -144,48 +148,17 @@ describe("codex-flows CLI args", () => {
 		expect(parseArgs([
 			"--cwd",
 			"/work",
-			"remote-agent",
+			"agent",
 			"serve",
-			"--remote-codex-command",
+			"--codex-command",
 			"/opt/codex",
 		], {})).toMatchObject({
-			type: "remote-agent-serve",
+			type: "agent-serve",
 			cwd: "/work",
 			remoteCodexCommand: "/opt/codex",
 		});
-		expect(parseArgs([
-			"remote",
-			"turn",
-			"start",
-			"--prompt",
-			"hello remote",
-			"--via",
-			"workspace",
-			"--cwd",
-			"/work",
-			"--ssh",
-			"devbox",
-			"--remote-path-prepend",
-			"/home/peezy/.local/bin:/home/peezy/.bun/bin",
-			"--sandbox",
-			"danger-full-access",
-				"--approval-policy",
-				"never",
-				"--wait",
-				"--model",
-				"gpt-5.2",
-			], {})).toMatchObject({
-			type: "remote-turn-start",
-			prompt: "hello remote",
-			via: "workspace",
-			cwd: "/work",
-			sshTarget: "devbox",
-			remotePathPrepend: "/home/peezy/.local/bin:/home/peezy/.bun/bin",
-			sandbox: "danger-full-access",
-			approvalPolicy: "never",
-			wait: true,
-			model: "gpt-5.2",
-		});
+		expect(() => parseArgs(["remote", "turn", "start", "--prompt", "hello"], {}))
+			.toThrow("remote supports only preflight");
 		});
 
 		test("parses turn run as the core prompt primitive", () => {
@@ -194,13 +167,13 @@ describe("codex-flows CLI args", () => {
 				"devbox",
 				"--cwd",
 				"/repo",
-				"--remote-agent-command",
+				"--agent-command",
 				"/opt/codex-flows",
-				"--remote-codex-command",
+				"--codex-command",
 				"/opt/codex",
-				"--remote-codex-arg",
+				"--codex-arg",
 				"-s",
-				"--remote-codex-arg",
+				"--codex-arg",
 				"danger-full-access",
 				"turn",
 				"run",
@@ -215,7 +188,7 @@ describe("codex-flows CLI args", () => {
 				prompt: "scan current folder",
 				sshTarget: "devbox",
 				cwd: "/repo",
-				remoteAgentCommand: "/opt/codex-flows",
+				agentCommand: "/opt/codex-flows",
 				remoteCodexCommand: "/opt/codex",
 				remoteCodexArgs: ["-s", "danger-full-access"],
 				wait: true,
@@ -285,7 +258,7 @@ describe("codex-flows CLI args", () => {
 			sshTarget: "devbox",
 			cwd: "/repo",
 			remotePathPrepend: "/opt/node/bin",
-			remoteAgentCommand: "/opt/codex-flows",
+			agentCommand: "/opt/codex-flows",
 		};
 		expect(parseArgs([
 			"--ssh",
@@ -294,7 +267,7 @@ describe("codex-flows CLI args", () => {
 			"/repo",
 			"--remote-path-prepend",
 			"/opt/node/bin",
-			"--remote-agent-command",
+			"--agent-command",
 			"/opt/codex-flows",
 			"fetch",
 		], {})).toMatchObject({ type: "fetch", ...remote });
@@ -409,7 +382,7 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
-	test("parses app-server pass-through through the workspace backend", () => {
+	test("parses app-server pass-through through the agent", () => {
 			expect(parseArgs([
 				"workspace",
 				"app",
@@ -600,8 +573,8 @@ describe("codex-flows CLI args", () => {
 	test("parses neofetch-style fetch command", () => {
 		expect(parseArgs(["--no-color", "fetch"], {})).toEqual({
 			type: "fetch",
-			appUrl: "ws://127.0.0.1:3585",
-			workspaceUrl: "ws://127.0.0.1:3586",
+			appUrl: "agent://local",
+			workspaceUrl: "agent://local",
 			timeoutMs: 1500,
 			color: false,
 			json: false,
@@ -623,15 +596,15 @@ describe("codex-flows CLI args", () => {
 			shell: "/bin/bash",
 			cwd: "/workspace",
 			codexCommand: "/tmp/codex",
-			appServerUrl: "ws://127.0.0.1:3585",
-			workspaceBackendUrl: "ws://127.0.0.1:3586",
+			appServerUrl: "agent://local",
+			workspaceBackendUrl: "agent://local",
 			codexHome: "/tmp/codex-home",
 			backend: {
 				mode: "workspace",
 				status: "connected",
-				url: "ws://127.0.0.1:3586",
+				url: "agent://local",
 				server: {
-					name: "codex-workspace-backend-local",
+					name: "codex-flows-agent",
 					version: "0.1.0",
 				},
 				capabilities: {
@@ -655,7 +628,7 @@ describe("codex-flows CLI args", () => {
 		const output = formatFetchInfo(info, { color: false });
 		expect(output).toContain("codex-flows");
 		expect(output).toContain("package      @peezy.tech/codex-flows@0.3.1");
-		expect(output).toContain("workspace    ws://127.0.0.1:3586");
+		expect(output).toContain("workspace    agent://local");
 		expect(output).toContain("backend      workspace connected");
 		expect(output).toContain("threads      2 listed, 1 active, 1 idle");
 		expect(output).not.toContain("\x1b[");
@@ -726,10 +699,11 @@ function resultFor(method, params) {
 	if (method === "workspace.initialize") {
 		return {
 			ok: true,
-			serverInfo: { name: "fake-remote-agent", version: "0.1.0" },
+			serverInfo: { name: "fake-agent", version: "0.1.0" },
 			capabilities: {
 				appServerPassThrough: true,
 				workspaceMethods: ["functions.list", "functions.describe", "functions.call"],
+				workspaceMethodMetadata: [],
 			},
 		};
 	}

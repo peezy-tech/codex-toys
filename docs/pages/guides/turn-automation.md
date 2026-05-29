@@ -77,7 +77,7 @@ The script exports a default handler and receives a context object:
 At runtime the context also includes a small host API:
 
 - `context.app.call(method, params)`: call an app-server method.
-- `context.workspace.call(method, params)`: call a workspace-backend method.
+- `context.workspace.call(method, params)`: call a codex-flows agent method.
   This is only available when running `--via workspace`.
 - `context.turn.start(params)`: start a native turn and return
   `{ id?, via, threadId, turnId, thread, turn }`.
@@ -85,6 +85,10 @@ At runtime the context also includes a small host API:
 - `context.turn.wait(turn, options)`: wait until a turn is no longer
   `inProgress`, returning `status`, `outputText`, `thread`, and `turn`.
 - `context.turn.waitAll(turns, options)`: wait for multiple turns.
+- `context.delegate.start(params)`: start a delegated Codex thread through the
+  agent. This is only available when running `--via workspace`.
+- `context.delegate.read(delegation)` and `context.delegate.wait(delegation,
+  options)`: refresh or wait on a delegated thread record.
 
 ```ts
 export default async function run(context) {
@@ -148,6 +152,27 @@ Supported turn fields:
 - `outputSchema`: JSON Schema for the final assistant response.
 - `skills`: forwarded as turn-scoped routing metadata for hosts that support it.
 
+Delegated work:
+
+```ts
+export default async function run(context) {
+  const delegation = await context.delegate.start({
+    cwd: "@/workspaces/trading",
+    title: "Trading workspace check",
+    prompt: "Inspect the trading workspace status and report risks.",
+    returnMode: "wake_on_done"
+  });
+
+  return {
+    status: "delegated",
+    delegation
+  };
+}
+```
+
+Delegation `cwd` supports `@/path` relative to the agent workspace root. Use
+absolute cwd values only for trusted local agents that explicitly allow them.
+
 Programmatic orchestration:
 
 ```ts
@@ -183,7 +208,7 @@ include the path in the returned JSON object.
 
 ## Local and remote targets
 
-Automation starts the turn through the configured workspace backend by default.
+Automation starts the turn through the codex-flows agent by default.
 Use `--via app` only when deliberately targeting a direct app-server connection:
 
 ```bash
@@ -204,8 +229,8 @@ codex-flows --ssh devbox --cwd /repo automation run check-release \
 With `--ssh`, automation discovery, named resolution, event loading, and script
 execution happen on the remote host inside the remote workspace. `--event` is a
 remote path in this mode, resolved relative to `--cwd` unless it is absolute.
-The remote-agent stays alive until the automation script returns, so scripts
+The SSH agent stays alive until the automation script returns, so scripts
 can call `context.turn.start` and then `context.turn.wait` or
-`context.turn.waitAll` for long-running remote turns. The provider uses the
+`context.turn.waitAll` for long-running turns in remote workspaces. The provider uses the
 selected surface directly; it does not try a second turn surface if the selected
 one is unavailable.

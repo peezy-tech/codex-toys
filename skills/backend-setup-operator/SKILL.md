@@ -1,60 +1,67 @@
 ---
-name: backend-setup-operator
-description: Use when setting up, starting, checking, or repairing codex-flows workspace backends from a Codex plugin install, including local backend env files, hook spool alignment, backend reachability, and remote backend configuration.
+name: agent-operator
+description: Use when checking or operating codex-flows local/SSH agents and the optional generic HTTP proxy after a Codex plugin install.
 ---
 
-# Backend Setup Operator
+# Agent Operator
 
-Use this skill when a user wants the backend setup story after installing a
-codex-flows plugin.
+Use this skill when a user wants the local or SSH codex-flows runtime story
+after installing a codex-flows plugin.
 
 ## Boundaries
 
-- Plugin install gives Codex skills, hooks, MCP config, and scripts.
-- A workspace backend is a process. Starting or installing it must stay an
-  explicit user-approved action.
-- Prefer plugin-bundled hooks over editing `~/.codex/hooks.json`.
-- Keep local and remote backend setup separate. Local backends own a host
-  process and hook spool. Remote backends own endpoint/auth configuration and
-  should not install local hooks.
+- Plugin install gives Codex skills, MCP config, hooks, and scripts.
+- Core codex-flows operation is stdio-first: local stdio or SSH stdio.
+- `codex-flows agent serve` is the runtime primitive.
+- `codex-flows-proxy serve` is the explicit browser/dashboard HTTP edge.
+- Do not revive service/profile setup commands or WebSocket backend hosting.
 
-## Local Backend Flow
+## Local Agent Flow
 
-1. Check the workspace:
+Check the workspace:
 
 ```bash
 codex-flows workspace doctor
 ```
 
-2. Create local backend defaults:
+Run one-shot commands through the spawned local agent:
 
 ```bash
-codex-flows workspace backend init local
+codex-flows fetch
+codex-flows workspace methods
+codex-flows functions list --json
+codex-flows automation list --json
+codex-flows turn run "Check workspace status" --wait
 ```
 
-3. Start the backend in the foreground:
+Start the agent directly only when another process needs stdio JSON-RPC:
 
 ```bash
-codex-flows workspace backend start
+codex-flows agent serve --cwd <workspace>
 ```
 
-4. Check status:
+## Proxy Flow
+
+Use the proxy only when a browser needs HTTP:
 
 ```bash
-codex-flows workspace backend status
+codex-flows-proxy serve --cwd <workspace> --static ./dashboard
 ```
 
-The local backend defaults to `ws://127.0.0.1:3586`, starts a local Codex
-app-server over stdio, and uses `.codex/workspace/local/hook-spool` for plugin
-hook events.
+The proxy exposes:
 
-## Remote Backend Flow
+```text
+GET  /api/status
+GET  /api/schema
+POST /api/rpc
+POST /api/app/:method
+POST /api/workspace/:method
+```
 
-For a remote backend, do not start local hooks or a local backend process. The
-preferred automation path is the SSH-backed provider: the local CLI starts a
-remote-agent over SSH, while automation discovery, event loading, script
-execution, Codex tools, `CODEX_HOME`, and workspace execution happen on the
-remote target.
+Build dashboards from `/api/schema` and generic RPC calls; do not add
+feature-specific duplicated endpoint logic.
+
+## SSH Agent Flow
 
 Start with a probe:
 
@@ -68,16 +75,14 @@ Examples:
 
 ```bash
 codex-flows --ssh <user@host> --cwd <remote-workspace> workspace methods
-codex-flows --ssh <user@host> --cwd <remote-workspace> automation list --json
+codex-flows --ssh <user@host> --cwd <remote-workspace> functions list --json
 codex-flows --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json --sandbox danger-full-access --approval-policy never
 codex-flows --ssh <user@host> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh <user@host> --cwd <remote-workspace> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 Do not auto-install remote binaries. The local side needs `codex-flows`; the
-remote side needs `node`, `codex-flows`, and `codex`. If a
-remote command is missing, report the command override and PATH hints and let
-the user install or configure the remote environment.
+remote side needs `node`, `codex-flows`, and `codex`.
 
 Useful variables:
 
@@ -85,21 +90,10 @@ Useful variables:
 CODEX_FLOWS_REMOTE_SSH_TARGET=<user@host>
 CODEX_FLOWS_REMOTE_CWD=<remote-workspace>
 CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/user/.local/bin:/home/user/.bun/bin:/home/user/.cargo/bin
-CODEX_FLOWS_REMOTE_AGENT_COMMAND=codex-flows
+CODEX_FLOWS_AGENT_COMMAND=codex-flows
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
 ```
 
 Non-interactive SSH does not necessarily load login-shell PATH setup. Prefer
-`CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute command overrides for
-`CODEX_FLOWS_REMOTE_AGENT_COMMAND` and `CODEX_FLOWS_REMOTE_CODEX_COMMAND`; do
-not put inline `PATH=... command` strings in command variables.
-
-## Checks
-
-- `workspace doctor` should show Node version, backend reachability, hook spool
-  path, plugin hook discovery, and a suggested next command.
-- If hooks are not discovered, install `codex-flows-local-workspace` and start a
-  new Codex thread.
-- If the backend is unreachable after setup, run `workspace backend start`.
-- If the backend starts but hooks do not write events, align
-  `CODEX_FLOWS_HOOK_SPOOL_DIR` with the setup env file.
+`CODEX_FLOWS_REMOTE_PATH_PREPEND` or absolute command overrides. Do not put
+inline `PATH=... command` strings in command variables.

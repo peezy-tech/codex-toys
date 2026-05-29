@@ -1,16 +1,25 @@
 ---
 title: CLI reference
-description: Commands for turn automation, app-server calls, workspace backend calls, workspace autonomy, memory transplant, thread transplant, and pack repos.
+description: Commands for Codex-native agents, turn automation, app-server calls, workspace methods, workspace autonomy, memory transplant, thread transplant, and pack repos.
 ---
 
 # CLI reference
 
-`codex-flows` controls Codex app-server and workspace backend surfaces. The
-same package also publishes focused bins for app-server calls and the local
-workspace backend.
+`codex-flows` is Codex-native workspace porcelain. Local commands spawn
+`codex-flows agent serve` over stdio. SSH commands start the same agent on the
+target host and speak JSON-RPC over SSH stdio. Core commands do not host
+WebSocket or HTTP servers.
+
+The optional `codex-flows-proxy` binary is the browser edge. It starts or
+connects to an agent internally and exposes a small generic HTTP API for
+freeform HTML/JS dashboards.
 
 ```bash
 codex-flows --help
+codex-flows mcp serve
+codex-flows agent serve [--cwd <path>]
+codex-flows-proxy serve --cwd <workspace> [--static <dir>]
+codex-flows-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
 ```
 
 ## Fetch
@@ -21,77 +30,77 @@ codex-flows neofetch [--json] [--no-color]
 codex-flows --ssh <target> --cwd <remote-workspace> fetch
 ```
 
-`fetch` probes the configured workspace backend and app-server endpoints, then
-prints local package, runtime, endpoint, workspace, and Codex environment
-information. With a reachable backend it also includes capabilities, recent
-thread counts, and delegation counts. With `--ssh`, the local CLI probes a
-remote workspace backend through SSH and prints the remote workspace cwd while
-leaving local credentials alone.
+`fetch` prints local package/runtime information and probes the current
+codex-flows agent. With `--ssh`, the probe runs against the remote workspace
+agent without opening a remote port or copying credentials.
 
-## Remote Control
+## Agent
 
 ```bash
-codex-flows remote status [--json]
+codex-flows agent serve [--cwd <path>]
+```
+
+The agent is the single local/remote runtime surface. It owns workspace method
+dispatch, app-server pass-through, workspace functions, automations, and
+delegation. `workspace.initialize` returns server information, method names, and
+method metadata so clients and proxies can discover capabilities dynamically.
+
+Use `--codex-command` and repeated `--codex-arg` values when the agent should
+start a specific Codex binary or pass explicit app-server flags.
+
+## SSH
+
+```bash
 codex-flows --ssh <target> --cwd <remote-workspace> remote preflight [--json]
-codex-flows remote turn start --prompt <text> [--via workspace|app] [--cwd <path>] [--wait]
-codex-flows --ssh <target> --cwd <remote-workspace> remote turn start --prompt <text> [--wait]
-codex-flows remote-agent serve [--cwd <path>]
+codex-flows --ssh <target> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh <target> --cwd <remote-workspace> workspace delegation.list
+codex-flows --ssh <target> --cwd <remote-workspace> functions list --json
+codex-flows --ssh <target> --cwd <remote-workspace> automation run check-release --event event.json
+codex-flows --ssh <target> --cwd <remote-workspace> turn run "Scan current folder" --wait
 ```
 
-These commands are for the local-Codex-App-to-remote-VPS use case. `remote
-status` probes both the local app-server `remoteControl/status/read` method and
-the configured workspace backend URL. No backend is a valid status result, not a
-fatal setup error. `remote preflight` checks SSH reachability, remote cwd,
-remote Node, remote `codex-flows`, remote Codex, remote-agent startup, and
-app-server pass-through. `remote turn start` creates a thread and starts a turn
-through the workspace backend. With `--wait`, it polls the turn until completion
-and prints the final assistant message. With `--ssh`, it starts
-`codex-flows remote-agent serve` on the SSH target and speaks workspace JSON-RPC
-over the SSH stdio stream.
+`remote preflight` checks SSH reachability, remote cwd, remote Node,
+`codex-flows`, Codex, agent startup, and app-server pass-through. All other
+commands use `--ssh` directly; there is no separate remote controller command
+family.
 
-The global `--ssh` provider is the remote-first automation path. App-server,
-workspace backend, automation, and fetch commands can run locally while
-targeting a remote workspace:
+Useful SSH options and environment:
 
 ```bash
-codex-flows --ssh devbox --cwd /repo remote preflight
-codex-flows --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh devbox --cwd /repo workspace delegation.list
-codex-flows --ssh devbox --cwd /repo functions list --json
-codex-flows --ssh devbox --cwd /repo functions call portfolioSnapshot --json
-codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
-codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
-```
+--ssh <user@host>
+--remote-path-prepend /home/me/.local/bin:/home/me/.bun/bin
+--agent-command /home/me/.local/bin/codex-flows
+--codex-command /home/me/.local/bin/codex
+--codex-arg -s --codex-arg danger-full-access
 
-The provider does not open ports, tunnel to a pre-existing backend, or copy
-credentials. The remote target must already have `node`, `codex-flows`, and
-`codex` available to non-interactive SSH. Missing remote binaries produce setup
-errors; the CLI does not install packages on the remote host.
-
-Useful options and environment:
-
-```bash
---workspace-url ws://127.0.0.1:3586
---app-url ws://127.0.0.1:3585
---ssh <user@tailscale-host>
---remote-path-prepend /home/me/.local/bin:/home/me/.bun/bin:/home/me/.cargo/bin
---remote-agent-command /home/me/.local/bin/codex-flows
---remote-codex-command /home/me/.local/bin/codex
---remote-codex-arg -s --remote-codex-arg danger-full-access
-
-CODEX_FLOWS_REMOTE_SSH_TARGET=<user@tailscale-host>
+CODEX_FLOWS_REMOTE_SSH_TARGET=<user@host>
 CODEX_FLOWS_REMOTE_CWD=/repo
-CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/me/.local/bin:/home/me/.bun/bin:/home/me/.cargo/bin
-CODEX_FLOWS_REMOTE_AGENT_COMMAND=codex-flows
+CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/me/.local/bin:/home/me/.bun/bin
+CODEX_FLOWS_AGENT_COMMAND=codex-flows
 CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
 CODEX_FLOWS_REMOTE_CODEX_ARGS=["-s","danger-full-access"]
 ```
 
-Remote commands run through non-interactive SSH, so login-shell PATH setup may
-not apply. Prefer `CODEX_FLOWS_REMOTE_PATH_PREPEND` for remote bin directories
-or absolute command overrides. Do not rely on inline `PATH=... command` strings
-inside remote command variables; keep command lookup and remote environment
-setup separate.
+## Proxy
+
+```bash
+codex-flows-proxy serve --cwd <workspace> [--static <dir>]
+codex-flows-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
+```
+
+The proxy is an optional HTTP edge for dashboards. It exposes only generic
+routes:
+
+```text
+GET  /api/status
+GET  /api/schema
+POST /api/rpc
+POST /api/app/:method
+POST /api/workspace/:method
+```
+
+`/api/schema` is derived from `workspace.initialize`; route behavior forwards to
+agent methods instead of duplicating feature-specific endpoint logic.
 
 ## Turn Run
 
@@ -100,11 +109,9 @@ codex-flows turn run <prompt> [--wait] [--thread-id <id>]
 codex-flows --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 ```
 
-`turn run` is the prompt primitive for local and SSH-backed workspaces. It starts
-or reuses a Codex thread, starts a turn, prints the thread and turn ids, and with
-`--wait` blocks until the turn completes or the timeout expires. `--sandbox` and
-`--permissions` are mutually exclusive. Use `--json` for machine-readable
-`threadId`, `turnId`, `status`, `cwd`, `finalMessage`, and `error` output.
+`turn run` is the prompt primitive for local and SSH-backed workspaces. It
+starts or reuses a Codex thread, starts a turn, and optionally waits for the
+final assistant message.
 
 ## Turn Automation
 
@@ -115,71 +122,23 @@ codex-flows --ssh <target> --cwd <remote-workspace> automation list [--json]
 codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
 ```
 
-`automation run` executes a pre-turn script and returns the script's JSON
-result. Scripts start, read, and wait on native Codex turns through
-`context.turn.*`; the CLI does not interpret returned `action` fields.
-Automations must be named manifests under `.codex/automations/*` or
-`automations/*`. The script exports a default TypeScript/JavaScript handler
-that receives `automation`, `runtime`, optional `event`, optional `prompt`, and
-optional `cwd` fields.
-`automation list` discovers named automations from `.codex/automations/*` and
-`automations/*`. With `--ssh`, listing, named resolution, event loading, and
-script execution happen inside the remote `--cwd` workspace through the
-remote-agent. In SSH mode `--event` is resolved on the remote host, relative to
-the remote workspace unless it is absolute.
-
-Skip result:
-
-```json
-{
-  "action": "skip",
-  "reason": "nothing changed"
-}
-```
-
-Started-turn result:
-
-```json
-{
-  "status": "started",
-  "turn": {
-    "threadId": "019...",
-    "turnId": "019..."
-  }
-}
-```
-
-The turn is started through the workspace backend or app-server according to
-`--via`. With `--ssh`, the script runs locally and the resulting turn targets
-the remote workspace through the SSH provider. See [Turn automation](../guides/turn-automation).
+Automation scripts run code before deciding whether to start a native Codex
+turn. Scripts can use `context.turn.*`, `context.workspace.call`, and, when
+running through the agent, `context.delegate.*`.
 
 ## App-Server Calls
 
 ```bash
 codex-flows app <method> [params-json]
 codex-flows app <method> --params-json <json>
-codex-flows app <method> --params-file params.json
+codex-flows app <method> --params-file <file>
 codex-flows app call <method> [params-json]
 echo '<params-json>' | codex-flows app <method>
 codex-flows app actions
 ```
 
-The direct app-server path defaults to `CODEX_WORKSPACE_APP_SERVER_WS_URL` or
-`ws://127.0.0.1:3585`. Use `--app-url`, `--app-server-url`, `--url`, or
-`--ws-url` to override it. Use `stdio://` to spawn a local app-server. On
-PowerShell, prefer `--params-json $params` or `--params-file params.json`:
-
-```powershell
-$params = @{ limit = 20; sourceKinds = @() } | ConvertTo-Json -Compress
-codex-flows app thread/list --params-json $params
-
-@{ threadId = "019e..." } | ConvertTo-Json -Compress | Set-Content params.json
-codex-flows app thread/turns/list --params-file params.json
-```
-
-If an older PowerShell native-command mode strips JSON quotes before argv
-delivery, `--params-json` also accepts the common stripped shape for simple
-objects, for example `{limit:3,sourceKinds:[]}`.
+App calls are generic app-server pass-through via the agent. SSH app calls start
+the remote agent and then call `appServer.call { method, params }`.
 
 ## Workspace Functions
 
@@ -187,125 +146,66 @@ objects, for example `{limit:3,sourceKinds:[]}`.
 codex-flows functions list [--json]
 codex-flows functions describe <name> [--json]
 codex-flows functions call <name> [--params-json <json>] [--json]
-codex-flows --ssh <target> --cwd <remote-workspace> functions list --json
-codex-flows --ssh <target> --cwd <remote-workspace> functions describe <name> --json
-codex-flows --ssh <target> --cwd <remote-workspace> functions call <name> --params-json '{"sample":true}' --json
+codex-flows --ssh <target> --cwd <remote-workspace> functions list [--json]
 ```
 
-Workspace functions are JSON-in/JSON-out helpers loaded from
-`.codex/functions.ts`, `.codex/functions.js`, or `.codex/functions.mjs` in the
-target workspace. They are intended for local dashboards and operators that need
-active workspace data without starting a Codex turn or exposing a remote HTTP
-server. The recommended manifest is a plain default-exported object with no
-imports, because remote manifests resolve imports from the remote workspace's
-local dependencies. With `--ssh`, calls run through the SSH remote-agent
-provider.
+Functions are JSON-in/JSON-out helpers loaded from `.codex/functions.ts`,
+`.codex/functions.js`, or `.codex/functions.mjs` in the target workspace.
 
-## Workspace Backend Calls
+## Workspace Methods
 
 ```bash
 codex-flows workspace <method> [params-json]
 codex-flows workspace <method> --params-json <json>
-codex-flows workspace <method> --params-file params.json
+codex-flows workspace <method> --params-file <file>
 codex-flows workspace call <method> [params-json]
 codex-flows workspace app <method> [params-json]
-codex-flows workspace app <method> --params-json <json>
-codex-flows workspace app <method> --params-file params.json
 codex-flows workspace methods
 ```
 
-`workspace <method>` calls a workspace backend method. `workspace app <method>`
-asks the workspace backend to proxy a native app-server method.
+Workspace calls go through the agent. `workspace app <method>` is a convenience
+alias for generic app-server pass-through.
 
-The workspace path defaults to `CODEX_WORKSPACE_BACKEND_WS_URL` or
-`ws://127.0.0.1:3586`. Use `--workspace-url`, `--workspace-backend-url`,
-`--url`, or `--ws-url` to override it.
+## Workspace Delegation
+
+```bash
+codex-flows workspace delegate list [--json]
+codex-flows workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
+codex-flows --ssh devbox --cwd /home/peezy workspace delegate start --target-cwd @/repos/patch.moi --prompt "Review the branch"
+```
+
+Delegation starts normal Codex threads in another cwd and records stable
+delegation metadata under `.codex/workspace/local/delegations.json`. `@/path`
+resolves relative to the agent workspace root; absolute cwd values require an
+explicit opt-in.
 
 ## Workspace Autonomy
 
 ```bash
 codex-flows workspace doctor [--mode auto|local|actions] [--json]
-codex-flows workspace backend init local [--overwrite] [--json]
-codex-flows workspace backend init local --global [--profile <name>] [--workspace-root <path>] [--codex-home <home>]
-codex-flows workspace backend status [--profile <name>] [--json]
-codex-flows workspace backend start [--profile <name>] [--dry-run] [--json]
-codex-flows workspace backend service install [--profile <name>] [--dry-run]
 codex-flows workspace tick [--mode auto|local|actions]
 codex-flows workspace run <task-id> [--mode auto|local|actions]
 codex-flows workspace init actions [--forgejo|--github]
-```
-
-- `doctor` reports mode, repo root, `.codex/workspace.toml`, runtime
-  `CODEX_HOME`, state roots, task counts, due tasks, failing tasks, latest run,
-  memory roots, memory summary presence, invariant errors, backend reachability,
-  local backend env state, Node version, plugin hook discovery, hook spool
-  state, and a suggested next command. In Actions mode it flags any runner that
-  would use a Codex home outside the repository `.codex` directory.
-- `backend init local` writes `.codex/workspace/backend.local.env`, creates the
-  local hook-spool directories, and adds local runtime paths to `.gitignore`.
-  Add `--global` to write a named profile under
-  `$XDG_CONFIG_HOME/codex-flows/backends/<name>.toml` instead; by default that
-  profile uses the user home directory as the workspace and `~/.codex` as
-  `CODEX_HOME`.
-- `backend status` reports the same local backend, Node, plugin-hook, and
-  hook-spool diagnostics without the rest of the workspace autonomy report. Use
-  `--profile <name>` to inspect a global backend profile.
-- `backend start` starts `codex-workspace-backend-local serve` in the foreground
-  using either the local env file or a global profile. Use `--dry-run` to print
-  the command without starting it.
-- `backend service install` writes a user systemd unit for a global profile. Use
-  `--dry-run` to preview the unit path and next `systemctl --user` commands.
-- `tick` runs due scheduled tasks and reactive rules.
-- `run <task-id>` runs one task immediately.
-- `init actions` scaffolds `.codex/workspace.toml`, `.codex/config.toml`,
-  workflow files, and `.gitignore` entries for runtime-only Codex files.
-
-See [Workspace autonomy](../guides/workspace-autonomy) for config, modes, and
-CI behavior.
-
-## Actions Helpers
-
-```bash
 codex-flows actions prepare-auth
 codex-flows actions cleanup
 ```
 
-These commands are for CI and local Actions-mode simulation. They always resolve
-the runtime Codex home to `<repo>/.codex`, even if the caller has another
-`CODEX_HOME` in the environment.
+Workspace autonomy reads `.codex/workspace.toml`, writes local runtime state
+under `.codex/workspace/local`, and writes CI runtime state under
+`.codex/workspace/actions`.
 
-- `prepare-auth` writes `.codex/auth.json` with mode `0600` from
-  `CODEX_AUTH_JSON_B64`, `CODEX_AUTH_JSON`, or `OPENAI_API_KEY`.
-- `cleanup` removes runtime-only auth, install ids, sessions, shell snapshots,
-  temp dirs, SQLite databases, `.codex/memories/.git`, and
-  `phase2_workspace_diff.md` while preserving `.codex/memories/*.md`,
-  `.codex/memories/rollout_summaries/*.md`, and `.codex/workspace/actions`.
-  optionally requiring text in the stored run record.
-
-## Memory Transplant
+## Memories
 
 ```bash
 codex-flows memories transplant global-to-workspace [--apply]
 codex-flows memories transplant workspace-to-global [--apply]
+codex-flows memories transplant global-to-workspace --merge codex [--apply]
 ```
 
-Additional options:
+Memory transplant is dry-run by default and copies only durable Codex memory
+markdown artifacts.
 
-```bash
---workspace-root <path>
---global-codex-home <path>
---workspace-codex-home <path>
---overwrite
---merge codex
---no-backup
---json
-```
-
-The command is dry-run by default. It copies only durable memory artifacts under
-`memories/`: `MEMORY.md`, `memory_summary.md`, `raw_memories.md`, and
-`rollout_summaries/*.md`. See [Memory transplant](../guides/memory-transplant).
-
-## Thread Transplant
+## Threads
 
 ```bash
 codex-flows threads locate <thread-id> [--codex-home <home>]
@@ -314,15 +214,10 @@ codex-flows threads install-rollout <rollout.jsonl> [--codex-home <home>] [--rep
 codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
 ```
 
-Thread transplant copies raw Codex rollout JSONL files between `CODEX_HOME`
-roots. `transplant` copies one native rollout directly from a source home to a
-target home, preserving the `sessions/.../rollout-*.jsonl` path and failing on
-conflicts unless `--replace` is set. `inspect` validates a thread id or rollout
-JSONL directly and prints byte length and sha256. `install-rollout` places a
-loose JSONL file into a Codex home using the native sessions path. See [Thread
-transplant](../guides/thread-transplant).
+Thread helpers locate, inspect, install, and transplant raw Codex rollout JSONL
+files without inventing a separate bundle format.
 
-## Pack Repos
+## Packs
 
 ```bash
 codex-flows pack inspect <source> [--json]
@@ -331,100 +226,5 @@ codex-flows pack doctor [--json]
 codex-flows pack list [--json]
 ```
 
-`pack inspect` discovers skills, plugins, hook bundles, and automation
-templates from a local directory, GitHub shorthand such as `owner/repo`, or a Git URL. Use
-`--ref <ref>` with GitHub shorthand or Git URL sources. Prefer Codex plugin
-marketplaces for reusable skills; pack commands are for explicit repo-local file
-copies.
-
-`pack add` is dry-run by default and writes only with `--apply`. It installs
-repo-local capabilities into `.agents/skills`, `plugins`,
-`.agents/plugins/marketplace.json`, `.codex/hooks`, `.codex/hooks.json`, and
-`.codex/automations`.
-Changed destinations and same-name plugin marketplace entries from another source
-are conflicts unless `--overwrite` is set; overwrite backs up replaced paths
-under `.codex/pack-backups/<timestamp>/`.
-
-`pack list` reads `.codex/pack-lock.json`. `pack doctor` checks the lockfile,
-destination paths and content hashes, plugin marketplace JSON, and direct hook JSON. See
-[Install pack repos](../guides/install-pack-repos).
-
-## Workspace Backend
-
-```bash
-codex-workspace-backend-local serve --cwd <workspace>
-```
-
-## Companion Bins
-
-```bash
-codex-app thread/list '{"limit":20,"sourceKinds":[]}'
-```
-
-## Common Options
-
-| Option | Purpose |
-|--------|---------|
-| `--app-url`, `--app-server-url <url>` | App-server WebSocket URL. |
-| `--workspace-url`, `--workspace-backend-url <url>` | Workspace backend WebSocket URL. |
-| `--url`, `--ws-url <url>` | Set both app-server and workspace backend URLs. |
-| `--timeout-ms <ms>` | Request timeout. Defaults to `90000`, `1500` for fetch probes, or `1800000` for `automation run` and waited turns. |
-| `--compact` | Print compact JSON. |
-| `--pretty` | Print pretty JSON. |
-| `--json` | Print JSON for commands that support it. |
-| `--no-color` | Disable ANSI colors for fetch. |
-| `--mode <auto|local|actions>` | Workspace execution mode. |
-| `--workspace-root <path>` | Workspace root. Defaults to discovery. |
-| `--profile`, `--name <name>` | Workspace backend profile name. |
-| `--global` | With `workspace backend init local`, create a user backend profile instead of a repo-local env file. |
-| `--global-codex-home <path>` | Global Codex home for memory transplant. |
-| `--workspace-codex-home <path>` | Workspace Codex home for memory transplant. |
-| `--codex-home <path>` | Codex home for thread transplant or backend profile init. |
-| `--from-codex-home <path>` | Source Codex home for direct thread transplant. |
-| `--to-codex-home <path>` | Target Codex home for direct thread transplant. |
-| `--apply` | Apply memory transplant or pack install changes. |
-| `--overwrite` | Replace destination memory files or changed pack item directories after backup. |
-| `--replace` | Replace an existing thread rollout after backup. |
-| `--ref <ref>` | Git ref for non-local pack sources. |
-| `--include <name>` | Include a pack item by name or `kind:name`. |
-| `--exclude <name>` | Exclude a pack item by name or `kind:name`. |
-| `--merge codex` | Merge `MEMORY.md` and `memory_summary.md` with Codex. |
-| `--no-backup` | Disable overwrite or merge backups. |
-| `--forgejo` | Generate a Forgejo workflow with `workspace init actions`. |
-| `--github` | Generate a GitHub Actions workflow with `workspace init actions`. |
-| `--wait` | Wait for `turn run` or `remote turn start` completion and print the final assistant message. |
-| `--thread-id <id>` | Reuse an existing thread for `turn run` or `remote turn start`. |
-| `--model <model>` | Model override for `turn run`, `remote turn start`, or automation-started turns. |
-| `--params-json <json>` | Explicit JSON params for `app`, `workspace`, or `workspace app` calls; tolerates common PowerShell-stripped object keys. |
-| `--params-file <path>` | Read JSON params for `app`, `workspace`, or `workspace app` calls from a file. UTF-8 BOMs are tolerated. |
-| `--via <workspace\|app>` | Turn surface for remote turns and automation. Defaults to `workspace`. |
-| `--sandbox <danger-full-access\|workspace-write\|read-only>` | Sandbox for `turn run`, `remote turn start`, or automation-started turns. |
-| `--approval-policy <never\|on-failure\|on-request\|untrusted>` | Approval policy for `turn run`, `remote turn start`, or automation-started turns. |
-| `--permissions <profile>` | Named permissions profile for `turn run`, `remote turn start`, or automation-started turns; cannot be combined with `--sandbox`. |
-| `--ssh`, `--ssh-target <target>` | SSH target for remote CodexFlows operation. |
-| `--remote-path-prepend <paths>` | Colon-separated remote PATH entries for non-interactive SSH commands. |
-| `--remote-agent-command <cmd>` | Remote `codex-flows` command path/name. |
-| `--remote-codex-command <cmd>` | Remote Codex command path/name. |
-| `--remote-codex-arg <arg>` | Extra remote Codex command arg; repeatable. |
-| `--cwd <path>` | Remote workspace cwd when used with `--ssh`. |
-
-## Environment
-
-| Variable | Purpose |
-|----------|---------|
-| `CODEX_WORKSPACE_APP_SERVER_WS_URL` | Default direct app-server WebSocket URL. |
-| `CODEX_WORKSPACE_BACKEND_WS_URL` | Default workspace backend WebSocket URL. |
-| `CODEX_WORKSPACE_BACKEND_CODEX_HOME` | `CODEX_HOME` used by `codex-workspace-backend-local` when it spawns a local app-server. |
-| `CODEX_WORKSPACE_MODE` | Default workspace autonomy mode: `auto`, `local`, or `actions`. |
-| `CODEX_HOME` | Active Codex home. Actions mode sets it to the repo `.codex`. |
-| `CODEX_AUTH_JSON_B64` | Base64 JSON auth payload consumed by `actions prepare-auth`. |
-| `CODEX_AUTH_JSON` | Raw JSON auth payload consumed by `actions prepare-auth`. |
-| `OPENAI_API_KEY` | API key consumed by `actions prepare-auth` when JSON auth is not provided. |
-| `CODEX_APP_SERVER_CODEX_COMMAND` | Overrides the Codex command for stdio app-server launches. |
-| `CODEX_APP_SERVER_CODEX_ARGS` | JSON string array of extra args prepended before `app-server` for stdio app-server launches. |
-| `CODEX_FLOWS_REMOTE_SSH_TARGET` | Default SSH target for remote CodexFlows operation. |
-| `CODEX_FLOWS_REMOTE_CWD` | Default remote workspace cwd. |
-| `CODEX_FLOWS_REMOTE_PATH_PREPEND` | Colon-separated remote PATH entries prepended before SSH remote-agent commands. |
-| `CODEX_FLOWS_REMOTE_AGENT_COMMAND` | Remote `codex-flows` command path/name. |
-| `CODEX_FLOWS_REMOTE_CODEX_COMMAND` | Remote Codex command used by the remote agent. |
-| `CODEX_FLOWS_REMOTE_CODEX_ARGS` | JSON string array of extra remote Codex command args. |
+Pack commands copy selected skills, plugins, and hooks into a workspace and
+record provenance in `.codex/pack-lock.json`.

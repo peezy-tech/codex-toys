@@ -1,5 +1,4 @@
 packages:
-  - apps/workspace-backend
   - packages/*
   - docs
 
@@ -9,7 +8,6 @@ allowBuilds:
 
 catalog:
   "@types/node": ^24.12.4
-  "@types/ws": ^8.18.1
   smol-toml: ^1.6.1
   react: ^19.2.4
   react-dom: ^19.2.4
@@ -17,7 +15,6 @@ catalog:
   typescript: ^5.9.2
   vite: ^8.0.13
   vite-plus: ^0.1.22
-  ws: ^8.20.1
 
 minimumReleaseAgeExclude:
   - '@voidzero-dev/vite-plus-core@0.1.22'

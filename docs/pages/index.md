@@ -6,13 +6,16 @@ description: App-server clients, turn automation, workspace autonomy, and memory
 # codex-flows
 
 `codex-flows` is the workspace automation layer around Codex app-server. Its
-preferred automation shape is turn automation: run code first, then
-conditionally start a native Codex prompt turn. It has these related surfaces:
+preferred runtime shape is a Codex-native agent: local stdio or SSH stdio. Turn
+automation runs code first, then conditionally starts a native Codex prompt
+turn. It has these related surfaces:
 
-- app-server clients and transports for direct Codex thread, auth, and protocol
-  work
+- app-server clients and stdio transports for direct Codex thread, auth, and
+  protocol work
 - plugin-native turn automation scripts that can skip or start native turns
-- workspace backend operation for long-running workspace control
+- `codex-flows agent serve` for local and SSH workspace control
+- optional `codex-flows-proxy` HTTP edge for freeform dashboards
+- first-class workspace delegation into `@/workspaces/*` and `@/repos/*`
 - SSH-backed remote workspace operation from a local CLI or Codex App
 - repo-native workspace autonomy and Codex memory/thread transplant tools
 - Git-backed Codex plugin install for turn automation guidance and bundled
@@ -28,8 +31,10 @@ side effects.
 | Goal | Start with |
 |------|------------|
 | Call Codex app-server from TypeScript | [Packages](reference/packages) |
-| Inspect or call app-server and workspace backend methods from a terminal | [CLI reference](reference/cli) |
+| Inspect or call app-server and workspace methods from a terminal | [CLI reference](reference/cli) |
+| Build a plain HTML/JS dashboard | [CLI reference](reference/cli#proxy) |
 | Run code before deciding whether to start a Codex prompt | [Turn automation](guides/turn-automation) |
+| Delegate Codex work from an operator workspace into child workspaces or repos | [CLI reference](reference/cli#workspace-delegation) |
 | Control a remote workspace from a local Codex App | [Install the Codex plugin](guides/install-codex-plugin) and [CLI reference](reference/cli) |
 | Schedule repo-local workspace tasks | [Workspace autonomy](guides/workspace-autonomy) |
 | Move durable Codex memories between global and repo homes | [Memory transplant](guides/memory-transplant) |
@@ -43,21 +48,21 @@ side effects.
 
 `@peezy.tech/codex-flows` publishes:
 
-- `@peezy.tech/codex-flows`: Node app-server client and transports
-- `@peezy.tech/codex-flows/browser`: browser-safe WebSocket app-server client
+- `@peezy.tech/codex-flows`: Node app-server client, agent helpers, and transports
+- `@peezy.tech/codex-flows/browser`: browser-safe fetch helpers for the proxy API
+- `@peezy.tech/codex-flows/proxy`: generic HTTP proxy handler
 - `@peezy.tech/codex-flows/auth`: privacy-preserving account status and login helpers
 - `@peezy.tech/codex-flows/actions`: Actions-mode workspace helpers
 - `@peezy.tech/codex-flows/memories`: stable Codex memory artifact helpers
 - `@peezy.tech/codex-flows/workbench`: transport-neutral thread UX reducers and request descriptors
 - `@peezy.tech/codex-flows/threads`: raw rollout locate, inspect, install, and transplant helpers
-- `@peezy.tech/codex-flows/workspace-backend`: workspace backend protocol helpers and capability primitives
+- `@peezy.tech/codex-flows/workspace-backend`: workspace JSON-RPC protocol helpers and capability primitives
 - `@peezy.tech/codex-flows/rpc`: JSON-RPC message helpers
 - `@peezy.tech/codex-flows/generated`: generated app-server protocol types
-- `codex-flows`: CLI for fetch, app-server calls, workspace backend calls,
+- `codex-flows`: CLI for fetch, app-server calls, workspace method calls,
   turn automation, remote workspace control, workspace autonomy, memory
   transplant, thread transplant, and optional pack repo install
-- `codex-workspace-backend-local`: local workspace backend process
-- `codex-app`: app-server JSON-RPC utility CLI
+- `codex-flows-proxy`: optional HTTP proxy for browser dashboards
 
 ## Turn Automation In One Screen
 
@@ -90,6 +95,10 @@ metadata:
   }
 }
 ```
+
+Automation scripts running through a codex-flows agent can also start a
+delegated thread with `context.delegate.start({ cwd: "@/workspaces/name",
+prompt })` when the work belongs in another checkout.
 
 The SSH provider runs the automation inside the remote workspace:
 

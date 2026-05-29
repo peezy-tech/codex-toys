@@ -5,10 +5,6 @@ import {
 	CodexStdioTransport,
 	type CodexStdioTransportOptions,
 } from "./stdio-transport.ts";
-import {
-	CodexWebSocketTransport,
-	type CodexWebSocketTransportOptions,
-} from "./websocket-transport.ts";
 
 export type CodexAppServerTransport = CodexEventEmitter & {
 	readonly requestTimeoutMs: number;
@@ -23,7 +19,6 @@ export type CodexAppServerTransport = CodexEventEmitter & {
 export type CodexAppServerClientOptions = {
 	transport?: CodexAppServerTransport;
 	transportOptions?: CodexStdioTransportOptions;
-	webSocketTransportOptions?: CodexWebSocketTransportOptions;
 	clientName?: string;
 	clientTitle?: string;
 	clientVersion?: string;
@@ -245,16 +240,5 @@ export class CodexAppServerClient extends CodexEventEmitter {
 function defaultTransport(
 	options: CodexAppServerClientOptions,
 ): CodexAppServerTransport {
-	const webSocketUrl =
-		options.webSocketTransportOptions?.url ??
-		process.env.CODEX_WORKSPACE_APP_SERVER_WS_URL;
-	if (webSocketUrl) {
-		return new CodexWebSocketTransport({
-			url: webSocketUrl,
-			requestTimeoutMs:
-				options.webSocketTransportOptions?.requestTimeoutMs ??
-				options.transportOptions?.requestTimeoutMs,
-		});
-	}
 	return new CodexStdioTransport(options.transportOptions);
 }

@@ -84,6 +84,14 @@ function scriptContext(context: unknown): unknown {
 			waitAll: async (turns: unknown[], options?: unknown) =>
 				await callHost("turn.waitAll", { turns, options }),
 		},
+		delegate: {
+			list: async (params?: unknown) => await callHost("delegate.list", params),
+			start: async (params: unknown) => await callHost("delegate.start", params),
+			send: async (params: unknown) => await callHost("delegate.send", params),
+			read: async (delegation: unknown) => await callHost("delegate.read", delegation),
+			wait: async (delegation: unknown, options?: unknown) =>
+				await callHost("delegate.wait", { delegation, options }),
+		},
 	};
 }
 

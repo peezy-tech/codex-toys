@@ -5,7 +5,7 @@ import {
 	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 } from "../workspace-backend/protocol.ts";
 import {
-	createSshRemoteAgentTransport,
+	createSshAgentTransport,
 	resolveSshRemoteOptions,
 	type ResolvedSshRemoteOptions,
 	type SshRemoteProviderOptions,
@@ -27,7 +27,7 @@ export type RemotePreflightResult = {
 	sshTarget: string;
 	cwd?: string;
 	remotePathPrepend?: string;
-	remoteAgentCommand: string;
+	agentCommand: string;
 	remoteCodexCommand: string;
 	remoteCodexArgs: string[];
 	checks: RemotePreflightCheck[];
@@ -50,7 +50,7 @@ export async function collectRemotePreflight(
 		sshTarget: resolved.sshTarget,
 		...(resolved.cwd ? { cwd: resolved.cwd } : {}),
 		...(resolved.remotePathPrepend ? { remotePathPrepend: resolved.remotePathPrepend } : {}),
-		remoteAgentCommand: resolved.remoteAgentCommand,
+		agentCommand: resolved.agentCommand,
 		remoteCodexCommand: resolved.remoteCodexCommand,
 		remoteCodexArgs: resolved.remoteCodexArgs,
 		checks,
@@ -104,12 +104,12 @@ export async function collectRemotePreflight(
 	checks.push(await commandCheck(
 		resolved,
 		"codex-flows",
-		resolved.remoteAgentCommand,
+		resolved.agentCommand,
 		["--help"],
 		options.timeoutMs,
 		{
 			suggestion:
-				"Install @peezy.tech/codex-flows on the SSH target or set CODEX_FLOWS_REMOTE_AGENT_COMMAND to its remote path.",
+				"Install @peezy.tech/codex-flows on the SSH target or set CODEX_FLOWS_AGENT_COMMAND to its remote path.",
 		},
 	));
 	checks.push(await commandCheck(
@@ -127,7 +127,7 @@ export async function collectRemotePreflight(
 		return result;
 	}
 
-	const agent = await probeRemoteAgent(options);
+	const agent = await probeSshAgent(options);
 	checks.push(...agent);
 	result.ok = checks.every((check) => check.status !== "fail");
 	return result;
@@ -151,13 +151,13 @@ export function formatRemotePreflight(result: RemotePreflightResult): string {
 	}).join("\n") + "\n";
 }
 
-async function probeRemoteAgent(
+async function probeSshAgent(
 	options: SshRemoteProviderOptions,
 ): Promise<RemotePreflightCheck[]> {
-	const transport = createSshRemoteAgentTransport(options);
+	const transport = createSshAgentTransport(options);
 	try {
 		transport.start();
-		const status = await transport.request("remoteAgent/status", {});
+		const status = await transport.request("agent.status", {});
 		const detail = statusDetail(status);
 		await initializeWorkspaceTransport(transport);
 		await transport.request(APP_SERVER_CALL_METHOD, {
@@ -165,13 +165,13 @@ async function probeRemoteAgent(
 			params: { limit: 1, sourceKinds: [] },
 		});
 		return [
-			{ name: "remote agent", status: "ok", detail },
+			{ name: "SSH agent", status: "ok", detail },
 			{ name: "app-server initialize", status: "ok" },
 		];
 	} catch (error) {
-		const stderr = transport.remoteAgentStderr.join("\n").trim();
+		const stderr = transport.agentStderr.join("\n").trim();
 		return [{
-			name: "remote agent",
+			name: "SSH agent",
 			status: "fail",
 			error: errorMessage(error),
 			suggestion:

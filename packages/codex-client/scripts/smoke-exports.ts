@@ -1,8 +1,9 @@
 const checks = [
 	["@peezy.tech/codex-flows", ["CodexAppServerClient", "CodexEventEmitter"]],
-	["@peezy.tech/codex-flows/browser", ["CodexAppServerClient", "codexFlows"]],
+	["@peezy.tech/codex-flows/browser", ["createCodexFlowsBrowserClient", "codexFlows"]],
 	["@peezy.tech/codex-flows/functions", ["defineFunctions", "createWorkspaceFunctionMethods"]],
 	["@peezy.tech/codex-flows/vite", ["codexFlowsRemote"]],
+	["@peezy.tech/codex-flows/proxy", ["createCodexFlowsProxyHandler"]],
 	["@peezy.tech/codex-flows/auth", ["CodexAuthClient", "createCodexAuthClient"]],
 	["@peezy.tech/codex-flows/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
 	["@peezy.tech/codex-flows/memories", ["listCodexMemoryArtifacts"]],

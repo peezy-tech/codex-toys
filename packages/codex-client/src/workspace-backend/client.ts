@@ -2,10 +2,6 @@ import type { v2 } from "../app-server/generated/index.ts";
 import { CodexEventEmitter } from "../app-server/events.ts";
 import type { JsonRpcId } from "../app-server/rpc.ts";
 import {
-	CodexWebSocketTransport,
-	type CodexWebSocketTransportOptions,
-} from "../app-server/websocket-transport.ts";
-import {
 	APP_SERVER_CALL_METHOD,
 	APP_SERVER_NOTIFICATION_METHOD,
 	APP_SERVER_NOTIFY_METHOD,
@@ -30,8 +26,7 @@ export type CodexWorkspaceBackendTransport = CodexEventEmitter & {
 };
 
 export type CodexWorkspaceBackendClientOptions = {
-	transport?: CodexWorkspaceBackendTransport;
-	webSocketTransportOptions?: CodexWebSocketTransportOptions;
+	transport: CodexWorkspaceBackendTransport;
 	clientName?: string;
 	clientTitle?: string;
 	clientVersion?: string;
@@ -44,18 +39,9 @@ export class CodexWorkspaceBackendClient extends CodexEventEmitter {
 	#clientVersion: string;
 	#connected = false;
 
-	constructor(options: CodexWorkspaceBackendClientOptions = {}) {
+	constructor(options: CodexWorkspaceBackendClientOptions) {
 		super();
-		const url = options.webSocketTransportOptions?.url;
-		if (!options.transport && !url) {
-			throw new Error("A Codex workspace backend WebSocket URL is required");
-		}
-		this.transport =
-			options.transport ??
-			new CodexWebSocketTransport({
-				url: url!,
-				requestTimeoutMs: options.webSocketTransportOptions?.requestTimeoutMs,
-			});
+		this.transport = options.transport;
 		this.#clientName = options.clientName ?? "codex-workspace-backend-client";
 		this.#clientTitle = options.clientTitle ?? "Codex Workspace Backend Client";
 		this.#clientVersion = options.clientVersion ?? "0.1.0";

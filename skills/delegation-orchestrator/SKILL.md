@@ -1,17 +1,17 @@
 ---
 name: delegation-orchestrator
-description: Use when acting as the main Codex workspace operator and coordinating delegated Codex threads through privileged codex_workspace tools for fan-out work, status reads, result flushing, return modes, and group wakes.
+description: Use when acting as the main Codex workspace operator and coordinating delegated Codex threads through codex-flows workspace delegation methods or local MCP tools for fan-out work, status reads, result flushing, return modes, and group wakes.
 ---
 
 # Delegation Orchestrator
 
 Use this skill only from the main workspace operator thread. Delegated threads
-must not receive or use privileged `codex_workspace` tools.
+must not receive or use privileged workspace delegation tools.
 
 ## Role
 
-Coordinate work across Codex threads without taking ownership of backend state.
-The workspace backend owns delegation records, return policies, pending wakes,
+Coordinate work across Codex threads without taking ownership of agent state.
+The codex-flows agent owns delegation records, return policies, pending wakes,
 and presenter-specific metadata. Your job is to choose when to delegate, keep
 prompts crisp, inspect progress, and merge results.
 
@@ -29,10 +29,13 @@ tightly coupled, or the task requires continuous judgment from the main thread.
 
 ## Tool Use
 
-Use `codex_workspace.list_delegations` before starting new work if active
-delegations may already exist.
+Use `codex-flows workspace delegate list`, `delegation.list`, or the
+`delegate_list` MCP tool before starting new work if active delegations may
+already exist.
 
-Use `codex_workspace.start_delegation` for new bounded work. Include:
+Use `codex-flows workspace delegate start --cwd @/workspaces/name --prompt ...`,
+`delegation.start`, or the `delegate_start` MCP tool for new bounded work.
+Include:
 
 - a concrete objective
 - repository or directory context
@@ -40,22 +43,22 @@ Use `codex_workspace.start_delegation` for new bounded work. Include:
 - write ownership, if code edits are allowed
 - return mode and group id, when coordination matters
 
-Use `codex_workspace.resume_delegation` when an existing Codex thread should be
+Use `delegation.resume` when an existing Codex thread should be
 tracked again instead of starting a new thread.
 
-Use `codex_workspace.send_delegation` for follow-up instructions. Keep the
+Use `delegation.send` for follow-up instructions. Keep the
 message focused on the delegated thread's current ownership.
 
-Use `codex_workspace.read_delegation` to inspect state before deciding whether
+Use `delegation.read` or `delegate_read` to inspect state before deciding whether
 to wait, redirect, flush, or summarize.
 
-Use `codex_workspace.set_delegation_policy` to change return mode or grouping
+Use `delegation.setPolicy` to change return mode or grouping
 when orchestration requirements change.
 
-Use `codex_workspace.flush_delegation_results` for manual or record-only results
+Use `delegation.flushResults` for manual or record-only results
 that are ready to merge back into the operator thread.
 
-Use `codex_workspace.list_delegation_groups` when coordinating fan-out/fan-in
+Use `delegation.listGroups` when coordinating fan-out/fan-in
 work across several related delegations.
 
 ## Return Modes
@@ -91,10 +94,10 @@ Return: <summary, files changed, verification>
 
 ## Guardrails
 
-- Do not expose `codex_workspace` tools to delegated threads.
+- Do not expose workspace delegation tools to delegated threads.
 - Do not ask delegated threads to manage delegation lifecycle.
 - Do not duplicate work across delegations.
 - Do not delegate vague ownership such as "fix everything".
 - Do not treat presenter-specific details as core delegation state.
-- Preserve the workspace backend boundary: app-server methods stay native and
-  delegation state stays in the backend.
+- Preserve the agent boundary: app-server methods stay native and delegation
+  state stays in codex-flows delegation records.

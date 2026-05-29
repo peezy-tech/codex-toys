@@ -13,8 +13,9 @@ workspace runs over SSH.
 
 - Build the dashboard as a local Vite app.
 - Do not start human-facing preview servers on the remote host.
-- Use `@peezy.tech/codex-flows/vite` as the local SSH bridge.
-- Use `@peezy.tech/codex-flows/browser` from dashboard code.
+- Use `@peezy.tech/codex-flows/vite` as the local generic proxy bridge, or run
+  `codex-flows-proxy serve` directly for plain HTML.
+- Use `@peezy.tech/codex-flows/browser` fetch helpers from dashboard code.
 - Use `.codex/functions.ts` in the remote workspace for active data or actions.
 - Keep remote `.codex/functions.ts` self-contained unless the remote workspace
   has its imported packages installed in local `node_modules`.
@@ -66,8 +67,26 @@ const functions = await codexFlows.functions.list();
 const snapshot = await codexFlows.functions.call("portfolioSnapshot");
 ```
 
-The browser talks only to the local Vite server under `/__codex_flows`. The
-Vite plugin owns the SSH connection and forwards requests to the remote-agent.
+The browser talks only to the local Vite server under `/__codex_flows/api`.
+The Vite plugin owns the SSH connection and forwards generic `/api/*` requests
+to the remote agent.
+
+For plain HTML without Vite, serve a static directory through the proxy:
+
+```bash
+codex-flows-proxy serve --ssh <target> --cwd <remote-workspace> --static ./dashboard
+```
+
+Plain JavaScript can call:
+
+```ts
+const schema = await fetch("/api/schema").then((response) => response.json());
+const threads = await fetch("/api/app/thread%2Flist", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ limit: 20 }),
+}).then((response) => response.json());
+```
 
 ## Remote Workspace Functions
 

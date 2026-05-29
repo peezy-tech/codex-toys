@@ -1,29 +1,47 @@
 import { stdin, stdout } from "node:process";
 import { CodexAppServerClient } from "../app-server/client.ts";
 import { CodexStdioTransport } from "../app-server/stdio-transport.ts";
+import { workspaceFunctionMethodMetadata, createWorkspaceFunctionMethods } from "../functions.ts";
 import {
 	CodexWorkspaceBackendProtocolServer,
 	type CodexWorkspaceBackendPeer,
 	type WorkspaceBackendMethodHandler,
-} from "../workspace-backend/server.ts";
-import { createWorkspaceFunctionMethods } from "../functions.ts";
-import { createRemoteAutomationMethods } from "./remote-automation.ts";
+	type WorkspaceMethodMetadata,
+	createWorkspaceDelegationMethods,
+	workspaceDelegationMethodMetadata,
+} from "../workspace-backend/index.ts";
+import {
+	createRemoteAutomationMethods,
+	remoteAutomationMethodMetadata,
+} from "./remote-automation.ts";
 
-export type RemoteAgentServeOptions = {
+export const AGENT_STATUS_METHOD = "agent.status";
+
+export type AgentServeOptions = {
 	cwd?: string;
 	timeoutMs: number;
-	remoteCodexCommand?: string;
-	remoteCodexArgs?: string[];
+	codexCommand?: string;
+	codexArgs?: string[];
 };
 
-export async function serveRemoteAgent(
-	options: RemoteAgentServeOptions,
+const agentStatusMethodMetadata: WorkspaceMethodMetadata[] = [
+	{
+		name: AGENT_STATUS_METHOD,
+		description: "Read process and workspace status for the active codex-flows agent.",
+		sideEffects: "read-only",
+		category: "agent",
+	},
+];
+
+export async function serveAgent(
+	options: AgentServeOptions,
 ): Promise<void> {
+	const workspaceRoot = options.cwd ?? process.cwd();
 	const client = new CodexAppServerClient({
 		transport: new CodexStdioTransport({
-			codexCommand: options.remoteCodexCommand,
+			codexCommand: options.codexCommand,
 			args: [
-				...(options.remoteCodexArgs ?? []),
+				...(options.codexArgs ?? []),
 				"app-server",
 				"--listen",
 				"stdio://",
@@ -32,11 +50,11 @@ export async function serveRemoteAgent(
 				"--enable",
 				"hooks",
 			],
-			cwd: options.cwd,
+			cwd: workspaceRoot,
 			requestTimeoutMs: options.timeoutMs,
 		}),
-		clientName: "codex-flows-remote-agent",
-		clientTitle: "Codex Flows Remote Agent",
+		clientName: "codex-flows-agent",
+		clientTitle: "Codex Flows Agent",
 		clientVersion: "0.1.0",
 	});
 	client.on("stderr", (line) => process.stderr.write(`${line}\n`));
@@ -46,28 +64,32 @@ export async function serveRemoteAgent(
 	const workspaceRequest = async (method: string, params: unknown) => {
 		const handler = methods[method];
 		if (!handler) {
-			throw new Error(`Unknown workspace backend method: ${method}`);
+			throw new Error(`Unknown workspace agent method: ${method}`);
 		}
 		return await handler(params, {
 			jsonrpc: "2.0",
-			id: "remote-agent-internal",
+			id: "agent-internal",
 			method,
 			params,
 		});
 	};
-	methods["remoteAgent/status"] = () => ({
+	methods[AGENT_STATUS_METHOD] = () => ({
 		ok: true,
-		cwd: options.cwd ?? process.cwd(),
+		cwd: workspaceRoot,
 		pid: process.pid,
 		node: process.version,
-		codexCommand: options.remoteCodexCommand ?? "codex",
-		codexArgs: options.remoteCodexArgs ?? [],
+		codexCommand: options.codexCommand ?? "codex",
+		codexArgs: options.codexArgs ?? [],
 	});
 	Object.assign(methods, createWorkspaceFunctionMethods({
-		cwd: options.cwd,
+		cwd: workspaceRoot,
+	}));
+	Object.assign(methods, createWorkspaceDelegationMethods({
+		appServer: client,
+		workspaceRoot,
 	}));
 	Object.assign(methods, createRemoteAutomationMethods({
-		cwd: options.cwd,
+		cwd: workspaceRoot,
 		timeoutMs: options.timeoutMs,
 		appRequest: async (method, params) => await client.request(method, params),
 		workspaceRequest,
@@ -75,9 +97,15 @@ export async function serveRemoteAgent(
 
 	const workspaceBackend = new CodexWorkspaceBackendProtocolServer({
 		appServer: client,
-		serverName: "codex-flows-remote-agent",
+		serverName: "codex-flows-agent",
 		serverVersion: "0.1.0",
 		methods,
+		workspaceMethodMetadata: [
+			...agentStatusMethodMetadata,
+			...workspaceFunctionMethodMetadata,
+			...workspaceDelegationMethodMetadata,
+			...remoteAutomationMethodMetadata,
+		],
 	});
 	const peer: CodexWorkspaceBackendPeer = {
 		send: (message) => stdout.write(`${message}\n`),

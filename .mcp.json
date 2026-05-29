@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "codex-flows": {
+      "command": "codex-flows",
+      "args": ["mcp", "serve"],
+      "cwd": "."
+    }
+  }
+}

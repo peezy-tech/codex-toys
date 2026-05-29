@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { v2 } from "../app-server/generated/index.ts";
+import type { WorkspaceMethodMetadata } from "../workspace-backend/protocol.ts";
 import type { WorkspaceBackendMethodHandler } from "../workspace-backend/server.ts";
 import { readJsonFile } from "./json.ts";
 import {
@@ -13,8 +14,23 @@ import {
 	type TurnAutomationStartedTurn,
 } from "./turn-automation.ts";
 
-export const REMOTE_AUTOMATION_LIST_METHOD = "automation/list";
-export const REMOTE_AUTOMATION_RUN_METHOD = "automation/run";
+export const REMOTE_AUTOMATION_LIST_METHOD = "automation.list";
+export const REMOTE_AUTOMATION_RUN_METHOD = "automation.run";
+
+export const remoteAutomationMethodMetadata: WorkspaceMethodMetadata[] = [
+	{
+		name: REMOTE_AUTOMATION_LIST_METHOD,
+		description: "List turn automations available in the selected workspace root.",
+		sideEffects: "read-only",
+		category: "automation",
+	},
+	{
+		name: REMOTE_AUTOMATION_RUN_METHOD,
+		description: "Run a turn automation through the current agent.",
+		sideEffects: "external-write",
+		category: "automation",
+	},
+];
 
 export type RemoteAutomationListParams = {
 	workspaceRoot?: string;
@@ -68,7 +84,7 @@ async function runRemoteAutomation(
 	const input = record(params);
 	const workspaceRoot = automationWorkspaceRoot(input, options.cwd);
 	const target = await resolveTurnAutomationTarget(
-		requiredString(input.target, "automation/run target"),
+		requiredString(input.target, "automation.run target"),
 		{ cwd: workspaceRoot },
 	);
 	const prompt = optionalString(input.prompt) ?? target.prompt;
@@ -134,7 +150,7 @@ function remoteAutomationVia(value: unknown): TurnAutomationStartedTurn["via"] {
 	if (value === "app") {
 		return "app-server";
 	}
-	throw new Error("automation/run via must be workspace or app");
+	throw new Error("automation.run via must be workspace or app");
 }
 
 function sandboxModeValue(value: unknown): v2.SandboxMode | undefined {
@@ -146,7 +162,7 @@ function sandboxModeValue(value: unknown): v2.SandboxMode | undefined {
 		return value;
 	}
 	if (value !== undefined) {
-		throw new Error("automation/run sandbox must be danger-full-access, workspace-write, or read-only");
+		throw new Error("automation.run sandbox must be danger-full-access, workspace-write, or read-only");
 	}
 	return undefined;
 }
@@ -161,7 +177,7 @@ function approvalPolicyValue(value: unknown): v2.AskForApproval | undefined {
 		return value;
 	}
 	if (value !== undefined) {
-		throw new Error("automation/run approvalPolicy must be never, on-failure, on-request, or untrusted");
+		throw new Error("automation.run approvalPolicy must be never, on-failure, on-request, or untrusted");
 	}
 	return undefined;
 }
@@ -171,7 +187,7 @@ function optionalPositiveNumber(value: unknown): number | undefined {
 		return undefined;
 	}
 	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-		throw new Error("automation/run timeoutMs must be a positive number");
+		throw new Error("automation.run timeoutMs must be a positive number");
 	}
 	return value;
 }

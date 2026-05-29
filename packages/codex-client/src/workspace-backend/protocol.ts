@@ -31,7 +31,17 @@ export type WorkspaceBackendInitializeResponse = {
 	capabilities: {
 		appServerPassThrough: true;
 		workspaceMethods: string[];
+		workspaceMethodMetadata: WorkspaceMethodMetadata[];
 	};
+};
+
+export type WorkspaceMethodMetadata = {
+	name: string;
+	description?: string;
+	paramsSchema?: unknown;
+	resultSchema?: unknown;
+	sideEffects?: "none" | "read-only" | "writes-local" | "external-write";
+	category?: string;
 };
 
 export type AppServerCallParams = {
@@ -95,6 +105,8 @@ export type WorkspaceBackendEventParams = {
 };
 
 export const workspaceBackendOwnedMethodPrefixes = [
+	"agent.",
+	"automation.",
 	"delegation.",
 	"functions.",
 	"workbench.",

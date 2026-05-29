@@ -6,21 +6,6 @@ import type {
 } from "./functions.ts";
 
 export {
-	CodexBrowserAppServerClient as CodexAppServerClient,
-	type CodexBrowserAppServerClientOptions as CodexAppServerClientOptions,
-	type CodexBrowserAppServerTransport as CodexAppServerTransport,
-} from "./app-server/browser-client.ts";
-export {
-	CodexWorkspaceBackendClient,
-	type CodexWorkspaceBackendClientOptions,
-	type CodexWorkspaceBackendTransport,
-	type WorkspaceBackendEvent,
-} from "./workspace-backend/client.ts";
-export {
-	CodexWebSocketTransport,
-	type CodexWebSocketTransportOptions,
-} from "./app-server/websocket-transport.ts";
-export {
 	JsonRpcError,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
@@ -77,41 +62,61 @@ export type CodexFlowsBrowserFunctionsClient = {
 };
 
 export type CodexFlowsBrowserClient = {
+	rpc<T = unknown>(method: string, params?: unknown): Promise<T>;
+	app: {
+		call<T = unknown>(method: string, params?: unknown): Promise<T>;
+	};
+	workspace: {
+		call<T = unknown>(method: string, params?: unknown): Promise<T>;
+	};
 	functions: CodexFlowsBrowserFunctionsClient;
 	status(): Promise<unknown>;
+	schema(): Promise<unknown>;
 };
 
 export function createCodexFlowsBrowserClient(
 	options: CodexFlowsBrowserClientOptions = {},
 ): CodexFlowsBrowserClient {
-	const basePath = (options.basePath ?? "/__codex_flows").replace(/\/$/, "");
+	const basePath = (options.basePath ?? "/api").replace(/\/$/, "");
 	const fetchImpl = options.fetch ?? fetch;
+	const post = async <T = unknown>(url: string, body: unknown): Promise<T> =>
+		await requestJson(fetchImpl, url, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(body),
+		});
 	return {
 		status: async () => await requestJson(fetchImpl, `${basePath}/status`),
+		schema: async () => await requestJson(fetchImpl, `${basePath}/schema`),
+		rpc: async <T = unknown>(method: string, params?: unknown) =>
+			await post<T>(`${basePath}/rpc`, { method, params }),
+		app: {
+			call: async <T = unknown>(method: string, params?: unknown) =>
+				await post<T>(`${basePath}/app/${encodeURIComponent(method)}`, params),
+		},
+		workspace: {
+			call: async <T = unknown>(method: string, params?: unknown) =>
+				await post<T>(`${basePath}/workspace/${encodeURIComponent(method)}`, params),
+		},
 		functions: {
 			list: async () => {
-				const response = await requestJson<WorkspaceFunctionsListResponse>(
-					fetchImpl,
-					`${basePath}/functions`,
+				const response = await post<WorkspaceFunctionsListResponse>(
+					`${basePath}/workspace/functions.list`,
+					{},
 				);
 				return response.functions;
 			},
 			describe: async (name) => {
-				const response = await requestJson<WorkspaceFunctionsDescribeResponse>(
-					fetchImpl,
-					`${basePath}/functions/${encodeURIComponent(name)}`,
+				const response = await post<WorkspaceFunctionsDescribeResponse>(
+					`${basePath}/workspace/functions.describe`,
+					{ name },
 				);
 				return response.function;
 			},
 			call: async <T = unknown>(name: string, params?: unknown) => {
-				const response = await requestJson<WorkspaceFunctionsCallResponse>(
-					fetchImpl,
-					`${basePath}/functions/${encodeURIComponent(name)}`,
-					{
-						method: "POST",
-						headers: { "content-type": "application/json" },
-						body: JSON.stringify({ params }),
-					},
+				const response = await post<WorkspaceFunctionsCallResponse>(
+					`${basePath}/workspace/functions.call`,
+					{ name, params },
 				);
 				return response.result as T;
 			},

@@ -1,6 +1,6 @@
 {
   "name": "codex-flows-author",
-  "version": "0.133.0",
+  "version": "0.134.0",
   "description": "Codex turn automation authoring guidance.",
   "author": {
     "name": "Peezy",
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "codex-flows author",
     "shortDescription": "Author turn automations.",
-    "longDescription": "codex-flows author installs Codex-facing guidance for plugin-native turn automation scripts. It does not install local backend hooks or start a backend process.",
+    "longDescription": "codex-flows author installs Codex-facing guidance for plugin-native turn automation scripts. It does not install local hooks or start an agent process.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [

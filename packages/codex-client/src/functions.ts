@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { tsImport } from "tsx/esm/api";
 import type { WorkspaceBackendMethodHandler } from "./workspace-backend/server.ts";
+import type { WorkspaceMethodMetadata } from "./workspace-backend/protocol.ts";
 
 export const WORKSPACE_FUNCTIONS_LIST_METHOD = "functions.list";
 export const WORKSPACE_FUNCTIONS_DESCRIBE_METHOD = "functions.describe";
@@ -109,6 +110,27 @@ export function createWorkspaceFunctionMethods(
 		},
 	};
 }
+
+export const workspaceFunctionMethodMetadata: WorkspaceMethodMetadata[] = [
+	{
+		name: WORKSPACE_FUNCTIONS_LIST_METHOD,
+		description: "List JSON-in/JSON-out functions declared by the current workspace.",
+		sideEffects: "read-only",
+		category: "functions",
+	},
+	{
+		name: WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
+		description: "Read metadata and schemas for one workspace function.",
+		sideEffects: "read-only",
+		category: "functions",
+	},
+	{
+		name: WORKSPACE_FUNCTIONS_CALL_METHOD,
+		description: "Call a workspace function with JSON params.",
+		sideEffects: "external-write",
+		category: "functions",
+	},
+];
 
 export class WorkspaceFunctionRuntime {
 	#cwd: string;

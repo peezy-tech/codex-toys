@@ -1,65 +1,72 @@
 ---
 title: Packages
-description: Public and workspace packages in the codex-flows stack.
+description: Public packages in the codex-flows stack.
 ---
 
 # Packages
 
 ## `@peezy.tech/codex-flows`
 
-Codex app-server client package, workspace platform package, and CLI bundle. It
-exports:
+Codex app-server client package, workspace automation package, and CLI bundle.
+It exports:
 
-- app-server JSON-RPC client and stdio/WebSocket transports
+- app-server JSON-RPC client and stdio transport
+- local and SSH stdio agent helpers
 - turn automation helpers for pre-turn scripts that can skip or start native
   Codex turns
-- SSH remote provider helpers for targeting remote workspaces from a local CLI
 - workspace functions under `@peezy.tech/codex-flows/functions`
-- Vite bridge plugin under `@peezy.tech/codex-flows/vite`
-- browser-safe workspace backend client and protocol server primitives
-- browser-safe WebSocket transport and dashboard client under
-  `@peezy.tech/codex-flows/browser`
+- generic HTTP proxy helpers under `@peezy.tech/codex-flows/proxy`
+- Vite middleware under `@peezy.tech/codex-flows/vite`
+- browser fetch helpers under `@peezy.tech/codex-flows/browser`
 - auth helpers for account login/status/usage
-- Actions-mode workspace helpers under `@peezy.tech/codex-flows/actions`
-- stable Codex memory artifact helpers under `@peezy.tech/codex-flows/memories`
+- workspace autonomy helpers
+- memory transplant helpers under `@peezy.tech/codex-flows/memories`
 - workbench reducers and request descriptors
-- thread rollout locate, inspect, install, and transplant helpers under `@peezy.tech/codex-flows/threads`
+- thread rollout locate, inspect, install, and transplant helpers under
+  `@peezy.tech/codex-flows/threads`
 - generated Codex app-server protocol types
-- the `codex-flows` CLI for fetch, turn automation, app-server calls,
-  workspace backend calls, workspace autonomy, memory
-  transplant, and thread transplant
-- runnable core process bins:
-  - `codex-app`
-  - `codex-workspace-backend-local`
+- the `codex-flows` CLI
+- the optional `codex-flows-proxy` HTTP edge
 
-The package is the canonical core install target for building or composing a
-backend plus product-owned presenter surfaces. See
-[Single package platform](../concepts/single-package-platform) for the target
-architecture and release implications.
+The package is the canonical core install target. It keeps the core transport
+surface Codex-native: local stdio and SSH stdio. Browser dashboards opt into
+HTTP by running the separate proxy.
 
-## `@peezy.tech/codex-flows/actions`
+## `@peezy.tech/codex-flows/proxy`
 
-Actions helpers encode Codex workspace conventions for CI and local
-Actions-mode simulation:
+The proxy package exposes a generic HTTP handler for dashboards:
 
-- `repoCodexHome(workspaceRoot)` returns `<repo>/.codex`
-- `prepareActionsCodexAuth` writes `.codex/auth.json` from
-  `CODEX_AUTH_JSON_B64`, `CODEX_AUTH_JSON`, or `OPENAI_API_KEY`
-- `cleanupActionsCodexHome` removes runtime-only auth, install ids, sessions,
-  shell snapshots, temp dirs, SQLite databases, `.codex/memories/.git`, and
-  generated workspace diffs without deleting durable memory markdown or
-  `.codex/workspace/actions`
+```text
+GET  /api/status
+GET  /api/schema
+POST /api/rpc
+POST /api/app/:method
+POST /api/workspace/:method
+```
 
-These helpers intentionally do not inspect or mutate Codex memory SQLite
-internals.
+The proxy starts or connects to a codex-flows agent internally. `/api/schema`
+comes from `workspace.initialize`, so dashboards can discover available
+workspace methods without duplicated route definitions.
+
+## `@peezy.tech/codex-flows/browser`
+
+The browser export is fetch-only. It provides helpers for the proxy API:
+
+```ts
+import { codexFlows } from "@peezy.tech/codex-flows/browser";
+
+const schema = await codexFlows.schema();
+const threads = await codexFlows.app.call("thread/list", { limit: 20 });
+const functions = await codexFlows.functions.list();
+```
+
+It does not include a browser app-server client or WebSocket transport.
 
 ## `@peezy.tech/codex-flows/functions`
 
 Workspace functions expose named JSON-in/JSON-out capabilities from a workspace
 manifest at `.codex/functions.ts`, `.codex/functions.js`, or
-`.codex/functions.mjs`. The canonical manifest is a plain default-exported
-object with no imports, so remote workspaces do not need a local
-`@peezy.tech/codex-flows` dependency just to expose functions.
+`.codex/functions.mjs`.
 
 ```ts
 export default {
@@ -71,20 +78,13 @@ export default {
 };
 ```
 
-The CLI, workspace backend, SSH remote-agent, Vite plugin, and browser client
-use the same `functions.list`, `functions.describe`, and `functions.call`
-workspace methods.
-If a workspace does install `@peezy.tech/codex-flows` locally, authors may
-optionally import `defineFunctions` from
-`@peezy.tech/codex-flows/functions` for type-oriented editor help. Avoid bare
-imports in remote `.codex/functions.ts` unless those packages are installed in
-the remote workspace.
+The CLI, agent, proxy, Vite plugin, MCP server, and browser fetch helpers use
+the same `functions.list`, `functions.describe`, and `functions.call` workspace
+methods.
 
 ## `@peezy.tech/codex-flows/vite`
 
-`codexFlowsRemote` is a local Vite middleware plugin that forwards dashboard
-requests to a workspace backend or SSH remote-agent without exposing remote HTTP
-ports.
+`codexFlowsRemote` mounts the generic proxy handler inside Vite:
 
 ```ts
 import { codexFlowsRemote } from "@peezy.tech/codex-flows/vite";
@@ -100,40 +100,34 @@ export default {
 ```
 
 Dashboard code can use `codexFlows` from
-`@peezy.tech/codex-flows/browser` to list, describe, and call workspace
-functions through the local Vite bridge.
+`@peezy.tech/codex-flows/browser` and call `/__codex_flows/api/*` through
+Vite.
+
+## `@peezy.tech/codex-flows/actions`
+
+Actions helpers encode Codex workspace conventions for CI and local
+Actions-mode simulation:
+
+- `repoCodexHome(workspaceRoot)` returns `<repo>/.codex`
+- `prepareActionsCodexAuth` writes `.codex/auth.json` from
+  `CODEX_AUTH_JSON_B64`, `CODEX_AUTH_JSON`, or `OPENAI_API_KEY`
+- `cleanupActionsCodexHome` removes runtime-only auth, sessions, temp dirs, and
+  SQLite databases without deleting durable memory markdown or
+  `.codex/workspace/actions`
 
 ## `@peezy.tech/codex-flows/memories`
 
-The memory transplant helpers operate on stable markdown artifacts only.
+The memory transplant helpers operate on stable markdown artifacts only:
 
-They provide:
+- `MEMORY.md`
+- `memory_summary.md`
+- `memories/raw_memories.md`
+- `memories/rollout_summaries/*.md`
 
-- `listCodexMemoryArtifacts`
-- `findTextInCodexMemoryArtifacts`
-- `waitForCodexMemoryArtifacts`
-- `copyCodexMemoryArtifacts`
-- `sanitizeWorkspaceMemoryArtifacts`
-
-Stable artifacts are `memories/raw_memories.md` and
-`memories/rollout_summaries/*.md`. The helpers do not require
-`MEMORY.md` or `memory_summary.md`, and cleanup removes runtime-only memory
-files such as SQLite databases, `.git`, and `phase2_workspace_diff.md`.
+The helpers do not require or inspect Codex memory SQLite internals.
 
 ## `@peezy.tech/codex-flows/threads`
 
-Thread transplant helpers for:
-
-- locating a Codex rollout JSONL by thread id under `CODEX_HOME/sessions`
-- inspecting a thread id or rollout JSONL with byte length and sha256
-- installing a loose rollout JSONL under a Codex home's native sessions path
-- transplanting one rollout directly between two Codex homes
-
-The helpers preserve raw rollout bytes and thread ids. They do not reconstruct
-history, rewrite ids, or call app-server import APIs.
-
-## Workspace apps
-
-- `codex-workspace-backend-local`: local workspace backend process with
-  control WebSocket. It is exposed as a bin from `@peezy.tech/codex-flows`.
-- `codex-app`: JSON-RPC CLI for app-server actions.
+Thread transplant helpers locate, inspect, install, and transplant raw Codex
+rollout JSONL files. They preserve raw rollout bytes and thread ids; they do
+not reconstruct history, rewrite ids, or call app-server import APIs.

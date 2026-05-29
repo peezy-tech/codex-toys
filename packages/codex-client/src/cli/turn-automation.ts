@@ -3,6 +3,10 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { v2 } from "../app-server/generated/index.ts";
+import type {
+	WorkspaceDelegation,
+	WorkspaceDelegationStatus,
+} from "../workspace-backend/index.ts";
 import { parseJsonText } from "./json.ts";
 
 const MODULE_RESULT_PREFIX = "TURN_AUTOMATION_MODULE_RESULT ";
@@ -151,12 +155,41 @@ export type TurnAutomationTurnSnapshot = TurnAutomationStartedTurn & {
 	error?: unknown;
 };
 
+export type TurnAutomationStartedDelegation = {
+	id?: string;
+	delegation: WorkspaceDelegation;
+	turnId?: string;
+};
+
+export type TurnAutomationDelegationSnapshot = TurnAutomationStartedDelegation & {
+	status: WorkspaceDelegationStatus;
+	latestTurnId?: string;
+	latestStatus?: string;
+	outputText: string;
+	error?: unknown;
+};
+
 export type TurnAutomationHostTurnStartParams =
 	& Partial<Omit<TurnAutomationTurnStartParams, "prompt">>
 	& {
 		id?: string;
 		prompt?: string;
 	};
+
+export type TurnAutomationHostDelegationStartParams = {
+	id?: string;
+	cwd: string;
+	prompt?: string;
+	title?: string;
+	groupId?: string;
+	returnMode?: string;
+	allowAbsoluteCwd?: boolean;
+	model?: string;
+	serviceTier?: string;
+	sandbox?: v2.SandboxMode;
+	approvalPolicy?: v2.AskForApproval;
+	permissions?: string;
+};
 
 export type TurnAutomationScriptContext = TurnAutomationContext & {
 	app: {
@@ -186,6 +219,22 @@ export type TurnAutomationScriptContext = TurnAutomationContext & {
 				throwOnFailure?: boolean;
 			},
 		): Promise<TurnAutomationTurnSnapshot[]>;
+	};
+	delegate: {
+		list(params?: Record<string, unknown>): Promise<unknown>;
+		start(params: TurnAutomationHostDelegationStartParams): Promise<TurnAutomationStartedDelegation>;
+		send(params: Record<string, unknown>): Promise<unknown>;
+		read(
+			delegation: Pick<TurnAutomationStartedDelegation, "id"> | Record<string, unknown>,
+		): Promise<TurnAutomationDelegationSnapshot>;
+		wait(
+			delegation: Pick<TurnAutomationStartedDelegation, "id"> | Record<string, unknown>,
+			options?: {
+				timeoutMs?: number;
+				pollIntervalMs?: number;
+				throwOnFailure?: boolean;
+			},
+		): Promise<TurnAutomationDelegationSnapshot>;
 	};
 };
 
@@ -253,12 +302,47 @@ export function createTurnAutomationHost(
 		}
 		if (call.method === "workspace.call") {
 			if (!options.workspaceRequest) {
-				throw new Error("ctx.workspace.call is only available through a workspace backend");
+				throw new Error("ctx.workspace.call is only available through a codex-flows agent");
 			}
 			const params = record(call.params);
 			return await options.workspaceRequest(
 				requiredString(params.method, "ctx.workspace.call method"),
 				params.params,
+			);
+		}
+		if (call.method === "delegate.list") {
+			return await workspaceHostRequest(options, "delegation.list", call.params ?? {});
+		}
+		if (call.method === "delegate.start") {
+			const params = delegationStartParamsFromHostParams(
+				record(call.params),
+				options.defaults,
+			);
+			const started = await workspaceHostRequest<{
+				delegation: WorkspaceDelegation;
+				turnId?: string;
+			}>(options, "delegation.start", params);
+			return compactUndefined({
+				id: optionalString(record(call.params).id),
+				delegation: started.delegation,
+				turnId: started.turnId,
+			});
+		}
+		if (call.method === "delegate.send") {
+			return await workspaceHostRequest(options, "delegation.send", call.params ?? {});
+		}
+		if (call.method === "delegate.read") {
+			return await readAutomationDelegationWithRequest(
+				options,
+				delegationRefFromValue(call.params, "ctx.delegate.read"),
+			);
+		}
+		if (call.method === "delegate.wait") {
+			const params = record(call.params);
+			return await waitAutomationDelegationWithRequest(
+				options,
+				delegationRefFromValue(params.delegation ?? call.params, "ctx.delegate.wait"),
+				waitOptionsFromValue(params.options),
 			);
 		}
 		if (call.method === "turn.start") {
@@ -304,6 +388,17 @@ export function createTurnAutomationHost(
 		}
 		throw new Error(`Unknown turn automation host method: ${call.method}`);
 	};
+}
+
+async function workspaceHostRequest<T = unknown>(
+	options: CreateTurnAutomationHostOptions,
+	method: string,
+	params: unknown,
+): Promise<T> {
+	if (!options.workspaceRequest) {
+		throw new Error("context.delegate is only available through a codex-flows agent");
+	}
+	return await options.workspaceRequest(method, params) as T;
 }
 
 export async function startAutomationTurnWithRequest(
@@ -395,6 +490,57 @@ export async function waitAutomationTurnWithRequest(
 		}
 		if (Date.now() - startedAt >= timeoutMs) {
 			throw new Error(`Timed out waiting for turn ${ref.turnId}`);
+		}
+		await delay(Math.min(pollIntervalMs, Math.max(0, timeoutMs - (Date.now() - startedAt))));
+	}
+}
+
+export async function readAutomationDelegationWithRequest(
+	options: CreateTurnAutomationHostOptions,
+	ref: Record<string, unknown>,
+): Promise<TurnAutomationDelegationSnapshot> {
+	const response = await workspaceHostRequest<{
+		delegation: WorkspaceDelegation;
+		latestTurnId?: string;
+		latestStatus?: string;
+		lastFinal?: { text: string };
+	}>(options, "delegation.read", ref);
+	return compactUndefined({
+		id: optionalString(ref.id),
+		delegation: response.delegation,
+		turnId: response.delegation.lastTurnId,
+		status: response.delegation.status,
+		latestTurnId: response.latestTurnId,
+		latestStatus: response.latestStatus,
+		outputText: response.lastFinal?.text ?? response.delegation.lastFinal ?? "",
+		error: response.delegation.status === "failed"
+			? response.delegation.lastStatus
+			: undefined,
+	});
+}
+
+export async function waitAutomationDelegationWithRequest(
+	options: CreateTurnAutomationHostOptions,
+	ref: Record<string, unknown>,
+	waitOptions: {
+		timeoutMs?: number;
+		pollIntervalMs?: number;
+		throwOnFailure?: boolean;
+	} = {},
+): Promise<TurnAutomationDelegationSnapshot> {
+	const timeoutMs = waitOptions.timeoutMs ?? DEFAULT_TURN_WAIT_TIMEOUT_MS;
+	const pollIntervalMs = waitOptions.pollIntervalMs ?? DEFAULT_TURN_WAIT_POLL_INTERVAL_MS;
+	const startedAt = Date.now();
+	while (true) {
+		const snapshot = await readAutomationDelegationWithRequest(options, ref);
+		if (snapshot.status !== "active" && snapshot.status !== "idle") {
+			if (snapshot.status === "failed" && waitOptions.throwOnFailure !== false) {
+				throw new Error(`Delegation ${snapshot.delegation.id} failed`);
+			}
+			return snapshot;
+		}
+		if (Date.now() - startedAt >= timeoutMs) {
+			throw new Error(`Timed out waiting for delegation ${optionalString(ref.delegationId) ?? optionalString(ref.id) ?? optionalString(ref.threadId) ?? "unknown"}`);
 		}
 		await delay(Math.min(pollIntervalMs, Math.max(0, timeoutMs - (Date.now() - startedAt))));
 	}
@@ -635,6 +781,49 @@ function turnStartParamsFromHostParams(
 		responsesapiClientMetadata: stringRecord(params.responsesapiClientMetadata),
 		outputSchema: params.outputSchema,
 		skills: stringArray(params.skills) ?? defaults.skills,
+	});
+}
+
+function delegationStartParamsFromHostParams(
+	params: Record<string, unknown>,
+	defaults: CreateTurnAutomationHostOptions["defaults"] = {},
+): TurnAutomationHostDelegationStartParams {
+	const prompt = optionalString(params.prompt) ?? defaults.prompt;
+	return compactUndefined({
+		id: optionalString(params.id),
+		cwd: requiredString(params.cwd ?? defaults.cwd, "ctx.delegate.start cwd"),
+		prompt,
+		title: optionalString(params.title),
+		groupId: optionalString(params.groupId),
+		returnMode: optionalString(params.returnMode),
+		allowAbsoluteCwd: optionalBoolean(params.allowAbsoluteCwd),
+		model: optionalString(params.model) ?? defaults.model,
+		serviceTier: optionalString(params.serviceTier),
+		sandbox: sandboxModeValue(params.sandbox) ?? defaults.sandbox,
+		approvalPolicy: approvalPolicyValue(params.approvalPolicy) ??
+			defaults.approvalPolicy,
+		permissions: optionalString(params.permissions) ?? defaults.permissions,
+	});
+}
+
+function delegationRefFromValue(
+	value: unknown,
+	label: string,
+): Record<string, unknown> {
+	const params = record(value);
+	const delegation = record(params.delegation);
+	const id = optionalString(params.delegationId) ??
+		optionalString(params.id) ??
+		optionalString(delegation.id);
+	const threadId = optionalString(params.threadId) ??
+		optionalString(delegation.codexThreadId);
+	if (!id && !threadId) {
+		throw new Error(`${label} requires delegationId, id, or threadId`);
+	}
+	return compactUndefined({
+		id: optionalString(params.id),
+		delegationId: id,
+		threadId,
 	});
 }
 

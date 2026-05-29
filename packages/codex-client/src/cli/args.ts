@@ -6,7 +6,7 @@ export type ParsedRemoteOptions = {
 	sshTarget?: string;
 	cwd?: string;
 	remotePathPrepend?: string;
-	remoteAgentCommand?: string;
+	agentCommand?: string;
 	remoteCodexCommand?: string;
 	remoteCodexArgs?: string[];
 };
@@ -22,8 +22,19 @@ export type RemoteTurnSandbox =
 	| "read-only"
 	| "workspace-write";
 
+export type DelegationReturnMode =
+	| "detached"
+	| "record_only"
+	| "wake_on_done"
+	| "wake_on_group"
+	| "manual";
+
 type ParsedCliBase =
 	| { type: "help" }
+	| {
+			type: "mcp-serve";
+			timeoutMs: number;
+	  }
 	| {
 			type: "fetch";
 			appUrl: string;
@@ -33,42 +44,17 @@ type ParsedCliBase =
 			json: boolean;
 	  }
 	| {
-			type: "remote-status";
-			appUrl: string;
-			workspaceUrl: string;
+			type: "remote-preflight";
+			cwd?: string;
 			timeoutMs: number;
 			json: boolean;
 			pretty: boolean;
 	  }
-		| {
-				type: "remote-preflight";
-				cwd?: string;
-				timeoutMs: number;
-				json: boolean;
-				pretty: boolean;
-		  }
-		| {
-				type: "remote-turn-start";
-				prompt: string;
-				threadId?: string;
-				cwd?: string;
-				via: "workspace" | "app";
-				appUrl: string;
-				workspaceUrl: string;
-				timeoutMs: number;
-				wait: boolean;
-				sandbox?: RemoteTurnSandbox;
-				approvalPolicy?: RemoteTurnApprovalPolicy;
-				permissions?: string;
-				model?: string;
-				json: boolean;
-				pretty: boolean;
-		  }
-		| {
-				type: "remote-agent-serve";
-				cwd?: string;
-				timeoutMs: number;
-		  }
+	| {
+			type: "agent-serve";
+			cwd?: string;
+			timeoutMs: number;
+	  }
 	| {
 			type: "automation-run";
 			target: string;
@@ -95,57 +81,82 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| { type: "app-actions" }
-		| {
-				type: "turn-run";
-				prompt: string;
-				threadId?: string;
-				cwd?: string;
-				appUrl: string;
-				workspaceUrl: string;
-				timeoutMs: number;
-				wait: boolean;
-				sandbox?: RemoteTurnSandbox;
-				approvalPolicy?: RemoteTurnApprovalPolicy;
-				permissions?: string;
-				model?: string;
-				json: boolean;
-				pretty: boolean;
-		  }
-		| {
-				type: "app-call";
-				method: string;
-				paramsText?: string;
-				paramsFile?: string;
-				url: string;
-				timeoutMs: number;
-				pretty: boolean;
-		  }
-		| {
-				type: "functions-list";
-				url: string;
-				timeoutMs: number;
-				json: boolean;
-				pretty: boolean;
-		  }
-		| {
-				type: "functions-describe";
-				name: string;
-				url: string;
-				timeoutMs: number;
-				json: boolean;
-				pretty: boolean;
-		  }
-		| {
-				type: "functions-call";
-				name: string;
-				paramsText?: string;
-				paramsFile?: string;
-				url: string;
-				timeoutMs: number;
-				json: boolean;
-				pretty: boolean;
-		  }
+	| {
+			type: "turn-run";
+			prompt: string;
+			threadId?: string;
+			cwd?: string;
+			appUrl: string;
+			workspaceUrl: string;
+			timeoutMs: number;
+			wait: boolean;
+			sandbox?: RemoteTurnSandbox;
+			approvalPolicy?: RemoteTurnApprovalPolicy;
+			permissions?: string;
+			model?: string;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "app-call";
+			method: string;
+			paramsText?: string;
+			paramsFile?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "functions-list";
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "functions-describe";
+			name: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "functions-call";
+			name: string;
+			paramsText?: string;
+			paramsFile?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
 	| { type: "workspace-methods"; url: string; timeoutMs: number; pretty: boolean }
+	| {
+			type: "workspace-delegate-list";
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-delegate-start";
+			targetCwd: string;
+			prompt?: string;
+			title?: string;
+			groupId?: string;
+			returnMode?: DelegationReturnMode;
+			wait: boolean;
+			allowAbsoluteCwd: boolean;
+			url: string;
+			timeoutMs: number;
+			sandbox?: RemoteTurnSandbox;
+			approvalPolicy?: RemoteTurnApprovalPolicy;
+			permissions?: string;
+			model?: string;
+			json: boolean;
+			pretty: boolean;
+	  }
 	| {
 			type: "workspace-doctor";
 			mode?: WorkspaceModeInput;
@@ -182,59 +193,23 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workspace-backend-init-local";
-			workspaceRoot?: string;
-			codexHome?: string;
-			profile?: string;
-			globalProfile: boolean;
-			overwrite: boolean;
-			json: boolean;
-			pretty: boolean;
-	  }
-	| {
-			type: "workspace-backend-status";
-			workspaceRoot?: string;
-			profile?: string;
-			appUrl: string;
-			workspaceUrl: string;
+			type: "workspace-call";
+			method: string;
+			paramsText?: string;
+			paramsFile?: string;
+			url: string;
 			timeoutMs: number;
-			json: boolean;
 			pretty: boolean;
 	  }
 	| {
-			type: "workspace-backend-start";
-			workspaceRoot?: string;
-			profile?: string;
-			dryRun: boolean;
-			json: boolean;
+			type: "workspace-app-call";
+			method: string;
+			paramsText?: string;
+			paramsFile?: string;
+			url: string;
+			timeoutMs: number;
 			pretty: boolean;
 	  }
-	| {
-			type: "workspace-backend-service-install";
-			profile?: string;
-			dryRun: boolean;
-			overwrite: boolean;
-			json: boolean;
-			pretty: boolean;
-	  }
-		| {
-				type: "workspace-call";
-				method: string;
-				paramsText?: string;
-				paramsFile?: string;
-				url: string;
-				timeoutMs: number;
-				pretty: boolean;
-		  }
-		| {
-				type: "workspace-app-call";
-				method: string;
-				paramsText?: string;
-				paramsFile?: string;
-				url: string;
-				timeoutMs: number;
-				pretty: boolean;
-		  }
 	| {
 			type: "actions-prepare-auth";
 			workspaceRoot?: string;
@@ -314,8 +289,8 @@ type ParsedCliBase =
 
 export type ParsedCli = ParsedCliBase & ParsedRemoteOptions;
 
-export const DEFAULT_APP_SERVER_WS_URL = "ws://127.0.0.1:3585";
-export const DEFAULT_WORKSPACE_BACKEND_WS_URL = "ws://127.0.0.1:3586";
+export const LOCAL_AGENT_URL = "agent://local";
+export const SSH_AGENT_URL = "ssh://agent";
 const defaultTimeoutMs = 90_000;
 const defaultLongRunningTurnTimeoutMs = 30 * 60 * 1000;
 
@@ -324,9 +299,8 @@ export function parseArgs(
 	env: Record<string, string | undefined> = process.env,
 ): ParsedCli {
 	const positionals: string[] = [];
-	let appUrl = env.CODEX_WORKSPACE_APP_SERVER_WS_URL ?? DEFAULT_APP_SERVER_WS_URL;
-	let workspaceUrl = env.CODEX_WORKSPACE_BACKEND_WS_URL ??
-		DEFAULT_WORKSPACE_BACKEND_WS_URL;
+	let appUrl = LOCAL_AGENT_URL;
+	let workspaceUrl = LOCAL_AGENT_URL;
 	let timeoutMs = defaultTimeoutMs;
 	let pretty = true;
 	let color = true;
@@ -334,8 +308,6 @@ export function parseArgs(
 	let eventPath: string | undefined;
 	let mode: WorkspaceModeInput | undefined;
 	let workspaceRoot: string | undefined;
-	let backendProfile: string | undefined;
-	let globalBackendProfile = false;
 	let globalCodexHome: string | undefined;
 	let workspaceCodexHome: string | undefined;
 	let codexHome: string | undefined;
@@ -349,10 +321,14 @@ export function parseArgs(
 	let ref: string | undefined;
 	let forgejo = false;
 	let github = false;
-	let dryRun = false;
 	let prompt: string | undefined;
+	let title: string | undefined;
+	let groupId: string | undefined;
+	let returnMode: DelegationReturnMode | undefined;
+	let targetCwd: string | undefined;
 	let threadId: string | undefined;
 	let wait = false;
+	let allowAbsoluteCwd = false;
 	let model: string | undefined;
 	let paramsJson: string | undefined;
 	let paramsFile: string | undefined;
@@ -360,7 +336,7 @@ export function parseArgs(
 	let via: "workspace" | "app" = "workspace";
 	let sshTarget: string | undefined = env.CODEX_FLOWS_REMOTE_SSH_TARGET;
 	let remotePathPrepend: string | undefined = env.CODEX_FLOWS_REMOTE_PATH_PREPEND;
-	let remoteAgentCommand: string | undefined;
+	let agentCommand: string | undefined = env.CODEX_FLOWS_AGENT_COMMAND;
 	let remoteCodexCommand: string | undefined;
 	const remoteCodexArgs: string[] = [];
 	let sandbox: RemoteTurnSandbox | undefined;
@@ -376,48 +352,6 @@ export function parseArgs(
 		}
 		if (arg === "-h" || arg === "--help") {
 			return { type: "help" };
-		}
-		if (arg === "--url" || arg === "--ws-url") {
-			const value = required(argv, ++index, arg);
-			appUrl = value;
-			workspaceUrl = value;
-			continue;
-		}
-		if (arg.startsWith("--url=")) {
-			const value = arg.slice("--url=".length);
-			appUrl = value;
-			workspaceUrl = value;
-			continue;
-		}
-		if (arg.startsWith("--ws-url=")) {
-			const value = arg.slice("--ws-url=".length);
-			appUrl = value;
-			workspaceUrl = value;
-			continue;
-		}
-		if (arg === "--app-url" || arg === "--app-server-url") {
-			appUrl = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--app-url=")) {
-			appUrl = arg.slice("--app-url=".length);
-			continue;
-		}
-		if (arg.startsWith("--app-server-url=")) {
-			appUrl = arg.slice("--app-server-url=".length);
-			continue;
-		}
-		if (arg === "--workspace-url" || arg === "--workspace-backend-url") {
-			workspaceUrl = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--workspace-url=")) {
-			workspaceUrl = arg.slice("--workspace-url=".length);
-			continue;
-		}
-		if (arg.startsWith("--workspace-backend-url=")) {
-			workspaceUrl = arg.slice("--workspace-backend-url=".length);
-			continue;
 		}
 		if (arg === "--timeout-ms") {
 			timeoutMs = positiveInteger(required(argv, ++index, arg), arg);
@@ -479,28 +413,20 @@ export function parseArgs(
 			workspaceRoot = arg.slice("--workspace-root=".length);
 			continue;
 		}
-		if (arg === "--profile" || arg === "--name") {
-			backendProfile = required(argv, ++index, arg);
-			continue;
-		}
-		if (arg.startsWith("--profile=")) {
-			backendProfile = arg.slice("--profile=".length);
-			continue;
-		}
-		if (arg.startsWith("--name=")) {
-			backendProfile = arg.slice("--name=".length);
-			continue;
-		}
-		if (arg === "--global") {
-			globalBackendProfile = true;
-			continue;
-		}
 		if (arg === "--cwd") {
 			cwd = required(argv, ++index, arg);
 			continue;
 		}
 		if (arg.startsWith("--cwd=")) {
 			cwd = arg.slice("--cwd=".length);
+			continue;
+		}
+		if (arg === "--target-cwd") {
+			targetCwd = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--target-cwd=")) {
+			targetCwd = arg.slice("--target-cwd=".length);
 			continue;
 		}
 		if (arg === "--global-codex-home") {
@@ -619,16 +545,36 @@ export function parseArgs(
 			github = true;
 			continue;
 		}
-		if (arg === "--dry-run") {
-			dryRun = true;
-			continue;
-		}
 			if (arg === "--prompt") {
 				prompt = required(argv, ++index, arg);
 				continue;
 			}
 			if (arg.startsWith("--prompt=")) {
 				prompt = arg.slice("--prompt=".length);
+				continue;
+			}
+			if (arg === "--title") {
+				title = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--title=")) {
+				title = arg.slice("--title=".length);
+				continue;
+			}
+			if (arg === "--group-id") {
+				groupId = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--group-id=")) {
+				groupId = arg.slice("--group-id=".length);
+				continue;
+			}
+			if (arg === "--return-mode") {
+				returnMode = parseDelegationReturnMode(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--return-mode=")) {
+				returnMode = parseDelegationReturnMode(arg.slice("--return-mode=".length));
 				continue;
 			}
 			if (arg === "--thread-id") {
@@ -641,6 +587,10 @@ export function parseArgs(
 			}
 			if (arg === "--wait") {
 				wait = true;
+				continue;
+			}
+			if (arg === "--allow-absolute-cwd") {
+				allowAbsoluteCwd = true;
 				continue;
 			}
 			if (arg === "--model") {
@@ -701,34 +651,42 @@ export function parseArgs(
 			remotePathPrepend = required(argv, ++index, arg);
 			continue;
 		}
-			if (arg.startsWith("--remote-path-prepend=")) {
-				remotePathPrepend = arg.slice("--remote-path-prepend=".length);
-				continue;
-			}
-			if (arg === "--remote-agent-command") {
-				remoteAgentCommand = required(argv, ++index, arg);
-				continue;
-			}
-			if (arg.startsWith("--remote-agent-command=")) {
-				remoteAgentCommand = arg.slice("--remote-agent-command=".length);
-				continue;
-			}
-			if (arg === "--remote-codex-command") {
-				remoteCodexCommand = required(argv, ++index, arg);
-				continue;
-			}
-			if (arg.startsWith("--remote-codex-command=")) {
-				remoteCodexCommand = arg.slice("--remote-codex-command=".length);
-				continue;
-			}
-			if (arg === "--remote-codex-arg") {
-				remoteCodexArgs.push(required(argv, ++index, arg));
-				continue;
-			}
-			if (arg.startsWith("--remote-codex-arg=")) {
-				remoteCodexArgs.push(arg.slice("--remote-codex-arg=".length));
-				continue;
-			}
+		if (arg.startsWith("--remote-path-prepend=")) {
+			remotePathPrepend = arg.slice("--remote-path-prepend=".length);
+			continue;
+		}
+		if (arg === "--agent-command") {
+			agentCommand = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--agent-command=")) {
+			agentCommand = arg.slice("--agent-command=".length);
+			continue;
+		}
+		if (arg === "--codex-command" || arg === "--remote-codex-command") {
+			remoteCodexCommand = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--codex-command=")) {
+			remoteCodexCommand = arg.slice("--codex-command=".length);
+			continue;
+		}
+		if (arg.startsWith("--remote-codex-command=")) {
+			remoteCodexCommand = arg.slice("--remote-codex-command=".length);
+			continue;
+		}
+		if (arg === "--codex-arg" || arg === "--remote-codex-arg") {
+			remoteCodexArgs.push(required(argv, ++index, arg));
+			continue;
+		}
+		if (arg.startsWith("--codex-arg=")) {
+			remoteCodexArgs.push(arg.slice("--codex-arg=".length));
+			continue;
+		}
+		if (arg.startsWith("--remote-codex-arg=")) {
+			remoteCodexArgs.push(arg.slice("--remote-codex-arg=".length));
+			continue;
+		}
 		if (arg === "--") {
 			positionals.push(...argv.slice(index + 1));
 			break;
@@ -747,24 +705,34 @@ export function parseArgs(
 				fields.cwd = cwd;
 			}
 		}
-			if (remotePathPrepend !== undefined) {
-				fields.remotePathPrepend = remotePathPrepend;
-			}
-			if (remoteAgentCommand !== undefined) {
-				fields.remoteAgentCommand = remoteAgentCommand;
-			}
-			if (remoteCodexCommand !== undefined) {
-				fields.remoteCodexCommand = remoteCodexCommand;
-			}
-			if (remoteCodexArgs.length > 0) {
-				fields.remoteCodexArgs = remoteCodexArgs;
-			}
-			return fields;
-		};
+		if (remotePathPrepend !== undefined) {
+			fields.remotePathPrepend = remotePathPrepend;
+		}
+		if (agentCommand !== undefined) {
+			fields.agentCommand = agentCommand;
+		}
+		if (remoteCodexCommand !== undefined) {
+			fields.remoteCodexCommand = remoteCodexCommand;
+		}
+		if (remoteCodexArgs.length > 0) {
+			fields.remoteCodexArgs = remoteCodexArgs;
+		}
+		return fields;
+	};
 
 	const command = positionals[0];
 	if (!command || command === "help") {
 		return { type: "help" };
+	}
+	if (command === "mcp") {
+		const subcommand = positionals[1] ?? "serve";
+		if (subcommand !== "serve") {
+			throw new Error("mcp currently supports only serve");
+		}
+		return {
+			type: "mcp-serve",
+			timeoutMs,
+		};
 	}
 	if (command === "fetch" || command === "neofetch") {
 		return {
@@ -777,18 +745,20 @@ export function parseArgs(
 			...remoteFields(),
 		};
 	}
-		if (command === "remote") {
+	if (command === "agent") {
+		const subcommand = requiredPositional(positionals, 1, "agent requires serve");
+		if (subcommand !== "serve") {
+			throw new Error("agent currently supports only serve");
+		}
+		return {
+			type: "agent-serve",
+			cwd,
+			timeoutMs,
+			...remoteFields(),
+		};
+	}
+	if (command === "remote") {
 			const subcommand = positionals[1];
-			if (!subcommand || subcommand === "status") {
-			return {
-				type: "remote-status",
-				appUrl,
-				workspaceUrl,
-				timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
-				json,
-					pretty,
-				};
-			}
 			if (subcommand === "preflight") {
 				return {
 					type: "remote-preflight",
@@ -799,61 +769,9 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			if (subcommand === "turn") {
-				const action = requiredPositional(positionals, 2, "remote turn requires start");
-				if (action !== "start") {
-					throw new Error("remote turn currently supports only start");
-				}
-				return {
-					type: "remote-turn-start",
-					prompt: prompt ?? requiredPositional(
-						positionals,
-						3,
-						"remote turn start requires --prompt <text> or <text>",
-					),
-					threadId,
-					cwd,
-					via,
-					appUrl,
-					workspaceUrl,
-					timeoutMs: wait ? turnWaitTimeoutMs(timeoutMs) : timeoutMs,
-					wait,
-					sandbox,
-					approvalPolicy,
-					permissions,
-					model,
-					json,
-					pretty,
-					...remoteFields(),
-				};
+			throw new Error("remote supports only preflight; use --ssh with fetch, app, workspace, automation, functions, or turn run");
 		}
-			if (subcommand === "agent" || subcommand === "remote-agent") {
-				const action = requiredPositional(positionals, 2, "remote agent requires serve");
-				if (action !== "serve") {
-					throw new Error("remote agent currently supports only serve");
-				}
-				return {
-					type: "remote-agent-serve",
-					cwd,
-					timeoutMs,
-					...remoteFields(),
-				};
-			}
-			throw new Error("remote requires status, preflight, turn, or agent");
-		}
-		if (command === "remote-agent") {
-			const subcommand = requiredPositional(positionals, 1, "remote-agent requires serve");
-			if (subcommand !== "serve") {
-				throw new Error("remote-agent currently supports only serve");
-			}
-			return {
-				type: "remote-agent-serve",
-				cwd,
-				timeoutMs,
-				...remoteFields(),
-			};
-		}
-		if (command === "turn") {
+	if (command === "turn") {
 			const subcommand = positionals[1];
 			if (subcommand !== "run") {
 				throw new Error("turn requires run");
@@ -924,13 +842,13 @@ export function parseArgs(
 			? requiredPositional(positionals, 2, "app call requires <method>")
 			: subcommand;
 		const params = subcommand === "call" ? positionals.slice(3) : positionals.slice(2);
-			return {
-				type: "app-call",
-				method: validateMethodName(method, "app method"),
-				...paramsSource(params, paramsJson, paramsFile),
-				url: appUrl,
-				timeoutMs,
-				pretty,
+		return {
+			type: "app-call",
+			method: validateMethodName(method, "app method"),
+			...paramsSource(params, paramsJson, paramsFile),
+			url: appUrl,
+			timeoutMs,
+			pretty,
 			...remoteFields(),
 		};
 	}
@@ -995,6 +913,49 @@ export function parseArgs(
 				...remoteFields(),
 			};
 		}
+		if (subcommand === "delegate" || subcommand === "delegation") {
+			const action = positionals[2] ?? "list";
+			if (action === "list" || action === "ls") {
+				return {
+					type: "workspace-delegate-list",
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "start") {
+				const resolvedTargetCwd = targetCwd ?? (!sshTarget ? cwd : undefined) ??
+					requiredPositional(
+						positionals,
+						3,
+						"workspace delegate start requires --cwd <target> or --target-cwd <target>",
+					);
+				const promptPosition = (targetCwd ?? (!sshTarget ? cwd : undefined)) ? 3 : 4;
+				const positionalPrompt = positionals.slice(promptPosition).join(" ");
+				return {
+					...remoteFields(),
+					type: "workspace-delegate-start",
+					targetCwd: resolvedTargetCwd,
+					prompt: prompt ?? (positionalPrompt || undefined),
+					title,
+					groupId,
+					returnMode,
+					wait,
+					allowAbsoluteCwd,
+					url: workspaceUrl,
+					timeoutMs: wait ? turnWaitTimeoutMs(timeoutMs) : timeoutMs,
+					sandbox,
+					approvalPolicy,
+					permissions,
+					model,
+					json,
+					pretty,
+				};
+			}
+			throw new Error("workspace delegate requires list or start");
+		}
 		if (subcommand === "tick") {
 			return {
 				type: "workspace-tick",
@@ -1033,83 +994,7 @@ export function parseArgs(
 			};
 		}
 		if (subcommand === "backend") {
-			const backendCommand = requiredPositional(
-				positionals,
-				2,
-				"workspace backend requires init, status, or start",
-			);
-			if (backendCommand === "init") {
-				const target = requiredPositional(
-					positionals,
-					3,
-					"workspace backend init requires local",
-				);
-				if (target !== "local") {
-					throw new Error("workspace backend init currently supports only local");
-				}
-				return {
-					type: "workspace-backend-init-local",
-					workspaceRoot,
-					codexHome,
-					profile: backendProfile,
-					globalProfile: globalBackendProfile,
-					overwrite,
-					json,
-					pretty,
-				};
-			}
-			if (backendCommand === "status") {
-				return {
-					type: "workspace-backend-status",
-					workspaceRoot,
-					profile: backendProfile,
-					appUrl,
-					workspaceUrl,
-					timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
-					json,
-					pretty,
-					...remoteFields(),
-				};
-			}
-			if (backendCommand === "start") {
-				return {
-					type: "workspace-backend-start",
-					workspaceRoot,
-					profile: backendProfile,
-					dryRun,
-					json,
-					pretty,
-				};
-			}
-			if (backendCommand === "service") {
-				const serviceCommand = requiredPositional(
-					positionals,
-					3,
-					"workspace backend service requires install",
-				);
-				if (serviceCommand !== "install") {
-					throw new Error("workspace backend service currently supports only install");
-				}
-				return {
-					type: "workspace-backend-service-install",
-					profile: backendProfile,
-					dryRun,
-					overwrite,
-					json,
-					pretty,
-				};
-			}
-			if (backendCommand === "install-service") {
-				return {
-					type: "workspace-backend-service-install",
-					profile: backendProfile,
-					dryRun,
-					overwrite,
-					json,
-					pretty,
-				};
-			}
-			throw new Error("workspace backend requires init, status, start, or service");
+			throw new Error("workspace backend service commands have been removed; use codex-flows agent serve or codex-flows-proxy serve");
 		}
 		if (subcommand === "app") {
 			const method = requiredPositional(
@@ -1117,13 +1002,13 @@ export function parseArgs(
 				2,
 				"workspace app requires <method>",
 			);
-				return {
-					type: "workspace-app-call",
-					method: validateMethodName(method, "app method"),
-					...paramsSource(positionals.slice(3), paramsJson, paramsFile),
-					url: workspaceUrl,
-					timeoutMs,
-					pretty,
+			return {
+				type: "workspace-app-call",
+				method: validateMethodName(method, "app method"),
+				...paramsSource(positionals.slice(3), paramsJson, paramsFile),
+				url: workspaceUrl,
+				timeoutMs,
+				pretty,
 				...remoteFields(),
 			};
 		}
@@ -1131,13 +1016,13 @@ export function parseArgs(
 			? requiredPositional(positionals, 2, "workspace call requires <method>")
 			: subcommand;
 		const params = subcommand === "call" ? positionals.slice(3) : positionals.slice(2);
-			return {
-				type: "workspace-call",
-				method: validateMethodName(method, "workspace method"),
-				...paramsSource(params, paramsJson, paramsFile),
-				url: workspaceUrl,
-				timeoutMs,
-				pretty,
+		return {
+			type: "workspace-call",
+			method: validateMethodName(method, "workspace method"),
+			...paramsSource(params, paramsJson, paramsFile),
+			url: workspaceUrl,
+			timeoutMs,
+			pretty,
 			...remoteFields(),
 		};
 	}
@@ -1319,6 +1204,19 @@ function parseRemoteTurnApprovalPolicy(value: string): RemoteTurnApprovalPolicy 
 		return value;
 	}
 	throw new Error("--approval-policy must be never, on-failure, on-request, or untrusted");
+}
+
+function parseDelegationReturnMode(value: string): DelegationReturnMode {
+	if (
+		value === "detached" ||
+		value === "record_only" ||
+		value === "wake_on_done" ||
+		value === "wake_on_group" ||
+		value === "manual"
+	) {
+		return value;
+	}
+	throw new Error("--return-mode must be detached, record_only, wake_on_done, wake_on_group, or manual");
 }
 
 function turnWaitTimeoutMs(timeoutMs: number): number {

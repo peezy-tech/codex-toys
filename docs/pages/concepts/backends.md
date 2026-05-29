@@ -1,13 +1,15 @@
 ---
-title: Backends
-description: Compare direct app-server access, workspace backends, and SSH-backed remote operation.
+title: Runtimes
+description: Compare direct app-server access, codex-flows agents, SSH-backed operation, and the optional proxy.
 ---
 
-# Backends
+# Runtimes
 
-Backends differ in ownership and execution location. Turn automation should use
-the smallest backend surface that can start the native Codex turn in the target
-workspace.
+codex-flows has three runtime shapes:
+
+- direct app-server access for protocol inspection
+- the codex-flows agent for local and SSH workspace operation
+- the optional proxy for browser dashboards
 
 ## Direct app-server
 
@@ -16,20 +18,23 @@ and one-off debugging. It talks to Codex app-server without workspace policy.
 
 Use `--via app` only when you deliberately want this direct path.
 
-## Workspace backend
+## Agent
 
-The workspace backend is the normal automation surface. It owns app-server
-pass-through, delegation, hook-spool routing, workspace state, and repo-local
-task execution. Turn automation uses `--via workspace` by default.
+The agent is the normal automation surface. It owns app-server pass-through,
+functions, delegation, workspace state, and repo-local task execution. Turn
+automation uses `--via workspace` by default.
 
-Use it when automation should respect workspace policy on the local machine.
-A persistent local backend can be installed from a user profile with
-`workspace backend init local --global` and `workspace backend service install`.
+Local commands spawn the agent over stdio. SSH commands start the same agent on
+the target and speak JSON-RPC over SSH stdio.
 
-## SSH provider
+## Proxy
 
-The SSH provider keeps the CLI local while targeting a remote workspace. It can
-start a transient remote agent over SSH without exposing a WebSocket port.
+The proxy is an optional HTTP edge:
 
-Use it for remote-first prompt automation where scripts run locally but Codex
-turns run against the remote checkout.
+```bash
+codex-flows-proxy serve --cwd /repo --static ./dashboard
+codex-flows-proxy serve --ssh devbox --cwd /repo --static ./dashboard
+```
+
+It exists so plain HTML/JS dashboards can use `fetch`. It does not replace the
+agent as the core control transport.

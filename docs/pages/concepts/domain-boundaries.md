@@ -9,9 +9,9 @@ Turn automation owns prompt automation:
 
 - running a pre-turn script
 - reading the script's returned JSON result
-- starting, reading, and waiting on native Codex turns through app-server or a
-  workspace backend
-- targeting remote workspaces through the SSH provider
+- starting, reading, and waiting on native Codex turns through app-server or an
+  agent
+- targeting remote workspaces through SSH stdio
 
 It does not own product-specific completion:
 
@@ -21,12 +21,12 @@ It does not own product-specific completion:
 - payment state
 - minting
 - channel-specific write tools
-- workspace backend presenters and arbitrary app-server thread wrappers
+- product dashboards and arbitrary app-server thread wrappers
 
 Keep domain completion in the consuming app. For example, a release automation
 can inspect an upstream signal and start a Codex turn, but the product still
 owns publishing, branch protection, credential use, and any external writes.
 
-Presenter wrappers follow the same rule. Their app-server thread orchestration,
+Presenter wrappers follow the same rule. Their app-server thread presentation,
 delegation policy, workbench presentation state, and hook-spool wake behavior
 are not part of turn automation itself.

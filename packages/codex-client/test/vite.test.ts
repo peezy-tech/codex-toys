@@ -20,28 +20,41 @@ describe("codexFlowsRemote Vite plugin", () => {
 			await server.listen();
 			const baseUrl = serverBaseUrl(server);
 
-			const status = await fetchJson(`${baseUrl}/__codex_flows/status`);
-			expect(status).toMatchObject({ ok: true, remoteAgent: { ok: true, cwd: "/remote" } });
+			const status = await fetchJson(`${baseUrl}/__codex_flows/api/status`);
+			expect(status).toMatchObject({ ok: true, agent: { ok: true, cwd: "/remote" } });
 
-			const functions = await fetchJson(`${baseUrl}/__codex_flows/functions`);
+			const schema = await fetchJson(`${baseUrl}/__codex_flows/api/schema`);
+			expect(schema).toMatchObject({
+				capabilities: {
+					workspaceMethods: ["agent.status", "functions.list", "functions.describe", "functions.call"],
+				},
+			});
+
+			const functions = await fetchJson(`${baseUrl}/__codex_flows/api/workspace/functions.list`, {
+				method: "POST",
+			});
 			expect(functions).toEqual({
 				functions: [{ name: "snapshot", description: "Read snapshot.", sideEffects: "read-only" }],
 			});
 
-			const described = await fetchJson(`${baseUrl}/__codex_flows/functions/snapshot`);
+			const described = await fetchJson(`${baseUrl}/__codex_flows/api/workspace/functions.describe`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ name: "snapshot" }),
+			});
 			expect(described).toEqual({
 				function: { name: "snapshot", description: "Read snapshot.", sideEffects: "read-only" },
 			});
 
-			const called = await fetchJson(`${baseUrl}/__codex_flows/functions/snapshot`, {
+			const called = await fetchJson(`${baseUrl}/__codex_flows/api/workspace/functions.call`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ params: { id: "one" } }),
+				body: JSON.stringify({ name: "snapshot", params: { id: "one" } }),
 			});
 			expect(called).toEqual({ result: { id: "one", ok: true } });
 			expect(transport.requests.map((request) => request.method)).toEqual([
 				"workspace.initialize",
-				"remoteAgent/status",
+				"agent.status",
 				"functions.list",
 				"functions.describe",
 				"functions.call",
@@ -70,11 +83,12 @@ class FakeWorkspaceTransport extends CodexEventEmitter implements CodexWorkspace
 				serverInfo: { name: "fake", version: "0.1.0" },
 				capabilities: {
 					appServerPassThrough: true,
-					workspaceMethods: ["functions.list", "functions.describe", "functions.call"],
+					workspaceMethods: ["agent.status", "functions.list", "functions.describe", "functions.call"],
+					workspaceMethodMetadata: [],
 				},
 			} as T;
 		}
-		if (method === "remoteAgent/status") {
+		if (method === "agent.status") {
 			return { ok: true, cwd: "/remote" } as T;
 		}
 		if (method === "functions.list") {

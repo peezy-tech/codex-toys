@@ -1,13 +1,12 @@
 import { setTimeout as delay } from "node:timers/promises";
 import type { v2 } from "../app-server/generated/index.ts";
-import { CodexAppServerClient } from "../app-server/client.ts";
-import { CodexWebSocketTransport } from "../app-server/websocket-transport.ts";
 import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
 import {
 	APP_SERVER_CALL_METHOD,
 	WORKSPACE_BACKEND_INITIALIZE_METHOD,
 } from "../workspace-backend/protocol.ts";
 import {
+	createLocalAgentTransport,
 	hasSshRemote,
 	withSshRemoteWorkspaceTransport,
 	type SshRemoteProviderOptions,
@@ -49,17 +48,20 @@ export type RemoteTurnStartResult = {
 
 type AppServerRequest = <T = unknown>(method: string, params?: unknown) => Promise<T>;
 
-export async function collectRemoteStatusInfo(options: {
-	appUrl: string;
-	workspaceUrl: string;
-	timeoutMs: number;
-}): Promise<RemoteStatusInfo> {
-	const workspaceBackend = await probeWorkspaceRemoteControl(options);
-	const appServer = await probeAppServerRemoteControl(options);
+export async function collectRemoteStatusInfo(
+	options: { timeoutMs: number } & SshRemoteProviderOptions,
+): Promise<RemoteStatusInfo> {
+	const workspaceBackend = await probeAgent(options);
 	return {
 		workspaceBackend,
-		appServer,
-		recommendation: remoteRecommendation(workspaceBackend, appServer),
+		appServer: {
+			mode: "app-server",
+			status: workspaceBackend.status,
+			url: workspaceBackend.url,
+			remoteControl: workspaceBackend.remoteControl,
+			error: workspaceBackend.error,
+		},
+		recommendation: remoteRecommendation(workspaceBackend),
 	};
 }
 
@@ -78,20 +80,24 @@ export async function startRemoteTurn(options: {
 	model?: string;
 } & SshRemoteProviderOptions): Promise<RemoteTurnStartResult> {
 	validateTurnOptions(options);
-	if (hasSshRemote(options)) {
-		return await startTurnViaSshWorkspace(options);
-	}
-	return options.via === "workspace"
-		? await startTurnViaWorkspace(options)
-		: await startTurnViaAppServer(options);
+	const surface = options.via === "app" ? "app-server" : "workspace";
+	return await withAgentTransport(options, async (transport, url) => {
+		await initializeWorkspaceTransport(transport);
+		return await startTurnWithRequest(
+			surface,
+			url,
+			options,
+			async (method, params) =>
+				await workspaceAppServerRequest(transport, method, params),
+		);
+	});
 }
 
 export function formatRemoteStatusInfo(info: RemoteStatusInfo): string {
 	const lines = [
-		`workspace backend   ${probeLabel(info.workspaceBackend)}`,
-		`app server          ${probeLabel(info.appServer)}`,
-		`remote control      ${remoteControlLabel(info)}`,
-		`next                ${info.recommendation.nextCommand}`,
+		`agent              ${probeLabel(info.workspaceBackend)}`,
+		`remote control     ${remoteControlLabel(info)}`,
+		`next               ${info.recommendation.nextCommand}`,
 	];
 	return `${lines.join("\n")}\n`;
 }
@@ -109,293 +115,56 @@ export function formatRemoteTurnStartResult(result: RemoteTurnStartResult): stri
 	if (result.error) {
 		lines.push(`error               ${result.error}`);
 	}
-	return lines.join("\n") + "\n";
+	return `${lines.join("\n")}\n`;
 }
 
-async function probeWorkspaceRemoteControl(options: {
-	workspaceUrl: string;
-	timeoutMs: number;
-}): Promise<RemoteProbeResult> {
-	const transport = new CodexWebSocketTransport({
-		url: options.workspaceUrl,
-		requestTimeoutMs: options.timeoutMs,
-	});
-	transport.on("error", () => {});
+async function probeAgent(
+	options: { timeoutMs: number } & SshRemoteProviderOptions,
+): Promise<RemoteProbeResult> {
 	try {
-		const remoteControl = await withTimeout(async () => {
-			await initializeWorkspaceTransport(transport);
-			return await workspaceAppServerRequest<v2.RemoteControlStatusReadResponse>(
-				transport,
-				"remoteControl/status/read",
-			);
-		}, options.timeoutMs, `workspace remote control probe timed out after ${
-			options.timeoutMs
-		}ms`);
-		return {
-			mode: "workspace",
-			status: "connected",
-			url: options.workspaceUrl,
-			remoteControl,
-		};
-	} catch (error) {
-		return {
-			mode: "workspace",
-			status: "unavailable",
-			url: options.workspaceUrl,
-			error: errorMessage(error),
-		};
-	} finally {
-		transport.close();
-	}
-}
-
-async function probeAppServerRemoteControl(options: {
-	appUrl: string;
-	timeoutMs: number;
-}): Promise<RemoteProbeResult> {
-	if (options.appUrl !== "stdio://") {
-		return await probeAppServerRemoteControlWebSocket(options);
-	}
-	const client = appServerClient(options.appUrl, options.timeoutMs);
-	client.on("error", () => {});
-	client.on("request", (message) => {
-		client.respondError(
-			message.id,
-			-32603,
-			"codex-flows remote control does not handle app-server requests",
-		);
-	});
-	try {
-		const remoteControl = await withTimeout(async () => {
-			await client.connect();
-			return await client.request<v2.RemoteControlStatusReadResponse>(
-				"remoteControl/status/read",
-			);
-		}, options.timeoutMs, `app-server remote control probe timed out after ${
-			options.timeoutMs
-		}ms`);
-		return {
-			mode: "app-server",
-			status: "connected",
-			url: options.appUrl,
-			remoteControl,
-		};
-	} catch (error) {
-		return {
-			mode: "app-server",
-			status: "unavailable",
-			url: options.appUrl,
-			error: errorMessage(error),
-		};
-	} finally {
-		client.close();
-	}
-}
-
-async function probeAppServerRemoteControlWebSocket(options: {
-	appUrl: string;
-	timeoutMs: number;
-}): Promise<RemoteProbeResult> {
-	const transport = new CodexWebSocketTransport({
-		url: options.appUrl,
-		requestTimeoutMs: options.timeoutMs,
-	});
-	transport.on("error", () => {});
-	try {
-		const remoteControl = await withTimeout(async () => {
-			await initializeAppServerTransport(transport);
-			return await transport.request<v2.RemoteControlStatusReadResponse>(
-				"remoteControl/status/read",
-			);
-		}, options.timeoutMs, `app-server remote control probe timed out after ${
-			options.timeoutMs
-		}ms`);
-		return {
-			mode: "app-server",
-			status: "connected",
-			url: options.appUrl,
-			remoteControl,
-		};
-	} catch (error) {
-		return {
-			mode: "app-server",
-			status: "unavailable",
-			url: options.appUrl,
-			error: errorMessage(error),
-		};
-	} finally {
-		transport.close();
-	}
-}
-
-async function startTurnViaWorkspace(options: {
-	prompt: string;
-	threadId?: string;
-	cwd?: string;
-	workspaceUrl: string;
-	timeoutMs: number;
-	wait?: boolean;
-	sandbox?: v2.SandboxMode;
-	approvalPolicy?: v2.AskForApproval;
-	permissions?: string;
-	model?: string;
-}): Promise<RemoteTurnStartResult> {
-	const transport = new CodexWebSocketTransport({
-		url: options.workspaceUrl,
-		requestTimeoutMs: options.timeoutMs,
-	});
-	transport.on("error", () => {});
-	try {
-		return await withTimeout(async () => {
-			await initializeWorkspaceTransport(transport);
-			return await startTurnWithRequest(
-				"workspace",
-				options.workspaceUrl,
-				options,
-				async (method, params) =>
-					await workspaceAppServerRequest(transport, method, params),
-			);
-		}, options.timeoutMs, `workspace remote turn start timed out after ${
-			options.timeoutMs
-		}ms`);
-	} finally {
-		transport.close();
-	}
-}
-
-async function startTurnViaSshWorkspace(
-	options: {
-		prompt: string;
-		threadId?: string;
-		cwd?: string;
-		workspaceUrl: string;
-		timeoutMs: number;
-		wait?: boolean;
-		sandbox?: v2.SandboxMode;
-		approvalPolicy?: v2.AskForApproval;
-		permissions?: string;
-		model?: string;
-	} & SshRemoteProviderOptions,
-): Promise<RemoteTurnStartResult> {
-	return await withSshRemoteWorkspaceTransport(options, async (transport) => {
-		await initializeWorkspaceTransport(transport);
-		return await startTurnWithRequest(
-			"workspace",
-			"ssh://remote-agent",
-			options,
-			async (method, params) =>
-				await workspaceAppServerRequest(transport, method, params),
-		);
-	});
-}
-
-async function startTurnViaAppServer(options: {
-	prompt: string;
-	threadId?: string;
-	cwd?: string;
-	appUrl: string;
-	timeoutMs: number;
-	wait?: boolean;
-	sandbox?: v2.SandboxMode;
-	approvalPolicy?: v2.AskForApproval;
-	permissions?: string;
-	model?: string;
-}): Promise<RemoteTurnStartResult> {
-	if (options.appUrl !== "stdio://") {
-		return await startTurnViaAppServerWebSocket(options);
-	}
-	const client = appServerClient(options.appUrl, options.timeoutMs);
-	return await startTurnViaAppServerClient(client, options, options.appUrl);
-}
-
-async function startTurnViaAppServerClient(
-	client: CodexAppServerClient,
-	options: {
-		prompt: string;
-		threadId?: string;
-		cwd?: string;
-		timeoutMs: number;
-		wait?: boolean;
-		sandbox?: v2.SandboxMode;
-		approvalPolicy?: v2.AskForApproval;
-		permissions?: string;
-		model?: string;
-	},
-	url: string,
-): Promise<RemoteTurnStartResult> {
-	client.on("error", () => {});
-	client.on("request", (message) => {
-		client.respondError(
-			message.id,
-			-32603,
-			"codex-flows remote control does not handle app-server requests",
-		);
-	});
-	try {
-		return await withTimeout(async () => {
-			await client.connect();
-			return await startTurnWithRequest(
-				"app-server",
+		return await withAgentTransport(options, async (transport, url) => {
+			const remoteControl = await withTimeout(async () => {
+				await initializeWorkspaceTransport(transport);
+				return await workspaceAppServerRequest<v2.RemoteControlStatusReadResponse>(
+					transport,
+					"remoteControl/status/read",
+				);
+			}, options.timeoutMs, `agent remote control probe timed out after ${
+				options.timeoutMs
+			}ms`);
+			return {
+				mode: "workspace",
+				status: "connected",
 				url,
-				options,
-				async (method, params) => await client.request(method, params),
-			);
-		}, options.timeoutMs, `app-server remote turn start timed out after ${
-			options.timeoutMs
-		}ms`);
-	} finally {
-		client.close();
+				remoteControl,
+			};
+		});
+	} catch (error) {
+		return {
+			mode: "workspace",
+			status: "unavailable",
+			url: agentUrl(options),
+			error: errorMessage(error),
+		};
 	}
 }
 
-async function startTurnViaAppServerWebSocket(options: {
-	prompt: string;
-	threadId?: string;
-	cwd?: string;
-	appUrl: string;
-	timeoutMs: number;
-	wait?: boolean;
-	sandbox?: v2.SandboxMode;
-	approvalPolicy?: v2.AskForApproval;
-	permissions?: string;
-	model?: string;
-}): Promise<RemoteTurnStartResult> {
-	const transport = new CodexWebSocketTransport({
-		url: options.appUrl,
-		requestTimeoutMs: options.timeoutMs,
-	});
-	transport.on("error", () => {});
+async function withAgentTransport<T>(
+	options: { timeoutMs: number } & SshRemoteProviderOptions,
+	callback: (transport: CodexWorkspaceBackendTransport, url: string) => Promise<T>,
+): Promise<T> {
+	if (hasSshRemote(options)) {
+		return await withSshRemoteWorkspaceTransport(options, async (transport) =>
+			await callback(transport, "ssh://agent")
+		);
+	}
+	const transport = createLocalAgentTransport(options);
 	try {
-		return await withTimeout(async () => {
-			await initializeAppServerTransport(transport);
-			return await startTurnWithRequest(
-				"app-server",
-				options.appUrl,
-				options,
-				async (method, params) => await transport.request(method, params),
-			);
-		}, options.timeoutMs, `app-server remote turn start timed out after ${
-			options.timeoutMs
-		}ms`);
+		transport.start();
+		return await callback(transport, "agent://local");
 	} finally {
 		transport.close();
 	}
-}
-
-function appServerClient(url: string, timeoutMs: number): CodexAppServerClient {
-	return new CodexAppServerClient({
-		...(url === "stdio://"
-			? { transportOptions: { requestTimeoutMs: timeoutMs } }
-			: {
-					webSocketTransportOptions: {
-						url,
-						requestTimeoutMs: timeoutMs,
-					},
-				}),
-		clientName: "codex-flows-remote-control",
-		clientTitle: "Codex Flows Remote Control",
-		clientVersion: "0.1.0",
-	});
 }
 
 function validateTurnOptions(options: {
@@ -427,14 +196,14 @@ function threadStartParams(options: {
 
 function turnStartParams(
 	threadId: string,
-		options: {
-			prompt: string;
-			cwd?: string;
-			sandbox?: v2.SandboxMode;
-			approvalPolicy?: v2.AskForApproval;
-			permissions?: string;
-			model?: string;
-		},
+	options: {
+		prompt: string;
+		cwd?: string;
+		sandbox?: v2.SandboxMode;
+		approvalPolicy?: v2.AskForApproval;
+		permissions?: string;
+		model?: string;
+	},
 	flags: {
 		includeSandboxPolicy?: boolean;
 	} = {},
@@ -678,36 +447,13 @@ async function workspaceAppServerRequest<T = unknown>(
 	return await transport.request<T>(APP_SERVER_CALL_METHOD, { method, params });
 }
 
-async function initializeAppServerTransport(
-	transport: CodexWebSocketTransport,
-): Promise<void> {
-	await transport.request("initialize", {
-		clientInfo: {
-			name: "codex-flows-remote-control",
-			title: "Codex Flows Remote Control",
-			version: "0.1.0",
-		},
-		capabilities: {
-			experimentalApi: true,
-		},
-	});
-	transport.notify("initialized");
-}
-
 function remoteRecommendation(
 	workspace: RemoteProbeResult,
-	appServer: RemoteProbeResult,
 ): RemoteStatusInfo["recommendation"] {
 	if (workspace.status === "connected") {
 		return {
 			preferred: "workspace",
-			nextCommand: "codex-flows remote turn start --via workspace --prompt \"...\"",
-		};
-	}
-	if (appServer.status === "connected") {
-		return {
-			preferred: "app-server",
-			nextCommand: "codex-flows remote turn start --via app --prompt \"...\"",
+			nextCommand: "codex-flows turn run \"...\"",
 		};
 	}
 	return {
@@ -761,10 +507,8 @@ function nestedId(response: unknown, key: string, method: string): string {
 	return id;
 }
 
-function compactUndefined<T extends Record<string, unknown>>(input: T): T {
-	return Object.fromEntries(
-		Object.entries(input).filter((entry) => entry[1] !== undefined),
-	) as T;
+function arrayValue(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : [];
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -773,16 +517,26 @@ function record(value: unknown): Record<string, unknown> {
 		: {};
 }
 
-function arrayValue(value: unknown): unknown[] {
-	return Array.isArray(value) ? value : [];
+function stringValue(value: unknown): string | undefined {
+	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function numberValue(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function stringValue(value: unknown): string | undefined {
-	return typeof value === "string" && value.length > 0 ? value : undefined;
+function compactUndefined<T extends Record<string, unknown>>(value: T): T {
+	const result: Record<string, unknown> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		if (entry !== undefined) {
+			result[key] = entry;
+		}
+	}
+	return result as T;
+}
+
+function agentUrl(options: Pick<SshRemoteProviderOptions, "sshTarget" | "env">): string {
+	return hasSshRemote(options) ? "ssh://agent" : "agent://local";
 }
 
 function errorMessage(error: unknown): string {

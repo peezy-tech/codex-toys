@@ -5,7 +5,7 @@ import path from "node:path";
 import { collectRemotePreflight } from "../src/cli/remote-preflight.ts";
 
 describe("remote preflight", () => {
-	test("checks SSH setup and the remote-agent bridge", async () => {
+	test("checks SSH setup and the agent bridge", async () => {
 		const fakeSsh = await createPreflightSsh();
 		const result = await collectRemotePreflight({
 			sshTarget: "devbox",
@@ -13,7 +13,7 @@ describe("remote preflight", () => {
 			timeoutMs: 1_000,
 			env: {
 				CODEX_FLOWS_SSH_COMMAND: fakeSsh.command,
-				CODEX_FLOWS_REMOTE_AGENT_COMMAND: "/opt/codex-flows",
+				CODEX_FLOWS_AGENT_COMMAND: "/opt/codex-flows",
 				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/opt/codex",
 				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/npm/bin",
 			},
@@ -25,12 +25,12 @@ describe("remote preflight", () => {
 			expect.objectContaining({ name: "node", status: "ok", version: "v24.15.0" }),
 			expect.objectContaining({ name: "codex-flows", status: "ok" }),
 			expect.objectContaining({ name: "codex", status: "ok" }),
-			expect.objectContaining({ name: "remote agent", status: "ok" }),
+			expect.objectContaining({ name: "SSH agent", status: "ok" }),
 			expect.objectContaining({ name: "app-server initialize", status: "ok" }),
 		]));
 		expect(await fakeSsh.readLog()).toEqual(expect.arrayContaining([
 			expect.objectContaining({ mode: "shell", command: "true" }),
-			expect.objectContaining({ mode: "agent-request", method: "remoteAgent/status" }),
+			expect.objectContaining({ mode: "agent-request", method: "agent.status" }),
 			expect.objectContaining({ mode: "agent-request", method: "appServer.call" }),
 		]));
 	});
@@ -69,7 +69,7 @@ const LOG_PATH = ${JSON.stringify(logPath)};
 const args = process.argv.slice(2);
 const remoteCommand = args.at(-1) ?? "";
 
-if (remoteCommand.includes("remote-agent")) {
+if (remoteCommand.includes("'agent' 'serve'")) {
   log({ mode: "agent", command: remoteCommand });
   serveAgent();
 } else {
@@ -86,7 +86,7 @@ if (remoteCommand.includes("remote-agent")) {
   }
   if (remoteCommand.includes("'/opt/codex-flows'")) {
     console.log("/opt/codex-flows");
-    console.log("codex-flows controls Codex app-server and workspace backend surfaces.");
+    console.log("codex-flows controls Codex-native agent surfaces.");
     process.exit(0);
   }
   if (remoteCommand.includes("'/opt/codex'")) {
@@ -129,14 +129,14 @@ function handleAgentLine(line) {
 }
 
 function resultFor(method, params) {
-  if (method === "remoteAgent/status") {
+  if (method === "agent.status") {
     return { ok: true, cwd: "/repo", node: "v24.15.0" };
   }
   if (method === "workspace.initialize") {
     return {
       ok: true,
-      serverInfo: { name: "fake-remote-agent", version: "0.1.0" },
-      capabilities: { appServerPassThrough: true, workspaceMethods: ["remoteAgent/status"] },
+      serverInfo: { name: "fake-agent", version: "0.1.0" },
+      capabilities: { appServerPassThrough: true, workspaceMethods: ["agent.status"], workspaceMethodMetadata: [] },
     };
   }
   if (method === "appServer.call" && params.method === "thread/list") {

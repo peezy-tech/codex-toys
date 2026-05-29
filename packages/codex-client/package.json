@@ -1,7 +1,7 @@
 {
 	"name": "@peezy.tech/codex-flows",
-	"version": "0.133.5",
-	"description": "Codex app-server clients, turn automation, workspace backend helpers, and runnable local backend bins.",
+	"version": "0.134.0",
+	"description": "Codex-native stdio agent, turn automation, SSH workspace tools, and generic HTTP proxy.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"repository": {
@@ -19,8 +19,7 @@
 	"types": "./dist/index.d.ts",
 	"bin": {
 		"codex-flows": "dist/cli/index.js",
-		"codex-app": "dist/bin/codex-app.js",
-		"codex-workspace-backend-local": "dist/bin/codex-workspace-backend-local.js"
+		"codex-flows-proxy": "dist/bin/codex-flows-proxy.js"
 	},
 	"files": [
 		"dist",
@@ -49,6 +48,11 @@
 			"types": "./dist/vite.d.ts",
 			"require": "./dist/vite.js",
 			"import": "./dist/vite.js"
+		},
+		"./proxy": {
+			"types": "./dist/proxy.d.ts",
+			"require": "./dist/proxy.js",
+			"import": "./dist/proxy.js"
 		},
 		"./auth": {
 			"types": "./dist/auth.d.ts",
@@ -113,12 +117,10 @@
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
-		"@types/ws": "catalog:",
 		"typescript": "catalog:"
 	},
 	"dependencies": {
 		"smol-toml": "catalog:",
-		"tsx": "catalog:",
-		"ws": "catalog:"
+		"tsx": "catalog:"
 	}
 }

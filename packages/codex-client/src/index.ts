@@ -24,10 +24,6 @@ export {
 	type CodexStdioTransportOptions,
 } from "./app-server/stdio-transport.ts";
 export {
-	CodexWebSocketTransport,
-	type CodexWebSocketTransportOptions,
-} from "./app-server/websocket-transport.ts";
-export {
 	WORKSPACE_FUNCTIONS_CALL_METHOD,
 	WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
 	WORKSPACE_FUNCTIONS_LIST_METHOD,
@@ -49,14 +45,15 @@ export {
 	type WorkspaceFunctionsListResponse,
 } from "./functions.ts";
 export {
-	createSshRemoteAgentPlan,
-	createSshRemoteAgentTransport,
+	createLocalAgentTransport,
+	createSshAgentPlan,
+	createSshAgentTransport,
 	hasSshRemote,
 	resolveSshRemoteOptions,
 	withSshRemoteWorkspaceTransport,
+	type AgentPlan,
+	type AgentTransport,
 	type ResolvedSshRemoteOptions,
-	type SshRemoteAgentPlan,
-	type SshRemoteAgentTransport,
 	type SshRemoteProviderOptions,
 } from "./cli/remote-provider.ts";
 export {
@@ -98,6 +95,11 @@ export {
 	requireJsonRpcResult,
 	stringifyJsonRpc,
 } from "./app-server/rpc.ts";
+export {
+	createCodexFlowsProxyHandler,
+	createProxyRequester,
+	type CodexFlowsProxyOptions,
+} from "./proxy.ts";
 export type {
 	JsonRpcErrorObject,
 	JsonRpcId,

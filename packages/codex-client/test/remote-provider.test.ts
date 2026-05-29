@@ -4,46 +4,46 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
-	createSshRemoteAgentPlan,
-	createSshRemoteAgentTransport,
+	createSshAgentPlan,
+	createSshAgentTransport,
 	resolveSshRemoteOptions,
 	withSshRemoteWorkspaceTransport,
 } from "../src/cli/remote-provider.ts";
 
 describe("SSH remote provider", () => {
-	test("plans a remote-agent command with quoted cwd", () => {
-		const plan = createSshRemoteAgentPlan({
+	test("plans an agent command with quoted cwd", () => {
+		const plan = createSshAgentPlan({
 			sshTarget: "devbox",
 			cwd: "/work/it's here",
 			timeoutMs: 1_000,
 			env: {
-				CODEX_FLOWS_REMOTE_AGENT_COMMAND: "/opt/codex-flows",
+				CODEX_FLOWS_AGENT_COMMAND: "/opt/codex-flows",
 				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/opt/codex",
 				CODEX_FLOWS_REMOTE_CODEX_ARGS: "[\"-s\",\"danger-full-access\"]",
 				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/bun/bin",
 			},
 		});
 		expect(plan).toEqual({
-			kind: "remote-agent",
+			kind: "agent",
 			command: [
 				"ssh",
 				"-T",
 				"devbox",
-				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-flows' 'remote-agent' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--remote-codex-command' '/opt/codex' '--remote-codex-arg' '-s' '--remote-codex-arg' 'danger-full-access'",
+				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-flows' 'agent' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--codex-command' '/opt/codex' '--codex-arg' '-s' '--codex-arg' 'danger-full-access'",
 			],
 			remoteCommand:
-				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-flows' 'remote-agent' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--remote-codex-command' '/opt/codex' '--remote-codex-arg' '-s' '--remote-codex-arg' 'danger-full-access'",
+				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-flows' 'agent' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--codex-command' '/opt/codex' '--codex-arg' '-s' '--codex-arg' 'danger-full-access'",
 		});
 	});
 
-	test("resolves env defaults for the remote-agent surface", () => {
+	test("resolves env defaults for the SSH agent surface", () => {
 		expect(resolveSshRemoteOptions({
 			timeoutMs: 5_000,
 			env: {
 				CODEX_FLOWS_REMOTE_SSH_TARGET: "envbox",
 				CODEX_FLOWS_REMOTE_CWD: "/env/repo",
 				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/env/node/bin:/env/npm/bin",
-				CODEX_FLOWS_REMOTE_AGENT_COMMAND: "/env/codex-flows",
+				CODEX_FLOWS_AGENT_COMMAND: "/env/codex-flows",
 				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/env/codex",
 				CODEX_FLOWS_REMOTE_CODEX_ARGS: "[\"-s\",\"danger-full-access\"]",
 			},
@@ -51,7 +51,7 @@ describe("SSH remote provider", () => {
 			sshTarget: "envbox",
 			cwd: "/env/repo",
 			remotePathPrepend: "/env/node/bin:/env/npm/bin",
-			remoteAgentCommand: "/env/codex-flows",
+			agentCommand: "/env/codex-flows",
 			remoteCodexCommand: "/env/codex",
 			remoteCodexArgs: ["-s", "danger-full-access"],
 		});
@@ -72,22 +72,22 @@ describe("SSH remote provider", () => {
 			sshTarget: "devbox",
 			timeoutMs: 1_000,
 			env: {
-				CODEX_FLOWS_REMOTE_AGENT_COMMAND:
+				CODEX_FLOWS_AGENT_COMMAND:
 					"PATH=/opt/node/bin:$PATH /opt/codex-flows",
 			},
-		})).toThrow("CODEX_FLOWS_REMOTE_AGENT_COMMAND must be a command");
+		})).toThrow("CODEX_FLOWS_AGENT_COMMAND must be a command");
 	});
 
-	test("starts a remote-agent workspace transport over fake SSH", async () => {
+	test("starts an agent workspace transport over fake SSH", async () => {
 		const fakeSsh = await createFakeSshCommand();
-		const transport = createSshRemoteAgentTransport({
+		const transport = createSshAgentTransport({
 			sshTarget: "devbox",
 			cwd: "/repo",
 			timeoutMs: 1_000,
 			env: { CODEX_FLOWS_SSH_COMMAND: fakeSsh.command },
 		});
 		try {
-			const status = await transport.request("remoteAgent/status", {});
+			const status = await transport.request("agent.status", {});
 			expect(status).toMatchObject({ ok: true, cwd: "/repo" });
 			const initialized = await transport.request("workspace.initialize", {
 				clientInfo: { name: "test", title: "Test", version: "0.1.0" },
@@ -95,7 +95,7 @@ describe("SSH remote provider", () => {
 			});
 			expect(initialized).toMatchObject({
 				ok: true,
-				serverInfo: { name: "fake-remote-agent" },
+				serverInfo: { name: "fake-agent" },
 			});
 			const threads = await transport.request("appServer.call", {
 				method: "thread/list",
@@ -148,7 +148,7 @@ describe("SSH remote provider", () => {
 			timeoutMs: 1_000,
 			env: { CODEX_FLOWS_SSH_COMMAND: fakeSsh.command },
 		}, async (transport) => {
-			await transport.request("remoteAgent/status", {});
+			await transport.request("agent.status", {});
 			throw new Error("boom");
 		})).rejects.toThrow("boom");
 		await waitForLog(fakeSsh, (entries) =>
@@ -213,14 +213,14 @@ function handle(line) {
 }
 
 function resultFor(method, params) {
-	if (method === "remoteAgent/status") {
+	if (method === "agent.status") {
 		return { ok: true, cwd: "/repo", node: "v24.15.0", codexCommand: "codex", codexArgs: [] };
 	}
 	if (method === "workspace.initialize") {
 		return {
 			ok: true,
-			serverInfo: { name: "fake-remote-agent", version: "0.1.0" },
-			capabilities: { appServerPassThrough: true, workspaceMethods: ["remoteAgent/status", "functions.list", "functions.describe", "functions.call"] },
+			serverInfo: { name: "fake-agent", version: "0.1.0" },
+			capabilities: { appServerPassThrough: true, workspaceMethods: ["agent.status", "functions.list", "functions.describe", "functions.call"], workspaceMethodMetadata: [] },
 		};
 	}
 	if (method === "appServer.call" && params.method === "thread/list") {

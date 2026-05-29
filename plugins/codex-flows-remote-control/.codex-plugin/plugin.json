@@ -1,6 +1,6 @@
 {
   "name": "codex-flows-remote-control",
-  "version": "0.133.5",
+  "version": "0.134.0",
   "description": "Operate remote Codex workspaces from a local Codex App over SSH.",
   "author": {
     "name": "Peezy",
@@ -13,7 +13,7 @@
   "keywords": [
     "codex",
     "remote-control",
-    "workspace-backend",
+    "agent",
     "tailscale",
     "ssh"
   ],
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "codex-flows remote control",
     "shortDescription": "Use local Codex App remote connections for SSH-backed codex-flows.",
-    "longDescription": "codex-flows remote control installs hookless operator skills for a local Codex App to discover managed remote connections, run SSH-backed codex-flows commands against remote workspaces through the remote-agent provider, inspect Codex remote-control status, and start turns in remote workspaces.",
+    "longDescription": "codex-flows remote control installs hookless operator skills for a local Codex App to discover managed remote connections, run SSH-backed codex-flows commands against remote workspaces through `codex-flows agent serve`, and start turns in remote workspaces.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -36,7 +36,7 @@
       "Discover my Codex App remote connections and run codex-flows over SSH.",
       "Check whether my remote codex-flows agent is reachable.",
       "Start a Codex turn in the remote workspace.",
-      "Build a local Vite dashboard for a remote workspace over SSH."
+      "Build a local proxy dashboard for a remote workspace over SSH."
     ],
     "brandColor": "#0F766E"
   }

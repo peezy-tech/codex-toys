@@ -1,7 +1,7 @@
 # @peezy.tech/codex-flows
 
-Codex app-server client APIs, turn automation helpers, workspace backend
-helpers, and runnable local backend CLIs.
+Codex app-server client APIs, turn automation helpers, local/SSH stdio agent
+helpers, and an optional generic HTTP proxy for dashboards.
 
 ```bash
 pnpm add @peezy.tech/codex-flows
@@ -29,14 +29,15 @@ Full documentation lives in the repo docs site:
 
 | Export | Purpose |
 |--------|---------|
-| `@peezy.tech/codex-flows` | Node app-server client, turn automation helpers, SSH provider helpers, event emitter base, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
-| `@peezy.tech/codex-flows/browser` | Browser-safe app-server client, WebSocket transport, and local dashboard bridge client. |
-| `@peezy.tech/codex-flows/functions` | Workspace function definitions and backend method helpers. |
-| `@peezy.tech/codex-flows/vite` | Vite middleware plugin for local dashboards that call remote workspace functions. |
+| `@peezy.tech/codex-flows` | Node app-server client, turn automation helpers, SSH agent helpers, event emitter base, stdio transports, JSON-RPC helpers, auth helpers. |
+| `@peezy.tech/codex-flows/browser` | Browser-safe fetch helpers for the optional proxy API. |
+| `@peezy.tech/codex-flows/proxy` | Generic HTTP proxy handler for dashboards that need `/api/status`, `/api/schema`, `/api/rpc`, `/api/app/:method`, and `/api/workspace/:method`. |
+| `@peezy.tech/codex-flows/functions` | Workspace function definitions and agent method helpers. |
+| `@peezy.tech/codex-flows/vite` | Vite middleware plugin that mounts the generic proxy handler for local dashboards. |
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |
 | `@peezy.tech/codex-flows/workbench` | Transport-neutral thread UX reducers and app-server request descriptors. |
 | `@peezy.tech/codex-flows/threads` | Raw Codex rollout locate, inspect, install, and transplant helpers. |
-| `@peezy.tech/codex-flows/workspace-backend` | Workspace backend protocol server/client helpers and capability primitives. |
+| `@peezy.tech/codex-flows/workspace-backend` | Internal workspace JSON-RPC protocol server/client helpers and capability primitives used by the agent. |
 | `@peezy.tech/codex-flows/rpc` | JSON-RPC message types and parsing helpers. |
 | `@peezy.tech/codex-flows/generated` | Generated Codex app-server protocol types. |
 | `@peezy.tech/codex-flows/generated/*` | Generated per-type modules. |
@@ -59,16 +60,18 @@ client.close();
 `CODEX_APP_SERVER_CODEX_ARGS`, or pass `transportOptions.codexCommand` when a
 specific binary or launch flags should be used.
 
-Browser entry:
+Browser entry for freeform dashboards:
 
 ```ts
-import { CodexAppServerClient } from "@peezy.tech/codex-flows/browser";
+import { createCodexFlowsBrowserClient } from "@peezy.tech/codex-flows/browser";
 
-const client = new CodexAppServerClient({
-	webSocketTransportOptions: { url: "ws://127.0.0.1:3585" },
-});
-await client.connect();
+const codexFlows = createCodexFlowsBrowserClient();
+const schema = await codexFlows.schema();
+const threads = await codexFlows.app.call("thread/list", { limit: 20 });
 ```
+
+The browser package only talks to the optional HTTP proxy with `fetch`; it does
+not include a WebSocket app-server or workspace client.
 
 ## Turn Automation
 
@@ -87,7 +90,9 @@ console.log(run.result);
 
 Turn automation runs code before returning a JSON result. Scripts can start one
 native Codex turn or compose several turns through `context.turn.start`,
-`context.turn.read`, and `context.turn.wait`.
+`context.turn.read`, and `context.turn.wait`. When running through a codex-flows
+agent, scripts can also start delegated Codex threads in another checkout with
+`context.delegate.start({ cwd: "@/workspaces/name", prompt })`.
 
 ## Auth Helpers
 
@@ -135,14 +140,13 @@ The app-server protocol remains the source of truth for thread commands.
 
 ## CLI
 
-The package publishes the `codex-flows` binary and runnable process bins for the
-local backend and utility CLIs:
+The package publishes the `codex-flows` CLI and the optional
+`codex-flows-proxy` web edge:
 
 ```bash
 codex-flows fetch
-codex-flows remote status
+codex-flows agent serve --cwd /repo
 codex-flows --ssh devbox --cwd /repo remote preflight
-codex-flows remote turn start --via workspace --prompt "Check workspace status" --wait
 codex-flows turn run "Check workspace status" --wait
 codex-flows automation list
 codex-flows automation run openai-codex-bindings --event event.json
@@ -154,30 +158,29 @@ codex-flows --ssh devbox --cwd /repo functions call portfolioSnapshot --json
 codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
 codex-flows app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-flows workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
 codex-flows workspace doctor
-codex-flows workspace backend init local --global --profile home
-codex-flows workspace backend status --profile home
-codex-flows workspace backend service install --profile home --dry-run
-codex-flows workspace backend start --profile home --dry-run
 codex-flows workspace tick --mode local
 codex-flows memories transplant global-to-workspace
 codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
 
-codex-app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-workspace-backend-local serve --local-app-server
+codex-flows-proxy serve --cwd /repo --static ./dashboard
+codex-flows-proxy serve --ssh devbox --cwd /repo --static ./dashboard
 ```
 
 See `docs/pages/reference/cli.md` for the full command surface.
 
-SSH is a connection provider, not a product UI surface. With `--ssh`, the local
-CLI starts `codex-flows remote-agent serve` on the target, speaks workspace
-JSON-RPC over the SSH stdio stream, runs prompts with `turn run`, routes
-automation discovery and execution to the remote workspace, routes
-`remote turn start --wait` through the same provider, and passes app calls
-through the remote workspace bridge. For non-interactive SSH PATH differences,
-set `CODEX_FLOWS_REMOTE_PATH_PREPEND`, absolute remote command overrides, or
-`CODEX_FLOWS_REMOTE_CODEX_ARGS` JSON arrays instead of adding wrapper scripts on
-the remote host. The remote target needs `node`, `codex-flows`, and `codex`.
+Local CLI, MCP, automation, functions, and delegation use a spawned
+`codex-flows agent serve` process over stdio. With `--ssh`, the local CLI starts
+the same agent on the target and speaks JSON-RPC over the SSH stdio stream. No
+codex-flows core command opens a WebSocket port. Browser dashboards opt into HTTP
+explicitly by starting `codex-flows-proxy`, whose schema is derived from the
+agent's advertised methods instead of duplicated route logic.
+
+For non-interactive SSH PATH differences, set `CODEX_FLOWS_REMOTE_PATH_PREPEND`,
+`CODEX_FLOWS_AGENT_COMMAND`, `CODEX_FLOWS_REMOTE_CODEX_COMMAND`, or
+`CODEX_FLOWS_REMOTE_CODEX_ARGS` JSON arrays. The remote target needs `node`,
+`codex-flows`, and `codex`.
 
 ## Development Scripts
 

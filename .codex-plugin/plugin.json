@@ -1,7 +1,7 @@
 {
   "name": "codex-flows",
-  "version": "0.133.5",
-  "description": "Full Codex turn automation, backend setup, backend operation, and workspace orchestration guidance.",
+  "version": "0.134.0",
+  "description": "Codex-native turn automation, agent operation, SSH workspace orchestration, and dashboard proxy guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -12,8 +12,9 @@
   "license": "MIT",
   "keywords": [
     "codex",
-    "workspace-backend",
-    "backend-setup",
+    "agent",
+    "mcp",
+    "proxy",
     "remote-control",
     "automation",
     "skills"
@@ -21,8 +22,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-flows",
-    "shortDescription": "Run turn automation and operate workspace backends.",
-    "longDescription": "codex-flows provides Codex guidance for plugin-native turn automation, local workspace backend setup, SSH-backed remote workspace operation, Codex remote-control status, remote turn starts, workspace delegation, and passive workspace lifecycle hooks. This plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
+    "shortDescription": "Run turn automation and operate Codex-native agents.",
+    "longDescription": "codex-flows provides Codex guidance for plugin-native turn automation, local and SSH stdio agents, optional dashboard proxy use, workspace delegation, local MCP delegation tools, and passive workspace lifecycle hooks. This plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -35,11 +36,11 @@
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
       "Author a turn automation script that can skip or start a Codex turn.",
-      "Set up the local Codex workspace backend.",
+      "Check the local Codex workspace agent.",
       "Discover my Codex App remote connections and run codex-flows over SSH.",
       "Run codex-flows against a remote Codex workspace over SSH.",
       "Coordinate delegated workspace work.",
-      "Build a local Vite dashboard for a remote workspace over SSH."
+      "Build a local dashboard proxy for a remote workspace over SSH."
     ],
     "brandColor": "#2563EB"
   }

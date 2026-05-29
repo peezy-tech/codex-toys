@@ -19,13 +19,8 @@ const selfExternals = ["@peezy.tech/codex-flows", "@peezy.tech/codex-flows/*"];
 
 const builds: BinBuild[] = [
 	{
-		name: "codex-app",
-		entry: "packages/codex-client/src/bin/codex-app/index.ts",
-		external: selfExternals,
-	},
-	{
-		name: "codex-workspace-backend-local",
-		entry: "apps/workspace-backend/src/index.ts",
+		name: "codex-flows-proxy",
+		entry: "packages/codex-client/src/bin/codex-flows-proxy.ts",
 		external: selfExternals,
 	},
 ];
@@ -65,16 +60,26 @@ for (const build of builds) {
 		process.exit(exitCode);
 	}
 
-	await movePackOutput(packOutDir, outfile);
+	await movePackOutput(packOutDir, outfile, build.name);
 	await rm(packOutDir, { recursive: true, force: true });
 	await chmod(outfile, 0o755);
 	process.stderr.write(`built ${path.relative(packageRoot, outfile)}\n`);
 }
 
-async function movePackOutput(packDir: string, entryOutfile: string): Promise<void> {
-	await rename(path.join(packDir, "index.mjs"), entryOutfile);
-	for (const entry of await readdir(packDir, { withFileTypes: true })) {
+async function movePackOutput(packDir: string, entryOutfile: string, binName: string): Promise<void> {
+	const entries = await readdir(packDir, { withFileTypes: true });
+	const entryName = entries.find((entry) =>
+		entry.isFile() && (entry.name === "index.mjs" || entry.name === `${binName}.mjs`)
+	)?.name;
+	if (!entryName) {
+		throw new Error(`Pack output for ${binName} did not include an entry .mjs file`);
+	}
+	await rename(path.join(packDir, entryName), entryOutfile);
+	for (const entry of entries) {
 		if (!entry.isFile()) {
+			continue;
+		}
+		if (entry.name === entryName) {
 			continue;
 		}
 		await rename(path.join(packDir, entry.name), path.join(outDir, entry.name));

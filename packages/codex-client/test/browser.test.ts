@@ -8,13 +8,13 @@ describe("Codex Flows browser client", () => {
 			basePath: "/bridge",
 			fetch: (async (url, init) => {
 				calls.push({ url: String(url), init });
-				if (String(url) === "/bridge/functions") {
+				if (String(url) === "/bridge/workspace/functions.list") {
 					return jsonResponse({ functions: [{ name: "snapshot", description: "", sideEffects: "read-only" }] });
 				}
-				if (String(url) === "/bridge/functions/snapshot" && !init) {
+				if (String(url) === "/bridge/workspace/functions.describe") {
 					return jsonResponse({ function: { name: "snapshot", description: "", sideEffects: "read-only" } });
 				}
-				if (String(url) === "/bridge/functions/snapshot" && init?.method === "POST") {
+				if (String(url) === "/bridge/workspace/functions.call" && init?.method === "POST") {
 					return jsonResponse({ result: { ok: true } });
 				}
 				return jsonResponse({ error: "not found" }, 404);
@@ -32,7 +32,7 @@ describe("Codex Flows browser client", () => {
 		await expect(client.functions.call("snapshot", { include: "cash" })).resolves.toEqual({
 			ok: true,
 		});
-		expect(calls.at(-1)?.init?.body).toBe("{\"params\":{\"include\":\"cash\"}}");
+		expect(calls.at(-1)?.init?.body).toBe("{\"name\":\"snapshot\",\"params\":{\"include\":\"cash\"}}");
 	});
 
 	test("propagates endpoint errors", async () => {
