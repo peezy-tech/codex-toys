@@ -1,6 +1,6 @@
 {
   "name": "codex-flows-local-workspace",
-  "version": "0.134.0",
+  "version": "0.134.1",
   "description": "Local Codex workspace agent operation and plugin-bundled hooks.",
   "author": {
     "name": "Peezy",

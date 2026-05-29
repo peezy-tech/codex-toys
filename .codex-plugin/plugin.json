@@ -1,6 +1,6 @@
 {
   "name": "codex-flows",
-  "version": "0.134.0",
+  "version": "0.134.1",
   "description": "Codex-native turn automation, agent operation, SSH workspace orchestration, and dashboard proxy guidance.",
   "author": {
     "name": "Peezy",

@@ -1,6 +1,6 @@
 {
 	"name": "codex-flows-monorepo",
-	"version": "0.134.0",
+	"version": "0.134.1",
 	"description": "Codex-native stdio agent, turn automation, SSH workspace operation, and generic HTTP proxy tools.",
 	"private": true,
 	"license": "Apache-2.0",

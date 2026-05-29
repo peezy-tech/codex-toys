@@ -739,7 +739,7 @@ export function parseArgs(
 			type: "fetch",
 			appUrl,
 			workspaceUrl,
-			timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
+			timeoutMs: timeoutMs === defaultTimeoutMs && !sshTarget ? 1_500 : timeoutMs,
 			color,
 			json,
 			...remoteFields(),

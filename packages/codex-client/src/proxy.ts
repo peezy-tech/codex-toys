@@ -37,7 +37,18 @@ export function createCodexFlowsProxyHandler(
 	};
 	return async (request, response, next) => {
 		const url = new URL(request.url ?? "/", "http://codex-flows.local");
+		const cors = corsPolicyForRequest(request);
 		if (url.pathname === apiBasePath || url.pathname.startsWith(`${apiBasePath}/`)) {
+			applyCorsHeaders(response, cors);
+			if (!cors.allowed) {
+				writeJson(response, 403, { error: "CORS origin is not allowed" });
+				return;
+			}
+			if (request.method === "OPTIONS") {
+				response.statusCode = 204;
+				response.end();
+				return;
+			}
 			try {
 				await handleApiRequest(getRequester(), apiBasePath, request, response);
 			} catch (error) {
@@ -195,6 +206,45 @@ function writeJson(response: ServerResponse, status: number, value: unknown): vo
 	response.statusCode = status;
 	response.setHeader("content-type", "application/json; charset=utf-8");
 	response.end(`${JSON.stringify(value)}\n`);
+}
+
+function corsPolicyForRequest(request: IncomingMessage): { allowed: boolean; origin?: string } {
+	const origin = request.headers.origin;
+	if (typeof origin !== "string" || origin.length === 0) {
+		return { allowed: true };
+	}
+	return isLoopbackOrigin(origin) ? { allowed: true, origin } : { allowed: false };
+}
+
+function applyCorsHeaders(
+	response: ServerResponse,
+	cors: { allowed: boolean; origin?: string },
+): void {
+	response.setHeader("vary", "Origin");
+	if (!cors.allowed || !cors.origin) {
+		return;
+	}
+	response.setHeader("access-control-allow-origin", cors.origin);
+	response.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
+	response.setHeader("access-control-allow-headers", "content-type");
+	response.setHeader("access-control-max-age", "600");
+}
+
+function isLoopbackOrigin(origin: string): boolean {
+	try {
+		const url = new URL(origin);
+		if (url.protocol !== "http:" && url.protocol !== "https:") {
+			return false;
+		}
+		const hostname = url.hostname.toLowerCase();
+		return hostname === "localhost" ||
+			hostname === "127.0.0.1" ||
+			hostname === "::1" ||
+			hostname === "[::1]" ||
+			hostname.endsWith(".localhost");
+	} catch {
+		return false;
+	}
 }
 
 function normalizeBasePath(value: string): string {

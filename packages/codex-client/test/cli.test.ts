@@ -583,6 +583,13 @@ describe("codex-flows CLI args", () => {
 			type: "fetch",
 			json: true,
 		});
+		expect(parseArgs(["--ssh", "devbox", "--cwd", "/repo", "fetch"], {}))
+			.toMatchObject({
+				type: "fetch",
+				timeoutMs: 90_000,
+				sshTarget: "devbox",
+				cwd: "/repo",
+			});
 	});
 
 	test("formats fetch output without ANSI colors", () => {
@@ -596,11 +603,10 @@ describe("codex-flows CLI args", () => {
 			shell: "/bin/bash",
 			cwd: "/workspace",
 			codexCommand: "/tmp/codex",
-			appServerUrl: "agent://local",
-			workspaceBackendUrl: "agent://local",
+			agentUrl: "agent://local",
 			codexHome: "/tmp/codex-home",
-			backend: {
-				mode: "workspace",
+			agent: {
+				transport: "local",
 				status: "connected",
 				url: "agent://local",
 				server: {
@@ -628,8 +634,8 @@ describe("codex-flows CLI args", () => {
 		const output = formatFetchInfo(info, { color: false });
 		expect(output).toContain("codex-flows");
 		expect(output).toContain("package      @peezy.tech/codex-flows@0.3.1");
-		expect(output).toContain("workspace    agent://local");
-		expect(output).toContain("backend      workspace connected");
+		expect(output).toContain("agent        agent://local");
+		expect(output).toContain("agent status local connected");
 		expect(output).toContain("threads      2 listed, 1 active, 1 idle");
 		expect(output).not.toContain("\x1b[");
 	});

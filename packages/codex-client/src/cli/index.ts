@@ -19,7 +19,7 @@ import {
 import {
 	collectFetchInfo,
 	formatFetchInfo,
-	type FetchBackendInfo,
+	type FetchAgentInfo,
 	type FetchCountInfo,
 	type FetchThreadSummary,
 	type FetchThreadsInfo,
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
 			cwd: parsed.sshTarget ? parsed.cwd : undefined,
-			backend: await collectBackendInfo(parsed),
+			agent: await collectAgentInfo(parsed),
 		});
 		write(parsed.json
 			? `${JSON.stringify(info, null, 2)}\n`
@@ -348,7 +348,7 @@ async function main(): Promise<void> {
 			mode: parsed.mode,
 		});
 		const info = await collectWorkspaceDoctorInfo(context);
-		const backend = await collectBackendInfo({
+		const agent = await collectAgentInfo({
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
 			timeoutMs: parsed.timeoutMs,
@@ -359,10 +359,10 @@ async function main(): Promise<void> {
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 		});
-		const result = { ...info, backend };
+		const result = { ...info, agent };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
-			: `${formatWorkspaceDoctorInfo(info)}agent              ${backendLabelForDoctor(backend)}\n`);
+			: `${formatWorkspaceDoctorInfo(info)}agent              ${agentLabelForDoctor(agent)}\n`);
 		return;
 	}
 	if (parsed.type === "workspace-tick") {
@@ -519,11 +519,11 @@ async function main(): Promise<void> {
 	}
 }
 
-function backendLabelForDoctor(backend: FetchBackendInfo): string {
-	if (backend.status === "connected") {
-		return backend.url ? `${backend.mode} connected (${backend.url})` : `${backend.mode} connected`;
+function agentLabelForDoctor(agent: FetchAgentInfo): string {
+	if (agent.status === "connected") {
+		return agent.url ? `${agent.transport} connected (${agent.url})` : `${agent.transport} connected`;
 	}
-	return backend.error ? `unavailable (${backend.error})` : "unavailable";
+	return agent.error ? `unavailable (${agent.error})` : "unavailable";
 }
 
 async function callAppServer(
@@ -808,56 +808,58 @@ async function initialize(
 	);
 }
 
-async function collectBackendInfo(options: {
+async function collectAgentInfo(options: {
 	appUrl: string;
 	workspaceUrl: string;
 	timeoutMs: number;
-} & SshRemoteProviderOptions): Promise<FetchBackendInfo> {
+} & SshRemoteProviderOptions): Promise<FetchAgentInfo> {
 	if (hasSshRemote(options)) {
-		return await collectSshBackendInfo(options);
+		return await collectSshAgentInfo(options);
 	}
 	return await collectLocalAgentInfo(options);
 }
 
-async function collectSshBackendInfo(
+async function collectSshAgentInfo(
 	options: {
 		appUrl: string;
 		workspaceUrl: string;
 		timeoutMs: number;
 	} & SshRemoteProviderOptions,
-): Promise<FetchBackendInfo> {
+): Promise<FetchAgentInfo> {
 	try {
-			return await withSshRemoteWorkspaceTransport(options, async (transport) =>
-				await collectWorkspaceBackendInfoFromTransport(
-					transport,
-					"ssh://agent",
-					options.timeoutMs,
-				)
-			);
+		return await withSshRemoteWorkspaceTransport(options, async (transport) =>
+			await collectAgentInfoFromTransport(
+				transport,
+				"ssh://agent",
+				"ssh",
+				options.timeoutMs,
+			)
+		);
 	} catch (error) {
 		return {
-			mode: "workspace",
+			transport: "ssh",
 			status: "unavailable",
-			error: `workspace: ${errorMessage(error)}`,
+			error: `agent: ${errorMessage(error)}`,
 		};
 	}
 }
 
 async function collectLocalAgentInfo(options: {
 	timeoutMs: number;
-}): Promise<FetchBackendInfo> {
+}): Promise<FetchAgentInfo> {
 	const transport = createLocalAgentTransport(options);
 	transport.on("error", () => {});
 	try {
 		transport.start();
-		return await collectWorkspaceBackendInfoFromTransport(
+		return await collectAgentInfoFromTransport(
 			transport,
 			"agent://local",
+			"local",
 			options.timeoutMs,
 		);
 	} catch (error) {
 		return {
-			mode: "workspace",
+			transport: "local",
 			status: "unavailable",
 			url: "agent://local",
 			error: errorMessage(error),
@@ -867,11 +869,12 @@ async function collectLocalAgentInfo(options: {
 	}
 }
 
-async function collectWorkspaceBackendInfoFromTransport(
+async function collectAgentInfoFromTransport(
 	transport: CodexWorkspaceBackendTransport,
 	url: string,
+	agentTransport: FetchAgentInfo["transport"],
 	timeoutMs: number,
-): Promise<FetchBackendInfo> {
+): Promise<FetchAgentInfo> {
 	return await withProbeTimeout(async () => {
 		const initialized = await initialize(transport);
 		const methods = new Set(initialized.capabilities.workspaceMethods);
@@ -880,7 +883,7 @@ async function collectWorkspaceBackendInfoFromTransport(
 			? await optionalProbe(() => collectDelegations(transport))
 			: undefined;
 		return {
-			mode: "workspace",
+			transport: agentTransport,
 			status: "connected",
 			url,
 			server: initialized.serverInfo,
@@ -890,8 +893,8 @@ async function collectWorkspaceBackendInfoFromTransport(
 			threads,
 			...(delegations ? { delegations } : {}),
 		};
-		}, timeoutMs, `agent probe timed out after ${timeoutMs}ms`);
-	}
+	}, timeoutMs, `agent probe timed out after ${timeoutMs}ms`);
+}
 
 async function collectThreadsViaWorkspace(
 	transport: CodexWorkspaceBackendTransport,
@@ -1169,8 +1172,9 @@ Usage:
 
 Options:
   --timeout-ms <ms>                          Request timeout. Defaults to 90000,
-                                             1500 for fetch probes, or 1800000
-                                             for automation run and waited turns.
+                                             1500 for local fetch probes, or
+                                             1800000 for automation run and
+                                             waited turns.
   --compact                                  Print compact JSON.
   --pretty                                   Print pretty JSON.
   --json                                     Print JSON for supported commands.

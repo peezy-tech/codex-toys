@@ -71,7 +71,10 @@ const threads = await codexFlows.app.call("thread/list", { limit: 20 });
 ```
 
 The browser package only talks to the optional HTTP proxy with `fetch`; it does
-not include a WebSocket app-server or workspace client.
+not include a WebSocket app-server or workspace client. Direct proxy API CORS is
+loopback-only (`localhost`, `127.0.0.1`, `::1`, and `*.localhost`); local
+dashboards can also avoid CORS entirely by using the Vite plugin or proxy
+`--static` same-origin serving.
 
 ## Turn Automation
 
@@ -175,7 +178,8 @@ Local CLI, MCP, automation, functions, and delegation use a spawned
 the same agent on the target and speaks JSON-RPC over the SSH stdio stream. No
 codex-flows core command opens a WebSocket port. Browser dashboards opt into HTTP
 explicitly by starting `codex-flows-proxy`, whose schema is derived from the
-agent's advertised methods instead of duplicated route logic.
+agent's advertised methods instead of duplicated route logic. The direct proxy
+API reflects CORS only for loopback browser origins.
 
 For non-interactive SSH PATH differences, set `CODEX_FLOWS_REMOTE_PATH_PREPEND`,
 `CODEX_FLOWS_AGENT_COMMAND`, `CODEX_FLOWS_REMOTE_CODEX_COMMAND`, or

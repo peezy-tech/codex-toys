@@ -34,6 +34,11 @@ codex-flows --ssh <target> --cwd <remote-workspace> fetch
 codex-flows agent. With `--ssh`, the probe runs against the remote workspace
 agent without opening a remote port or copying credentials.
 
+`fetch --json` uses the agent model directly. The probe result is returned under
+`agentUrl` and `agent`, where `agent.transport` is `local` or `ssh`. SSH fetches
+use the normal request timeout so remote agent startup and app-server
+pass-through are not mistaken for local quick-probe failures.
+
 ## Agent
 
 ```bash
@@ -101,6 +106,12 @@ POST /api/workspace/:method
 
 `/api/schema` is derived from `workspace.initialize`; route behavior forwards to
 agent methods instead of duplicating feature-specific endpoint logic.
+
+Direct browser calls to the proxy API intentionally receive CORS headers only
+for loopback origins such as `localhost`, `127.0.0.1`, `::1`, and
+`*.localhost`. Requests carrying a non-loopback browser `Origin` are rejected.
+Prefer the Vite plugin or `--static` same-origin serving for local dashboards
+when possible.
 
 ## Turn Run
 

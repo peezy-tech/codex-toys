@@ -48,6 +48,11 @@ The proxy starts or connects to a codex-flows agent internally. `/api/schema`
 comes from `workspace.initialize`, so dashboards can discover available
 workspace methods without duplicated route definitions.
 
+For direct browser use, the proxy reflects CORS only for loopback origins such
+as `localhost`, `127.0.0.1`, `::1`, and `*.localhost`. Requests carrying a
+non-loopback browser `Origin` are rejected. Dashboards served by Vite or
+`codex-flows-proxy --static` can use same-origin requests instead.
+
 ## `@peezy.tech/codex-flows/browser`
 
 The browser export is fetch-only. It provides helpers for the proxy API:

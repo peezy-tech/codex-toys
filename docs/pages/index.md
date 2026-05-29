@@ -203,8 +203,8 @@ codex plugin marketplace add /home/peezy/meta-workspace/codex-flows
 codex plugin add codex-flows-local-workspace@codex-flows
 ```
 
-Install `codex-flows-remote-control` on a local Codex App when the backend is a
-VPS reached through Tailscale SSH. The full plugin is still available as
+Install `codex-flows-remote-control` on a local Codex App when the agent runs on
+a VPS reached through Tailscale SSH. The full plugin is still available as
 `codex-flows`. Source definitions still live in this repo; release syncs the
 installable bundles into `peezy-tech/skills`. The bundled hooks live at
 `hooks/hooks.json` in the local workspace plugin and are discovered by Codex as

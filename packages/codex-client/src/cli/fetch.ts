@@ -17,11 +17,10 @@ export type FetchInfo = {
 	shell?: string;
 	cwd: string;
 	codexCommand: string;
-	appServerUrl: string;
-	workspaceBackendUrl: string;
+	agentUrl: string;
 	codexHome: string;
 	workspace?: WorkspaceDoctorInfo;
-	backend: FetchBackendInfo;
+	agent: FetchAgentInfo;
 };
 
 export type FetchInfoOptions = {
@@ -29,11 +28,11 @@ export type FetchInfoOptions = {
 	cwd?: string;
 	appUrl: string;
 	workspaceUrl: string;
-	backend?: FetchBackendInfo;
+	agent?: FetchAgentInfo;
 };
 
-export type FetchBackendInfo = {
-	mode: "workspace" | "app-server" | "local";
+export type FetchAgentInfo = {
+	transport: "local" | "ssh";
 	status: "connected" | "unavailable";
 	url?: string;
 	server?: {
@@ -93,14 +92,13 @@ export async function collectFetchInfo(
 		...(env.SHELL || env.ComSpec ? { shell: env.SHELL ?? env.ComSpec } : {}),
 		cwd: options.cwd ?? process.cwd(),
 		codexCommand: env.CODEX_APP_SERVER_CODEX_COMMAND ?? "codex",
-		appServerUrl: options.appUrl,
-		workspaceBackendUrl: options.workspaceUrl,
+		agentUrl: options.workspaceUrl,
 		codexHome: env.CODEX_HOME ?? defaultCodexHome(),
 		...(workspace ? { workspace } : {}),
-		backend: options.backend ?? {
-			mode: "local",
+		agent: options.agent ?? {
+			transport: "local",
 			status: "unavailable",
-			error: "No backend probe was run",
+			error: "No agent probe was run",
 		},
 	};
 }
@@ -118,8 +116,7 @@ export function formatFetchInfo(
 		["shell", info.shell ?? "unknown"],
 		["cwd", info.cwd],
 		["codex", info.codexCommand],
-		["app-server", info.appServerUrl],
-		["workspace", info.workspaceBackendUrl],
+		["agent", info.agentUrl],
 		["CODEX_HOME", info.codexHome],
 		...(info.workspace
 			? [
@@ -129,8 +126,8 @@ export function formatFetchInfo(
 					["tasks", `${info.workspace.taskCount} configured, ${info.workspace.dueCount} due, ${info.workspace.failingCount} failing`],
 				] as Array<[string, string]>
 			: []),
-		["backend", backendLabel(info.backend)],
-		...backendRows(info.backend),
+		["agent status", agentLabel(info.agent)],
+		...agentRows(info.agent),
 	];
 	const logo = [
 		"    ______          ",
@@ -152,35 +149,35 @@ export function formatFetchInfo(
 	return `${lines.join("\n")}\n`;
 }
 
-function backendLabel(backend: FetchBackendInfo): string {
-	if (backend.status === "connected") {
-		return backend.url ? `${backend.mode} connected (${backend.url})` : `${backend.mode} connected`;
+function agentLabel(agent: FetchAgentInfo): string {
+	if (agent.status === "connected") {
+		return agent.url ? `${agent.transport} connected (${agent.url})` : `${agent.transport} connected`;
 	}
-	return backend.error ? `local only (${backend.error})` : "local only";
+	return agent.error ? `unavailable (${agent.error})` : "unavailable";
 }
 
-function backendRows(backend: FetchBackendInfo): Array<[string, string]> {
+function agentRows(agent: FetchAgentInfo): Array<[string, string]> {
 	const rows: Array<[string, string]> = [];
-	if (backend.server) {
-		rows.push(["server", `${backend.server.name}@${backend.server.version}`]);
+	if (agent.server) {
+		rows.push(["server", `${agent.server.name}@${agent.server.version}`]);
 	}
-	if (backend.capabilities) {
+	if (agent.capabilities) {
 		rows.push([
 			"capabilities",
-			`${backend.capabilities.workspaceMethods} methods`,
+			`${agent.capabilities.workspaceMethods} methods`,
 		]);
 	}
-	if (backend.threads) {
-		rows.push(["threads", countLabel(backend.threads)]);
-		for (const thread of backend.threads.latest.slice(0, 3)) {
+	if (agent.threads) {
+		rows.push(["threads", countLabel(agent.threads)]);
+		for (const thread of agent.threads.latest.slice(0, 3)) {
 			rows.push(["latest", `${thread.status} ${thread.label} ${compactId(thread.id)}`]);
 		}
-		if (backend.threads.error) {
-			rows.push(["thread error", backend.threads.error]);
+		if (agent.threads.error) {
+			rows.push(["thread error", agent.threads.error]);
 		}
 	}
-	if (backend.delegations) {
-		rows.push(["delegations", countLabel(backend.delegations)]);
+	if (agent.delegations) {
+		rows.push(["delegations", countLabel(agent.delegations)]);
 	}
 	return rows;
 }

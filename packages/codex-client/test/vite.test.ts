@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
+import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
 import { createServer } from "vite";
 import { CodexEventEmitter } from "../src/app-server/events.ts";
 import type { CodexWorkspaceBackendTransport } from "../src/workspace-backend/client.ts";
+import { createCodexFlowsProxyHandler } from "../src/proxy.ts";
 import { codexFlowsRemote } from "../src/vite.ts";
 
 describe("codexFlowsRemote Vite plugin", () => {
@@ -63,6 +65,42 @@ describe("codexFlowsRemote Vite plugin", () => {
 			await server.close();
 		}
 	});
+
+	test("applies loopback-only CORS on the direct proxy API", async () => {
+		const handler = createCodexFlowsProxyHandler({ transport: new FakeWorkspaceTransport() });
+		const server = createHttpServer((request, response) => {
+			void handler(request, response);
+		});
+		try {
+			await listen(server);
+			const baseUrl = httpServerBaseUrl(server);
+			const allowed = await fetch(`${baseUrl}/api/schema`, {
+				headers: { origin: "http://localhost:5173" },
+			});
+			expect(allowed.ok).toBe(true);
+			expect(allowed.headers.get("access-control-allow-origin"))
+				.toBe("http://localhost:5173");
+			await allowed.body?.cancel();
+
+			const blockedPreflight = await fetch(`${baseUrl}/api/schema`, {
+				method: "OPTIONS",
+				headers: {
+					origin: "https://example.com",
+					"access-control-request-method": "GET",
+				},
+			});
+			expect(blockedPreflight.status).toBe(403);
+			expect(blockedPreflight.headers.get("access-control-allow-origin")).toBeNull();
+
+			const blockedGet = await fetch(`${baseUrl}/api/schema`, {
+				headers: { origin: "https://example.com" },
+			});
+			expect(blockedGet.status).toBe(403);
+			expect(blockedGet.headers.get("access-control-allow-origin")).toBeNull();
+		} finally {
+			await closeHttpServer(server);
+		}
+	});
 });
 
 class FakeWorkspaceTransport extends CodexEventEmitter implements CodexWorkspaceBackendTransport {
@@ -119,6 +157,27 @@ function serverBaseUrl(server: Awaited<ReturnType<typeof createServer>>): string
 	const address = server.httpServer?.address();
 	if (!address || typeof address === "string") {
 		throw new Error("Vite server is not listening on a TCP port");
+	}
+	return `http://127.0.0.1:${address.port}`;
+}
+
+function listen(server: HttpServer): Promise<void> {
+	return new Promise((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", () => resolve());
+	});
+}
+
+function closeHttpServer(server: HttpServer): Promise<void> {
+	return new Promise((resolve, reject) => {
+		server.close((error) => error ? reject(error) : resolve());
+	});
+}
+
+function httpServerBaseUrl(server: HttpServer): string {
+	const address = server.address();
+	if (!address || typeof address === "string") {
+		throw new Error("HTTP server is not listening on a TCP port");
 	}
 	return `http://127.0.0.1:${address.port}`;
 }
