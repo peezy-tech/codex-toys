@@ -1,14 +1,14 @@
 import { setTimeout as delay } from "node:timers/promises";
 import type { v2 } from "../app-server/generated/index.ts";
-import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
+import type { CodexToyboxTransport } from "../toybox/client.ts";
 import {
-	APP_SERVER_CALL_METHOD,
-	WORKSPACE_BACKEND_INITIALIZE_METHOD,
-} from "../workspace-backend/protocol.ts";
+	APP_CALL_METHOD,
+	TOYBOX_INITIALIZE_METHOD,
+} from "../toybox/protocol.ts";
 import {
-	createLocalAgentTransport,
+	createLocalToyboxTransport,
 	hasSshRemote,
-	withSshRemoteWorkspaceTransport,
+	withSshRemoteToyboxTransport,
 	type SshRemoteProviderOptions,
 } from "./remote-provider.ts";
 
@@ -23,7 +23,7 @@ export type RemoteProbeResult = {
 };
 
 export type RemoteStatusInfo = {
-	workspaceBackend: RemoteProbeResult;
+	toybox: RemoteProbeResult;
 	appServer: RemoteProbeResult;
 	recommendation: {
 		preferred: "workspace" | "app-server" | "none";
@@ -51,17 +51,17 @@ type AppServerRequest = <T = unknown>(method: string, params?: unknown) => Promi
 export async function collectRemoteStatusInfo(
 	options: { timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<RemoteStatusInfo> {
-	const workspaceBackend = await probeAgent(options);
+	const toybox = await probeToybox(options);
 	return {
-		workspaceBackend,
+		toybox,
 		appServer: {
 			mode: "app-server",
-			status: workspaceBackend.status,
-			url: workspaceBackend.url,
-			remoteControl: workspaceBackend.remoteControl,
-			error: workspaceBackend.error,
+			status: toybox.status,
+			url: toybox.url,
+			remoteControl: toybox.remoteControl,
+			error: toybox.error,
 		},
-		recommendation: remoteRecommendation(workspaceBackend),
+		recommendation: remoteRecommendation(toybox),
 	};
 }
 
@@ -81,7 +81,7 @@ export async function startRemoteTurn(options: {
 } & SshRemoteProviderOptions): Promise<RemoteTurnStartResult> {
 	validateTurnOptions(options);
 	const surface = options.via === "app" ? "app-server" : "workspace";
-	return await withAgentTransport(options, async (transport, url) => {
+	return await withToyboxTransport(options, async (transport, url) => {
 		await initializeWorkspaceTransport(transport);
 		return await startTurnWithRequest(
 			surface,
@@ -95,7 +95,7 @@ export async function startRemoteTurn(options: {
 
 export function formatRemoteStatusInfo(info: RemoteStatusInfo): string {
 	const lines = [
-		`agent              ${probeLabel(info.workspaceBackend)}`,
+		`toybox             ${probeLabel(info.toybox)}`,
 		`remote control     ${remoteControlLabel(info)}`,
 		`next               ${info.recommendation.nextCommand}`,
 	];
@@ -118,18 +118,18 @@ export function formatRemoteTurnStartResult(result: RemoteTurnStartResult): stri
 	return `${lines.join("\n")}\n`;
 }
 
-async function probeAgent(
+async function probeToybox(
 	options: { timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<RemoteProbeResult> {
 	try {
-		return await withAgentTransport(options, async (transport, url) => {
+		return await withToyboxTransport(options, async (transport, url) => {
 			const remoteControl = await withTimeout(async () => {
 				await initializeWorkspaceTransport(transport);
 				return await workspaceAppServerRequest<v2.RemoteControlStatusReadResponse>(
 					transport,
 					"remoteControl/status/read",
 				);
-			}, options.timeoutMs, `agent remote control probe timed out after ${
+			}, options.timeoutMs, `toybox remote control probe timed out after ${
 				options.timeoutMs
 			}ms`);
 			return {
@@ -143,25 +143,25 @@ async function probeAgent(
 		return {
 			mode: "workspace",
 			status: "unavailable",
-			url: agentUrl(options),
+			url: toyboxUrl(options),
 			error: errorMessage(error),
 		};
 	}
 }
 
-async function withAgentTransport<T>(
+async function withToyboxTransport<T>(
 	options: { timeoutMs: number } & SshRemoteProviderOptions,
-	callback: (transport: CodexWorkspaceBackendTransport, url: string) => Promise<T>,
+	callback: (transport: CodexToyboxTransport, url: string) => Promise<T>,
 ): Promise<T> {
 	if (hasSshRemote(options)) {
-		return await withSshRemoteWorkspaceTransport(options, async (transport) =>
-			await callback(transport, "ssh://agent")
+		return await withSshRemoteToyboxTransport(options, async (transport) =>
+			await callback(transport, "ssh://toybox")
 		);
 	}
-	const transport = createLocalAgentTransport(options);
+	const transport = createLocalToyboxTransport(options);
 	try {
 		transport.start();
-		return await callback(transport, "agent://local");
+		return await callback(transport, "toybox://local");
 	} finally {
 		transport.close();
 	}
@@ -425,26 +425,26 @@ function turnError(turn: Record<string, unknown> | undefined): string | null {
 }
 
 async function initializeWorkspaceTransport(
-	transport: CodexWorkspaceBackendTransport,
+	transport: CodexToyboxTransport,
 ): Promise<void> {
-	await transport.request(WORKSPACE_BACKEND_INITIALIZE_METHOD, {
+	await transport.request(TOYBOX_INITIALIZE_METHOD, {
 		clientInfo: {
-			name: "codex-flows-remote-control",
-			title: "Codex Flows Remote Control",
+			name: "codex-toys-remote-control",
+			title: "Codex Toys Remote Control",
 			version: "0.1.0",
 		},
 		capabilities: {
-			appServerPassThrough: true,
+			appPassThrough: true,
 		},
 	});
 }
 
 async function workspaceAppServerRequest<T = unknown>(
-	transport: CodexWorkspaceBackendTransport,
+	transport: CodexToyboxTransport,
 	method: string,
 	params?: unknown,
 ): Promise<T> {
-	return await transport.request<T>(APP_SERVER_CALL_METHOD, { method, params });
+	return await transport.request<T>(APP_CALL_METHOD, { method, params });
 }
 
 function remoteRecommendation(
@@ -453,17 +453,17 @@ function remoteRecommendation(
 	if (workspace.status === "connected") {
 		return {
 			preferred: "workspace",
-			nextCommand: "codex-flows turn run \"...\"",
+			nextCommand: "codex-toys turn run \"...\"",
 		};
 	}
 	return {
 		preferred: "none",
-		nextCommand: "codex-flows --ssh <target> --cwd <remote-workspace> remote preflight",
+		nextCommand: "codex-toys --ssh <target> --cwd <remote-workspace> remote preflight",
 	};
 }
 
 function remoteControlLabel(info: RemoteStatusInfo): string {
-	const remote = info.workspaceBackend.remoteControl ?? info.appServer.remoteControl;
+	const remote = info.toybox.remoteControl ?? info.appServer.remoteControl;
 	if (!remote) {
 		return "unavailable";
 	}
@@ -535,8 +535,8 @@ function compactUndefined<T extends Record<string, unknown>>(value: T): T {
 	return result as T;
 }
 
-function agentUrl(options: Pick<SshRemoteProviderOptions, "sshTarget" | "env">): string {
-	return hasSshRemote(options) ? "ssh://agent" : "agent://local";
+function toyboxUrl(options: Pick<SshRemoteProviderOptions, "sshTarget" | "env">): string {
+	return hasSshRemote(options) ? "ssh://toybox" : "toybox://local";
 }
 
 function errorMessage(error: unknown): string {

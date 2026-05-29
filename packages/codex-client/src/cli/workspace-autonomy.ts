@@ -310,10 +310,10 @@ export async function scaffoldActionsWorkspace(
 	await write(".codex/workspace.toml", workspaceTomlTemplate(workspaceRoot));
 	await write(".codex/config.toml", codexConfigTemplate());
 	if (options.forgejo) {
-		await write(".forgejo/workflows/codex-flows-actions.yml", actionsWorkflowTemplate("forgejo"));
+		await write(".forgejo/workflows/codex-toys-actions.yml", actionsWorkflowTemplate("forgejo"));
 	}
 	if (options.github || !options.forgejo) {
-		await write(".github/workflows/codex-flows-actions.yml", actionsWorkflowTemplate("github"));
+		await write(".github/workflows/codex-toys-actions.yml", actionsWorkflowTemplate("github"));
 	}
 	files.push(await appendGitignoreEntries(workspaceRoot, actionsGitignoreEntries()));
 	return { workspaceRoot, files };
@@ -322,7 +322,7 @@ export async function scaffoldActionsWorkspace(
 export async function tickWorkspace(
 	context: WorkspaceContext,
 	options: {
-		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
 	},
 ): Promise<{ mode: WorkspaceMode; due: string[]; runs: WorkspaceRunRecord[] }> {
@@ -350,7 +350,7 @@ export async function runWorkspaceTaskById(
 	context: WorkspaceContext,
 	taskId: string,
 	options: {
-		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
 	},
 ): Promise<WorkspaceRunRecord> {
@@ -400,7 +400,7 @@ async function runWorkspaceTask(
 	config: WorkspaceConfig,
 	task: WorkspaceTask,
 	options: {
-		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
 	},
 ): Promise<WorkspaceRunRecord> {
@@ -450,7 +450,7 @@ async function runAutomationTask(
 	runId: string,
 	startedAt: string,
 	options: {
-		callWorkspaceBackend: (method: string, params: unknown) => Promise<unknown>;
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
 	},
 ): Promise<unknown> {
@@ -470,11 +470,11 @@ async function runAutomationTask(
 		host: createTurnAutomationHost({
 			via: "workspace",
 			appRequest: async (method, params) =>
-				await options.callWorkspaceBackend("appServer.call", {
+				await options.callToybox("app.call", {
 					method,
 					params,
 				}),
-			workspaceRequest: options.callWorkspaceBackend,
+			workspaceRequest: options.callToybox,
 			defaults: {
 				prompt,
 				cwd,
@@ -825,7 +825,7 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 	const checkout = provider === "github" ? "actions/checkout@v4" : "actions/checkout@v4";
 	const setupNode = provider === "github" ? "actions/setup-node@v4" : "actions/setup-node@v4";
 	return [
-		"name: Codex Flows Actions",
+		"name: Codex Toys Actions",
 		"",
 		"on:",
 		"  workflow_dispatch:",
@@ -843,20 +843,20 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 		"        with:",
 		"          node-version: 24",
 		"      - run: npm install -g vite-plus",
-		"      - run: vp dlx @peezy.tech/codex-flows actions prepare-auth",
+		"      - run: vp dlx codex-toys actions prepare-auth",
 		"        env:",
 		"          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}",
 		"          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}",
 		"          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
-		"      - run: vp dlx @peezy.tech/codex-flows workspace tick --mode actions",
+		"      - run: vp dlx codex-toys workspace tick --mode actions",
 		"      - if: always()",
-		"        run: vp dlx @peezy.tech/codex-flows actions cleanup",
+		"        run: vp dlx codex-toys actions cleanup",
 		"      - if: always()",
 		"        run: |",
 		"          git add .codex/memories .codex/workspace/actions",
 		"          git diff --cached --quiet && exit 0",
-		"          git config user.name codex-flows-actions",
-		"          git config user.email codex-flows-actions@users.noreply.github.com",
+		"          git config user.name codex-toys-actions",
+		"          git config user.email codex-toys-actions@users.noreply.github.com",
 		"          git commit -m \"Update Codex workspace state\"",
 		"          git push",
 		"",

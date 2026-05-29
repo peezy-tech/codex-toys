@@ -1,18 +1,18 @@
 {
-  "name": "codex-flows",
-  "version": "0.134.1",
-  "description": "Codex-native turn automation, agent operation, SSH workspace orchestration, and dashboard proxy guidance.",
+  "name": "codex-toys",
+  "version": "0.135.0",
+  "description": "Codex-native turn automation, toybox operation, SSH workspace orchestration, and dashboard proxy guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
     "url": "https://peezy.tech/"
   },
-  "homepage": "https://github.com/peezy-tech/codex-flows",
-  "repository": "https://github.com/peezy-tech/codex-flows",
+  "homepage": "https://github.com/peezy-tech/codex-toys",
+  "repository": "https://github.com/peezy-tech/codex-toys",
   "license": "MIT",
   "keywords": [
     "codex",
-    "agent",
+    "toybox",
     "mcp",
     "proxy",
     "remote-control",
@@ -21,9 +21,9 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "codex-flows",
-    "shortDescription": "Run turn automation and operate Codex-native agents.",
-    "longDescription": "codex-flows provides Codex guidance for plugin-native turn automation, local and SSH stdio agents, optional dashboard proxy use, workspace delegation, local MCP delegation tools, and passive workspace lifecycle hooks. This plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
+    "displayName": "codex-toys",
+    "shortDescription": "Run turn automation and operate Codex-native toyboxes.",
+    "longDescription": "codex-toys provides Codex guidance for plugin-native turn automation, local and SSH stdio toyboxes, optional dashboard proxy use, workspace delegation, local MCP delegation tools, and passive workspace lifecycle hooks. This plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -31,14 +31,14 @@
       "Write",
       "Interactive"
     ],
-    "websiteURL": "https://github.com/peezy-tech/codex-flows",
+    "websiteURL": "https://github.com/peezy-tech/codex-toys",
     "privacyPolicyURL": "https://peezy.tech/privacy",
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
       "Author a turn automation script that can skip or start a Codex turn.",
-      "Check the local Codex workspace agent.",
-      "Discover my Codex App remote connections and run codex-flows over SSH.",
-      "Run codex-flows against a remote Codex workspace over SSH.",
+      "Check the local Codex workspace toybox.",
+      "Discover my Codex App remote connections and run codex-toys over SSH.",
+      "Run codex-toys against a remote Codex workspace over SSH.",
       "Coordinate delegated workspace work.",
       "Build a local dashboard proxy for a remote workspace over SSH."
     ],

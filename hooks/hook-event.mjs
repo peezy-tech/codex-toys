@@ -23,7 +23,7 @@ async function main() {
 			process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
 		}
 	} catch (error) {
-		process.stderr.write(`codex-flows plugin hook failed: ${errorMessage(error)}\n`);
+		process.stderr.write(`codex-toys plugin hook failed: ${errorMessage(error)}\n`);
 		if (eventSupportsContinueOutput(eventNameFromHookInput(input))) {
 			process.stdout.write(`${JSON.stringify({ continue: true })}\n`);
 		}
@@ -52,7 +52,7 @@ async function writeHookSpoolEvent(event) {
 }
 
 function hookSpoolDirFromEnv(env = process.env) {
-	return env.CODEX_FLOWS_HOOK_SPOOL_DIR ||
+	return env.CODEX_TOYS_HOOK_SPOOL_DIR ||
 		path.join(os.homedir(), ".codex", "workspace", "local", "hook-spool");
 }
 

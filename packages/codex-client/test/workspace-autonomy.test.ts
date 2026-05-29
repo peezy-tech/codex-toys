@@ -59,7 +59,7 @@ describe("workspace autonomy", () => {
 		expect(parseArgs(["workspace", "run", "morning-brief"], {}))
 			.toMatchObject({ type: "workspace-run", taskId: "morning-brief" });
 		expect(() => parseArgs(["workspace", "backend", "start"], {}))
-			.toThrow("workspace backend service commands have been removed");
+			.toThrow("toybox service commands have been removed");
 		expect(parseArgs(["workspace", "call", "delegation.list"], {}))
 			.toMatchObject({ type: "workspace-call", method: "delegation.list" });
 		expect(parseArgs(["memories", "transplant", "global-to-workspace", "--apply"], {}))
@@ -124,7 +124,7 @@ command = ["node", "-e", "console.log('hello')"]
 			env: { CODEX_HOME: "/tmp/global-codex-home" },
 		});
 		const run = await runWorkspaceTaskById(context, "hello", {
-			callWorkspaceBackend: async () => {
+			callToybox: async () => {
 				throw new Error("unused");
 			},
 		});
@@ -150,13 +150,13 @@ schedule = "* * * * *"
 		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "actions", env: {} });
 		const calls: unknown[] = [];
 		const first = await tickWorkspace(context, {
-			callWorkspaceBackend: async (_method, params) => {
+			callToybox: async (_method, params) => {
 				calls.push(params);
 				return { ok: true };
 			},
 		});
 		const second = await tickWorkspace(context, {
-			callWorkspaceBackend: async (_method, params) => {
+			callToybox: async (_method, params) => {
 				calls.push(params);
 				return { ok: true };
 			},
@@ -170,7 +170,7 @@ schedule = "* * * * *"
 		expect(doctor.errors).toEqual([]);
 	});
 
-	test("automation tasks run scripts and start turns through workspace backend", async () => {
+	test("automation tasks run scripts and start turns through toybox", async () => {
 		const root = await tempWorkspace();
 		const automationRoot = path.join(root, "automations", "release-check");
 		await mkdir(automationRoot, { recursive: true });
@@ -211,7 +211,7 @@ tag = "v1.2.3"
 		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
 		const calls: Array<{ method: string; params: unknown }> = [];
 		const run = await runWorkspaceTaskById(context, "automation-task", {
-			callWorkspaceBackend: async (method, params) => {
+			callToybox: async (method, params) => {
 				calls.push({ method, params });
 				const appMethod = String((params as { method?: unknown }).method);
 				if (appMethod === "thread/start") {
@@ -226,7 +226,7 @@ tag = "v1.2.3"
 		expect(run.status).toBe("completed");
 		expect(calls).toEqual([
 			expect.objectContaining({
-				method: "appServer.call",
+				method: "app.call",
 				params: expect.objectContaining({
 					method: "thread/start",
 					params: expect.objectContaining({
@@ -235,7 +235,7 @@ tag = "v1.2.3"
 				}),
 			}),
 			expect.objectContaining({
-				method: "appServer.call",
+				method: "app.call",
 				params: expect.objectContaining({
 					method: "turn/start",
 					params: expect.objectContaining({
@@ -269,7 +269,7 @@ command = ["node", "--version"]
 `);
 		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
 		const run = await runWorkspaceTaskById(context, "disabled", {
-			callWorkspaceBackend: async () => {
+			callToybox: async () => {
 				throw new Error("unused");
 			},
 		});
@@ -310,7 +310,7 @@ skill = "missing-repair-skill"
 			}));
 		}
 		const result = await tickWorkspace(context, {
-			callWorkspaceBackend: async () => {
+			callToybox: async () => {
 				throw new Error("unused");
 			},
 		});
@@ -383,10 +383,10 @@ schedule = "not-cron"
 			.toContain("[workspace]");
 		expect(await readFile(path.join(root, ".codex", "config.toml"), "utf8"))
 			.toContain("repository-scoped Actions");
-		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-flows-actions.yml"), "utf8"))
-			.toContain("codex-flows actions prepare-auth");
-		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-flows-actions.yml"), "utf8"))
-			.toContain("codex-flows actions cleanup");
+		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-toys-actions.yml"), "utf8"))
+			.toContain("codex-toys actions prepare-auth");
+		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-toys-actions.yml"), "utf8"))
+			.toContain("codex-toys actions cleanup");
 		expect(await readFile(path.join(root, ".gitignore"), "utf8"))
 			.toContain(".codex/auth.json");
 	});

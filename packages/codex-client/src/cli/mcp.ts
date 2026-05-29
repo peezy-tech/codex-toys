@@ -1,10 +1,10 @@
-import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
+import type { CodexToyboxTransport } from "../toybox/client.ts";
 import {
-	WORKSPACE_BACKEND_INITIALIZE_METHOD,
-} from "../workspace-backend/index.ts";
+	TOYBOX_INITIALIZE_METHOD,
+} from "../toybox/index.ts";
 import {
-	createLocalAgentTransport,
-	createSshAgentTransport,
+	createLocalToyboxTransport,
+	createSshToyboxTransport,
 	hasSshRemote,
 	type SshRemoteProviderOptions,
 } from "./remote-provider.ts";
@@ -32,7 +32,7 @@ type McpServerOptions = {
 	timeoutMs: number;
 	sshTarget?: string;
 	cwd?: string;
-	agentCommand?: string;
+	toyboxCommand?: string;
 	remoteCodexCommand?: string;
 	remoteCodexArgs?: string[];
 };
@@ -42,21 +42,21 @@ const jsonObjectSchema = {
 	additionalProperties: false,
 };
 
-const agentProperty = {
+const toyboxProperty = {
 	timeoutMs: {
 		type: "number",
 		description: "Request timeout in milliseconds.",
 	},
 };
 
-export const codexFlowsMcpTools: McpToolDefinition[] = [
+export const codexToysMcpTools: McpToolDefinition[] = [
 	{
 		name: "delegate_start",
-		description: "Start a delegated Codex thread in another cwd through the current codex-flows agent.",
+		description: "Start a delegated Codex thread in another cwd through the current codex-toys toybox.",
 		inputSchema: {
 			...jsonObjectSchema,
 			properties: {
-				...agentProperty,
+				...toyboxProperty,
 				cwd: {
 					type: "string",
 					description: "Target cwd. Use @/path for a path under the current workspace root.",
@@ -90,7 +90,7 @@ export const codexFlowsMcpTools: McpToolDefinition[] = [
 		inputSchema: {
 			...jsonObjectSchema,
 			properties: {
-				...agentProperty,
+				...toyboxProperty,
 				includeTargets: { type: "boolean" },
 			},
 		},
@@ -101,7 +101,7 @@ export const codexFlowsMcpTools: McpToolDefinition[] = [
 		inputSchema: {
 			...jsonObjectSchema,
 			properties: {
-				...agentProperty,
+				...toyboxProperty,
 				delegationId: { type: "string" },
 				id: { type: "string" },
 				threadId: { type: "string" },
@@ -110,7 +110,7 @@ export const codexFlowsMcpTools: McpToolDefinition[] = [
 	},
 ];
 
-export function serveCodexFlowsMcp(options: McpServerOptions): void {
+export function serveCodexToysMcp(options: McpServerOptions): void {
 	let buffer = Buffer.alloc(0);
 	process.stdin.on("data", (chunk) => {
 		buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
@@ -152,7 +152,7 @@ async function handleRpcMessage(
 				result: {
 					protocolVersion: "2024-11-05",
 					capabilities: { tools: {} },
-					serverInfo: { name: "codex-flows", version: "0.1.0" },
+					serverInfo: { name: "codex-toys", version: "0.1.0" },
 				},
 			});
 			return;
@@ -161,7 +161,7 @@ async function handleRpcMessage(
 			writeRpc({
 				jsonrpc: "2.0",
 				id: message.id,
-				result: { tools: codexFlowsMcpTools },
+				result: { tools: codexToysMcpTools },
 			});
 			return;
 		}
@@ -169,7 +169,7 @@ async function handleRpcMessage(
 			const params = record(message.params);
 			const name = stringValue(params.name) ?? "";
 			try {
-				const result = await callCodexFlowsMcpTool(
+				const result = await callCodexToysMcpTool(
 					name,
 					record(params.arguments),
 					options,
@@ -211,7 +211,7 @@ async function handleRpcMessage(
 	}
 }
 
-async function callCodexFlowsMcpTool(
+async function callCodexToysMcpTool(
 	name: string,
 	args: Record<string, unknown>,
 	options: McpServerOptions,
@@ -250,26 +250,26 @@ async function callCodexFlowsMcpTool(
 				threadId: stringValue(args.threadId),
 			}));
 		}
-		throw new Error(`unknown codex-flows tool: ${name}`);
+		throw new Error(`unknown codex-toys tool: ${name}`);
 	});
 }
 
 async function withWorkspaceTransport<T>(
 	options: { timeoutMs: number } & SshRemoteProviderOptions,
-	callback: (transport: CodexWorkspaceBackendTransport) => Promise<T>,
+	callback: (transport: CodexToyboxTransport) => Promise<T>,
 ): Promise<T> {
 	const transport = hasSshRemote(options)
-		? createSshAgentTransport(options)
-		: createLocalAgentTransport(options);
+		? createSshToyboxTransport(options)
+		: createLocalToyboxTransport(options);
 	try {
 		transport.start();
-		await transport.request(WORKSPACE_BACKEND_INITIALIZE_METHOD, {
+		await transport.request(TOYBOX_INITIALIZE_METHOD, {
 			clientInfo: {
-				name: "codex-flows-mcp",
-				title: "Codex Flows MCP",
+				name: "codex-toys-mcp",
+				title: "Codex Toys MCP",
 				version: "0.1.0",
 			},
-			capabilities: { appServerPassThrough: true },
+			capabilities: { appPassThrough: true },
 		});
 		return await callback(transport);
 	} finally {

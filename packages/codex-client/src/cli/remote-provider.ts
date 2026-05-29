@@ -1,12 +1,12 @@
 import { CodexStdioTransport } from "../app-server/stdio-transport.ts";
-import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
+import type { CodexToyboxTransport } from "../toybox/client.ts";
 import { parseJsonText } from "./json.ts";
 
 export type SshRemoteProviderOptions = {
 	sshTarget?: string;
 	cwd?: string;
 	remotePathPrepend?: string;
-	agentCommand?: string;
+	toyboxCommand?: string;
 	remoteCodexCommand?: string;
 	remoteCodexArgs?: string[];
 	timeoutMs: number;
@@ -18,36 +18,36 @@ export type ResolvedSshRemoteOptions = {
 	cwd?: string;
 	remotePathPrepend?: string;
 	sshCommand: string;
-	agentCommand: string;
+	toyboxCommand: string;
 	remoteCodexCommand: string;
 	remoteCodexArgs: string[];
 	timeoutMs: number;
 };
 
-export type AgentPlan = {
-	kind: "agent";
+export type ToyboxPlan = {
+	kind: "toybox";
 	command: string[];
 	remoteCommand: string;
 };
 
-export type AgentTransport = CodexStdioTransport & {
-	agentPlan: AgentPlan;
-	agentStderr: string[];
+export type ToyboxTransport = CodexStdioTransport & {
+	toyboxPlan: ToyboxPlan;
+	toyboxStderr: string[];
 };
 
 const removedRemoteEnvVars = [
-	"CODEX_FLOWS_REMOTE_MODE",
-	"CODEX_FLOWS_REMOTE_TUNNEL_PORT",
-	"CODEX_FLOWS_REMOTE_BACKEND_HOST",
-	"CODEX_FLOWS_REMOTE_BACKEND_PORT",
-	"CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_COMMAND",
-	"CODEX_FLOWS_REMOTE_WORKSPACE_BACKEND_ARGS",
+	"CODEX_TOYS_REMOTE_MODE",
+	"CODEX_TOYS_REMOTE_TUNNEL_PORT",
+	"CODEX_TOYS_REMOTE_BACKEND_HOST",
+	"CODEX_TOYS_REMOTE_BACKEND_PORT",
+	"CODEX_TOYS_REMOTE_TOYBOX_COMMAND",
+	"CODEX_TOYS_REMOTE_TOYBOX_ARGS",
 ];
 
 export function hasSshRemote(
 	options: Pick<SshRemoteProviderOptions, "sshTarget" | "env">,
 ): boolean {
-	return Boolean(options.sshTarget ?? options.env?.CODEX_FLOWS_REMOTE_SSH_TARGET);
+	return Boolean(options.sshTarget ?? options.env?.CODEX_TOYS_REMOTE_SSH_TARGET);
 }
 
 export function resolveSshRemoteOptions(
@@ -55,50 +55,50 @@ export function resolveSshRemoteOptions(
 ): ResolvedSshRemoteOptions {
 	const env = options.env ?? process.env;
 	rejectRemovedRemoteEnvVars(env);
-	const sshTarget = options.sshTarget ?? env.CODEX_FLOWS_REMOTE_SSH_TARGET;
+	const sshTarget = options.sshTarget ?? env.CODEX_TOYS_REMOTE_SSH_TARGET;
 	if (!sshTarget?.trim()) {
 		throw new Error(
-			"SSH remote provider requires --ssh <target> or CODEX_FLOWS_REMOTE_SSH_TARGET",
+			"SSH remote provider requires --ssh <target> or CODEX_TOYS_REMOTE_SSH_TARGET",
 		);
 	}
-	const agentCommand = options.agentCommand ??
-		env.CODEX_FLOWS_AGENT_COMMAND ??
-		"codex-flows";
+	const toyboxCommand = options.toyboxCommand ??
+		env.CODEX_TOYS_TOYBOX_COMMAND ??
+		"codex-toys";
 	const remoteCodexCommand = options.remoteCodexCommand ??
-		env.CODEX_FLOWS_REMOTE_CODEX_COMMAND ??
+		env.CODEX_TOYS_REMOTE_CODEX_COMMAND ??
 		"codex";
 	rejectInlineEnvCommand(
-		"CODEX_FLOWS_AGENT_COMMAND",
-		agentCommand,
+		"CODEX_TOYS_TOYBOX_COMMAND",
+		toyboxCommand,
 	);
 	rejectInlineEnvCommand(
-		"CODEX_FLOWS_REMOTE_CODEX_COMMAND",
+		"CODEX_TOYS_REMOTE_CODEX_COMMAND",
 		remoteCodexCommand,
 	);
 	return {
 		sshTarget,
-		...(options.cwd ?? env.CODEX_FLOWS_REMOTE_CWD
-			? { cwd: options.cwd ?? env.CODEX_FLOWS_REMOTE_CWD }
+		...(options.cwd ?? env.CODEX_TOYS_REMOTE_CWD
+			? { cwd: options.cwd ?? env.CODEX_TOYS_REMOTE_CWD }
 			: {}),
-		...(options.remotePathPrepend ?? env.CODEX_FLOWS_REMOTE_PATH_PREPEND
-			? { remotePathPrepend: options.remotePathPrepend ?? env.CODEX_FLOWS_REMOTE_PATH_PREPEND }
+		...(options.remotePathPrepend ?? env.CODEX_TOYS_REMOTE_PATH_PREPEND
+			? { remotePathPrepend: options.remotePathPrepend ?? env.CODEX_TOYS_REMOTE_PATH_PREPEND }
 			: {}),
-		sshCommand: env.CODEX_FLOWS_SSH_COMMAND ?? "ssh",
-		agentCommand,
+		sshCommand: env.CODEX_TOYS_SSH_COMMAND ?? "ssh",
+		toyboxCommand,
 		remoteCodexCommand,
 		remoteCodexArgs: options.remoteCodexArgs ??
-			envJsonStringArray(env.CODEX_FLOWS_REMOTE_CODEX_ARGS, "CODEX_FLOWS_REMOTE_CODEX_ARGS") ??
+			envJsonStringArray(env.CODEX_TOYS_REMOTE_CODEX_ARGS, "CODEX_TOYS_REMOTE_CODEX_ARGS") ??
 			[],
 		timeoutMs: options.timeoutMs,
 	};
 }
 
-export function createSshAgentPlan(
+export function createSshToyboxPlan(
 	options: SshRemoteProviderOptions,
-): AgentPlan {
+): ToyboxPlan {
 	const resolved = resolveSshRemoteOptions(options);
-	const agentArgs = [
-		"agent",
+	const toyboxArgs = [
+		"toybox",
 		"serve",
 		"--timeout-ms",
 		String(resolved.timeoutMs),
@@ -109,10 +109,10 @@ export function createSshAgentPlan(
 	];
 	const remoteCommand = withRemoteBootstrap(
 		resolved,
-		`exec ${shellCommand(resolved.agentCommand, agentArgs)}`,
+		`exec ${shellCommand(resolved.toyboxCommand, toyboxArgs)}`,
 	);
 	return {
-		kind: "agent",
+		kind: "toybox",
 		command: [
 			resolved.sshCommand,
 			"-T",
@@ -123,18 +123,18 @@ export function createSshAgentPlan(
 	};
 }
 
-export function createSshAgentTransport(
+export function createSshToyboxTransport(
 	options: SshRemoteProviderOptions,
-): AgentTransport {
-	const plan = createSshAgentPlan(options);
+): ToyboxTransport {
+	const plan = createSshToyboxPlan(options);
 	const stderr: string[] = [];
 	const transport = new CodexStdioTransport({
 		codexCommand: plan.command[0],
 		args: plan.command.slice(1),
 		requestTimeoutMs: options.timeoutMs,
-	}) as AgentTransport;
-	transport.agentPlan = plan;
-	transport.agentStderr = stderr;
+	}) as ToyboxTransport;
+	transport.toyboxPlan = plan;
+	transport.toyboxStderr = stderr;
 	transport.on("stderr", (line) => {
 		stderr.push(line);
 		trimBuffer(stderr);
@@ -142,24 +142,24 @@ export function createSshAgentTransport(
 	return transport;
 }
 
-export function createLocalAgentTransport(
-	options: Pick<SshRemoteProviderOptions, "cwd" | "agentCommand" | "remoteCodexCommand" | "remoteCodexArgs" | "timeoutMs" | "env">,
-): AgentTransport {
+export function createLocalToyboxTransport(
+	options: Pick<SshRemoteProviderOptions, "cwd" | "toyboxCommand" | "remoteCodexCommand" | "remoteCodexArgs" | "timeoutMs" | "env">,
+): ToyboxTransport {
 	const env = options.env ?? process.env;
-	const agentCommand = options.agentCommand ??
-		env.CODEX_FLOWS_AGENT_COMMAND ??
-		"codex-flows";
+	const toyboxCommand = options.toyboxCommand ??
+		env.CODEX_TOYS_TOYBOX_COMMAND ??
+		"codex-toys";
 	const codexCommand = options.remoteCodexCommand ??
-		env.CODEX_FLOWS_CODEX_COMMAND ??
-		env.CODEX_FLOWS_REMOTE_CODEX_COMMAND ??
+		env.CODEX_TOYS_CODEX_COMMAND ??
+		env.CODEX_TOYS_REMOTE_CODEX_COMMAND ??
 		"codex";
 	const codexArgs = options.remoteCodexArgs ??
-		envJsonStringArray(env.CODEX_FLOWS_CODEX_ARGS, "CODEX_FLOWS_CODEX_ARGS") ??
-		envJsonStringArray(env.CODEX_FLOWS_REMOTE_CODEX_ARGS, "CODEX_FLOWS_REMOTE_CODEX_ARGS") ??
+		envJsonStringArray(env.CODEX_TOYS_CODEX_ARGS, "CODEX_TOYS_CODEX_ARGS") ??
+		envJsonStringArray(env.CODEX_TOYS_REMOTE_CODEX_ARGS, "CODEX_TOYS_REMOTE_CODEX_ARGS") ??
 		[];
 	const command = [
-		agentCommand,
-		"agent",
+		toyboxCommand,
+		"toybox",
 		"serve",
 		"--timeout-ms",
 		String(options.timeoutMs),
@@ -172,31 +172,31 @@ export function createLocalAgentTransport(
 		codexCommand: command[0],
 		args: command.slice(1),
 		requestTimeoutMs: options.timeoutMs,
-	}) as AgentTransport;
-	transport.agentPlan = {
-		kind: "agent",
+	}) as ToyboxTransport;
+	transport.toyboxPlan = {
+		kind: "toybox",
 		command,
 		remoteCommand: shellCommand(command[0]!, command.slice(1)),
 	};
-	transport.agentStderr = [];
+	transport.toyboxStderr = [];
 	transport.on("stderr", (line) => {
-		transport.agentStderr.push(line);
-		trimBuffer(transport.agentStderr);
+		transport.toyboxStderr.push(line);
+		trimBuffer(transport.toyboxStderr);
 	});
 	return transport;
 }
 
-export async function withSshRemoteWorkspaceTransport<T>(
+export async function withSshRemoteToyboxTransport<T>(
 	options: SshRemoteProviderOptions,
-	callback: (transport: CodexWorkspaceBackendTransport) => Promise<T>,
+	callback: (transport: CodexToyboxTransport) => Promise<T>,
 ): Promise<T> {
 	const resolved = resolveSshRemoteOptions(options);
-	const transport = createSshAgentTransport(options);
+	const transport = createSshToyboxTransport(options);
 	try {
 		transport.start();
 		return await callback(transport);
 	} catch (error) {
-		throw remoteProviderError(error, resolved, transport.agentStderr);
+		throw remoteProviderError(error, resolved, transport.toyboxStderr);
 	} finally {
 		transport.close();
 	}
@@ -235,11 +235,11 @@ function remoteProviderError(
 	const remoteOutput = stderr.join("\n").trim();
 	return new Error(
 		[
-			"SSH remote provider could not use the CodexFlows remote agent.",
+			"SSH remote provider could not use the CodexToys remote toybox.",
 			`target: ${resolved.sshTarget}`,
 			`cwd: ${resolved.cwd ?? "(not set)"}`,
 			`remote path prepend: ${resolved.remotePathPrepend ?? "(not set)"}`,
-			`agent command: ${resolved.agentCommand}`,
+			`toybox command: ${resolved.toyboxCommand}`,
 			`remote codex command: ${
 				[resolved.remoteCodexCommand, ...resolved.remoteCodexArgs].join(" ")
 			}`,
@@ -247,7 +247,7 @@ function remoteProviderError(
 			...(remoteOutput
 				? [`remote stderr:\n${redact(remoteOutput).split(/\r?\n/).slice(0, 20).join("\n")}`]
 				: []),
-			"Install @peezy.tech/codex-flows on the SSH target, ensure node and codex are available in the non-interactive SSH PATH, or set CODEX_FLOWS_REMOTE_PATH_PREPEND / CODEX_FLOWS_AGENT_COMMAND / CODEX_FLOWS_REMOTE_CODEX_COMMAND.",
+			"Install codex-toys on the SSH target, ensure node and codex are available in the non-interactive SSH PATH, or set CODEX_TOYS_REMOTE_PATH_PREPEND / CODEX_TOYS_TOYBOX_COMMAND / CODEX_TOYS_REMOTE_CODEX_COMMAND.",
 		].join("\n"),
 	);
 }
@@ -256,7 +256,7 @@ function rejectInlineEnvCommand(label: string, command: string): void {
 	if (/^\s*[A-Za-z_][A-Za-z0-9_]*=.*\s+\S/.test(command)) {
 		throw new Error(
 			`${label} must be a command name or path, not an inline environment assignment. ` +
-				"Set CODEX_FLOWS_REMOTE_PATH_PREPEND for PATH changes or use an absolute command path.",
+				"Set CODEX_TOYS_REMOTE_PATH_PREPEND for PATH changes or use an absolute command path.",
 		);
 	}
 }
@@ -269,7 +269,7 @@ function rejectRemovedRemoteEnvVars(env: Record<string, string | undefined>): vo
 	throw new Error(
 		`Removed SSH backend/tunnel environment variables are no longer supported: ${
 			present.join(", ")
-			}. Install @peezy.tech/codex-flows on the SSH target and use the SSH agent provider instead.`,
+			}. Install codex-toys on the SSH target and use the SSH toybox provider instead.`,
 	);
 }
 

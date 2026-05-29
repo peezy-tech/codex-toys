@@ -10,7 +10,7 @@ import {
 
 describe("remote automation methods", () => {
 	test("discover and run named automations against the remote filesystem", async () => {
-		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-remote-automation-"));
+		const root = await mkdtemp(path.join(tmpdir(), "codex-toys-remote-automation-"));
 		const automationRoot = path.join(root, ".codex", "automations", "gm");
 		const eventRoot = path.join(root, ".codex", "events", "gm");
 		await mkdir(path.join(automationRoot, "exec"), { recursive: true });

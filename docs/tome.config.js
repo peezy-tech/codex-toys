@@ -1,6 +1,6 @@
 /** @type {import('@tomehq/core').TomeConfig} */
 export default {
-	name: "codex-flows",
+	name: "codex-toys",
 	basePath: "/docs",
 	theme: {
 		preset: "editorial",
@@ -33,13 +33,13 @@ export default {
 				"concepts/architecture",
 				"concepts/backends",
 				"concepts/domain-boundaries",
-				"concepts/workspace-backends",
-				"concepts/workspace-backend-deployments",
+				"concepts/toyboxes",
+				"concepts/toybox-deployments",
 			],
 		},
 	],
 	topNav: [
-		{ label: "GitHub", href: "https://github.com/peezy-tech/codex-flows" },
-		{ label: "Release", href: "https://github.com/peezy-tech/codex-flows/blob/main/RELEASE.md" },
+		{ label: "GitHub", href: "https://github.com/peezy-tech/codex-toys" },
+		{ label: "Release", href: "https://github.com/peezy-tech/codex-toys/blob/main/RELEASE.md" },
 	],
 };

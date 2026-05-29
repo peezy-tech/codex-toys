@@ -19,7 +19,7 @@ describe("turn automation", () => {
 	});
 
 	test("runs module-style scripts and passes prompt context", async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-"));
+		const dir = await mkdtemp(path.join(tmpdir(), "codex-toys-automation-"));
 		const scriptPath = path.join(dir, "check.ts");
 		await writeFile(scriptPath, `
 export default function run(context) {
@@ -47,7 +47,7 @@ export default function run(context) {
 	});
 
 	test("runs module scripts with a programmable host API", async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-host-"));
+		const dir = await mkdtemp(path.join(tmpdir(), "codex-toys-automation-host-"));
 		const scriptPath = path.join(dir, "check.ts");
 		await writeFile(scriptPath, `
 export default async function run(ctx) {
@@ -80,7 +80,7 @@ export default async function run(ctx) {
 	});
 
 	test("fails module-style scripts that throw", async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-"));
+		const dir = await mkdtemp(path.join(tmpdir(), "codex-toys-automation-"));
 		const scriptPath = path.join(dir, "check.ts");
 		await writeFile(scriptPath, `
 export default function run() {
@@ -94,7 +94,7 @@ export default function run() {
 	});
 
 	test("discovers named automation manifests", async () => {
-		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-root-"));
+		const root = await mkdtemp(path.join(tmpdir(), "codex-toys-automation-root-"));
 		const automationRoot = path.join(root, "automations", "release-check");
 		await mkdir(automationRoot, { recursive: true });
 		await writeFile(path.join(automationRoot, "check.ts"), "export default () => ({ status: 'skipped' });");
@@ -125,7 +125,7 @@ export default function run() {
 	});
 
 	test("resolves workspace-root cwd aliases in automation manifests", async () => {
-		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-workspace-root-"));
+		const root = await mkdtemp(path.join(tmpdir(), "codex-toys-automation-workspace-root-"));
 		const automationRoot = path.join(root, ".codex", "automations", "release-check");
 		await mkdir(automationRoot, { recursive: true });
 		await writeFile(path.join(automationRoot, "check.ts"), `
@@ -158,7 +158,7 @@ export default function run(context) {
 	});
 
 	test("rejects workspace-root cwd aliases that escape the workspace", async () => {
-		const root = await mkdtemp(path.join(tmpdir(), "codex-flows-automation-bad-workspace-root-"));
+		const root = await mkdtemp(path.join(tmpdir(), "codex-toys-automation-bad-workspace-root-"));
 		const automationRoot = path.join(root, ".codex", "automations", "release-check");
 		await mkdir(automationRoot, { recursive: true });
 		await writeFile(path.join(automationRoot, "check.ts"), "export default () => ({ status: 'skipped' });");

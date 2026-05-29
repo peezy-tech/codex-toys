@@ -6,7 +6,7 @@ import type { v2 } from "../app-server/generated/index.ts";
 import type {
 	WorkspaceDelegation,
 	WorkspaceDelegationStatus,
-} from "../workspace-backend/index.ts";
+} from "../toybox/index.ts";
 import { parseJsonText } from "./json.ts";
 
 const MODULE_RESULT_PREFIX = "TURN_AUTOMATION_MODULE_RESULT ";
@@ -302,7 +302,7 @@ export function createTurnAutomationHost(
 		}
 		if (call.method === "workspace.call") {
 			if (!options.workspaceRequest) {
-				throw new Error("ctx.workspace.call is only available through a codex-flows agent");
+				throw new Error("ctx.workspace.call is only available through a codex-toys toybox");
 			}
 			const params = record(call.params);
 			return await options.workspaceRequest(
@@ -396,7 +396,7 @@ async function workspaceHostRequest<T = unknown>(
 	params: unknown,
 ): Promise<T> {
 	if (!options.workspaceRequest) {
-		throw new Error("context.delegate is only available through a codex-flows agent");
+		throw new Error("context.delegate is only available through a codex-toys toybox");
 	}
 	return await options.workspaceRequest(method, params) as T;
 }

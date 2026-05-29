@@ -1,0 +1,61 @@
+name: Publish codex-toys packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_package:
+        description: "Type codex-toys or publish-codex-toys-packages"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: inputs.confirm_package == 'publish-codex-toys-packages' || inputs.confirm_package == 'codex-toys'
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup VitePlus
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: 24
+          cache: true
+
+      - name: Setup npm publishing
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm
+        run: npm install -g npm@^11.10.0
+
+      - name: Install pnpm
+        run: npm install -g pnpm@11.1.3
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Release check
+        run: vp run release:check
+
+      - name: Publish codex-toys
+        if: inputs.confirm_package == 'publish-codex-toys-packages' || inputs.confirm_package == 'codex-toys'
+        working-directory: packages/codex-client
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "codex-toys@$version" version --json >/dev/null 2>&1; then
+            echo "codex-toys@$version is already published"
+          else
+            tmpdir=$(mktemp -d)
+            trap 'rm -rf "$tmpdir"' EXIT
+            pnpm pack --pack-destination "$tmpdir"
+            tarball=$(find "$tmpdir" -maxdepth 1 -name '*.tgz' -print -quit)
+            npm publish "$tarball" --access public --provenance
+          fi

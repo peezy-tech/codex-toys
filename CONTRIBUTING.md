@@ -22,16 +22,14 @@ and reapply that label to approve another run for the new head. PRs that change
 `.forgejo/workflows` need the maintainer-applied `ci:reviewed-workflow` label
 before the policy check passes.
 
-This is a Node 24 + pnpm + VitePlus monorepo. Keep changes scoped to the smallest package, app, flow,
+This is a Node 24 + pnpm + VitePlus monorepo. Keep changes scoped to the smallest package, automation,
 or docs surface that solves the problem:
 
-- `packages/codex-client` owns the public `@peezy.tech/codex-flows` package,
-  app-server clients, generated protocol types, workspace helpers, and bundled
-  bins.
-- `apps/workspace-backend` owns the runnable local workspace backend app that is
-  bundled into the core package.
+- `packages/codex-client` owns the public `codex-toys` package,
+  app-server clients, generated protocol types, toybox helpers, CLI, proxy,
+  and bundled bins.
 - Discord gateway integrations are extracted from the main monorepo lifecycle.
-  Keep shared runtime surfaces in `@peezy.tech/codex-flows`; channel-specific
+  Keep shared runtime surfaces in `codex-toys`; channel-specific
   packages should live in their own repository and depend on the published core
   package.
 - `docs/pages` is the canonical user documentation.

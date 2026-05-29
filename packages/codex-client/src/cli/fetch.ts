@@ -17,10 +17,10 @@ export type FetchInfo = {
 	shell?: string;
 	cwd: string;
 	codexCommand: string;
-	agentUrl: string;
+	toyboxUrl: string;
 	codexHome: string;
 	workspace?: WorkspaceDoctorInfo;
-	agent: FetchAgentInfo;
+	toybox: FetchToyboxInfo;
 };
 
 export type FetchInfoOptions = {
@@ -28,10 +28,10 @@ export type FetchInfoOptions = {
 	cwd?: string;
 	appUrl: string;
 	workspaceUrl: string;
-	agent?: FetchAgentInfo;
+	toybox?: FetchToyboxInfo;
 };
 
-export type FetchAgentInfo = {
+export type FetchToyboxInfo = {
 	transport: "local" | "ssh";
 	status: "connected" | "unavailable";
 	url?: string;
@@ -40,7 +40,7 @@ export type FetchAgentInfo = {
 		version: string;
 	};
 	capabilities?: {
-		workspaceMethods: number;
+		toyboxMethods: number;
 	};
 	threads?: FetchThreadsInfo;
 	delegations?: FetchCountInfo;
@@ -92,13 +92,13 @@ export async function collectFetchInfo(
 		...(env.SHELL || env.ComSpec ? { shell: env.SHELL ?? env.ComSpec } : {}),
 		cwd: options.cwd ?? process.cwd(),
 		codexCommand: env.CODEX_APP_SERVER_CODEX_COMMAND ?? "codex",
-		agentUrl: options.workspaceUrl,
+		toyboxUrl: options.workspaceUrl,
 		codexHome: env.CODEX_HOME ?? defaultCodexHome(),
 		...(workspace ? { workspace } : {}),
-		agent: options.agent ?? {
+		toybox: options.toybox ?? {
 			transport: "local",
 			status: "unavailable",
-			error: "No agent probe was run",
+			error: "No toybox probe was run",
 		},
 	};
 }
@@ -116,7 +116,7 @@ export function formatFetchInfo(
 		["shell", info.shell ?? "unknown"],
 		["cwd", info.cwd],
 		["codex", info.codexCommand],
-		["agent", info.agentUrl],
+		["toybox", info.toyboxUrl],
 		["CODEX_HOME", info.codexHome],
 		...(info.workspace
 			? [
@@ -126,8 +126,8 @@ export function formatFetchInfo(
 					["tasks", `${info.workspace.taskCount} configured, ${info.workspace.dueCount} due, ${info.workspace.failingCount} failing`],
 				] as Array<[string, string]>
 			: []),
-		["agent status", agentLabel(info.agent)],
-		...agentRows(info.agent),
+		["toybox status", toyboxLabel(info.toybox)],
+		...toyboxRows(info.toybox),
 	];
 	const logo = [
 		"    ______          ",
@@ -136,12 +136,13 @@ export function formatFetchInfo(
 		" / /___/ /_/ / /_/ /",
 		" \\____/\\____/ .___/ ",
 		"           /_/      ",
-		"  codex-flows       ",
+		"  codex-toys       ",
 	];
 	const width = Math.max(...logo.map((line) => line.length));
 	const lines = rows.map(([label, value], index) => {
 		const left = paint.logo(logo[index] ?? "".padEnd(width));
-		return `${left}  ${paint.label(label.padEnd(13))}${paint.value(value)}`;
+		const paddedLabel = label.padEnd(Math.max(13, label.length + 1));
+		return `${left}  ${paint.label(paddedLabel)}${paint.value(value)}`;
 	});
 	for (let index = rows.length; index < logo.length; index += 1) {
 		lines.push(paint.logo(logo[index] ?? ""));
@@ -149,35 +150,35 @@ export function formatFetchInfo(
 	return `${lines.join("\n")}\n`;
 }
 
-function agentLabel(agent: FetchAgentInfo): string {
-	if (agent.status === "connected") {
-		return agent.url ? `${agent.transport} connected (${agent.url})` : `${agent.transport} connected`;
+function toyboxLabel(toybox: FetchToyboxInfo): string {
+	if (toybox.status === "connected") {
+		return toybox.url ? `${toybox.transport} connected (${toybox.url})` : `${toybox.transport} connected`;
 	}
-	return agent.error ? `unavailable (${agent.error})` : "unavailable";
+	return toybox.error ? `unavailable (${toybox.error})` : "unavailable";
 }
 
-function agentRows(agent: FetchAgentInfo): Array<[string, string]> {
+function toyboxRows(toybox: FetchToyboxInfo): Array<[string, string]> {
 	const rows: Array<[string, string]> = [];
-	if (agent.server) {
-		rows.push(["server", `${agent.server.name}@${agent.server.version}`]);
+	if (toybox.server) {
+		rows.push(["server", `${toybox.server.name}@${toybox.server.version}`]);
 	}
-	if (agent.capabilities) {
+	if (toybox.capabilities) {
 		rows.push([
 			"capabilities",
-			`${agent.capabilities.workspaceMethods} methods`,
+			`${toybox.capabilities.toyboxMethods} methods`,
 		]);
 	}
-	if (agent.threads) {
-		rows.push(["threads", countLabel(agent.threads)]);
-		for (const thread of agent.threads.latest.slice(0, 3)) {
+	if (toybox.threads) {
+		rows.push(["threads", countLabel(toybox.threads)]);
+		for (const thread of toybox.threads.latest.slice(0, 3)) {
 			rows.push(["latest", `${thread.status} ${thread.label} ${compactId(thread.id)}`]);
 		}
-		if (agent.threads.error) {
-			rows.push(["thread error", agent.threads.error]);
+		if (toybox.threads.error) {
+			rows.push(["thread error", toybox.threads.error]);
 		}
 	}
-	if (agent.delegations) {
-		rows.push(["delegations", countLabel(agent.delegations)]);
+	if (toybox.delegations) {
+		rows.push(["delegations", countLabel(toybox.delegations)]);
 	}
 	return rows;
 }
@@ -210,7 +211,7 @@ async function readPackageJson(): Promise<{ name: string; version: string }> {
 	const packageUrl = new URL("../../package.json", import.meta.url);
 	const parsed = await readJsonFile(packageUrl, "package.json");
 	if (!isRecord(parsed) || typeof parsed.name !== "string" || typeof parsed.version !== "string") {
-		return { name: "@peezy.tech/codex-flows", version: "unknown" };
+		return { name: "codex-toys", version: "unknown" };
 	}
 	return { name: parsed.name, version: parsed.version };
 }

@@ -4,7 +4,7 @@ import type {
 	WorkspaceDelegationReturnMode,
 	WorkspaceDelegationStatus,
 	WorkspaceDelegationTarget,
-} from "../workspace-backend/index.ts";
+} from "../toybox/index.ts";
 
 export type WorkspaceDelegationRequest = <T = unknown>(
 	method: string,

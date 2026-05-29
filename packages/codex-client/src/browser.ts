@@ -50,18 +50,18 @@ export type {
 	WaitForLoginOptions,
 } from "./app-server/auth.ts";
 
-export type CodexFlowsBrowserClientOptions = {
+export type CodexToysBrowserClientOptions = {
 	basePath?: string;
 	fetch?: typeof fetch;
 };
 
-export type CodexFlowsBrowserFunctionsClient = {
+export type CodexToysBrowserFunctionsClient = {
 	list(): Promise<WorkspaceFunctionMetadata[]>;
 	describe(name: string): Promise<WorkspaceFunctionMetadata>;
 	call<T = unknown>(name: string, params?: unknown): Promise<T>;
 };
 
-export type CodexFlowsBrowserClient = {
+export type CodexToysBrowserClient = {
 	rpc<T = unknown>(method: string, params?: unknown): Promise<T>;
 	app: {
 		call<T = unknown>(method: string, params?: unknown): Promise<T>;
@@ -69,14 +69,14 @@ export type CodexFlowsBrowserClient = {
 	workspace: {
 		call<T = unknown>(method: string, params?: unknown): Promise<T>;
 	};
-	functions: CodexFlowsBrowserFunctionsClient;
+	functions: CodexToysBrowserFunctionsClient;
 	status(): Promise<unknown>;
 	schema(): Promise<unknown>;
 };
 
-export function createCodexFlowsBrowserClient(
-	options: CodexFlowsBrowserClientOptions = {},
-): CodexFlowsBrowserClient {
+export function createCodexToysBrowserClient(
+	options: CodexToysBrowserClientOptions = {},
+): CodexToysBrowserClient {
 	const basePath = (options.basePath ?? "/api").replace(/\/$/, "");
 	const fetchImpl = options.fetch ?? fetch;
 	const post = async <T = unknown>(url: string, body: unknown): Promise<T> =>
@@ -124,7 +124,7 @@ export function createCodexFlowsBrowserClient(
 	};
 }
 
-export const codexFlows = createCodexFlowsBrowserClient();
+export const codexToys = createCodexToysBrowserClient();
 
 async function requestJson<T = unknown>(
 	fetchImpl: typeof fetch,
@@ -136,7 +136,7 @@ async function requestJson<T = unknown>(
 	const parsed = text ? JSON.parse(text) as unknown : undefined;
 	if (!response.ok) {
 		const input = parsed && typeof parsed === "object" ? parsed as { error?: unknown } : {};
-		throw new Error(typeof input.error === "string" ? input.error : `Codex Flows request failed: ${response.status}`);
+		throw new Error(typeof input.error === "string" ? input.error : `Codex Toys request failed: ${response.status}`);
 	}
 	return parsed as T;
 }

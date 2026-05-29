@@ -23,8 +23,8 @@ export const COMMON_APP_SERVER_ACTIONS = [
 	"mcpServer/tool/call",
 ] as const;
 
-export const COMMON_WORKSPACE_BACKEND_METHODS = [
-	"workspace.initialize",
+export const COMMON_TOYBOX_METHODS = [
+	"toybox.initialize",
 	"delegation.list",
 	"delegation.start",
 	"delegation.resume",

@@ -1,71 +1,71 @@
 ---
 title: CLI reference
-description: Commands for Codex-native agents, turn automation, app-server calls, workspace methods, workspace autonomy, memory transplant, thread transplant, and pack repos.
+description: Commands for Codex-native toyboxes, turn automation, app-server calls, workspace methods, workspace autonomy, memory transplant, thread transplant, and pack repos.
 ---
 
 # CLI reference
 
-`codex-flows` is Codex-native workspace porcelain. Local commands spawn
-`codex-flows agent serve` over stdio. SSH commands start the same agent on the
+`codex-toys` is Codex-native workspace porcelain. Local commands spawn
+`codex-toys toybox serve` over stdio. SSH commands start the same toybox on the
 target host and speak JSON-RPC over SSH stdio. Core commands do not host
 WebSocket or HTTP servers.
 
-The optional `codex-flows-proxy` binary is the browser edge. It starts or
-connects to an agent internally and exposes a small generic HTTP API for
+The optional `codex-toys-proxy` binary is the browser edge. It starts or
+connects to a toybox internally and exposes a small generic HTTP API for
 freeform HTML/JS dashboards.
 
 ```bash
-codex-flows --help
-codex-flows mcp serve
-codex-flows agent serve [--cwd <path>]
-codex-flows-proxy serve --cwd <workspace> [--static <dir>]
-codex-flows-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
+codex-toys --help
+codex-toys mcp serve
+codex-toys toybox serve [--cwd <path>]
+codex-toys-proxy serve --cwd <workspace> [--static <dir>]
+codex-toys-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
 ```
 
 ## Fetch
 
 ```bash
-codex-flows fetch [--json] [--no-color]
-codex-flows neofetch [--json] [--no-color]
-codex-flows --ssh <target> --cwd <remote-workspace> fetch
+codex-toys fetch [--json] [--no-color]
+codex-toys neofetch [--json] [--no-color]
+codex-toys --ssh <target> --cwd <remote-workspace> fetch
 ```
 
 `fetch` prints local package/runtime information and probes the current
-codex-flows agent. With `--ssh`, the probe runs against the remote workspace
-agent without opening a remote port or copying credentials.
+codex-toys toybox. With `--ssh`, the probe runs against the remote workspace
+toybox without opening a remote port or copying credentials.
 
-`fetch --json` uses the agent model directly. The probe result is returned under
-`agentUrl` and `agent`, where `agent.transport` is `local` or `ssh`. SSH fetches
-use the normal request timeout so remote agent startup and app-server
+`fetch --json` uses the toybox model directly. The probe result is returned under
+`toyboxUrl` and `toybox`, where `toybox.transport` is `local` or `ssh`. SSH fetches
+use the normal request timeout so remote toybox startup and app-server
 pass-through are not mistaken for local quick-probe failures.
 
-## Agent
+## Toybox
 
 ```bash
-codex-flows agent serve [--cwd <path>]
+codex-toys toybox serve [--cwd <path>]
 ```
 
-The agent is the single local/remote runtime surface. It owns workspace method
+The toybox is the single local/remote runtime surface. It owns workspace method
 dispatch, app-server pass-through, workspace functions, automations, and
-delegation. `workspace.initialize` returns server information, method names, and
+delegation. `toybox.initialize` returns server information, method names, and
 method metadata so clients and proxies can discover capabilities dynamically.
 
-Use `--codex-command` and repeated `--codex-arg` values when the agent should
+Use `--codex-command` and repeated `--codex-arg` values when the toybox should
 start a specific Codex binary or pass explicit app-server flags.
 
 ## SSH
 
 ```bash
-codex-flows --ssh <target> --cwd <remote-workspace> remote preflight [--json]
-codex-flows --ssh <target> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-flows --ssh <target> --cwd <remote-workspace> workspace delegation.list
-codex-flows --ssh <target> --cwd <remote-workspace> functions list --json
-codex-flows --ssh <target> --cwd <remote-workspace> automation run check-release --event event.json
-codex-flows --ssh <target> --cwd <remote-workspace> turn run "Scan current folder" --wait
+codex-toys --ssh <target> --cwd <remote-workspace> remote preflight [--json]
+codex-toys --ssh <target> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-toys --ssh <target> --cwd <remote-workspace> workspace delegation.list
+codex-toys --ssh <target> --cwd <remote-workspace> functions list --json
+codex-toys --ssh <target> --cwd <remote-workspace> automation run check-release --event event.json
+codex-toys --ssh <target> --cwd <remote-workspace> turn run "Scan current folder" --wait
 ```
 
 `remote preflight` checks SSH reachability, remote cwd, remote Node,
-`codex-flows`, Codex, agent startup, and app-server pass-through. All other
+`codex-toys`, Codex, toybox startup, and app-server pass-through. All other
 commands use `--ssh` directly; there is no separate remote controller command
 family.
 
@@ -74,23 +74,23 @@ Useful SSH options and environment:
 ```bash
 --ssh <user@host>
 --remote-path-prepend /home/me/.local/bin:/home/me/.bun/bin
---agent-command /home/me/.local/bin/codex-flows
+--toybox-command /home/me/.local/bin/codex-toys
 --codex-command /home/me/.local/bin/codex
 --codex-arg -s --codex-arg danger-full-access
 
-CODEX_FLOWS_REMOTE_SSH_TARGET=<user@host>
-CODEX_FLOWS_REMOTE_CWD=/repo
-CODEX_FLOWS_REMOTE_PATH_PREPEND=/home/me/.local/bin:/home/me/.bun/bin
-CODEX_FLOWS_AGENT_COMMAND=codex-flows
-CODEX_FLOWS_REMOTE_CODEX_COMMAND=codex
-CODEX_FLOWS_REMOTE_CODEX_ARGS=["-s","danger-full-access"]
+CODEX_TOYS_REMOTE_SSH_TARGET=<user@host>
+CODEX_TOYS_REMOTE_CWD=/repo
+CODEX_TOYS_REMOTE_PATH_PREPEND=/home/me/.local/bin:/home/me/.bun/bin
+CODEX_TOYS_TOYBOX_COMMAND=codex-toys
+CODEX_TOYS_REMOTE_CODEX_COMMAND=codex
+CODEX_TOYS_REMOTE_CODEX_ARGS=["-s","danger-full-access"]
 ```
 
 ## Proxy
 
 ```bash
-codex-flows-proxy serve --cwd <workspace> [--static <dir>]
-codex-flows-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
+codex-toys-proxy serve --cwd <workspace> [--static <dir>]
+codex-toys-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
 ```
 
 The proxy is an optional HTTP edge for dashboards. It exposes only generic
@@ -104,8 +104,8 @@ POST /api/app/:method
 POST /api/workspace/:method
 ```
 
-`/api/schema` is derived from `workspace.initialize`; route behavior forwards to
-agent methods instead of duplicating feature-specific endpoint logic.
+`/api/schema` is derived from `toybox.initialize`; route behavior forwards to
+toybox methods instead of duplicating feature-specific endpoint logic.
 
 Direct browser calls to the proxy API intentionally receive CORS headers only
 for loopback origins such as `localhost`, `127.0.0.1`, `::1`, and
@@ -116,8 +116,8 @@ when possible.
 ## Turn Run
 
 ```bash
-codex-flows turn run <prompt> [--wait] [--thread-id <id>]
-codex-flows --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
+codex-toys turn run <prompt> [--wait] [--thread-id <id>]
+codex-toys --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 ```
 
 `turn run` is the prompt primitive for local and SSH-backed workspaces. It
@@ -127,37 +127,37 @@ final assistant message.
 ## Turn Automation
 
 ```bash
-codex-flows automation list [--json]
-codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
-codex-flows --ssh <target> --cwd <remote-workspace> automation list [--json]
-codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
+codex-toys automation list [--json]
+codex-toys automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
+codex-toys --ssh <target> --cwd <remote-workspace> automation list [--json]
+codex-toys --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
 ```
 
 Automation scripts run code before deciding whether to start a native Codex
 turn. Scripts can use `context.turn.*`, `context.workspace.call`, and, when
-running through the agent, `context.delegate.*`.
+running through the toybox, `context.delegate.*`.
 
 ## App-Server Calls
 
 ```bash
-codex-flows app <method> [params-json]
-codex-flows app <method> --params-json <json>
-codex-flows app <method> --params-file <file>
-codex-flows app call <method> [params-json]
-echo '<params-json>' | codex-flows app <method>
-codex-flows app actions
+codex-toys app <method> [params-json]
+codex-toys app <method> --params-json <json>
+codex-toys app <method> --params-file <file>
+codex-toys app call <method> [params-json]
+echo '<params-json>' | codex-toys app <method>
+codex-toys app actions
 ```
 
-App calls are generic app-server pass-through via the agent. SSH app calls start
-the remote agent and then call `appServer.call { method, params }`.
+App calls are generic app-server pass-through via the toybox. SSH app calls start
+the remote toybox and then call `app.call { method, params }`.
 
 ## Workspace Functions
 
 ```bash
-codex-flows functions list [--json]
-codex-flows functions describe <name> [--json]
-codex-flows functions call <name> [--params-json <json>] [--json]
-codex-flows --ssh <target> --cwd <remote-workspace> functions list [--json]
+codex-toys functions list [--json]
+codex-toys functions describe <name> [--json]
+codex-toys functions call <name> [--params-json <json>] [--json]
+codex-toys --ssh <target> --cwd <remote-workspace> functions list [--json]
 ```
 
 Functions are JSON-in/JSON-out helpers loaded from `.codex/functions.ts`,
@@ -166,39 +166,39 @@ Functions are JSON-in/JSON-out helpers loaded from `.codex/functions.ts`,
 ## Workspace Methods
 
 ```bash
-codex-flows workspace <method> [params-json]
-codex-flows workspace <method> --params-json <json>
-codex-flows workspace <method> --params-file <file>
-codex-flows workspace call <method> [params-json]
-codex-flows workspace app <method> [params-json]
-codex-flows workspace methods
+codex-toys workspace <method> [params-json]
+codex-toys workspace <method> --params-json <json>
+codex-toys workspace <method> --params-file <file>
+codex-toys workspace call <method> [params-json]
+codex-toys workspace app <method> [params-json]
+codex-toys workspace methods
 ```
 
-Workspace calls go through the agent. `workspace app <method>` is a convenience
+Workspace calls go through the toybox. `workspace app <method>` is a convenience
 alias for generic app-server pass-through.
 
 ## Workspace Delegation
 
 ```bash
-codex-flows workspace delegate list [--json]
-codex-flows workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
-codex-flows --ssh devbox --cwd /home/peezy workspace delegate start --target-cwd @/repos/patch.moi --prompt "Review the branch"
+codex-toys workspace delegate list [--json]
+codex-toys workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
+codex-toys --ssh devbox --cwd /home/peezy workspace delegate start --target-cwd @/repos/patch.moi --prompt "Review the branch"
 ```
 
 Delegation starts normal Codex threads in another cwd and records stable
 delegation metadata under `.codex/workspace/local/delegations.json`. `@/path`
-resolves relative to the agent workspace root; absolute cwd values require an
+resolves relative to the toybox workspace root; absolute cwd values require an
 explicit opt-in.
 
 ## Workspace Autonomy
 
 ```bash
-codex-flows workspace doctor [--mode auto|local|actions] [--json]
-codex-flows workspace tick [--mode auto|local|actions]
-codex-flows workspace run <task-id> [--mode auto|local|actions]
-codex-flows workspace init actions [--forgejo|--github]
-codex-flows actions prepare-auth
-codex-flows actions cleanup
+codex-toys workspace doctor [--mode auto|local|actions] [--json]
+codex-toys workspace tick [--mode auto|local|actions]
+codex-toys workspace run <task-id> [--mode auto|local|actions]
+codex-toys workspace init actions [--forgejo|--github]
+codex-toys actions prepare-auth
+codex-toys actions cleanup
 ```
 
 Workspace autonomy reads `.codex/workspace.toml`, writes local runtime state
@@ -208,9 +208,9 @@ under `.codex/workspace/local`, and writes CI runtime state under
 ## Memories
 
 ```bash
-codex-flows memories transplant global-to-workspace [--apply]
-codex-flows memories transplant workspace-to-global [--apply]
-codex-flows memories transplant global-to-workspace --merge codex [--apply]
+codex-toys memories transplant global-to-workspace [--apply]
+codex-toys memories transplant workspace-to-global [--apply]
+codex-toys memories transplant global-to-workspace --merge codex [--apply]
 ```
 
 Memory transplant is dry-run by default and copies only durable Codex memory
@@ -219,10 +219,10 @@ markdown artifacts.
 ## Threads
 
 ```bash
-codex-flows threads locate <thread-id> [--codex-home <home>]
-codex-flows threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
-codex-flows threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
-codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
+codex-toys threads locate <thread-id> [--codex-home <home>]
+codex-toys threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
+codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
+codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
 ```
 
 Thread helpers locate, inspect, install, and transplant raw Codex rollout JSONL
@@ -231,10 +231,10 @@ files without inventing a separate bundle format.
 ## Packs
 
 ```bash
-codex-flows pack inspect <source> [--json]
-codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]
-codex-flows pack doctor [--json]
-codex-flows pack list [--json]
+codex-toys pack inspect <source> [--json]
+codex-toys pack add <source> [--apply] [--include <name>] [--exclude <name>]
+codex-toys pack doctor [--json]
+codex-toys pack list [--json]
 ```
 
 Pack commands copy selected skills, plugins, and hooks into a workspace and

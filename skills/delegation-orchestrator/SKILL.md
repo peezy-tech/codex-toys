@@ -1,6 +1,6 @@
 ---
 name: delegation-orchestrator
-description: Use when acting as the main Codex workspace operator and coordinating delegated Codex threads through codex-flows workspace delegation methods or local MCP tools for fan-out work, status reads, result flushing, return modes, and group wakes.
+description: Use when acting as the main Codex workspace operator and coordinating delegated Codex threads through codex-toys workspace delegation methods or local MCP tools for fan-out work, status reads, result flushing, return modes, and group wakes.
 ---
 
 # Delegation Orchestrator
@@ -10,8 +10,8 @@ must not receive or use privileged workspace delegation tools.
 
 ## Role
 
-Coordinate work across Codex threads without taking ownership of agent state.
-The codex-flows agent owns delegation records, return policies, pending wakes,
+Coordinate work across Codex threads without taking ownership of toybox state.
+The codex-toys toybox owns delegation records, return policies, pending wakes,
 and presenter-specific metadata. Your job is to choose when to delegate, keep
 prompts crisp, inspect progress, and merge results.
 
@@ -29,11 +29,11 @@ tightly coupled, or the task requires continuous judgment from the main thread.
 
 ## Tool Use
 
-Use `codex-flows workspace delegate list`, `delegation.list`, or the
+Use `codex-toys workspace delegate list`, `delegation.list`, or the
 `delegate_list` MCP tool before starting new work if active delegations may
 already exist.
 
-Use `codex-flows workspace delegate start --cwd @/workspaces/name --prompt ...`,
+Use `codex-toys workspace delegate start --cwd @/workspaces/name --prompt ...`,
 `delegation.start`, or the `delegate_start` MCP tool for new bounded work.
 Include:
 
@@ -99,5 +99,5 @@ Return: <summary, files changed, verification>
 - Do not duplicate work across delegations.
 - Do not delegate vague ownership such as "fix everything".
 - Do not treat presenter-specific details as core delegation state.
-- Preserve the agent boundary: app-server methods stay native and delegation
-  state stays in codex-flows delegation records.
+- Preserve the toybox boundary: app-server methods stay native and delegation
+  state stays in codex-toys delegation records.

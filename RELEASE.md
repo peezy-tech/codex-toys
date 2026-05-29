@@ -8,9 +8,9 @@ Use jojo as the normal development remote:
 
 ```bash
 git remote -v
-# origin    git@jojo.build:peezy-tech/codex-flows.git
-# codeberg  git@codeberg.org:peezy-tech/codex-flows.git
-# github    https://github.com/peezy-tech/codex-flows.git
+# origin    git@jojo.build:peezy-tech/codex-toys.git
+# codeberg  git@codeberg.org:peezy-tech/codex-toys.git
+# github    https://github.com/peezy-tech/codex-toys.git
 ```
 
 Push ordinary development to jojo:
@@ -81,24 +81,24 @@ vp run release:check
 
 Canonical user-facing package:
 
-- `@peezy.tech/codex-flows`
+- `codex-toys`
 
 The GitHub publish workflow checks whether each package version already exists
-on npm. It publishes a new `@peezy.tech/codex-flows` version and skips versions
+on npm. It publishes a new `codex-toys` version and skips versions
 that are already present. Published packages are packed with `pnpm pack` and
 then handed to `npm publish` so workspace and catalog dependency specifiers are
 converted before the npm registry sees the package while GitHub provenance still
 comes from npm.
 Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
-line is `0.132.x`, a breaking codex-flows stack release should usually advance
+line is `0.132.x`, a breaking codex-toys stack release should usually advance
 to `0.132.1` rather than `0.133.0`.
 
 New public core runtime surfaces should be exported through
-`@peezy.tech/codex-flows` first, including reusable protocol helpers and
+`codex-toys` first, including reusable protocol helpers and
 runnable local backend bins. Product- or channel-specific gateways, such as
 Discord text or voice packages, should publish separately and depend on
-`@peezy.tech/codex-flows` from their own repositories.
+`codex-toys` from their own repositories.
 
 Before publishing:
 
@@ -119,9 +119,9 @@ To publish through GitHub trusted publishing:
 3. Confirm the Codeberg mirror has received the commit.
 4. Push the same commit to GitHub.
 5. For a package name that has never existed on npm, create the package/trusted-publisher setup with the owning npm account first. Do not add npm tokens to the repo or GitHub secrets.
-6. Run `.github/workflows/publish-codex-flows.yml` on GitHub with confirmation input `publish-codex-flows-packages`.
+6. Run `.github/workflows/publish-codex-toys.yml` on GitHub with confirmation input `publish-codex-toys-packages`.
 7. Verify npm:
 
 ```bash
-npm dist-tag ls @peezy.tech/codex-flows
+npm dist-tag ls codex-toys
 ```

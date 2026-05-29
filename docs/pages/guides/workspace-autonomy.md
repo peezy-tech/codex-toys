@@ -1,6 +1,6 @@
 ---
 title: Workspace autonomy
-description: Configure and run repo-native scheduled workspace tasks with codex-flows.
+description: Configure and run repo-native scheduled workspace tasks with codex-toys.
 ---
 
 # Workspace autonomy
@@ -47,16 +47,16 @@ and memories. This is enforced centrally: `createWorkspaceContext({ mode:
 ## Commands
 
 ```bash
-codex-flows workspace doctor
-codex-flows workspace tick --mode local
-codex-flows workspace run morning-brief --mode actions
-codex-flows workspace init actions --forgejo
-CODEX_WORKSPACE_MODE=actions codex-flows workspace doctor
+codex-toys workspace doctor
+codex-toys workspace tick --mode local
+codex-toys workspace run morning-brief --mode actions
+codex-toys workspace init actions --forgejo
+CODEX_WORKSPACE_MODE=actions codex-toys workspace doctor
 ```
 
 `doctor` reports mode, repo root, config path, runtime `CODEX_HOME`, state
 roots, task health, latest run, memory roots, memory summary presence, and
-agent status when reachable. In Actions mode it reports an error if
+toybox status when reachable. In Actions mode it reports an error if
 the runtime Codex home would not be `<repo>/.codex`.
 
 `tick` runs due scheduled tasks once and evaluates reactive rules.
@@ -67,16 +67,16 @@ the runtime Codex home would not be `<repo>/.codex`.
 
 - `.codex/workspace.toml`
 - `.codex/config.toml`
-- `.forgejo/workflows/codex-flows-actions.yml` with `--forgejo`
-- `.github/workflows/codex-flows-actions.yml` with `--github`
+- `.forgejo/workflows/codex-toys-actions.yml` with `--forgejo`
+- `.github/workflows/codex-toys-actions.yml` with `--github`
 - `.gitignore` entries for runtime-only Codex files
 
 Existing JSON-RPC passthrough commands stay intact:
 
 ```bash
-codex-flows workspace call <method>
-codex-flows workspace app <method>
-codex-flows workspace methods
+codex-toys workspace call <method>
+codex-toys workspace app <method>
+codex-toys workspace methods
 ```
 
 ## Config
@@ -131,9 +131,9 @@ var = "workspace status"
 
 Runs a named turn automation from `.codex/automations/*` or `automations/*`.
 The automation script can skip, start, wait on, or compose native Codex turns
-through the same codex-flows agent that `workspace tick` is using. With
+through the same codex-toys toybox that `workspace tick` is using. With
 `--ssh --cwd /repo`, named automation resolution and script execution happen in
-the remote workspace through the SSH agent.
+the remote workspace through the SSH toybox.
 
 ```toml
 [[workspace.tasks]]
@@ -195,9 +195,9 @@ Actions jobs should prepare auth, run workspace tasks, cleanup runtime-only
 state, and commit only durable workspace state:
 
 ```bash
-codex-flows actions prepare-auth
-codex-flows workspace tick --mode actions
-codex-flows actions cleanup
+codex-toys actions prepare-auth
+codex-toys workspace tick --mode actions
+codex-toys actions cleanup
 ```
 
 `prepare-auth` accepts secrets in this order:
@@ -226,9 +226,9 @@ Use the Actions helpers to exercise the same repository-scoped Codex home
 without a hosted runner:
 
 ```bash
-codex-flows actions prepare-auth
-codex-flows workspace tick --mode actions
-codex-flows actions cleanup
+codex-toys actions prepare-auth
+codex-toys workspace tick --mode actions
+codex-toys actions cleanup
 ```
 
 `workspace tick --mode actions` runs due workspace tasks and records their

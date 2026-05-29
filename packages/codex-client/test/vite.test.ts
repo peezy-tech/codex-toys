@@ -2,11 +2,11 @@ import { describe, expect, test } from "vite-plus/test";
 import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
 import { createServer } from "vite";
 import { CodexEventEmitter } from "../src/app-server/events.ts";
-import type { CodexWorkspaceBackendTransport } from "../src/workspace-backend/client.ts";
-import { createCodexFlowsProxyHandler } from "../src/proxy.ts";
-import { codexFlowsRemote } from "../src/vite.ts";
+import type { CodexToyboxTransport } from "../src/toybox/client.ts";
+import { createCodexToysProxyHandler } from "../src/proxy.ts";
+import { codexToysRemote } from "../src/vite.ts";
 
-describe("codexFlowsRemote Vite plugin", () => {
+describe("codexToysRemote Vite plugin", () => {
 	test("serves local bridge endpoints and forwards function calls", async () => {
 		const transport = new FakeWorkspaceTransport();
 		const server = await createServer({
@@ -16,30 +16,30 @@ describe("codexFlowsRemote Vite plugin", () => {
 				host: "127.0.0.1",
 				port: 0,
 			},
-			plugins: [codexFlowsRemote({ transport })],
+			plugins: [codexToysRemote({ transport })],
 		});
 		try {
 			await server.listen();
 			const baseUrl = serverBaseUrl(server);
 
-			const status = await fetchJson(`${baseUrl}/__codex_flows/api/status`);
-			expect(status).toMatchObject({ ok: true, agent: { ok: true, cwd: "/remote" } });
+			const status = await fetchJson(`${baseUrl}/__codex_toys/api/status`);
+			expect(status).toMatchObject({ ok: true, toybox: { ok: true, cwd: "/remote" } });
 
-			const schema = await fetchJson(`${baseUrl}/__codex_flows/api/schema`);
+			const schema = await fetchJson(`${baseUrl}/__codex_toys/api/schema`);
 			expect(schema).toMatchObject({
 				capabilities: {
-					workspaceMethods: ["agent.status", "functions.list", "functions.describe", "functions.call"],
+					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call"],
 				},
 			});
 
-			const functions = await fetchJson(`${baseUrl}/__codex_flows/api/workspace/functions.list`, {
+			const functions = await fetchJson(`${baseUrl}/__codex_toys/api/workspace/functions.list`, {
 				method: "POST",
 			});
 			expect(functions).toEqual({
 				functions: [{ name: "snapshot", description: "Read snapshot.", sideEffects: "read-only" }],
 			});
 
-			const described = await fetchJson(`${baseUrl}/__codex_flows/api/workspace/functions.describe`, {
+			const described = await fetchJson(`${baseUrl}/__codex_toys/api/workspace/functions.describe`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ name: "snapshot" }),
@@ -48,15 +48,15 @@ describe("codexFlowsRemote Vite plugin", () => {
 				function: { name: "snapshot", description: "Read snapshot.", sideEffects: "read-only" },
 			});
 
-			const called = await fetchJson(`${baseUrl}/__codex_flows/api/workspace/functions.call`, {
+			const called = await fetchJson(`${baseUrl}/__codex_toys/api/workspace/functions.call`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ name: "snapshot", params: { id: "one" } }),
 			});
 			expect(called).toEqual({ result: { id: "one", ok: true } });
 			expect(transport.requests.map((request) => request.method)).toEqual([
-				"workspace.initialize",
-				"agent.status",
+				"toybox.initialize",
+				"toybox.status",
 				"functions.list",
 				"functions.describe",
 				"functions.call",
@@ -67,7 +67,7 @@ describe("codexFlowsRemote Vite plugin", () => {
 	});
 
 	test("applies loopback-only CORS on the direct proxy API", async () => {
-		const handler = createCodexFlowsProxyHandler({ transport: new FakeWorkspaceTransport() });
+		const handler = createCodexToysProxyHandler({ transport: new FakeWorkspaceTransport() });
 		const server = createHttpServer((request, response) => {
 			void handler(request, response);
 		});
@@ -103,7 +103,7 @@ describe("codexFlowsRemote Vite plugin", () => {
 	});
 });
 
-class FakeWorkspaceTransport extends CodexEventEmitter implements CodexWorkspaceBackendTransport {
+class FakeWorkspaceTransport extends CodexEventEmitter implements CodexToyboxTransport {
 	readonly requestTimeoutMs = 1_000;
 	requests: Array<{ method: string; params?: unknown }> = [];
 
@@ -115,18 +115,18 @@ class FakeWorkspaceTransport extends CodexEventEmitter implements CodexWorkspace
 
 	async request<T = unknown>(method: string, params?: unknown): Promise<T> {
 		this.requests.push({ method, params });
-		if (method === "workspace.initialize") {
+		if (method === "toybox.initialize") {
 			return {
 				ok: true,
 				serverInfo: { name: "fake", version: "0.1.0" },
 				capabilities: {
-					appServerPassThrough: true,
-					workspaceMethods: ["agent.status", "functions.list", "functions.describe", "functions.call"],
-					workspaceMethodMetadata: [],
+					appPassThrough: true,
+					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call"],
+					toyboxMethodMetadata: [],
 				},
 			} as T;
 		}
-		if (method === "agent.status") {
+		if (method === "toybox.status") {
 			return { ok: true, cwd: "/remote" } as T;
 		}
 		if (method === "functions.list") {

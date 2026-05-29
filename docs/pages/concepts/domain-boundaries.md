@@ -1,6 +1,6 @@
 ---
 title: Domain boundaries
-description: What codex-flows owns and what products must keep.
+description: What codex-toys owns and what products must keep.
 ---
 
 # Domain boundaries
@@ -10,7 +10,7 @@ Turn automation owns prompt automation:
 - running a pre-turn script
 - reading the script's returned JSON result
 - starting, reading, and waiting on native Codex turns through app-server or an
-  agent
+  codex-toys toybox
 - targeting remote workspaces through SSH stdio
 
 It does not own product-specific completion:

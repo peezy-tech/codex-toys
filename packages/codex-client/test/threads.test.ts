@@ -222,7 +222,7 @@ async function writeRollout(
 				source: "test",
 				thread_source: null,
 				model_provider: "openai",
-				originator: "codex-flows-test",
+				originator: "codex-toys-test",
 			},
 		});
 	}

@@ -2,32 +2,32 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import {
-	APP_SERVER_CALL_METHOD,
-	WORKSPACE_BACKEND_INITIALIZE_METHOD,
-	type WorkspaceBackendInitializeResponse,
-} from "./workspace-backend/index.ts";
-import type { CodexWorkspaceBackendTransport } from "./workspace-backend/client.ts";
+	APP_CALL_METHOD,
+	TOYBOX_INITIALIZE_METHOD,
+	type ToyboxInitializeResponse,
+} from "./toybox/index.ts";
+import type { CodexToyboxTransport } from "./toybox/client.ts";
 import {
-	createLocalAgentTransport,
-	createSshAgentTransport,
+	createLocalToyboxTransport,
+	createSshToyboxTransport,
 	hasSshRemote,
 	type SshRemoteProviderOptions,
 } from "./cli/remote-provider.ts";
 
-export type CodexFlowsProxyOptions = Partial<SshRemoteProviderOptions> & {
+export type CodexToysProxyOptions = Partial<SshRemoteProviderOptions> & {
 	staticDir?: string;
 	apiBasePath?: string;
-	transport?: CodexWorkspaceBackendTransport;
+	transport?: CodexToyboxTransport;
 };
 
 type ProxyRequester = {
-	initialize(): Promise<WorkspaceBackendInitializeResponse>;
+	initialize(): Promise<ToyboxInitializeResponse>;
 	request<T = unknown>(method: string, params?: unknown): Promise<T>;
 	close(): void;
 };
 
-export function createCodexFlowsProxyHandler(
-	options: CodexFlowsProxyOptions = {},
+export function createCodexToysProxyHandler(
+	options: CodexToysProxyOptions = {},
 ): (request: IncomingMessage, response: ServerResponse, next?: () => void) => Promise<void> {
 	const apiBasePath = normalizeBasePath(options.apiBasePath ?? "/api");
 	let requester: ProxyRequester | undefined;
@@ -36,7 +36,7 @@ export function createCodexFlowsProxyHandler(
 		return requester;
 	};
 	return async (request, response, next) => {
-		const url = new URL(request.url ?? "/", "http://codex-flows.local");
+		const url = new URL(request.url ?? "/", "http://codex-toys.local");
 		const cors = corsPolicyForRequest(request);
 		if (url.pathname === apiBasePath || url.pathname.startsWith(`${apiBasePath}/`)) {
 			applyCorsHeaders(response, cors);
@@ -70,27 +70,27 @@ export function createCodexFlowsProxyHandler(
 	};
 }
 
-export function createProxyRequester(options: CodexFlowsProxyOptions): ProxyRequester {
+export function createProxyRequester(options: CodexToysProxyOptions): ProxyRequester {
 	const timeoutMs = options.timeoutMs ?? 90_000;
 	const transport = options.transport ?? (hasSshRemote({
 		sshTarget: options.sshTarget,
 		env: options.env,
 	})
-		? createSshAgentTransport({ ...options, timeoutMs })
-		: createLocalAgentTransport({ ...options, timeoutMs }));
-	let initialized: Promise<WorkspaceBackendInitializeResponse> | undefined;
+		? createSshToyboxTransport({ ...options, timeoutMs })
+		: createLocalToyboxTransport({ ...options, timeoutMs }));
+	let initialized: Promise<ToyboxInitializeResponse> | undefined;
 	const initialize = async () => {
 		transport.start();
-		initialized ??= transport.request<WorkspaceBackendInitializeResponse>(
-			WORKSPACE_BACKEND_INITIALIZE_METHOD,
+		initialized ??= transport.request<ToyboxInitializeResponse>(
+			TOYBOX_INITIALIZE_METHOD,
 			{
 				clientInfo: {
-					name: "codex-flows-proxy",
-					title: "Codex Flows Proxy",
+					name: "codex-toys-proxy",
+					title: "Codex Toys Proxy",
 					version: "0.1.0",
 				},
 				capabilities: {
-					appServerPassThrough: true,
+					appPassThrough: true,
 				},
 			},
 		);
@@ -115,21 +115,21 @@ async function handleApiRequest(
 	request: IncomingMessage,
 	response: ServerResponse,
 ): Promise<void> {
-	const url = new URL(request.url ?? "/", "http://codex-flows.local");
+	const url = new URL(request.url ?? "/", "http://codex-toys.local");
 	const apiPath = url.pathname.slice(apiBasePath.length) || "/";
 	if (request.method === "GET" && apiPath === "/status") {
 		const initialized = await requester.initialize();
-		let agent: unknown = null;
+		let toybox: unknown = null;
 		try {
-			agent = await requester.request("agent.status", {});
+			toybox = await requester.request("toybox.status", {});
 		} catch {
-			agent = null;
+			toybox = null;
 		}
 		writeJson(response, 200, {
 			ok: true,
 			serverInfo: initialized.serverInfo,
 			capabilities: initialized.capabilities,
-			agent,
+			toybox,
 		});
 		return;
 	}
@@ -148,7 +148,7 @@ async function handleApiRequest(
 		writeJson(
 			response,
 			200,
-			await requester.request(APP_SERVER_CALL_METHOD, {
+			await requester.request(APP_CALL_METHOD, {
 				method,
 				params: await readJsonBody(request),
 			}),
@@ -160,7 +160,7 @@ async function handleApiRequest(
 		writeJson(response, 200, await requester.request(method, await readJsonBody(request)));
 		return;
 	}
-	writeJson(response, 404, { error: "Unknown Codex Flows proxy endpoint" });
+	writeJson(response, 404, { error: "Unknown Codex Toys proxy endpoint" });
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {

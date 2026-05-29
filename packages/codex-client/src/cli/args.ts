@@ -6,7 +6,7 @@ export type ParsedRemoteOptions = {
 	sshTarget?: string;
 	cwd?: string;
 	remotePathPrepend?: string;
-	agentCommand?: string;
+	toyboxCommand?: string;
 	remoteCodexCommand?: string;
 	remoteCodexArgs?: string[];
 };
@@ -51,7 +51,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "agent-serve";
+			type: "toybox-serve";
 			cwd?: string;
 			timeoutMs: number;
 	  }
@@ -289,8 +289,8 @@ type ParsedCliBase =
 
 export type ParsedCli = ParsedCliBase & ParsedRemoteOptions;
 
-export const LOCAL_AGENT_URL = "agent://local";
-export const SSH_AGENT_URL = "ssh://agent";
+export const LOCAL_TOYBOX_URL = "toybox://local";
+export const SSH_TOYBOX_URL = "ssh://toybox";
 const defaultTimeoutMs = 90_000;
 const defaultLongRunningTurnTimeoutMs = 30 * 60 * 1000;
 
@@ -299,8 +299,8 @@ export function parseArgs(
 	env: Record<string, string | undefined> = process.env,
 ): ParsedCli {
 	const positionals: string[] = [];
-	let appUrl = LOCAL_AGENT_URL;
-	let workspaceUrl = LOCAL_AGENT_URL;
+	let appUrl = LOCAL_TOYBOX_URL;
+	let workspaceUrl = LOCAL_TOYBOX_URL;
 	let timeoutMs = defaultTimeoutMs;
 	let pretty = true;
 	let color = true;
@@ -332,11 +332,11 @@ export function parseArgs(
 	let model: string | undefined;
 	let paramsJson: string | undefined;
 	let paramsFile: string | undefined;
-	let cwd: string | undefined = env.CODEX_FLOWS_REMOTE_CWD;
+	let cwd: string | undefined = env.CODEX_TOYS_REMOTE_CWD;
 	let via: "workspace" | "app" = "workspace";
-	let sshTarget: string | undefined = env.CODEX_FLOWS_REMOTE_SSH_TARGET;
-	let remotePathPrepend: string | undefined = env.CODEX_FLOWS_REMOTE_PATH_PREPEND;
-	let agentCommand: string | undefined = env.CODEX_FLOWS_AGENT_COMMAND;
+	let sshTarget: string | undefined = env.CODEX_TOYS_REMOTE_SSH_TARGET;
+	let remotePathPrepend: string | undefined = env.CODEX_TOYS_REMOTE_PATH_PREPEND;
+	let toyboxCommand: string | undefined = env.CODEX_TOYS_TOYBOX_COMMAND;
 	let remoteCodexCommand: string | undefined;
 	const remoteCodexArgs: string[] = [];
 	let sandbox: RemoteTurnSandbox | undefined;
@@ -655,12 +655,12 @@ export function parseArgs(
 			remotePathPrepend = arg.slice("--remote-path-prepend=".length);
 			continue;
 		}
-		if (arg === "--agent-command") {
-			agentCommand = required(argv, ++index, arg);
+		if (arg === "--toybox-command") {
+			toyboxCommand = required(argv, ++index, arg);
 			continue;
 		}
-		if (arg.startsWith("--agent-command=")) {
-			agentCommand = arg.slice("--agent-command=".length);
+		if (arg.startsWith("--toybox-command=")) {
+			toyboxCommand = arg.slice("--toybox-command=".length);
 			continue;
 		}
 		if (arg === "--codex-command" || arg === "--remote-codex-command") {
@@ -708,8 +708,8 @@ export function parseArgs(
 		if (remotePathPrepend !== undefined) {
 			fields.remotePathPrepend = remotePathPrepend;
 		}
-		if (agentCommand !== undefined) {
-			fields.agentCommand = agentCommand;
+		if (toyboxCommand !== undefined) {
+			fields.toyboxCommand = toyboxCommand;
 		}
 		if (remoteCodexCommand !== undefined) {
 			fields.remoteCodexCommand = remoteCodexCommand;
@@ -745,13 +745,13 @@ export function parseArgs(
 			...remoteFields(),
 		};
 	}
-	if (command === "agent") {
-		const subcommand = requiredPositional(positionals, 1, "agent requires serve");
+	if (command === "toybox") {
+		const subcommand = requiredPositional(positionals, 1, "toybox requires serve");
 		if (subcommand !== "serve") {
-			throw new Error("agent currently supports only serve");
+			throw new Error("toybox currently supports only serve");
 		}
 		return {
-			type: "agent-serve",
+			type: "toybox-serve",
 			cwd,
 			timeoutMs,
 			...remoteFields(),
@@ -994,7 +994,7 @@ export function parseArgs(
 			};
 		}
 		if (subcommand === "backend") {
-			throw new Error("workspace backend service commands have been removed; use codex-flows agent serve or codex-flows-proxy serve");
+			throw new Error("toybox service commands have been removed; use codex-toys toybox serve or codex-toys-proxy serve");
 		}
 		if (subcommand === "app") {
 			const method = requiredPositional(

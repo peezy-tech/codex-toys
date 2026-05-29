@@ -54,27 +54,27 @@ if (helpExit !== 0) {
 
 const cliDoc = await read("docs/pages/reference/cli.md");
 const requiredCliLines = [
-	"codex-flows fetch [--json] [--no-color]",
-	"codex-flows mcp serve",
-	"codex-flows agent serve [--cwd <path>]",
-	"codex-flows automation list [--json]",
-	"codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]",
-	"codex-flows app <method> [params-json]",
-	"codex-flows workspace doctor [--mode auto|local|actions] [--json]",
-	"codex-flows workspace delegate list [--json]",
-	"codex-flows workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]",
-	"codex-flows workspace tick [--mode auto|local|actions]",
-	"codex-flows workspace run <task-id> [--mode auto|local|actions]",
-	"codex-flows memories transplant global-to-workspace [--apply]",
-	"codex-flows memories transplant workspace-to-global [--apply]",
-	"codex-flows threads locate <thread-id> [--codex-home <home>]",
-	"codex-flows threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]",
-	"codex-flows threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]",
-	"codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]",
-	"codex-flows pack inspect <source> [--json]",
-	"codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]",
-	"codex-flows pack doctor [--json]",
-	"codex-flows pack list [--json]",
+	"codex-toys fetch [--json] [--no-color]",
+	"codex-toys mcp serve",
+	"codex-toys toybox serve [--cwd <path>]",
+	"codex-toys automation list [--json]",
+	"codex-toys automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]",
+	"codex-toys app <method> [params-json]",
+	"codex-toys workspace doctor [--mode auto|local|actions] [--json]",
+	"codex-toys workspace delegate list [--json]",
+	"codex-toys workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]",
+	"codex-toys workspace tick [--mode auto|local|actions]",
+	"codex-toys workspace run <task-id> [--mode auto|local|actions]",
+	"codex-toys memories transplant global-to-workspace [--apply]",
+	"codex-toys memories transplant workspace-to-global [--apply]",
+	"codex-toys threads locate <thread-id> [--codex-home <home>]",
+	"codex-toys threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]",
+	"codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]",
+	"codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]",
+	"codex-toys pack inspect <source> [--json]",
+	"codex-toys pack add <source> [--apply] [--include <name>] [--exclude <name>]",
+	"codex-toys pack doctor [--json]",
+	"codex-toys pack list [--json]",
 	"--merge codex",
 ];
 
@@ -109,17 +109,17 @@ await expectIncludes("docs/tome.config.js", "\"guides/thread-transplant\"");
 await expectIncludes("docs/tome.config.js", "\"guides/install-codex-plugin\"");
 await expectIncludes("docs/tome.config.js", "\"guides/install-pack-repos\"");
 await expectIncludes("docs/tome.config.js", "RELEASE.md");
-await expectIncludes("docs/index.html", "<title>codex-flows</title>");
+await expectIncludes("docs/index.html", "<title>codex-toys</title>");
 
 await expectIncludes("docs/pages/index.md", "Turn Automation");
 await expectIncludes("docs/pages/index.md", "Workspace autonomy");
 await expectIncludes("docs/pages/index.md", "Memory transplant");
 await expectIncludes("docs/pages/index.md", "Thread Transplant");
 await expectIncludes("docs/pages/index.md", "Plugin Install");
-await expectIncludes("docs/pages/index.md", "@peezy.tech/codex-flows");
+await expectIncludes("docs/pages/index.md", "codex-toys");
 await expectIncludes("docs/pages/reference/packages.md", "workspace autonomy");
 await expectIncludes("docs/pages/reference/packages.md", "memory transplant");
-await expectIncludes("docs/pages/reference/packages.md", "@peezy.tech/codex-flows/threads");
+await expectIncludes("docs/pages/reference/packages.md", "codex-toys/threads");
 
 await expectIncludes("docs/pages/guides/workspace-autonomy.md", "[workspace]");
 await expectIncludes("docs/pages/guides/workspace-autonomy.md", ".codex/workspace/local");
@@ -139,33 +139,33 @@ await expectIncludes("docs/pages/guides/thread-transplant.md", "--replace");
 await expectIncludes("docs/pages/guides/thread-transplant.md", "not app-server-native import");
 
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin marketplace add peezy-tech/skills --ref main");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-author@peezy-tech");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-local-workspace@peezy-tech");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows-remote-control@peezy-tech");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-flows@codex-flows");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-toys-author@peezy-tech");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-toys-local-workspace@peezy-tech");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-toys-remote-control@peezy-tech");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-toys@codex-toys");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "hooks/hooks.json");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "plugin_hooks = true");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_FLOWS_HOOK_SPOOL_DIR");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows agent serve --cwd /repo");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-flows-proxy serve --cwd /repo --static ./dashboard");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_TOYS_HOOK_SPOOL_DIR");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-toys toybox serve --cwd /repo");
+await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-toys-proxy serve --cwd /repo --static ./dashboard");
 await expectIncludes("docs/pages/guides/turn-automation.md", "export default async function run");
-await expectIncludes("docs/pages/guides/turn-automation.md", "codex-flows --ssh devbox --cwd /repo automation run");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows agent serve [--cwd <path>]");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows-proxy serve --cwd <workspace> [--static <dir>]");
-await expectIncludes("docs/pages/reference/cli.md", "CODEX_FLOWS_AGENT_COMMAND");
+await expectIncludes("docs/pages/guides/turn-automation.md", "codex-toys --ssh devbox --cwd /repo automation run");
+await expectIncludes("docs/pages/reference/cli.md", "codex-toys toybox serve [--cwd <path>]");
+await expectIncludes("docs/pages/reference/cli.md", "codex-toys-proxy serve --cwd <workspace> [--static <dir>]");
+await expectIncludes("docs/pages/reference/cli.md", "CODEX_TOYS_TOYBOX_COMMAND");
 await expectIncludes("docs/pages/reference/cli.md", "POST /api/workspace/:method");
-await expectIncludes("docs/pages/reference/cli.md", "codex-flows automation run <name>");
+await expectIncludes("docs/pages/reference/cli.md", "codex-toys automation run <name>");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "pack repo");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".codex/pack-lock.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".agents/plugins/marketplace.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "[features].plugin_hooks = true");
 
-await expectIncludes("packages/codex-client/README.md", "codex-flows automation run");
-await expectIncludes("packages/codex-client/README.md", "codex-flows workspace doctor");
-await expectIncludes("packages/codex-client/README.md", "codex-flows agent serve --cwd /repo");
-await expectIncludes("packages/codex-client/README.md", "codex-flows-proxy serve --cwd /repo --static ./dashboard");
-await expectIncludes("packages/codex-client/README.md", "codex-flows memories transplant global-to-workspace");
-await expectIncludes("packages/codex-client/README.md", "codex-flows threads transplant <thread-id>");
+await expectIncludes("packages/codex-client/README.md", "codex-toys automation run");
+await expectIncludes("packages/codex-client/README.md", "codex-toys workspace doctor");
+await expectIncludes("packages/codex-client/README.md", "codex-toys toybox serve --cwd /repo");
+await expectIncludes("packages/codex-client/README.md", "codex-toys-proxy serve --cwd /repo --static ./dashboard");
+await expectIncludes("packages/codex-client/README.md", "codex-toys memories transplant global-to-workspace");
+await expectIncludes("packages/codex-client/README.md", "codex-toys threads transplant <thread-id>");
 await expectIncludes("packages/codex-client/README.md", "guides/install-codex-plugin.md");
 
 if (failures.length > 0) {

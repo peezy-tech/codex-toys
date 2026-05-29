@@ -1,12 +1,12 @@
 {
-	"name": "@peezy.tech/codex-flows",
-	"version": "0.134.1",
+	"name": "codex-toys",
+	"version": "0.135.0",
 	"description": "Codex-native stdio agent, turn automation, SSH workspace tools, and generic HTTP proxy.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/peezy-tech/codex-flows.git",
+		"url": "git+https://github.com/peezy-tech/codex-toys.git",
 		"directory": "packages/codex-client"
 	},
 	"keywords": [
@@ -18,8 +18,8 @@
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"bin": {
-		"codex-flows": "dist/cli/index.js",
-		"codex-flows-proxy": "dist/bin/codex-flows-proxy.js"
+		"codex-toys": "dist/cli/index.js",
+		"codex-toys-proxy": "dist/bin/codex-toys-proxy.js"
 	},
 	"files": [
 		"dist",
@@ -79,10 +79,10 @@
 			"require": "./dist/threads.js",
 			"import": "./dist/threads.js"
 		},
-		"./workspace-backend": {
-			"types": "./dist/workspace-backend/index.d.ts",
-			"require": "./dist/workspace-backend/index.js",
-			"import": "./dist/workspace-backend/index.js"
+		"./toybox": {
+			"types": "./dist/toybox/index.d.ts",
+			"require": "./dist/toybox/index.js",
+			"import": "./dist/toybox/index.js"
 		},
 		"./rpc": {
 			"types": "./dist/app-server/rpc.d.ts",

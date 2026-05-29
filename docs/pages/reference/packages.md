@@ -1,38 +1,38 @@
 ---
 title: Packages
-description: Public packages in the codex-flows stack.
+description: Public packages in the codex-toys stack.
 ---
 
 # Packages
 
-## `@peezy.tech/codex-flows`
+## `codex-toys`
 
 Codex app-server client package, workspace automation package, and CLI bundle.
 It exports:
 
 - app-server JSON-RPC client and stdio transport
-- local and SSH stdio agent helpers
+- local and SSH stdio toybox helpers
 - turn automation helpers for pre-turn scripts that can skip or start native
   Codex turns
-- workspace functions under `@peezy.tech/codex-flows/functions`
-- generic HTTP proxy helpers under `@peezy.tech/codex-flows/proxy`
-- Vite middleware under `@peezy.tech/codex-flows/vite`
-- browser fetch helpers under `@peezy.tech/codex-flows/browser`
+- workspace functions under `codex-toys/functions`
+- generic HTTP proxy helpers under `codex-toys/proxy`
+- Vite middleware under `codex-toys/vite`
+- browser fetch helpers under `codex-toys/browser`
 - auth helpers for account login/status/usage
 - workspace autonomy helpers
-- memory transplant helpers under `@peezy.tech/codex-flows/memories`
+- memory transplant helpers under `codex-toys/memories`
 - workbench reducers and request descriptors
 - thread rollout locate, inspect, install, and transplant helpers under
-  `@peezy.tech/codex-flows/threads`
+  `codex-toys/threads`
 - generated Codex app-server protocol types
-- the `codex-flows` CLI
-- the optional `codex-flows-proxy` HTTP edge
+- the `codex-toys` CLI
+- the optional `codex-toys-proxy` HTTP edge
 
 The package is the canonical core install target. It keeps the core transport
 surface Codex-native: local stdio and SSH stdio. Browser dashboards opt into
 HTTP by running the separate proxy.
 
-## `@peezy.tech/codex-flows/proxy`
+## `codex-toys/proxy`
 
 The proxy package exposes a generic HTTP handler for dashboards:
 
@@ -44,30 +44,30 @@ POST /api/app/:method
 POST /api/workspace/:method
 ```
 
-The proxy starts or connects to a codex-flows agent internally. `/api/schema`
-comes from `workspace.initialize`, so dashboards can discover available
+The proxy starts or connects to a codex-toys toybox internally. `/api/schema`
+comes from `toybox.initialize`, so dashboards can discover available
 workspace methods without duplicated route definitions.
 
 For direct browser use, the proxy reflects CORS only for loopback origins such
 as `localhost`, `127.0.0.1`, `::1`, and `*.localhost`. Requests carrying a
 non-loopback browser `Origin` are rejected. Dashboards served by Vite or
-`codex-flows-proxy --static` can use same-origin requests instead.
+`codex-toys-proxy --static` can use same-origin requests instead.
 
-## `@peezy.tech/codex-flows/browser`
+## `codex-toys/browser`
 
 The browser export is fetch-only. It provides helpers for the proxy API:
 
 ```ts
-import { codexFlows } from "@peezy.tech/codex-flows/browser";
+import { codexToys } from "codex-toys/browser";
 
-const schema = await codexFlows.schema();
-const threads = await codexFlows.app.call("thread/list", { limit: 20 });
-const functions = await codexFlows.functions.list();
+const schema = await codexToys.schema();
+const threads = await codexToys.app.call("thread/list", { limit: 20 });
+const functions = await codexToys.functions.list();
 ```
 
 It does not include a browser app-server client or WebSocket transport.
 
-## `@peezy.tech/codex-flows/functions`
+## `codex-toys/functions`
 
 Workspace functions expose named JSON-in/JSON-out capabilities from a workspace
 manifest at `.codex/functions.ts`, `.codex/functions.js`, or
@@ -83,32 +83,32 @@ export default {
 };
 ```
 
-The CLI, agent, proxy, Vite plugin, MCP server, and browser fetch helpers use
+The CLI, toybox, proxy, Vite plugin, MCP server, and browser fetch helpers use
 the same `functions.list`, `functions.describe`, and `functions.call` workspace
 methods.
 
-## `@peezy.tech/codex-flows/vite`
+## `codex-toys/vite`
 
-`codexFlowsRemote` mounts the generic proxy handler inside Vite:
+`codexToysRemote` mounts the generic proxy handler inside Vite:
 
 ```ts
-import { codexFlowsRemote } from "@peezy.tech/codex-flows/vite";
+import { codexToysRemote } from "codex-toys/vite";
 
 export default {
   plugins: [
-    codexFlowsRemote({
-      ssh: process.env.CODEX_FLOWS_REMOTE_SSH_TARGET,
-      cwd: process.env.CODEX_FLOWS_REMOTE_CWD,
+    codexToysRemote({
+      ssh: process.env.CODEX_TOYS_REMOTE_SSH_TARGET,
+      cwd: process.env.CODEX_TOYS_REMOTE_CWD,
     }),
   ],
 };
 ```
 
-Dashboard code can use `codexFlows` from
-`@peezy.tech/codex-flows/browser` and call `/__codex_flows/api/*` through
+Dashboard code can use `codexToys` from
+`codex-toys/browser` and call `/__codex_toys/api/*` through
 Vite.
 
-## `@peezy.tech/codex-flows/actions`
+## `codex-toys/actions`
 
 Actions helpers encode Codex workspace conventions for CI and local
 Actions-mode simulation:
@@ -120,7 +120,7 @@ Actions-mode simulation:
   SQLite databases without deleting durable memory markdown or
   `.codex/workspace/actions`
 
-## `@peezy.tech/codex-flows/memories`
+## `codex-toys/memories`
 
 The memory transplant helpers operate on stable markdown artifacts only:
 
@@ -131,7 +131,7 @@ The memory transplant helpers operate on stable markdown artifacts only:
 
 The helpers do not require or inspect Codex memory SQLite internals.
 
-## `@peezy.tech/codex-flows/threads`
+## `codex-toys/threads`
 
 Thread transplant helpers locate, inspect, install, and transplant raw Codex
 rollout JSONL files. They preserve raw rollout bytes and thread ids; they do

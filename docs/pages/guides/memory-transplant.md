@@ -10,8 +10,8 @@ and a repository Codex home. It is intentionally file-based in v1 and is scoped
 to `memories/` only.
 
 ```bash
-codex-flows memories transplant global-to-workspace
-codex-flows memories transplant workspace-to-global
+codex-toys memories transplant global-to-workspace
+codex-toys memories transplant workspace-to-global
 ```
 
 The default is always a dry-run. Use `--apply` only after reviewing the planned
@@ -81,7 +81,7 @@ Apply without overwrite or merge:
 Apply with overwrite:
 
 ```bash
-codex-flows memories transplant global-to-workspace --apply --overwrite
+codex-toys memories transplant global-to-workspace --apply --overwrite
 ```
 
 - writes backups before replacing destination files by default
@@ -90,7 +90,7 @@ codex-flows memories transplant global-to-workspace --apply --overwrite
 Semantic merge:
 
 ```bash
-codex-flows memories transplant global-to-workspace --apply --merge codex
+codex-toys memories transplant global-to-workspace --apply --merge codex
 ```
 
 `--merge codex` is reserved for semantic merge of `MEMORY.md` and
@@ -102,7 +102,7 @@ unless overwrite behavior is requested.
 Use `--json` when a script needs the transplant plan:
 
 ```bash
-codex-flows memories transplant global-to-workspace --json
+codex-toys memories transplant global-to-workspace --json
 ```
 
 The report includes source, destination, added files, conflicts, skipped files,
@@ -113,19 +113,19 @@ and estimated bytes.
 1. Inspect the current workspace:
 
 ```bash
-codex-flows workspace doctor
+codex-toys workspace doctor
 ```
 
 2. Dry-run the transplant:
 
 ```bash
-codex-flows memories transplant global-to-workspace
+codex-toys memories transplant global-to-workspace
 ```
 
 3. Apply missing files only:
 
 ```bash
-codex-flows memories transplant global-to-workspace --apply
+codex-toys memories transplant global-to-workspace --apply
 ```
 
 4. Re-run `doctor` and inspect `.codex/memories`.

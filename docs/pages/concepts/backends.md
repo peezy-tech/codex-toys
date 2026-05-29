@@ -1,14 +1,14 @@
 ---
 title: Runtimes
-description: Compare direct app-server access, codex-flows agents, SSH-backed operation, and the optional proxy.
+description: Compare direct app-server access, codex-toys toyboxes, SSH-backed operation, and the optional proxy.
 ---
 
 # Runtimes
 
-codex-flows has three runtime shapes:
+codex-toys has three runtime shapes:
 
 - direct app-server access for protocol inspection
-- the codex-flows agent for local and SSH workspace operation
+- the codex-toys toybox for local and SSH workspace operation
 - the optional proxy for browser dashboards
 
 ## Direct app-server
@@ -18,13 +18,13 @@ and one-off debugging. It talks to Codex app-server without workspace policy.
 
 Use `--via app` only when you deliberately want this direct path.
 
-## Agent
+## Toybox
 
-The agent is the normal automation surface. It owns app-server pass-through,
+The toybox is the normal automation surface. It owns app-server pass-through,
 functions, delegation, workspace state, and repo-local task execution. Turn
 automation uses `--via workspace` by default.
 
-Local commands spawn the agent over stdio. SSH commands start the same agent on
+Local commands spawn the toybox over stdio. SSH commands start the same toybox on
 the target and speak JSON-RPC over SSH stdio.
 
 ## Proxy
@@ -32,9 +32,9 @@ the target and speak JSON-RPC over SSH stdio.
 The proxy is an optional HTTP edge:
 
 ```bash
-codex-flows-proxy serve --cwd /repo --static ./dashboard
-codex-flows-proxy serve --ssh devbox --cwd /repo --static ./dashboard
+codex-toys-proxy serve --cwd /repo --static ./dashboard
+codex-toys-proxy serve --ssh devbox --cwd /repo --static ./dashboard
 ```
 
 It exists so plain HTML/JS dashboards can use `fetch`. It does not replace the
-agent as the core control transport.
+toybox as the core control transport.

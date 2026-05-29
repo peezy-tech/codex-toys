@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vite-plus/test";
-import { createCodexFlowsBrowserClient } from "../src/browser.ts";
+import { createCodexToysBrowserClient } from "../src/browser.ts";
 
-describe("Codex Flows browser client", () => {
+describe("Codex Toys browser client", () => {
 	test("calls function endpoints and unwraps responses", async () => {
 		const calls: Array<{ url: string; init?: RequestInit }> = [];
-		const client = createCodexFlowsBrowserClient({
+		const client = createCodexToysBrowserClient({
 			basePath: "/bridge",
 			fetch: (async (url, init) => {
 				calls.push({ url: String(url), init });
@@ -36,7 +36,7 @@ describe("Codex Flows browser client", () => {
 	});
 
 	test("propagates endpoint errors", async () => {
-		const client = createCodexFlowsBrowserClient({
+		const client = createCodexToysBrowserClient({
 			fetch: (async () => jsonResponse({ error: "boom" }, 500)) as typeof fetch,
 		});
 

@@ -2,8 +2,8 @@ import { access, stat } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { tsImport } from "tsx/esm/api";
-import type { WorkspaceBackendMethodHandler } from "./workspace-backend/server.ts";
-import type { WorkspaceMethodMetadata } from "./workspace-backend/protocol.ts";
+import type { ToyboxMethodHandler } from "./toybox/server.ts";
+import type { ToyboxMethodMetadata } from "./toybox/protocol.ts";
 
 export const WORKSPACE_FUNCTIONS_LIST_METHOD = "functions.list";
 export const WORKSPACE_FUNCTIONS_DESCRIBE_METHOD = "functions.describe";
@@ -98,7 +98,7 @@ type LoadedWorkspaceFunctionDefinition = {
 
 export function createWorkspaceFunctionMethods(
 	options: WorkspaceFunctionRuntimeOptions = {},
-): Record<string, WorkspaceBackendMethodHandler> {
+): Record<string, ToyboxMethodHandler> {
 	const runtime = new WorkspaceFunctionRuntime(options);
 	return {
 		[WORKSPACE_FUNCTIONS_LIST_METHOD]: async () => await runtime.list(),
@@ -111,7 +111,7 @@ export function createWorkspaceFunctionMethods(
 	};
 }
 
-export const workspaceFunctionMethodMetadata: WorkspaceMethodMetadata[] = [
+export const workspaceFunctionMethodMetadata: ToyboxMethodMetadata[] = [
 	{
 		name: WORKSPACE_FUNCTIONS_LIST_METHOD,
 		description: "List JSON-in/JSON-out functions declared by the current workspace.",

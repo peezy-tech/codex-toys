@@ -15,12 +15,12 @@ const packageRoot = path.resolve(__dirname, "..");
 const cliBin = path.join(packageRoot, "dist", "cli", "index.js");
 const outDir = path.join(packageRoot, "dist", "bin");
 
-const selfExternals = ["@peezy.tech/codex-flows", "@peezy.tech/codex-flows/*"];
+const selfExternals = ["codex-toys", "codex-toys/*"];
 
 const builds: BinBuild[] = [
 	{
-		name: "codex-flows-proxy",
-		entry: "packages/codex-client/src/bin/codex-flows-proxy.ts",
+		name: "codex-toys-proxy",
+		entry: "packages/codex-client/src/bin/codex-toys-proxy.ts",
 		external: selfExternals,
 	},
 ];

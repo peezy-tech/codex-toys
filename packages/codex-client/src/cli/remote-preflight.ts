@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
-import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
+import type { CodexToyboxTransport } from "../toybox/client.ts";
 import {
-	APP_SERVER_CALL_METHOD,
-	WORKSPACE_BACKEND_INITIALIZE_METHOD,
-} from "../workspace-backend/protocol.ts";
+	APP_CALL_METHOD,
+	TOYBOX_INITIALIZE_METHOD,
+} from "../toybox/protocol.ts";
 import {
-	createSshAgentTransport,
+	createSshToyboxTransport,
 	resolveSshRemoteOptions,
 	type ResolvedSshRemoteOptions,
 	type SshRemoteProviderOptions,
@@ -27,7 +27,7 @@ export type RemotePreflightResult = {
 	sshTarget: string;
 	cwd?: string;
 	remotePathPrepend?: string;
-	agentCommand: string;
+	toyboxCommand: string;
 	remoteCodexCommand: string;
 	remoteCodexArgs: string[];
 	checks: RemotePreflightCheck[];
@@ -50,7 +50,7 @@ export async function collectRemotePreflight(
 		sshTarget: resolved.sshTarget,
 		...(resolved.cwd ? { cwd: resolved.cwd } : {}),
 		...(resolved.remotePathPrepend ? { remotePathPrepend: resolved.remotePathPrepend } : {}),
-		agentCommand: resolved.agentCommand,
+		toyboxCommand: resolved.toyboxCommand,
 		remoteCodexCommand: resolved.remoteCodexCommand,
 		remoteCodexArgs: resolved.remoteCodexArgs,
 		checks,
@@ -98,18 +98,18 @@ export async function collectRemotePreflight(
 		options.timeoutMs,
 		{
 			validateVersion: (version) => /^v24\./.test(version),
-			suggestion: "Set CODEX_FLOWS_REMOTE_PATH_PREPEND to a Node 24 bin directory or install Node 24 remotely.",
+			suggestion: "Set CODEX_TOYS_REMOTE_PATH_PREPEND to a Node 24 bin directory or install Node 24 remotely.",
 		},
 	));
 	checks.push(await commandCheck(
 		resolved,
-		"codex-flows",
-		resolved.agentCommand,
+		"codex-toys",
+		resolved.toyboxCommand,
 		["--help"],
 		options.timeoutMs,
 		{
 			suggestion:
-				"Install @peezy.tech/codex-flows on the SSH target or set CODEX_FLOWS_AGENT_COMMAND to its remote path.",
+				"Install codex-toys on the SSH target or set CODEX_TOYS_TOYBOX_COMMAND to its remote path.",
 		},
 	));
 	checks.push(await commandCheck(
@@ -119,7 +119,7 @@ export async function collectRemotePreflight(
 		["--version"],
 		options.timeoutMs,
 		{
-			suggestion: "Set CODEX_FLOWS_REMOTE_CODEX_COMMAND to the remote Codex binary path or add it through CODEX_FLOWS_REMOTE_PATH_PREPEND.",
+			suggestion: "Set CODEX_TOYS_REMOTE_CODEX_COMMAND to the remote Codex binary path or add it through CODEX_TOYS_REMOTE_PATH_PREPEND.",
 		},
 	));
 
@@ -127,8 +127,8 @@ export async function collectRemotePreflight(
 		return result;
 	}
 
-	const agent = await probeSshAgent(options);
-	checks.push(...agent);
+	const toybox = await probeSshToybox(options);
+	checks.push(...toybox);
 	result.ok = checks.every((check) => check.status !== "fail");
 	return result;
 }
@@ -151,31 +151,31 @@ export function formatRemotePreflight(result: RemotePreflightResult): string {
 	}).join("\n") + "\n";
 }
 
-async function probeSshAgent(
+async function probeSshToybox(
 	options: SshRemoteProviderOptions,
 ): Promise<RemotePreflightCheck[]> {
-	const transport = createSshAgentTransport(options);
+	const transport = createSshToyboxTransport(options);
 	try {
 		transport.start();
-		const status = await transport.request("agent.status", {});
+		const status = await transport.request("toybox.status", {});
 		const detail = statusDetail(status);
 		await initializeWorkspaceTransport(transport);
-		await transport.request(APP_SERVER_CALL_METHOD, {
+		await transport.request(APP_CALL_METHOD, {
 			method: "thread/list",
 			params: { limit: 1, sourceKinds: [] },
 		});
 		return [
-			{ name: "SSH agent", status: "ok", detail },
+			{ name: "SSH toybox", status: "ok", detail },
 			{ name: "app-server initialize", status: "ok" },
 		];
 	} catch (error) {
-		const stderr = transport.agentStderr.join("\n").trim();
+		const stderr = transport.toyboxStderr.join("\n").trim();
 		return [{
-			name: "SSH agent",
+			name: "SSH toybox",
 			status: "fail",
 			error: errorMessage(error),
 			suggestion:
-				"Inspect remote stderr, ensure codex-flows and codex run from non-interactive SSH, and adjust CODEX_FLOWS_REMOTE_PATH_PREPEND if needed.",
+				"Inspect remote stderr, ensure codex-toys and codex run from non-interactive SSH, and adjust CODEX_TOYS_REMOTE_PATH_PREPEND if needed.",
 			...(stderr ? { stderr: redact(stderr) } : {}),
 		}];
 	} finally {
@@ -184,16 +184,16 @@ async function probeSshAgent(
 }
 
 async function initializeWorkspaceTransport(
-	transport: CodexWorkspaceBackendTransport,
+	transport: CodexToyboxTransport,
 ): Promise<void> {
-	await transport.request(WORKSPACE_BACKEND_INITIALIZE_METHOD, {
+	await transport.request(TOYBOX_INITIALIZE_METHOD, {
 		clientInfo: {
-			name: "codex-flows-remote-preflight",
-			title: "Codex Flows Remote Preflight",
+			name: "codex-toys-remote-preflight",
+			title: "Codex Toys Remote Preflight",
 			version: "0.1.0",
 		},
 		capabilities: {
-			appServerPassThrough: true,
+			appPassThrough: true,
 		},
 	});
 }

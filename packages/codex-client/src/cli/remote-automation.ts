@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { v2 } from "../app-server/generated/index.ts";
-import type { WorkspaceMethodMetadata } from "../workspace-backend/protocol.ts";
-import type { WorkspaceBackendMethodHandler } from "../workspace-backend/server.ts";
+import type { ToyboxMethodMetadata } from "../toybox/protocol.ts";
+import type { ToyboxMethodHandler } from "../toybox/server.ts";
 import { readJsonFile } from "./json.ts";
 import {
 	createTurnAutomationHost,
@@ -17,7 +17,7 @@ import {
 export const REMOTE_AUTOMATION_LIST_METHOD = "automation.list";
 export const REMOTE_AUTOMATION_RUN_METHOD = "automation.run";
 
-export const remoteAutomationMethodMetadata: WorkspaceMethodMetadata[] = [
+export const remoteAutomationMethodMetadata: ToyboxMethodMetadata[] = [
 	{
 		name: REMOTE_AUTOMATION_LIST_METHOD,
 		description: "List turn automations available in the selected workspace root.",
@@ -26,7 +26,7 @@ export const remoteAutomationMethodMetadata: WorkspaceMethodMetadata[] = [
 	},
 	{
 		name: REMOTE_AUTOMATION_RUN_METHOD,
-		description: "Run a turn automation through the current agent.",
+		description: "Run a turn automation through the current toybox.",
 		sideEffects: "external-write",
 		category: "automation",
 	},
@@ -65,7 +65,7 @@ export type CreateRemoteAutomationMethodsOptions = {
 
 export function createRemoteAutomationMethods(
 	options: CreateRemoteAutomationMethodsOptions,
-): Record<string, WorkspaceBackendMethodHandler> {
+): Record<string, ToyboxMethodHandler> {
 	return {
 		[REMOTE_AUTOMATION_LIST_METHOD]: async (params) => ({
 			automations: await listTurnAutomations({

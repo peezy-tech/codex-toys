@@ -17,8 +17,8 @@ path, byte length, and sha256 checksum so the target Codex home can resume the
 same thread id from disk.
 
 ```bash
-codex-flows threads locate <thread-id> --codex-home ~/.codex
-codex-flows threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./workspace/.codex
+codex-toys threads locate <thread-id> --codex-home ~/.codex
+codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./workspace/.codex
 ```
 
 `transplant` is the normal home-to-home path. It locates the rollout under the
@@ -29,7 +29,7 @@ then verifies byte length and sha256.
 To replace an existing rollout, opt in explicitly:
 
 ```bash
-codex-flows threads transplant <thread-id> --from-codex-home <source> --to-codex-home <target> --replace
+codex-toys threads transplant <thread-id> --from-codex-home <source> --to-codex-home <target> --replace
 ```
 
 `--replace` writes a timestamped backup beside the existing target rollout
@@ -40,13 +40,13 @@ before copying the source file.
 Inspect a thread in a Codex home:
 
 ```bash
-codex-flows threads inspect <thread-id> --codex-home <home>
+codex-toys threads inspect <thread-id> --codex-home <home>
 ```
 
 Inspect a rollout file directly:
 
 ```bash
-codex-flows threads inspect .codex/sessions/2026/05/18/rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl
+codex-toys threads inspect .codex/sessions/2026/05/18/rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl
 ```
 
 Inspect reads the native JSONL, identifies the thread id from
@@ -60,7 +60,7 @@ Use `install-rollout` when you have a loose rollout JSONL file and want to
 place it into a Codex home:
 
 ```bash
-codex-flows threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home .codex
+codex-toys threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home .codex
 ```
 
 If the file already lives under a `sessions/...` path, that relative path is
@@ -78,5 +78,5 @@ preserves the original thread id by copying the native rollout into the target
 home, then using the existing Codex/app-server thread resume or fork behavior.
 
 Raw rollout JSONL can include prompts, model output, tool calls, command output,
-file paths, and any sensitive text the agent saw. Only transplant or commit
+file paths, and any sensitive text the toybox saw. Only transplant or commit
 rollouts you deliberately trust as durable history.

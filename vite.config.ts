@@ -9,47 +9,47 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
-				find: /^@peezy\.tech\/codex-flows\/browser$/,
+				find: /^codex-toys\/browser$/,
 				replacement: path.join(codexClientSrc, "browser.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/auth$/,
+				find: /^codex-toys\/auth$/,
 				replacement: path.join(codexClientSrc, "auth.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/actions$/,
+				find: /^codex-toys\/actions$/,
 				replacement: path.join(codexClientSrc, "actions.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/memories$/,
+				find: /^codex-toys\/memories$/,
 				replacement: path.join(codexClientSrc, "memories.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/workbench$/,
+				find: /^codex-toys\/workbench$/,
 				replacement: path.join(codexClientSrc, "workbench.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/threads$/,
+				find: /^codex-toys\/threads$/,
 				replacement: path.join(codexClientSrc, "threads.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/generated$/,
+				find: /^codex-toys\/generated$/,
 				replacement: path.join(codexClientSrc, "app-server/generated/index.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/generated\/(.+)$/,
+				find: /^codex-toys\/generated\/(.+)$/,
 				replacement: path.join(codexClientSrc, "app-server/generated/$1.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/rpc$/,
+				find: /^codex-toys\/rpc$/,
 				replacement: path.join(codexClientSrc, "app-server/rpc.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows\/workspace-backend$/,
-				replacement: path.join(codexClientSrc, "workspace-backend/index.ts"),
+				find: /^codex-toys\/toybox$/,
+				replacement: path.join(codexClientSrc, "toybox/index.ts"),
 			},
 			{
-				find: /^@peezy\.tech\/codex-flows$/,
+				find: /^codex-toys$/,
 				replacement: path.join(codexClientSrc, "index.ts"),
 			},
 		],

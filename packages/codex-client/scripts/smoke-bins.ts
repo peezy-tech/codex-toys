@@ -8,8 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, "..");
 
 const checks = [
-	{ name: "codex-flows", path: "dist/cli/index.js" },
-	{ name: "codex-flows-proxy", path: "dist/bin/codex-flows-proxy.js" },
+	{ name: "codex-toys", path: "dist/cli/index.js" },
+	{ name: "codex-toys-proxy", path: "dist/bin/codex-toys-proxy.js" },
 ] as const;
 
 for (const check of checks) {

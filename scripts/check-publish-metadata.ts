@@ -35,7 +35,7 @@ main().catch((error: unknown) => {
 });
 
 async function main(): Promise<void> {
-	const tempRoot = await mkdtemp(path.join(os.tmpdir(), "codex-flows-publish-metadata-"));
+	const tempRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-publish-metadata-"));
 
 	try {
 		for (const manifestPath of publicPackageJsonPaths) {

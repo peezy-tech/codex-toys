@@ -5,7 +5,7 @@ description: Run a pre-turn script that can return JSON, start turns, wait on tu
 
 # Turn automation
 
-Turn automation is the plugin-native automation shape for codex-flows. A script
+Turn automation is the plugin-native automation shape for codex-toys. A script
 runs first, inspects external state, and returns a JSON object. When it needs
 Codex work, it starts, reads, waits on, or composes native Codex turns through
 the host API.
@@ -29,8 +29,8 @@ Named automations live under `.codex/automations/<name>/automation.json` or
 `automations/<name>/automation.json`:
 
 ```bash
-codex-flows automation list
-codex-flows automation run check-release --event event.json --via workspace
+codex-toys automation list
+codex-toys automation run check-release --event event.json --via workspace
 ```
 
 The manifest points to a module script and optional defaults:
@@ -77,7 +77,7 @@ The script exports a default handler and receives a context object:
 At runtime the context also includes a small host API:
 
 - `context.app.call(method, params)`: call an app-server method.
-- `context.workspace.call(method, params)`: call a codex-flows agent method.
+- `context.workspace.call(method, params)`: call a codex-toys toybox method.
   This is only available when running `--via workspace`.
 - `context.turn.start(params)`: start a native turn and return
   `{ id?, via, threadId, turnId, thread, turn }`.
@@ -86,7 +86,7 @@ At runtime the context also includes a small host API:
   `inProgress`, returning `status`, `outputText`, `thread`, and `turn`.
 - `context.turn.waitAll(turns, options)`: wait for multiple turns.
 - `context.delegate.start(params)`: start a delegated Codex thread through the
-  agent. This is only available when running `--via workspace`.
+  toybox. This is only available when running `--via workspace`.
 - `context.delegate.read(delegation)` and `context.delegate.wait(delegation,
   options)`: refresh or wait on a delegated thread record.
 
@@ -170,8 +170,8 @@ export default async function run(context) {
 }
 ```
 
-Delegation `cwd` supports `@/path` relative to the agent workspace root. Use
-absolute cwd values only for trusted local agents that explicitly allow them.
+Delegation `cwd` supports `@/path` relative to the toybox workspace root. Use
+absolute cwd values only for trusted local toyboxes that explicitly allow them.
 
 Programmatic orchestration:
 
@@ -208,18 +208,18 @@ include the path in the returned JSON object.
 
 ## Local and remote targets
 
-Automation starts the turn through the codex-flows agent by default.
+Automation starts the turn through the codex-toys toybox by default.
 Use `--via app` only when deliberately targeting a direct app-server connection:
 
 ```bash
-codex-flows automation run check-release --event event.json --via workspace
+codex-toys automation run check-release --event event.json --via workspace
 ```
 
 The same command can target a remote workspace through the SSH provider:
 
 ```bash
-codex-flows --ssh devbox --cwd /repo automation list --json
-codex-flows --ssh devbox --cwd /repo automation run check-release \
+codex-toys --ssh devbox --cwd /repo automation list --json
+codex-toys --ssh devbox --cwd /repo automation run check-release \
   --event event.json \
   --sandbox danger-full-access \
   --approval-policy never \
@@ -229,7 +229,7 @@ codex-flows --ssh devbox --cwd /repo automation run check-release \
 With `--ssh`, automation discovery, named resolution, event loading, and script
 execution happen on the remote host inside the remote workspace. `--event` is a
 remote path in this mode, resolved relative to `--cwd` unless it is absolute.
-The SSH agent stays alive until the automation script returns, so scripts
+The SSH toybox stays alive until the automation script returns, so scripts
 can call `context.turn.start` and then `context.turn.wait` or
 `context.turn.waitAll` for long-running turns in remote workspaces. The provider uses the
 selected surface directly; it does not try a second turn surface if the selected

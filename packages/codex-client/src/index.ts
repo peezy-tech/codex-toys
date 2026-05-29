@@ -7,15 +7,15 @@ export {
 	type CodexAppServerTransport,
 } from "./app-server/client.ts";
 export {
-	CodexWorkspaceBackendClient,
-	CodexWorkspaceBackendProtocolServer,
-	type CodexWorkspaceBackendAppServer,
-	type CodexWorkspaceBackendClientOptions,
-	type CodexWorkspaceBackendPeer,
-	type CodexWorkspaceBackendProtocolServerOptions,
-	type CodexWorkspaceBackendTransport,
-	type WorkspaceBackendEvent,
-} from "./workspace-backend/index.ts";
+	CodexToyboxClient,
+	CodexToyboxProtocolServer,
+	type CodexToyboxAppServer,
+	type CodexToyboxClientOptions,
+	type CodexToyboxPeer,
+	type CodexToyboxProtocolServerOptions,
+	type CodexToyboxTransport,
+	type ToyboxEvent,
+} from "./toybox/index.ts";
 export {
 	CodexStdioTransport,
 	DEFAULT_CODEX_COMMAND,
@@ -45,14 +45,14 @@ export {
 	type WorkspaceFunctionsListResponse,
 } from "./functions.ts";
 export {
-	createLocalAgentTransport,
-	createSshAgentPlan,
-	createSshAgentTransport,
+	createLocalToyboxTransport,
+	createSshToyboxPlan,
+	createSshToyboxTransport,
 	hasSshRemote,
 	resolveSshRemoteOptions,
-	withSshRemoteWorkspaceTransport,
-	type AgentPlan,
-	type AgentTransport,
+	withSshRemoteToyboxTransport,
+	type ToyboxPlan,
+	type ToyboxTransport,
 	type ResolvedSshRemoteOptions,
 	type SshRemoteProviderOptions,
 } from "./cli/remote-provider.ts";
@@ -96,9 +96,9 @@ export {
 	stringifyJsonRpc,
 } from "./app-server/rpc.ts";
 export {
-	createCodexFlowsProxyHandler,
+	createCodexToysProxyHandler,
 	createProxyRequester,
-	type CodexFlowsProxyOptions,
+	type CodexToysProxyOptions,
 } from "./proxy.ts";
 export type {
 	JsonRpcErrorObject,

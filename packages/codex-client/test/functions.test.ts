@@ -179,7 +179,7 @@ describe("workspace functions", () => {
 		);
 	});
 
-	test("creates workspace backend methods", async () => {
+	test("creates toybox methods", async () => {
 		const root = await createWorkspace(`export default {
 			echo: {
 				description: "Echo params.",

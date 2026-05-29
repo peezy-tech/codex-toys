@@ -5,18 +5,18 @@ description: Copy repo-local skills, plugins, hooks, and automations from capabi
 
 # Install pack repos
 
-Prefer Codex plugins for reusable skills and agent guidance. Plugins install
-cleanly from GitHub-backed marketplaces and do not require codex-flows to own a
+Prefer Codex plugins for reusable skills and toybox guidance. Plugins install
+cleanly from GitHub-backed marketplaces and do not require codex-toys to own a
 parallel distribution model.
 
 Pack repos are the lower-level file-copy path for workspaces that intentionally
 want repo-local copies, such as skills under `.agents/skills`, local plugins
 under `plugins`, direct hook config under `.codex/hooks`, or automation
-templates under `.codex/automations`. For codex-flows itself, prefer the plugin
+templates under `.codex/automations`. For codex-toys itself, prefer the plugin
 install because its hooks are bundled in the plugin and discovered by Codex
 without a pack copy.
 
-A workspace repo is the operational target. `codex-flows pack add` installs
+A workspace repo is the operational target. `codex-toys pack add` installs
 selected capabilities into that repo's Codex-native locations. V1 is repo-local
 only and does not mutate `~/.codex` or user-global plugin installs.
 
@@ -66,28 +66,28 @@ path = "automations/release-candidate"
 Inspect a local directory, GitHub shorthand, or Git URL:
 
 ```bash
-codex-flows pack inspect ./engineering-capabilities
-codex-flows pack inspect mattpocock/skills --json
-codex-flows pack inspect https://github.com/example/capabilities.git --ref main
+codex-toys pack inspect ./engineering-capabilities
+codex-toys pack inspect mattpocock/skills --json
+codex-toys pack inspect https://github.com/example/capabilities.git --ref main
 ```
 
 Install is dry-run by default:
 
 ```bash
-codex-flows pack add ./engineering-capabilities
-codex-flows pack add owner/repo --include tdd --exclude repo-policy
+codex-toys pack add ./engineering-capabilities
+codex-toys pack add owner/repo --include tdd --exclude repo-policy
 ```
 
 Apply only after reviewing the plan:
 
 ```bash
-codex-flows pack add ./engineering-capabilities --apply
+codex-toys pack add ./engineering-capabilities --apply
 ```
 
 Changed destinations are conflicts unless overwrite is explicit:
 
 ```bash
-codex-flows pack add ./engineering-capabilities --apply --overwrite
+codex-toys pack add ./engineering-capabilities --apply --overwrite
 ```
 
 Overwrite backs up replaced item directories under `.codex/pack-backups/<timestamp>/`.
@@ -123,18 +123,18 @@ enable the feature automatically.
 
 ## Automations
 
-Automation packs are templates for codex-flows workspaces. Their bundle
+Automation packs are templates for codex-toys workspaces. Their bundle
 directory is copied under `.codex/automations/<automation>`, and execution stays
-with codex-flows commands, workspace policy, or forge runners. The pack
+with codex-toys commands, workspace policy, or forge runners. The pack
 installer does not schedule, retry, replay, or run automations while installing
 them.
 
 ## Inspect installed packs
 
 ```bash
-codex-flows pack list
-codex-flows pack doctor
-codex-flows pack doctor --json
+codex-toys pack list
+codex-toys pack doctor
+codex-toys pack doctor --json
 ```
 
 `pack list` reads `.codex/pack-lock.json`. `pack doctor` validates the lock,

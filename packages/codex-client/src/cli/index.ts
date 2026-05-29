@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import {
-	APP_SERVER_CALL_METHOD,
-	WORKSPACE_BACKEND_INITIALIZE_METHOD,
-	type WorkspaceBackendInitializeResponse,
-} from "../workspace-backend/index.ts";
+	APP_CALL_METHOD,
+	TOYBOX_INITIALIZE_METHOD,
+	type ToyboxInitializeResponse,
+} from "../toybox/index.ts";
 import {
 	COMMON_APP_SERVER_ACTIONS,
-	COMMON_WORKSPACE_BACKEND_METHODS,
+	COMMON_TOYBOX_METHODS,
 } from "./actions.ts";
 import {
 	cleanupActionsCodexHome,
@@ -19,7 +19,7 @@ import {
 import {
 	collectFetchInfo,
 	formatFetchInfo,
-	type FetchAgentInfo,
+	type FetchToyboxInfo,
 	type FetchCountInfo,
 	type FetchThreadSummary,
 	type FetchThreadsInfo,
@@ -59,10 +59,10 @@ import {
 	type TurnAutomationRunTarget,
 } from "./turn-automation.ts";
 import {
-	createLocalAgentTransport,
-	createSshAgentTransport,
+	createLocalToyboxTransport,
+	createSshToyboxTransport,
 	hasSshRemote,
-	withSshRemoteWorkspaceTransport,
+	withSshRemoteToyboxTransport,
 	type SshRemoteProviderOptions,
 } from "./remote-provider.ts";
 import {
@@ -80,8 +80,8 @@ import {
 	type WorkspaceFunctionsDescribeResponse,
 	type WorkspaceFunctionsListResponse,
 } from "../functions.ts";
-import { serveAgent } from "./agent.ts";
-import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
+import { serveToybox } from "./toybox.ts";
+import type { CodexToyboxTransport } from "../toybox/client.ts";
 import {
 	formatThreadRolloutInspection,
 	formatThreadRolloutInstallation,
@@ -107,7 +107,7 @@ import {
 	startWorkspaceDelegationWithRequest,
 	type WorkspaceDelegationListResult,
 } from "./workspace-delegation.ts";
-import { serveCodexFlowsMcp } from "./mcp.ts";
+import { serveCodexToysMcp } from "./mcp.ts";
 import { parseJsonParamsText, readJsonFile } from "./json.ts";
 
 await main().catch((error) => {
@@ -122,7 +122,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "mcp-serve") {
-		serveCodexFlowsMcp({
+		serveCodexToysMcp({
 			timeoutMs: parsed.timeoutMs,
 		});
 		return;
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
 			cwd: parsed.sshTarget ? parsed.cwd : undefined,
-			agent: await collectAgentInfo(parsed),
+			toybox: await collectToyboxInfo(parsed),
 		});
 		write(parsed.json
 			? `${JSON.stringify(info, null, 2)}\n`
@@ -149,8 +149,8 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
-	if (parsed.type === "agent-serve") {
-		await serveAgent({
+	if (parsed.type === "toybox-serve") {
+		await serveToybox({
 			cwd: parsed.cwd,
 			timeoutMs: parsed.timeoutMs,
 			codexCommand: parsed.remoteCodexCommand,
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
 			model: parsed.model,
 			sshTarget: parsed.sshTarget,
 			remotePathPrepend: parsed.remotePathPrepend,
-			agentCommand: parsed.agentCommand,
+			toyboxCommand: parsed.toyboxCommand,
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 		});
@@ -223,7 +223,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "functions-list") {
-		const response = await callWorkspaceBackend(
+		const response = await callToybox(
 			WORKSPACE_FUNCTIONS_LIST_METHOD,
 			{},
 			parsed,
@@ -234,7 +234,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "functions-describe") {
-		const response = await callWorkspaceBackend(
+		const response = await callToybox(
 			WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
 			{ name: parsed.name },
 			parsed,
@@ -245,7 +245,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "functions-call") {
-		const response = await callWorkspaceBackend(
+		const response = await callToybox(
 			WORKSPACE_FUNCTIONS_CALL_METHOD,
 			{
 				name: parsed.name,
@@ -274,7 +274,7 @@ async function main(): Promise<void> {
 			model: parsed.model,
 			sshTarget: parsed.sshTarget,
 			remotePathPrepend: parsed.remotePathPrepend,
-			agentCommand: parsed.agentCommand,
+			toyboxCommand: parsed.toyboxCommand,
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 		});
@@ -294,15 +294,15 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "workspace-methods") {
-		const initialized = await initializeWorkspaceBackend(parsed);
+		const initialized = await initializeToybox(parsed);
 		writeJson({
-			advertised: initialized.capabilities.workspaceMethods,
-			common: COMMON_WORKSPACE_BACKEND_METHODS,
+			advertised: initialized.capabilities.toyboxMethods,
+			common: COMMON_TOYBOX_METHODS,
 		}, parsed.pretty);
 		return;
 	}
 	if (parsed.type === "workspace-delegate-list") {
-		const response = await callWorkspaceBackend(
+		const response = await callToybox(
 			"delegation.list",
 			{ includeTargets: true },
 			parsed,
@@ -348,21 +348,21 @@ async function main(): Promise<void> {
 			mode: parsed.mode,
 		});
 		const info = await collectWorkspaceDoctorInfo(context);
-		const agent = await collectAgentInfo({
+		const toybox = await collectToyboxInfo({
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,
 			timeoutMs: parsed.timeoutMs,
 			sshTarget: parsed.sshTarget,
 			cwd: parsed.cwd,
 			remotePathPrepend: parsed.remotePathPrepend,
-			agentCommand: parsed.agentCommand,
+			toyboxCommand: parsed.toyboxCommand,
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 		});
-		const result = { ...info, agent };
+		const result = { ...info, toybox };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
-			: `${formatWorkspaceDoctorInfo(info)}agent              ${agentLabelForDoctor(agent)}\n`);
+			: `${formatWorkspaceDoctorInfo(info)}toybox             ${toyboxLabelForDoctor(toybox)}\n`);
 		return;
 	}
 	if (parsed.type === "workspace-tick") {
@@ -371,8 +371,8 @@ async function main(): Promise<void> {
 			mode: parsed.mode,
 		});
 		const result = await tickWorkspace(context, {
-			callWorkspaceBackend: async (method, params) =>
-				await callWorkspaceBackend(method, params, parsed),
+			callToybox: async (method, params) =>
+				await callToybox(method, params, parsed),
 			automationCwd: parsed.cwd,
 		});
 		writeJson({
@@ -387,8 +387,8 @@ async function main(): Promise<void> {
 			mode: parsed.mode,
 		});
 		const run = await runWorkspaceTaskById(context, parsed.taskId, {
-			callWorkspaceBackend: async (method, params) =>
-				await callWorkspaceBackend(method, params, parsed),
+			callToybox: async (method, params) =>
+				await callToybox(method, params, parsed),
 			automationCwd: parsed.cwd,
 		});
 		writeJson({
@@ -410,7 +410,7 @@ async function main(): Promise<void> {
 	}
 	if (parsed.type === "workspace-call") {
 		writeJson(
-			await callWorkspaceBackend(
+			await callToybox(
 					parsed.method,
 					await readParams(parsed.paramsText, parsed.paramsFile),
 					parsed,
@@ -421,8 +421,8 @@ async function main(): Promise<void> {
 	}
 	if (parsed.type === "workspace-app-call") {
 		writeJson(
-			await callWorkspaceBackend(
-				APP_SERVER_CALL_METHOD,
+			await callToybox(
+				APP_CALL_METHOD,
 				{
 						method: parsed.method,
 						params: await readParams(parsed.paramsText, parsed.paramsFile),
@@ -519,11 +519,11 @@ async function main(): Promise<void> {
 	}
 }
 
-function agentLabelForDoctor(agent: FetchAgentInfo): string {
-	if (agent.status === "connected") {
-		return agent.url ? `${agent.transport} connected (${agent.url})` : `${agent.transport} connected`;
+function toyboxLabelForDoctor(toybox: FetchToyboxInfo): string {
+	if (toybox.status === "connected") {
+		return toybox.url ? `${toybox.transport} connected (${toybox.url})` : `${toybox.transport} connected`;
 	}
-	return agent.error ? `unavailable (${agent.error})` : "unavailable";
+	return toybox.error ? `unavailable (${toybox.error})` : "unavailable";
 }
 
 async function callAppServer(
@@ -531,7 +531,7 @@ async function callAppServer(
 	params: unknown,
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<unknown> {
-	return await callWorkspaceBackend(APP_SERVER_CALL_METHOD, { method, params }, options);
+	return await callToybox(APP_CALL_METHOD, { method, params }, options);
 }
 
 async function listRemoteTurnAutomationsForCli(
@@ -541,7 +541,7 @@ async function listRemoteTurnAutomationsForCli(
 		timeoutMs: number;
 	} & SshRemoteProviderOptions,
 ): Promise<RemoteAutomationListResponse["automations"]> {
-	return await withSshRemoteWorkspaceTransport(options, async (transport) => {
+	return await withSshRemoteToyboxTransport(options, async (transport) => {
 		await initialize(transport);
 		const response = await transport.request<RemoteAutomationListResponse>(
 			REMOTE_AUTOMATION_LIST_METHOD,
@@ -569,7 +569,7 @@ async function runRemoteTurnAutomationForCli(
 		model?: string;
 	} & SshRemoteProviderOptions,
 ): Promise<TurnAutomationRun> {
-	return await withSshRemoteWorkspaceTransport(options, async (transport) => {
+	return await withSshRemoteToyboxTransport(options, async (transport) => {
 		await initialize(transport);
 		return await transport.request<TurnAutomationRun>(
 			REMOTE_AUTOMATION_RUN_METHOD,
@@ -719,15 +719,15 @@ function createLazyWorkspaceRequester(
 	workspaceRequest: TurnAutomationBackendRequest;
 	close(): void;
 } {
-	let transport: CodexWorkspaceBackendTransport | undefined;
-	const getTransport = async (): Promise<CodexWorkspaceBackendTransport> => {
+	let transport: CodexToyboxTransport | undefined;
+	const getTransport = async (): Promise<CodexToyboxTransport> => {
 		if (transport) {
 			return transport;
 		}
 		if (hasSshRemote(options)) {
-			transport = createSshAgentTransport(options);
+			transport = createSshToyboxTransport(options);
 		} else {
-			transport = createLocalAgentTransport(options);
+			transport = createLocalToyboxTransport(options);
 		}
 		try {
 			transport.start();
@@ -741,7 +741,7 @@ function createLazyWorkspaceRequester(
 	};
 	return {
 		appRequest: async (method, params) =>
-			await (await getTransport()).request(APP_SERVER_CALL_METHOD, {
+			await (await getTransport()).request(APP_CALL_METHOD, {
 				method,
 				params,
 			}),
@@ -754,16 +754,16 @@ function createLazyWorkspaceRequester(
 	};
 }
 
-async function initializeWorkspaceBackend(options: {
+async function initializeToybox(options: {
 	url: string;
 	timeoutMs: number;
-} & SshRemoteProviderOptions): Promise<WorkspaceBackendInitializeResponse> {
+} & SshRemoteProviderOptions): Promise<ToyboxInitializeResponse> {
 	return await withWorkspaceTransport(options, async (transport) =>
 		await initialize(transport)
 	);
 }
 
-async function callWorkspaceBackend(
+async function callToybox(
 	method: string,
 	params: unknown,
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
@@ -776,12 +776,12 @@ async function callWorkspaceBackend(
 
 async function withWorkspaceTransport<T>(
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
-	callback: (transport: CodexWorkspaceBackendTransport) => Promise<T>,
+	callback: (transport: CodexToyboxTransport) => Promise<T>,
 ): Promise<T> {
 	if (hasSshRemote(options)) {
-		return await withSshRemoteWorkspaceTransport(options, callback);
+		return await withSshRemoteToyboxTransport(options, callback);
 	}
-	const transport = createLocalAgentTransport(options);
+	const transport = createLocalToyboxTransport(options);
 	try {
 		transport.start();
 		return await callback(transport);
@@ -791,46 +791,46 @@ async function withWorkspaceTransport<T>(
 }
 
 async function initialize(
-	transport: CodexWorkspaceBackendTransport,
-): Promise<WorkspaceBackendInitializeResponse> {
-	return await transport.request<WorkspaceBackendInitializeResponse>(
-		WORKSPACE_BACKEND_INITIALIZE_METHOD,
+	transport: CodexToyboxTransport,
+): Promise<ToyboxInitializeResponse> {
+	return await transport.request<ToyboxInitializeResponse>(
+		TOYBOX_INITIALIZE_METHOD,
 		{
 			clientInfo: {
-				name: "codex-flows-cli",
-				title: "Codex Flows CLI",
+				name: "codex-toys-cli",
+				title: "Codex Toys CLI",
 				version: "0.1.0",
 			},
 			capabilities: {
-				appServerPassThrough: true,
+				appPassThrough: true,
 			},
 		},
 	);
 }
 
-async function collectAgentInfo(options: {
+async function collectToyboxInfo(options: {
 	appUrl: string;
 	workspaceUrl: string;
 	timeoutMs: number;
-} & SshRemoteProviderOptions): Promise<FetchAgentInfo> {
+} & SshRemoteProviderOptions): Promise<FetchToyboxInfo> {
 	if (hasSshRemote(options)) {
-		return await collectSshAgentInfo(options);
+		return await collectSshToyboxInfo(options);
 	}
-	return await collectLocalAgentInfo(options);
+	return await collectLocalToyboxInfo(options);
 }
 
-async function collectSshAgentInfo(
+async function collectSshToyboxInfo(
 	options: {
 		appUrl: string;
 		workspaceUrl: string;
 		timeoutMs: number;
 	} & SshRemoteProviderOptions,
-): Promise<FetchAgentInfo> {
+): Promise<FetchToyboxInfo> {
 	try {
-		return await withSshRemoteWorkspaceTransport(options, async (transport) =>
-			await collectAgentInfoFromTransport(
+		return await withSshRemoteToyboxTransport(options, async (transport) =>
+			await collectToyboxInfoFromTransport(
 				transport,
-				"ssh://agent",
+				"ssh://toybox",
 				"ssh",
 				options.timeoutMs,
 			)
@@ -839,21 +839,21 @@ async function collectSshAgentInfo(
 		return {
 			transport: "ssh",
 			status: "unavailable",
-			error: `agent: ${errorMessage(error)}`,
+			error: `toybox: ${errorMessage(error)}`,
 		};
 	}
 }
 
-async function collectLocalAgentInfo(options: {
+async function collectLocalToyboxInfo(options: {
 	timeoutMs: number;
-}): Promise<FetchAgentInfo> {
-	const transport = createLocalAgentTransport(options);
+}): Promise<FetchToyboxInfo> {
+	const transport = createLocalToyboxTransport(options);
 	transport.on("error", () => {});
 	try {
 		transport.start();
-		return await collectAgentInfoFromTransport(
+		return await collectToyboxInfoFromTransport(
 			transport,
-			"agent://local",
+			"toybox://local",
 			"local",
 			options.timeoutMs,
 		);
@@ -861,7 +861,7 @@ async function collectLocalAgentInfo(options: {
 		return {
 			transport: "local",
 			status: "unavailable",
-			url: "agent://local",
+			url: "toybox://local",
 			error: errorMessage(error),
 		};
 	} finally {
@@ -869,38 +869,38 @@ async function collectLocalAgentInfo(options: {
 	}
 }
 
-async function collectAgentInfoFromTransport(
-	transport: CodexWorkspaceBackendTransport,
+async function collectToyboxInfoFromTransport(
+	transport: CodexToyboxTransport,
 	url: string,
-	agentTransport: FetchAgentInfo["transport"],
+	toyboxTransport: FetchToyboxInfo["transport"],
 	timeoutMs: number,
-): Promise<FetchAgentInfo> {
+): Promise<FetchToyboxInfo> {
 	return await withProbeTimeout(async () => {
 		const initialized = await initialize(transport);
-		const methods = new Set(initialized.capabilities.workspaceMethods);
+		const methods = new Set(initialized.capabilities.toyboxMethods);
 		const threads = await collectThreadsViaWorkspace(transport);
 		const delegations = methods.has("delegation.list")
 			? await optionalProbe(() => collectDelegations(transport))
 			: undefined;
 		return {
-			transport: agentTransport,
+			transport: toyboxTransport,
 			status: "connected",
 			url,
 			server: initialized.serverInfo,
 			capabilities: {
-				workspaceMethods: initialized.capabilities.workspaceMethods.length,
+				toyboxMethods: initialized.capabilities.toyboxMethods.length,
 			},
 			threads,
 			...(delegations ? { delegations } : {}),
 		};
-	}, timeoutMs, `agent probe timed out after ${timeoutMs}ms`);
+	}, timeoutMs, `toybox probe timed out after ${timeoutMs}ms`);
 }
 
 async function collectThreadsViaWorkspace(
-	transport: CodexWorkspaceBackendTransport,
+	transport: CodexToyboxTransport,
 ): Promise<FetchThreadsInfo> {
 	try {
-		const response = await transport.request(APP_SERVER_CALL_METHOD, {
+		const response = await transport.request(APP_CALL_METHOD, {
 			method: "thread/list",
 			params: threadListParams(),
 		});
@@ -918,7 +918,7 @@ async function collectThreadsViaWorkspace(
 }
 
 async function collectDelegations(
-	transport: CodexWorkspaceBackendTransport,
+	transport: CodexToyboxTransport,
 ): Promise<FetchCountInfo> {
 	const response = record(await transport.request("delegation.list", {}));
 	return summarizeStatusList(arrayValue(response.delegations));
@@ -1110,65 +1110,65 @@ function write(text: string): void {
 }
 
 function helpText(): string {
-	return `codex-flows controls Codex-native local and SSH agent surfaces.
+	return `codex-toys controls Codex-native local and SSH toybox surfaces.
 
 Usage:
-  codex-flows fetch [--json] [--no-color]
-  codex-flows neofetch [--json] [--no-color]
-  codex-flows --ssh <target> --cwd <remote-workspace> fetch
-  codex-flows agent serve [--cwd <path>]
-  codex-flows mcp serve
+  codex-toys fetch [--json] [--no-color]
+  codex-toys neofetch [--json] [--no-color]
+  codex-toys --ssh <target> --cwd <remote-workspace> fetch
+  codex-toys toybox serve [--cwd <path>]
+  codex-toys mcp serve
 
-  codex-flows --ssh <target> --cwd <remote-workspace> remote preflight [--json]
+  codex-toys --ssh <target> --cwd <remote-workspace> remote preflight [--json]
 
-  codex-flows turn run <prompt> [--wait] [--thread-id <id>]
-  codex-flows --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
+  codex-toys turn run <prompt> [--wait] [--thread-id <id>]
+  codex-toys --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 
-  codex-flows automation list [--json]
-  codex-flows automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
-  codex-flows --ssh <target> --cwd <remote-workspace> automation list [--json]
-  codex-flows --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
+  codex-toys automation list [--json]
+  codex-toys automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
+  codex-toys --ssh <target> --cwd <remote-workspace> automation list [--json]
+  codex-toys --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
 
-  codex-flows app <method> [params-json]
-  codex-flows app <method> --params-json <json>
-  codex-flows app <method> --params-file <file>
-  codex-flows app call <method> [params-json]
-  echo '<params-json>' | codex-flows app <method>
-  codex-flows app actions
+  codex-toys app <method> [params-json]
+  codex-toys app <method> --params-json <json>
+  codex-toys app <method> --params-file <file>
+  codex-toys app call <method> [params-json]
+  echo '<params-json>' | codex-toys app <method>
+  codex-toys app actions
 
-  codex-flows functions list [--json]
-  codex-flows functions describe <name> [--json]
-  codex-flows functions call <name> [--params-json <json>] [--json]
-  codex-flows --ssh <target> --cwd <remote-workspace> functions list [--json]
+  codex-toys functions list [--json]
+  codex-toys functions describe <name> [--json]
+  codex-toys functions call <name> [--params-json <json>] [--json]
+  codex-toys --ssh <target> --cwd <remote-workspace> functions list [--json]
 
-  codex-flows workspace <method> [params-json]
-  codex-flows workspace <method> --params-json <json>
-  codex-flows workspace <method> --params-file <file>
-  codex-flows workspace call <method> [params-json]
-  codex-flows workspace app <method> [params-json]
-  codex-flows workspace methods
-  codex-flows workspace delegate list [--json]
-  codex-flows workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
-  codex-flows workspace doctor [--mode auto|local|actions] [--json]
-  codex-flows workspace tick [--mode auto|local|actions]
-  codex-flows workspace run <task-id> [--mode auto|local|actions]
-  codex-flows workspace init actions [--forgejo|--github]
+  codex-toys workspace <method> [params-json]
+  codex-toys workspace <method> --params-json <json>
+  codex-toys workspace <method> --params-file <file>
+  codex-toys workspace call <method> [params-json]
+  codex-toys workspace app <method> [params-json]
+  codex-toys workspace methods
+  codex-toys workspace delegate list [--json]
+  codex-toys workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
+  codex-toys workspace doctor [--mode auto|local|actions] [--json]
+  codex-toys workspace tick [--mode auto|local|actions]
+  codex-toys workspace run <task-id> [--mode auto|local|actions]
+  codex-toys workspace init actions [--forgejo|--github]
 
-  codex-flows actions prepare-auth
-  codex-flows actions cleanup
+  codex-toys actions prepare-auth
+  codex-toys actions cleanup
 
-  codex-flows memories transplant global-to-workspace [--apply]
-  codex-flows memories transplant workspace-to-global [--apply]
+  codex-toys memories transplant global-to-workspace [--apply]
+  codex-toys memories transplant workspace-to-global [--apply]
 
-  codex-flows threads locate <thread-id> [--codex-home <home>]
-  codex-flows threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
-  codex-flows threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
-  codex-flows threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
+  codex-toys threads locate <thread-id> [--codex-home <home>]
+  codex-toys threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
+  codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
+  codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
 
-  codex-flows pack inspect <source> [--json]
-  codex-flows pack add <source> [--apply] [--include <name>] [--exclude <name>]
-  codex-flows pack doctor [--json]
-  codex-flows pack list [--json]
+  codex-toys pack inspect <source> [--json]
+  codex-toys pack add <source> [--apply] [--include <name>] [--exclude <name>]
+  codex-toys pack doctor [--json]
+  codex-toys pack list [--json]
 
 Options:
   --timeout-ms <ms>                          Request timeout. Defaults to 90000,
@@ -1217,15 +1217,15 @@ Options:
   --approval-policy <policy>                 Turn approval policy: never,
                                              on-failure, on-request, or untrusted.
   --permissions <profile>                    Turn permissions profile.
-  --ssh, --ssh-target <target>               SSH target for remote CodexFlows operation
-                                             Defaults to CODEX_FLOWS_REMOTE_SSH_TARGET.
+  --ssh, --ssh-target <target>               SSH target for remote CodexToys operation
+                                             Defaults to CODEX_TOYS_REMOTE_SSH_TARGET.
   --remote-path-prepend <paths>              Colon-separated remote PATH entries for
                                              non-interactive SSH commands.
-  --agent-command <command>                  codex-flows command/path for spawned agents.
-                                             Defaults to CODEX_FLOWS_AGENT_COMMAND
-                                             or codex-flows.
-  --codex-command <command>                  Codex command used by the agent.
-                                             Defaults to CODEX_FLOWS_REMOTE_CODEX_COMMAND or codex.
+  --toybox-command <command>                  codex-toys command/path for spawned toyboxes.
+                                             Defaults to CODEX_TOYS_TOYBOX_COMMAND
+                                             or codex-toys.
+  --codex-command <command>                  Codex command used by the toybox.
+                                             Defaults to CODEX_TOYS_REMOTE_CODEX_COMMAND or codex.
   --codex-arg <arg>                          Extra Codex argument. Repeatable.
   --cwd <path>                               Remote workspace cwd for SSH operation.
                                              For local workspace delegate, also
@@ -1234,31 +1234,31 @@ Options:
   -h, --help                                 Show this help.
 
 Examples:
-  codex-flows fetch
-  codex-flows mcp serve
-  codex-flows agent serve --cwd /repo
-  codex-flows --ssh devbox --cwd /repo fetch
-  codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait
-  codex-flows automation list
-  codex-flows automation run check-release --event event.json
-  codex-flows --ssh devbox --cwd /repo automation list --json
-  codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
-  codex-flows --ssh devbox --cwd /repo functions list --json
-  codex-flows --ssh devbox --cwd /repo functions call portfolioSnapshot --json
-  codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
-  codex-flows --ssh devbox --cwd /repo workspace delegation.list
-  codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'
-  codex-flows workspace app thread/list '{"limit":20,"sourceKinds":[]}'
-  codex-flows workspace delegation.list
-  codex-flows workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
-  codex-flows workspace doctor --mode actions
-  codex-flows workspace init actions --forgejo
-  codex-flows memories transplant global-to-workspace
-  codex-flows threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex
-  codex-flows threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home ./.codex
-  codex-flows threads transplant 019e3654-1492-70d0-9b01-46b17d6444a9 --from-codex-home ~/.codex --to-codex-home ./.codex
-  codex-flows pack inspect owner/repo
-  codex-flows pack add ./capability-pack --apply
+  codex-toys fetch
+  codex-toys mcp serve
+  codex-toys toybox serve --cwd /repo
+  codex-toys --ssh devbox --cwd /repo fetch
+  codex-toys --ssh devbox --cwd /repo turn run "Scan current folder" --wait
+  codex-toys automation list
+  codex-toys automation run check-release --event event.json
+  codex-toys --ssh devbox --cwd /repo automation list --json
+  codex-toys --ssh devbox --cwd /repo automation run check-release --event event.json
+  codex-toys --ssh devbox --cwd /repo functions list --json
+  codex-toys --ssh devbox --cwd /repo functions call portfolioSnapshot --json
+  codex-toys --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
+  codex-toys --ssh devbox --cwd /repo workspace delegation.list
+  codex-toys app thread/list '{"limit":20,"sourceKinds":[]}'
+  codex-toys workspace app thread/list '{"limit":20,"sourceKinds":[]}'
+  codex-toys workspace delegation.list
+  codex-toys workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
+  codex-toys workspace doctor --mode actions
+  codex-toys workspace init actions --forgejo
+  codex-toys memories transplant global-to-workspace
+  codex-toys threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex
+  codex-toys threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home ./.codex
+  codex-toys threads transplant 019e3654-1492-70d0-9b01-46b17d6444a9 --from-codex-home ~/.codex --to-codex-home ./.codex
+  codex-toys pack inspect owner/repo
+  codex-toys pack add ./capability-pack --apply
 `;
 }
 

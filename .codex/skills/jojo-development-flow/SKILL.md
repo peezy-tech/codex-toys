@@ -1,20 +1,20 @@
 ---
 name: jojo-development-flow
-description: Use when working in this repository on development flow, remotes, jojo.build operations, Codeberg mirroring, branch tracking, commit signing, jojo Actions, npm trusted publishing, release validation, or publishing @peezy.tech/codex-flows.
+description: Use when working in this repository on development flow, remotes, jojo.build operations, Codeberg mirroring, branch tracking, commit signing, jojo Actions, npm trusted publishing, release validation, or publishing codex-toys.
 ---
 
 # Jojo Development Flow
 
 ## Overview
 
-Use `jojo.build` as the canonical development home for `peezy-tech/codex-flows`. Codeberg is a push mirror. GitHub is only for npm trusted publishing.
+Use `jojo.build` as the canonical development home for `peezy-tech/codex-toys`. Codeberg is a push mirror. GitHub is only for npm trusted publishing.
 
 ## Current Structure
 
-- Canonical repo: `https://jojo.build/peezy-tech/codex-flows`
-- Git remote `origin`: `git@jojo.build:peezy-tech/codex-flows.git`
-- Git remote `codeberg`: `git@codeberg.org:peezy-tech/codex-flows.git`
-- Git remote `github`: `https://github.com/peezy-tech/codex-flows.git`
+- Canonical repo: `https://jojo.build/peezy-tech/codex-toys`
+- Git remote `origin`: `git@jojo.build:peezy-tech/codex-toys.git`
+- Git remote `codeberg`: `git@codeberg.org:peezy-tech/codex-toys.git`
+- Git remote `github`: `https://github.com/peezy-tech/codex-toys.git`
 - `main` tracks `origin/main`.
 - `jojo.build` push-mirrors `main` to Codeberg.
 - GitHub is pushed manually only when npm trusted publishing needs the release workflow.
@@ -35,7 +35,7 @@ Use `jojo.build` as the canonical development home for `peezy-tech/codex-flows`.
 - Do not treat GitHub as a development remote.
 - Push to GitHub only when the release workflow must publish to npm.
 - Do not add npm tokens to the repo or GitHub secrets. GitHub publishes through trusted publishing.
-- Use package name `@peezy.tech/codex-flows`, not `@peezy-tech/codex-flows`.
+- Use package name `codex-toys`, not `@peezy-tech/codex-toys`.
 - Before release work, verify `origin/main` and `codeberg/main` are aligned.
 - Keep commits signed when possible, but signed commits are not currently required by branch protection.
 
@@ -75,7 +75,7 @@ The CI workflow runs:
 bun install --frozen-lockfile
 bun run check:types
 bun run test
-bun run --filter @peezy.tech/codex-flows release:check
+bun run --filter codex-toys release:check
 ```
 
 ## Release Workflow
@@ -90,7 +90,7 @@ git push
 Before release, run:
 
 ```bash
-bun run --filter @peezy.tech/codex-flows release:check
+bun run --filter codex-toys release:check
 bun run check:types
 bun run test
 git diff --check
@@ -103,8 +103,8 @@ Then:
 3. Push to jojo: `git push`.
 4. Confirm Codeberg mirror has received the commit.
 5. Push to GitHub: `git push github main`.
-6. Run GitHub workflow `.github/workflows/publish-codex-flows.yml` with `confirm_package=@peezy.tech/codex-flows`.
-7. Verify `npm dist-tag ls @peezy.tech/codex-flows`.
+6. Run GitHub workflow `.github/workflows/publish-codex-toys.yml` with `confirm_package=codex-toys`.
+7. Verify `npm dist-tag ls codex-toys`.
 
 ## References
 

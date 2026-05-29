@@ -10,7 +10,7 @@ import { parseJsonParamsText, parseJsonText } from "../src/cli/json.ts";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
-describe("codex-flows CLI args", () => {
+describe("codex-toys CLI args", () => {
 	test("parses JSON text with a UTF-8 BOM", () => {
 		expect(parseJsonText("\uFEFF{\"ok\":true}", "params")).toEqual({ ok: true });
 	});
@@ -31,7 +31,7 @@ describe("codex-flows CLI args", () => {
 				type: "app-call",
 				method: "thread/list",
 				paramsText: "{\"limit\":1}",
-				url: "agent://local",
+				url: "toybox://local",
 			});
 		expect(parseArgs([
 			"app",
@@ -59,7 +59,7 @@ describe("codex-flows CLI args", () => {
 		expect(parseArgs(["workspace", "delegation.list"], {})).toMatchObject({
 			type: "workspace-call",
 			method: "delegation.list",
-			url: "agent://local",
+			url: "toybox://local",
 		});
 		expect(parseArgs([
 			"workspace",
@@ -119,16 +119,16 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
-	test("rejects removed workspace backend setup commands", () => {
+	test("rejects removed toybox setup commands", () => {
 		expect(() => parseArgs(["workspace", "backend", "init", "local", "--overwrite"], {}))
-			.toThrow("workspace backend service commands have been removed");
+			.toThrow("toybox service commands have been removed");
 		expect(() => parseArgs(["workspace", "backend", "status", "--json"], {}))
-			.toThrow("workspace backend service commands have been removed");
+			.toThrow("toybox service commands have been removed");
 		expect(() => parseArgs(["workspace", "backend", "start"], {}))
-			.toThrow("workspace backend service commands have been removed");
+			.toThrow("toybox service commands have been removed");
 	});
 
-	test("parses agent and SSH preflight commands", () => {
+	test("parses toybox and SSH preflight commands", () => {
 		expect(() => parseArgs(["remote", "status", "--json"], {}))
 			.toThrow("remote supports only preflight");
 		expect(parseArgs([
@@ -148,12 +148,12 @@ describe("codex-flows CLI args", () => {
 		expect(parseArgs([
 			"--cwd",
 			"/work",
-			"agent",
+			"toybox",
 			"serve",
 			"--codex-command",
 			"/opt/codex",
 		], {})).toMatchObject({
-			type: "agent-serve",
+			type: "toybox-serve",
 			cwd: "/work",
 			remoteCodexCommand: "/opt/codex",
 		});
@@ -167,8 +167,8 @@ describe("codex-flows CLI args", () => {
 				"devbox",
 				"--cwd",
 				"/repo",
-				"--agent-command",
-				"/opt/codex-flows",
+				"--toybox-command",
+				"/opt/codex-toys",
 				"--codex-command",
 				"/opt/codex",
 				"--codex-arg",
@@ -188,7 +188,7 @@ describe("codex-flows CLI args", () => {
 				prompt: "scan current folder",
 				sshTarget: "devbox",
 				cwd: "/repo",
-				agentCommand: "/opt/codex-flows",
+				toyboxCommand: "/opt/codex-toys",
 				remoteCodexCommand: "/opt/codex",
 				remoteCodexArgs: ["-s", "danger-full-access"],
 				wait: true,
@@ -258,7 +258,7 @@ describe("codex-flows CLI args", () => {
 			sshTarget: "devbox",
 			cwd: "/repo",
 			remotePathPrepend: "/opt/node/bin",
-			agentCommand: "/opt/codex-flows",
+			toyboxCommand: "/opt/codex-toys",
 		};
 		expect(parseArgs([
 			"--ssh",
@@ -267,8 +267,8 @@ describe("codex-flows CLI args", () => {
 			"/repo",
 			"--remote-path-prepend",
 			"/opt/node/bin",
-			"--agent-command",
-			"/opt/codex-flows",
+			"--toybox-command",
+			"/opt/codex-toys",
 			"fetch",
 		], {})).toMatchObject({ type: "fetch", ...remote });
 		expect(parseArgs([
@@ -329,7 +329,7 @@ describe("codex-flows CLI args", () => {
 
 	test("executes SSH workspace function commands", async () => {
 		const fakeSsh = await createFunctionFakeSshCommand();
-		const env = { CODEX_FLOWS_SSH_COMMAND: fakeSsh };
+		const env = { CODEX_TOYS_SSH_COMMAND: fakeSsh };
 
 		const list = await runCli([
 			"--ssh",
@@ -382,7 +382,7 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
-	test("parses app-server pass-through through the agent", () => {
+	test("parses app-server pass-through through the toybox", () => {
 			expect(parseArgs([
 				"workspace",
 				"app",
@@ -573,8 +573,8 @@ describe("codex-flows CLI args", () => {
 	test("parses neofetch-style fetch command", () => {
 		expect(parseArgs(["--no-color", "fetch"], {})).toEqual({
 			type: "fetch",
-			appUrl: "agent://local",
-			workspaceUrl: "agent://local",
+			appUrl: "toybox://local",
+			workspaceUrl: "toybox://local",
 			timeoutMs: 1500,
 			color: false,
 			json: false,
@@ -594,7 +594,7 @@ describe("codex-flows CLI args", () => {
 
 	test("formats fetch output without ANSI colors", () => {
 		const info: FetchInfo = {
-			package: "@peezy.tech/codex-flows",
+			package: "codex-toys",
 			version: "0.3.1",
 			runtime: "node 24.15.0",
 			node: "24.0.0",
@@ -603,18 +603,18 @@ describe("codex-flows CLI args", () => {
 			shell: "/bin/bash",
 			cwd: "/workspace",
 			codexCommand: "/tmp/codex",
-			agentUrl: "agent://local",
+			toyboxUrl: "toybox://local",
 			codexHome: "/tmp/codex-home",
-			agent: {
+			toybox: {
 				transport: "local",
 				status: "connected",
-				url: "agent://local",
+				url: "toybox://local",
 				server: {
-					name: "codex-flows-agent",
+					name: "codex-toys-toybox",
 					version: "0.1.0",
 				},
 				capabilities: {
-					workspaceMethods: 8,
+					toyboxMethods: 8,
 				},
 				threads: {
 					total: 2,
@@ -632,10 +632,10 @@ describe("codex-flows CLI args", () => {
 			},
 		};
 		const output = formatFetchInfo(info, { color: false });
-		expect(output).toContain("codex-flows");
-		expect(output).toContain("package      @peezy.tech/codex-flows@0.3.1");
-		expect(output).toContain("agent        agent://local");
-		expect(output).toContain("agent status local connected");
+		expect(output).toContain("codex-toys");
+		expect(output).toContain("package      codex-toys@0.3.1");
+		expect(output).toContain("toybox       toybox://local");
+		expect(output).toContain("toybox status local connected");
 		expect(output).toContain("threads      2 listed, 1 active, 1 idle");
 		expect(output).not.toContain("\x1b[");
 	});
@@ -702,14 +702,14 @@ function handle(line) {
 }
 
 function resultFor(method, params) {
-	if (method === "workspace.initialize") {
+	if (method === "toybox.initialize") {
 		return {
 			ok: true,
-			serverInfo: { name: "fake-agent", version: "0.1.0" },
+			serverInfo: { name: "fake-toybox", version: "0.1.0" },
 			capabilities: {
-				appServerPassThrough: true,
-				workspaceMethods: ["functions.list", "functions.describe", "functions.call"],
-				workspaceMethodMetadata: [],
+				appPassThrough: true,
+				toyboxMethods: ["functions.list", "functions.describe", "functions.call"],
+				toyboxMethodMetadata: [],
 			},
 		};
 	}

@@ -4,9 +4,9 @@
 
 ```bash
 git remote -v
-# origin    git@jojo.build:peezy-tech/codex-flows.git
-# codeberg  git@codeberg.org:peezy-tech/codex-flows.git
-# github    https://github.com/peezy-tech/codex-flows.git
+# origin    git@jojo.build:peezy-tech/codex-toys.git
+# codeberg  git@codeberg.org:peezy-tech/codex-toys.git
+# github    https://github.com/peezy-tech/codex-toys.git
 ```
 
 `main` should track jojo:
@@ -35,14 +35,14 @@ Use GitHub only to run npm trusted publishing:
 
 ```bash
 git push github main
-gh workflow run publish-codex-flows.yml --repo peezy-tech/codex-flows --ref main -f confirm_package='@peezy.tech/codex-flows'
+gh workflow run publish-codex-toys.yml --repo peezy-tech/codex-toys --ref main -f confirm_package='codex-toys'
 ```
 
 ## Accounts
 
 - `peezy`: human site admin, 2FA enabled.
 - `matamune`: active development worker account for this host, not a site admin.
-- `peezy-tech`: organization containing `codex-flows`.
+- `peezy-tech`: organization containing `codex-toys`.
 - `load-game`: organization containing both `peezy` and `matamune`.
 
 ## Keys
@@ -78,7 +78,7 @@ git config --global user.signingkey E3B0D5FB2E5CF11FAFB2EA113BB8E7D3B968A324
 
 ```bash
 fj --host jojo.build auth list
-fj --host jojo.build repo view peezy-tech/codex-flows
+fj --host jojo.build repo view peezy-tech/codex-toys
 ```
 
 For admin automation, prefer a scoped `peezy` token. The old bootstrap `matamune` setup token should not be treated as the long-term admin credential.
@@ -108,7 +108,7 @@ Current CI gate:
 bun install --frozen-lockfile
 bun run check:types
 bun run test
-bun run --filter @peezy.tech/codex-flows release:check
+bun run --filter codex-toys release:check
 ```
 
 ## Jojo CLI
@@ -121,22 +121,22 @@ fj --host jojo.build auth use-ssh true
 Create the organization repo when missing:
 
 ```bash
-fj --host jojo.build org repo create peezy-tech codex-flows \
-  -d "Public monorepo for @peezy.tech/codex-flows" \
+fj --host jojo.build org repo create peezy-tech codex-toys \
+  -d "Public monorepo for codex-toys" \
   -S true
 ```
 
 Verify the repository:
 
 ```bash
-fj --host jojo.build repo view peezy-tech/codex-flows
+fj --host jojo.build repo view peezy-tech/codex-toys
 git ls-remote origin HEAD refs/heads/main
 ```
 
 ## Package Release Gate
 
 ```bash
-bun run --filter @peezy.tech/codex-flows release:check
+bun run --filter codex-toys release:check
 bun run check:types
 bun run test
 git diff --check
@@ -145,14 +145,14 @@ git diff --check
 Verify npm after GitHub Actions publishing:
 
 ```bash
-npm dist-tag ls @peezy.tech/codex-flows
-npm view @peezy.tech/codex-flows version repository --json
+npm dist-tag ls codex-toys
+npm view codex-toys version repository --json
 ```
 
 ## Current State
 
-- Canonical repo: `https://jojo.build/peezy-tech/codex-flows`
-- Codeberg mirror: `https://codeberg.org/peezy-tech/codex-flows`
-- GitHub publishing repo: `https://github.com/peezy-tech/codex-flows`
+- Canonical repo: `https://jojo.build/peezy-tech/codex-toys`
+- Codeberg mirror: `https://codeberg.org/peezy-tech/codex-toys`
+- GitHub publishing repo: `https://github.com/peezy-tech/codex-toys`
 - `origin/main` and `codeberg/main` should stay aligned automatically through the jojo push mirror.
 - `github/main` may lag until a release needs npm trusted publishing.

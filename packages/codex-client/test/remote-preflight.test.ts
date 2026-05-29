@@ -5,17 +5,17 @@ import path from "node:path";
 import { collectRemotePreflight } from "../src/cli/remote-preflight.ts";
 
 describe("remote preflight", () => {
-	test("checks SSH setup and the agent bridge", async () => {
+	test("checks SSH setup and the toybox bridge", async () => {
 		const fakeSsh = await createPreflightSsh();
 		const result = await collectRemotePreflight({
 			sshTarget: "devbox",
 			cwd: "/repo",
 			timeoutMs: 1_000,
 			env: {
-				CODEX_FLOWS_SSH_COMMAND: fakeSsh.command,
-				CODEX_FLOWS_AGENT_COMMAND: "/opt/codex-flows",
-				CODEX_FLOWS_REMOTE_CODEX_COMMAND: "/opt/codex",
-				CODEX_FLOWS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/npm/bin",
+				CODEX_TOYS_SSH_COMMAND: fakeSsh.command,
+				CODEX_TOYS_TOYBOX_COMMAND: "/opt/codex-toys",
+				CODEX_TOYS_REMOTE_CODEX_COMMAND: "/opt/codex",
+				CODEX_TOYS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/npm/bin",
 			},
 		});
 		expect(result.ok).toBe(true);
@@ -23,15 +23,15 @@ describe("remote preflight", () => {
 			expect.objectContaining({ name: "SSH", status: "ok" }),
 			expect.objectContaining({ name: "cwd", status: "ok", detail: "/repo" }),
 			expect.objectContaining({ name: "node", status: "ok", version: "v24.15.0" }),
-			expect.objectContaining({ name: "codex-flows", status: "ok" }),
+			expect.objectContaining({ name: "codex-toys", status: "ok" }),
 			expect.objectContaining({ name: "codex", status: "ok" }),
-			expect.objectContaining({ name: "SSH agent", status: "ok" }),
+			expect.objectContaining({ name: "SSH toybox", status: "ok" }),
 			expect.objectContaining({ name: "app-server initialize", status: "ok" }),
 		]));
 		expect(await fakeSsh.readLog()).toEqual(expect.arrayContaining([
 			expect.objectContaining({ mode: "shell", command: "true" }),
-			expect.objectContaining({ mode: "agent-request", method: "agent.status" }),
-			expect.objectContaining({ mode: "agent-request", method: "appServer.call" }),
+			expect.objectContaining({ mode: "toybox-request", method: "toybox.status" }),
+			expect.objectContaining({ mode: "toybox-request", method: "app.call" }),
 		]));
 	});
 });
@@ -40,7 +40,7 @@ async function createPreflightSsh(): Promise<{
 	command: string;
 	readLog(): Promise<Array<Record<string, unknown>>>;
 }> {
-	const dir = await mkdtemp(path.join(tmpdir(), "codex-flows-preflight-ssh-"));
+	const dir = await mkdtemp(path.join(tmpdir(), "codex-toys-preflight-ssh-"));
 	const command = path.join(dir, "ssh.mjs");
 	const logPath = path.join(dir, "ssh.log");
 	await writeFile(command, preflightSshScript(logPath));
@@ -69,9 +69,9 @@ const LOG_PATH = ${JSON.stringify(logPath)};
 const args = process.argv.slice(2);
 const remoteCommand = args.at(-1) ?? "";
 
-if (remoteCommand.includes("'agent' 'serve'")) {
-  log({ mode: "agent", command: remoteCommand });
-  serveAgent();
+if (remoteCommand.includes("'toybox' 'serve'")) {
+  log({ mode: "toybox", command: remoteCommand });
+  serveToybox();
 } else {
   log({ mode: "shell", command: remoteCommand });
   if (remoteCommand === "true") process.exit(0);
@@ -84,9 +84,9 @@ if (remoteCommand.includes("'agent' 'serve'")) {
     console.log("v24.15.0");
     process.exit(0);
   }
-  if (remoteCommand.includes("'/opt/codex-flows'")) {
-    console.log("/opt/codex-flows");
-    console.log("codex-flows controls Codex-native agent surfaces.");
+  if (remoteCommand.includes("'/opt/codex-toys'")) {
+    console.log("/opt/codex-toys");
+    console.log("codex-toys controls Codex-native toybox surfaces.");
     process.exit(0);
   }
   if (remoteCommand.includes("'/opt/codex'")) {
@@ -98,7 +98,7 @@ if (remoteCommand.includes("'agent' 'serve'")) {
   process.exit(1);
 }
 
-function serveAgent() {
+function serveToybox() {
   process.on("SIGTERM", () => {
     log({ mode: "signal", signal: "SIGTERM" });
     process.exit(0);
@@ -120,7 +120,7 @@ function serveAgent() {
 
 function handleAgentLine(line) {
   const message = JSON.parse(line);
-  log({ mode: "agent-request", method: message.method });
+  log({ mode: "toybox-request", method: message.method });
   stdout.write(JSON.stringify({
     jsonrpc: "2.0",
     id: message.id,
@@ -129,17 +129,17 @@ function handleAgentLine(line) {
 }
 
 function resultFor(method, params) {
-  if (method === "agent.status") {
+  if (method === "toybox.status") {
     return { ok: true, cwd: "/repo", node: "v24.15.0" };
   }
-  if (method === "workspace.initialize") {
+  if (method === "toybox.initialize") {
     return {
       ok: true,
-      serverInfo: { name: "fake-agent", version: "0.1.0" },
-      capabilities: { appServerPassThrough: true, workspaceMethods: ["agent.status"], workspaceMethodMetadata: [] },
+      serverInfo: { name: "fake-toybox", version: "0.1.0" },
+      capabilities: { appPassThrough: true, toyboxMethods: ["toybox.status"], toyboxMethodMetadata: [] },
     };
   }
-  if (method === "appServer.call" && params.method === "thread/list") {
+  if (method === "app.call" && params.method === "thread/list") {
     return { data: [], nextCursor: null };
   }
   return {};

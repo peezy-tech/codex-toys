@@ -1,20 +1,20 @@
 const checks = [
-	["@peezy.tech/codex-flows", ["CodexAppServerClient", "CodexEventEmitter"]],
-	["@peezy.tech/codex-flows/browser", ["createCodexFlowsBrowserClient", "codexFlows"]],
-	["@peezy.tech/codex-flows/functions", ["defineFunctions", "createWorkspaceFunctionMethods"]],
-	["@peezy.tech/codex-flows/vite", ["codexFlowsRemote"]],
-	["@peezy.tech/codex-flows/proxy", ["createCodexFlowsProxyHandler"]],
-	["@peezy.tech/codex-flows/auth", ["CodexAuthClient", "createCodexAuthClient"]],
-	["@peezy.tech/codex-flows/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
-	["@peezy.tech/codex-flows/memories", ["listCodexMemoryArtifacts"]],
-	["@peezy.tech/codex-flows/workbench", ["createThreadSnapshot", "turnStartDescriptor"]],
+	["codex-toys", ["CodexAppServerClient", "CodexEventEmitter"]],
+	["codex-toys/browser", ["createCodexToysBrowserClient", "codexToys"]],
+	["codex-toys/functions", ["defineFunctions", "createWorkspaceFunctionMethods"]],
+	["codex-toys/vite", ["codexToysRemote"]],
+	["codex-toys/proxy", ["createCodexToysProxyHandler"]],
+	["codex-toys/auth", ["CodexAuthClient", "createCodexAuthClient"]],
+	["codex-toys/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
+	["codex-toys/memories", ["listCodexMemoryArtifacts"]],
+	["codex-toys/workbench", ["createThreadSnapshot", "turnStartDescriptor"]],
 	[
-		"@peezy.tech/codex-flows/threads",
+		"codex-toys/threads",
 		["locateThreadRollout", "inspectThreadRollout", "installThreadRollout", "transplantThreadRollout"],
 	],
-	["@peezy.tech/codex-flows/workspace-backend", ["CodexWorkspaceBackendClient"]],
-	["@peezy.tech/codex-flows/rpc", ["JsonRpcError"]],
-	["@peezy.tech/codex-flows/generated", ["v2"]],
+	["codex-toys/toybox", ["CodexToyboxClient"]],
+	["codex-toys/rpc", ["JsonRpcError"]],
+	["codex-toys/generated", ["v2"]],
 ] as const;
 
 for (const [specifier, expectedExports] of checks) {
