@@ -120,6 +120,31 @@ type ParsedCliBase =
 				timeoutMs: number;
 				pretty: boolean;
 		  }
+		| {
+				type: "functions-list";
+				url: string;
+				timeoutMs: number;
+				json: boolean;
+				pretty: boolean;
+		  }
+		| {
+				type: "functions-describe";
+				name: string;
+				url: string;
+				timeoutMs: number;
+				json: boolean;
+				pretty: boolean;
+		  }
+		| {
+				type: "functions-call";
+				name: string;
+				paramsText?: string;
+				paramsFile?: string;
+				url: string;
+				timeoutMs: number;
+				json: boolean;
+				pretty: boolean;
+		  }
 	| { type: "workspace-methods"; url: string; timeoutMs: number; pretty: boolean }
 	| {
 			type: "workspace-doctor";
@@ -908,6 +933,43 @@ export function parseArgs(
 				pretty,
 			...remoteFields(),
 		};
+	}
+	if (command === "functions" || command === "function") {
+		const subcommand = positionals[1];
+		if (subcommand === "list" || subcommand === "ls") {
+			return {
+				type: "functions-list",
+				url: workspaceUrl,
+				timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "describe" || subcommand === "show") {
+			return {
+				type: "functions-describe",
+				name: requiredPositional(positionals, 2, "functions describe requires <name>"),
+				url: workspaceUrl,
+				timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "call" || subcommand === "run") {
+			return {
+				type: "functions-call",
+				name: requiredPositional(positionals, 2, "functions call requires <name>"),
+				...paramsSource(positionals.slice(3), paramsJson, paramsFile),
+				url: workspaceUrl,
+				timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		throw new Error("functions requires list, describe, or call");
 	}
 	if (command === "workspace") {
 		const subcommand = positionals[1];

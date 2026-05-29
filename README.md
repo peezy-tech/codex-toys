@@ -69,6 +69,8 @@ codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --even
 codex-flows --ssh devbox --cwd /repo fetch
 codex-flows --ssh devbox --cwd /repo remote preflight
 codex-flows --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo functions list --json
+codex-flows --ssh devbox --cwd /repo functions call portfolioSnapshot --json
 codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
 codex-flows workspace doctor
 codex-flows workspace backend status

@@ -109,6 +109,29 @@ describe("SSH remote provider", () => {
 					updatedAt: 1,
 				}],
 			});
+			const functions = await transport.request("functions.list", {});
+			expect(functions).toEqual({
+				functions: [{
+					name: "portfolioSnapshot",
+					description: "Read the latest portfolio snapshot.",
+					sideEffects: "read-only",
+				}],
+			});
+			const described = await transport.request("functions.describe", {
+				name: "portfolioSnapshot",
+			});
+			expect(described).toEqual({
+				function: {
+					name: "portfolioSnapshot",
+					description: "Read the latest portfolio snapshot.",
+					sideEffects: "read-only",
+				},
+			});
+			const called = await transport.request("functions.call", {
+				name: "portfolioSnapshot",
+				params: { account: "demo" },
+			});
+			expect(called).toEqual({ result: { account: "demo", equity: 123 } });
 			await waitForLog(fakeSsh, (entries) =>
 				entries.some((entry) => entry.mode === "request" &&
 					entry.method === "appServer.call")
@@ -197,7 +220,7 @@ function resultFor(method, params) {
 		return {
 			ok: true,
 			serverInfo: { name: "fake-remote-agent", version: "0.1.0" },
-			capabilities: { appServerPassThrough: true, workspaceMethods: ["remoteAgent/status"] },
+			capabilities: { appServerPassThrough: true, workspaceMethods: ["remoteAgent/status", "functions.list", "functions.describe", "functions.call"] },
 		};
 	}
 	if (method === "appServer.call" && params.method === "thread/list") {
@@ -208,6 +231,32 @@ function resultFor(method, params) {
 				name: "Remote thread",
 				updatedAt: 1,
 			}],
+			};
+	}
+	if (method === "functions.list") {
+		return {
+			functions: [{
+				name: "portfolioSnapshot",
+				description: "Read the latest portfolio snapshot.",
+				sideEffects: "read-only",
+			}],
+		};
+	}
+	if (method === "functions.describe") {
+		return {
+			function: {
+				name: params.name,
+				description: "Read the latest portfolio snapshot.",
+				sideEffects: "read-only",
+			},
+		};
+	}
+	if (method === "functions.call") {
+		return {
+			result: {
+				account: params.params.account,
+				equity: 123,
+			},
 		};
 	}
 	return {};

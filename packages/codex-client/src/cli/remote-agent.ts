@@ -6,6 +6,7 @@ import {
 	type CodexWorkspaceBackendPeer,
 	type WorkspaceBackendMethodHandler,
 } from "../workspace-backend/server.ts";
+import { createWorkspaceFunctionMethods } from "../functions.ts";
 import { createRemoteAutomationMethods } from "./remote-automation.ts";
 
 export type RemoteAgentServeOptions = {
@@ -62,6 +63,9 @@ export async function serveRemoteAgent(
 		codexCommand: options.remoteCodexCommand ?? "codex",
 		codexArgs: options.remoteCodexArgs ?? [],
 	});
+	Object.assign(methods, createWorkspaceFunctionMethods({
+		cwd: options.cwd,
+	}));
 	Object.assign(methods, createRemoteAutomationMethods({
 		cwd: options.cwd,
 		timeoutMs: options.timeoutMs,

@@ -1,6 +1,6 @@
 {
   "name": "codex-flows",
-  "version": "0.132.6",
+  "version": "0.133.4",
   "description": "Full Codex turn automation, backend setup, backend operation, and workspace orchestration guidance.",
   "author": {
     "name": "Peezy",
@@ -38,7 +38,8 @@
       "Set up the local Codex workspace backend.",
       "Discover my Codex App remote connections and run codex-flows over SSH.",
       "Run codex-flows against a remote Codex workspace over SSH.",
-      "Coordinate delegated workspace work."
+      "Coordinate delegated workspace work.",
+      "Build a local Vite dashboard for a remote workspace over SSH."
     ],
     "brandColor": "#2563EB"
   }

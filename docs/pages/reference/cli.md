@@ -57,6 +57,8 @@ targeting a remote workspace:
 codex-flows --ssh devbox --cwd /repo remote preflight
 codex-flows --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows --ssh devbox --cwd /repo workspace delegation.list
+codex-flows --ssh devbox --cwd /repo functions list --json
+codex-flows --ssh devbox --cwd /repo functions call portfolioSnapshot --json
 codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
 codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
 ```
@@ -178,6 +180,23 @@ codex-flows app thread/turns/list --params-file params.json
 If an older PowerShell native-command mode strips JSON quotes before argv
 delivery, `--params-json` also accepts the common stripped shape for simple
 objects, for example `{limit:3,sourceKinds:[]}`.
+
+## Workspace Functions
+
+```bash
+codex-flows functions list [--json]
+codex-flows functions describe <name> [--json]
+codex-flows functions call <name> [--params-json <json>] [--json]
+codex-flows --ssh <target> --cwd <remote-workspace> functions list --json
+codex-flows --ssh <target> --cwd <remote-workspace> functions describe <name> --json
+codex-flows --ssh <target> --cwd <remote-workspace> functions call <name> --params-json '{"sample":true}' --json
+```
+
+Workspace functions are JSON-in/JSON-out helpers loaded from
+`.codex/functions.ts`, `.codex/functions.js`, or `.codex/functions.mjs` in the
+target workspace. They are intended for local dashboards and operators that need
+active workspace data without starting a Codex turn or exposing a remote HTTP
+server. With `--ssh`, calls run through the SSH remote-agent provider.
 
 ## Workspace Backend Calls
 

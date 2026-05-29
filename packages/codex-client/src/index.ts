@@ -28,6 +28,27 @@ export {
 	type CodexWebSocketTransportOptions,
 } from "./app-server/websocket-transport.ts";
 export {
+	WORKSPACE_FUNCTIONS_CALL_METHOD,
+	WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
+	WORKSPACE_FUNCTIONS_LIST_METHOD,
+	WorkspaceFunctionRuntime,
+	createWorkspaceFunctionMethods,
+	defineFunctions,
+	findFunctionsManifest,
+	type WorkspaceFunctionContext,
+	type WorkspaceFunctionDefinition,
+	type WorkspaceFunctionDefinitions,
+	type WorkspaceFunctionHandler,
+	type WorkspaceFunctionMetadata,
+	type WorkspaceFunctionRuntimeOptions,
+	type WorkspaceFunctionSideEffects,
+	type WorkspaceFunctionsCallParams,
+	type WorkspaceFunctionsCallResponse,
+	type WorkspaceFunctionsDescribeParams,
+	type WorkspaceFunctionsDescribeResponse,
+	type WorkspaceFunctionsListResponse,
+} from "./functions.ts";
+export {
 	createSshRemoteAgentPlan,
 	createSshRemoteAgentTransport,
 	hasSshRemote,

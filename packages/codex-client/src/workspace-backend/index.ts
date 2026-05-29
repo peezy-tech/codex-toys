@@ -1,4 +1,16 @@
 export {
+	WORKSPACE_FUNCTIONS_CALL_METHOD,
+	WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
+	WORKSPACE_FUNCTIONS_LIST_METHOD,
+	createWorkspaceFunctionMethods,
+	type WorkspaceFunctionMetadata,
+	type WorkspaceFunctionsCallParams,
+	type WorkspaceFunctionsCallResponse,
+	type WorkspaceFunctionsDescribeParams,
+	type WorkspaceFunctionsDescribeResponse,
+	type WorkspaceFunctionsListResponse,
+} from "../functions.ts";
+export {
 	CodexWorkspaceBackendClient,
 	type CodexWorkspaceBackendClientOptions,
 	type CodexWorkspaceBackendTransport,

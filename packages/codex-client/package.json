@@ -1,6 +1,6 @@
 {
 	"name": "@peezy.tech/codex-flows",
-	"version": "0.133.3",
+	"version": "0.133.4",
 	"description": "Codex app-server clients, turn automation, workspace backend helpers, and runnable local backend bins.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -39,6 +39,16 @@
 			"types": "./dist/browser.d.ts",
 			"require": "./dist/browser.js",
 			"import": "./dist/browser.js"
+		},
+		"./functions": {
+			"types": "./dist/functions.d.ts",
+			"require": "./dist/functions.js",
+			"import": "./dist/functions.js"
+		},
+		"./vite": {
+			"types": "./dist/vite.d.ts",
+			"require": "./dist/vite.js",
+			"import": "./dist/vite.js"
 		},
 		"./auth": {
 			"types": "./dist/auth.d.ts",

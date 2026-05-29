@@ -1,6 +1,6 @@
 {
   "name": "codex-flows-remote-control",
-  "version": "0.133.0",
+  "version": "0.133.4",
   "description": "Operate remote Codex workspaces from a local Codex App over SSH.",
   "author": {
     "name": "Peezy",
@@ -35,7 +35,8 @@
     "defaultPrompt": [
       "Discover my Codex App remote connections and run codex-flows over SSH.",
       "Check whether my remote codex-flows agent is reachable.",
-      "Start a Codex turn in the remote workspace."
+      "Start a Codex turn in the remote workspace.",
+      "Build a local Vite dashboard for a remote workspace over SSH."
     ],
     "brandColor": "#0F766E"
   }

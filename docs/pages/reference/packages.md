@@ -14,8 +14,11 @@ exports:
 - turn automation helpers for pre-turn scripts that can skip or start native
   Codex turns
 - SSH remote provider helpers for targeting remote workspaces from a local CLI
+- workspace functions under `@peezy.tech/codex-flows/functions`
+- Vite bridge plugin under `@peezy.tech/codex-flows/vite`
 - browser-safe workspace backend client and protocol server primitives
-- browser-safe WebSocket transport
+- browser-safe WebSocket transport and dashboard client under
+  `@peezy.tech/codex-flows/browser`
 - auth helpers for account login/status/usage
 - Actions-mode workspace helpers under `@peezy.tech/codex-flows/actions`
 - stable Codex memory artifact helpers under `@peezy.tech/codex-flows/memories`
@@ -49,6 +52,51 @@ Actions-mode simulation:
 
 These helpers intentionally do not inspect or mutate Codex memory SQLite
 internals.
+
+## `@peezy.tech/codex-flows/functions`
+
+Workspace functions expose named JSON-in/JSON-out capabilities from a workspace
+manifest at `.codex/functions.ts`, `.codex/functions.js`, or
+`.codex/functions.mjs`.
+
+```ts
+import { defineFunctions } from "@peezy.tech/codex-flows/functions";
+
+export default defineFunctions({
+  portfolioSnapshot: {
+    description: "Read the latest portfolio snapshot.",
+    sideEffects: "read-only",
+    handler: async () => ({ positions: [], cash: 0 }),
+  },
+});
+```
+
+The CLI, workspace backend, SSH remote-agent, Vite plugin, and browser client
+use the same `functions.list`, `functions.describe`, and `functions.call`
+workspace methods.
+
+## `@peezy.tech/codex-flows/vite`
+
+`codexFlowsRemote` is a local Vite middleware plugin that forwards dashboard
+requests to a workspace backend or SSH remote-agent without exposing remote HTTP
+ports.
+
+```ts
+import { codexFlowsRemote } from "@peezy.tech/codex-flows/vite";
+
+export default {
+  plugins: [
+    codexFlowsRemote({
+      ssh: process.env.CODEX_FLOWS_REMOTE_SSH_TARGET,
+      cwd: process.env.CODEX_FLOWS_REMOTE_CWD,
+    }),
+  ],
+};
+```
+
+Dashboard code can use `codexFlows` from
+`@peezy.tech/codex-flows/browser` to list, describe, and call workspace
+functions through the local Vite bridge.
 
 ## `@peezy.tech/codex-flows/memories`
 

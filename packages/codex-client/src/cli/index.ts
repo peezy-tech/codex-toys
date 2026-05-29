@@ -78,6 +78,15 @@ import {
 	type RemoteAutomationListResponse,
 	type RemoteAutomationRunParams,
 } from "./remote-automation.ts";
+import {
+	WORKSPACE_FUNCTIONS_CALL_METHOD,
+	WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
+	WORKSPACE_FUNCTIONS_LIST_METHOD,
+	type WorkspaceFunctionMetadata,
+	type WorkspaceFunctionsCallResponse,
+	type WorkspaceFunctionsDescribeResponse,
+	type WorkspaceFunctionsListResponse,
+} from "../functions.ts";
 import { serveRemoteAgent } from "./remote-agent.ts";
 import type { CodexWorkspaceBackendTransport } from "../workspace-backend/client.ts";
 import {
@@ -257,6 +266,42 @@ async function main(): Promise<void> {
 			),
 			parsed.pretty,
 		);
+		return;
+	}
+	if (parsed.type === "functions-list") {
+		const response = await callWorkspaceBackend(
+			WORKSPACE_FUNCTIONS_LIST_METHOD,
+			{},
+			parsed,
+		) as WorkspaceFunctionsListResponse;
+		write(parsed.json
+			? `${JSON.stringify(response, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFunctionsList(response.functions));
+		return;
+	}
+	if (parsed.type === "functions-describe") {
+		const response = await callWorkspaceBackend(
+			WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
+			{ name: parsed.name },
+			parsed,
+		) as WorkspaceFunctionsDescribeResponse;
+		write(parsed.json
+			? `${JSON.stringify(response, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFunctionDescription(response.function));
+		return;
+	}
+	if (parsed.type === "functions-call") {
+		const response = await callWorkspaceBackend(
+			WORKSPACE_FUNCTIONS_CALL_METHOD,
+			{
+				name: parsed.name,
+				params: await readParams(parsed.paramsText, parsed.paramsFile),
+			},
+			parsed,
+		) as WorkspaceFunctionsCallResponse;
+		write(parsed.json
+			? `${JSON.stringify(response, null, parsed.pretty ? 2 : 0)}\n`
+			: `${JSON.stringify(response.result, null, 2)}\n`);
 		return;
 	}
 	if (parsed.type === "turn-run") {
@@ -688,6 +733,20 @@ function validateAutomationTurnOptions(options: {
 	if (options.sandbox && options.permissions) {
 		throw new Error("--sandbox cannot be combined with --permissions");
 	}
+}
+
+function formatFunctionsList(functions: WorkspaceFunctionMetadata[]): string {
+	if (functions.length === 0) {
+		return "No workspace functions found.\n";
+	}
+	return `${functions.map((fn) => {
+		const suffix = fn.description ? ` - ${fn.description}` : "";
+		return `${fn.name} [${fn.sideEffects}]${suffix}`;
+	}).join("\n")}\n`;
+}
+
+function formatFunctionDescription(fn: WorkspaceFunctionMetadata): string {
+	return `${JSON.stringify(fn, null, 2)}\n`;
 }
 
 async function runTurnAutomationForCli(
@@ -1401,6 +1460,11 @@ Usage:
 	  echo '<params-json>' | codex-flows app <method>
 	  codex-flows app actions
 
+	  codex-flows functions list [--json]
+	  codex-flows functions describe <name> [--json]
+	  codex-flows functions call <name> [--params-json <json>] [--json]
+	  codex-flows --ssh <target> --cwd <remote-workspace> functions list [--json]
+
 	  codex-flows workspace <method> [params-json]
 	  codex-flows workspace <method> --params-json <json>
 	  codex-flows workspace <method> --params-file <file>
@@ -1507,6 +1571,8 @@ Examples:
   codex-flows automation run check-release --event event.json
   codex-flows --ssh devbox --cwd /repo automation list --json
   codex-flows --ssh devbox --cwd /repo automation run check-release --event event.json
+  codex-flows --ssh devbox --cwd /repo functions list --json
+  codex-flows --ssh devbox --cwd /repo functions call portfolioSnapshot --json
   codex-flows --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-flows --ssh devbox --cwd /repo workspace delegation.list
   codex-flows app thread/list '{"limit":20,"sourceKinds":[]}'

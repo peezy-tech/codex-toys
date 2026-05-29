@@ -1,6 +1,6 @@
 {
 	"name": "codex-flows-monorepo",
-	"version": "0.133.3",
+	"version": "0.133.4",
 	"description": "Codex app-server clients, turn automation, workspace backend tools, and repo-native workspace operations.",
 	"private": true,
 	"license": "Apache-2.0",

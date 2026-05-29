@@ -33,6 +33,9 @@ export const COMMON_WORKSPACE_BACKEND_METHODS = [
 	"delegation.setPolicy",
 	"delegation.flushResults",
 	"delegation.listGroups",
+	"functions.list",
+	"functions.describe",
+	"functions.call",
 ] as const;
 
 export function validateMethodName(value: string, label: string): string {

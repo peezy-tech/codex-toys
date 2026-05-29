@@ -18,6 +18,7 @@
 		"baseUrl": ".",
 		"paths": {
 			"@peezy.tech/codex-flows": ["../../packages/codex-client/src/index.ts"],
+			"@peezy.tech/codex-flows/functions": ["../../packages/codex-client/src/functions.ts"],
 			"@peezy.tech/codex-flows/workspace-backend": ["../../packages/codex-client/src/workspace-backend/index.ts"]
 		}
 	},

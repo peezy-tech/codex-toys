@@ -30,7 +30,9 @@ Full documentation lives in the repo docs site:
 | Export | Purpose |
 |--------|---------|
 | `@peezy.tech/codex-flows` | Node app-server client, turn automation helpers, SSH provider helpers, event emitter base, stdio/WebSocket transports, JSON-RPC helpers, auth helpers. |
-| `@peezy.tech/codex-flows/browser` | Browser-safe app-server client and WebSocket transport. |
+| `@peezy.tech/codex-flows/browser` | Browser-safe app-server client, WebSocket transport, and local dashboard bridge client. |
+| `@peezy.tech/codex-flows/functions` | Workspace function definitions and backend method helpers. |
+| `@peezy.tech/codex-flows/vite` | Vite middleware plugin for local dashboards that call remote workspace functions. |
 | `@peezy.tech/codex-flows/auth` | Privacy-preserving Codex account login, status, and usage helpers. |
 | `@peezy.tech/codex-flows/workbench` | Transport-neutral thread UX reducers and app-server request descriptors. |
 | `@peezy.tech/codex-flows/threads` | Raw Codex rollout locate, inspect, install, and transplant helpers. |
@@ -147,6 +149,8 @@ codex-flows automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-flows --ssh devbox --cwd /repo fetch
 codex-flows --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-flows --ssh devbox --cwd /repo functions list --json
+codex-flows --ssh devbox --cwd /repo functions call portfolioSnapshot --json
 codex-flows --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
 codex-flows app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-flows workspace app thread/list --params-json '{"limit":20,"sourceKinds":[]}'

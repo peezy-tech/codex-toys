@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -322,6 +322,93 @@ describe("codex-flows CLI args", () => {
 		});
 	});
 
+	test("parses workspace function commands", () => {
+		expect(parseArgs(["functions", "list", "--json"], {})).toMatchObject({
+			type: "functions-list",
+			json: true,
+		});
+		expect(parseArgs(["functions", "describe", "portfolioSnapshot", "--json"], {}))
+			.toMatchObject({
+				type: "functions-describe",
+				name: "portfolioSnapshot",
+				json: true,
+			});
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"functions",
+			"call",
+			"portfolioSnapshot",
+			"--params-json",
+			"{\"account\":\"demo\"}",
+			"--json",
+		], {})).toMatchObject({
+			type: "functions-call",
+			name: "portfolioSnapshot",
+			paramsText: "{\"account\":\"demo\"}",
+			sshTarget: "devbox",
+			cwd: "/repo",
+			json: true,
+		});
+	});
+
+	test("executes SSH workspace function commands", async () => {
+		const fakeSsh = await createFunctionFakeSshCommand();
+		const env = { CODEX_FLOWS_SSH_COMMAND: fakeSsh };
+
+		const list = await runCli([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"functions",
+			"list",
+			"--json",
+		], env);
+		expect(list.exitCode).toBe(0);
+		expect(JSON.parse(list.stdout)).toEqual({
+			functions: [{
+				name: "portfolioSnapshot",
+				description: "Read portfolio.",
+				sideEffects: "read-only",
+			}],
+		});
+
+		const describe = await runCli([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"functions",
+			"describe",
+			"portfolioSnapshot",
+			"--json",
+		], env);
+		expect(describe.exitCode).toBe(0);
+		expect(JSON.parse(describe.stdout)).toMatchObject({
+			function: { name: "portfolioSnapshot" },
+		});
+
+		const call = await runCli([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"functions",
+			"call",
+			"portfolioSnapshot",
+			"--params-json",
+			"{\"account\":\"demo\"}",
+			"--json",
+		], env);
+		expect(call.exitCode).toBe(0);
+		expect(JSON.parse(call.stdout)).toEqual({
+			result: { account: "demo", equity: 456 },
+		});
+	});
+
 	test("parses app-server pass-through through the workspace backend", () => {
 			expect(parseArgs([
 				"workspace",
@@ -597,6 +684,86 @@ async function runCli(
 		exitCodeFor(proc),
 	]);
 	return { exitCode: exitCode ?? 1, stdout, stderr };
+}
+
+async function createFunctionFakeSshCommand(): Promise<string> {
+	const dir = await mkdtemp(path.join(os.tmpdir(), "codex-functions-cli-"));
+	const command = path.join(dir, "ssh.mjs");
+	await writeFile(command, functionFakeSshScript());
+	await chmod(command, 0o755);
+	return command;
+}
+
+function functionFakeSshScript(): string {
+	return `#!/usr/bin/env node
+import { stdin, stdout } from "node:process";
+
+process.on("SIGTERM", () => process.exit(0));
+
+let buffer = "";
+stdin.setEncoding("utf8");
+stdin.on("data", (chunk) => {
+	buffer += chunk;
+	let newline = buffer.indexOf("\\n");
+	while (newline !== -1) {
+		const line = buffer.slice(0, newline).trim();
+		buffer = buffer.slice(newline + 1);
+		if (line) handle(line);
+		newline = buffer.indexOf("\\n");
+	}
+});
+
+function handle(line) {
+	const message = JSON.parse(line);
+	stdout.write(JSON.stringify({
+		jsonrpc: "2.0",
+		id: message.id,
+		result: resultFor(message.method, message.params),
+	}) + "\\n");
+}
+
+function resultFor(method, params) {
+	if (method === "workspace.initialize") {
+		return {
+			ok: true,
+			serverInfo: { name: "fake-remote-agent", version: "0.1.0" },
+			capabilities: {
+				appServerPassThrough: true,
+				workspaceMethods: ["functions.list", "functions.describe", "functions.call"],
+			},
+		};
+	}
+	if (method === "functions.list") {
+		return {
+			functions: [{
+				name: "portfolioSnapshot",
+				description: "Read portfolio.",
+				sideEffects: "read-only",
+			}],
+		};
+	}
+	if (method === "functions.describe") {
+		return {
+			function: {
+				name: params.name,
+				description: "Read portfolio.",
+				sideEffects: "read-only",
+			},
+		};
+	}
+	if (method === "functions.call") {
+		return {
+			result: {
+				account: params.params.account,
+				equity: 456,
+			},
+		};
+	}
+	return {};
+}
+
+setInterval(() => {}, 1_000);
+`;
 }
 
 async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {

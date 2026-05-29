@@ -96,6 +96,7 @@ export type WorkspaceBackendEventParams = {
 
 export const workspaceBackendOwnedMethodPrefixes = [
 	"delegation.",
+	"functions.",
 	"workbench.",
 ] as const;
 

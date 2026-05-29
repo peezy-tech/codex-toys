@@ -7,6 +7,7 @@ import {
 	CodexWorkspaceBackendProtocolServer,
 	type CodexWorkspaceBackendPeer,
 } from "@peezy.tech/codex-flows/workspace-backend";
+import { createWorkspaceFunctionMethods } from "@peezy.tech/codex-flows/functions";
 
 import http from "node:http";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
@@ -30,6 +31,9 @@ async function main(): Promise<void> {
 		appServer: client,
 		serverName: "codex-workspace-backend-local",
 		serverVersion: "0.1.0",
+		methods: createWorkspaceFunctionMethods({
+			cwd: parsed.cwd,
+		}),
 	});
 	const peers = new WeakMap<WebSocket, CodexWorkspaceBackendPeer>();
 	const server = http.createServer((_request, response) => {
