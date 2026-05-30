@@ -112,6 +112,63 @@ interval scheduling.
    updated for the GitHub Actions Node runtime warning so future npm releases do
    not depend on deprecated action runtimes.
 
+## Later Improvements
+
+1. Local runner scaffolding.
+
+   Add a first-class setup path for a local systemd user timer that calls
+   `workspace tick` for one workspace root. The default shape should be one
+   runner per queue, not one timer per deferred intent. That keeps recurring
+   workspace schedules and one-shot deferred runs on the same durable state
+   path, and it avoids creating timer files for every future turn.
+
+2. Runner doctor remediation.
+
+   `workspace doctor` now reports matching local systemd user runners. The next
+   layer should turn that into actionable remediation: show the expected runner
+   cadence, identify disabled deferred-only legacy timers, and suggest the
+   setup or repair action without mutating anything during doctor.
+
+3. Bounded concurrent execution.
+
+   A single `workspace tick` currently claims and runs due work in one process.
+   Separate workspace timers run independently, but a long-running task inside
+   one workspace can delay later due intents in that same queue. The next
+   runtime slice should split claiming from execution so tick can start bounded
+   worker executions, preserve one-shot leases, and keep per-intent attempt
+   records isolated.
+
+4. Explicit retry and repair.
+
+   Failed runs should remain terminal until the operator asks for a retry or
+   creates a new intent. Add a clear retry/requeue path that copies the failed
+   target into a new pending intent with a link to the original failure. This is
+   especially important for failures such as missing thread ids, stale cwd
+   paths, or unavailable app-server state.
+
+5. Optional workspace registry.
+
+   A future global timer can be useful, but it should be a registry-driven
+   operator convenience rather than an always-on agent. The safer shape is a
+   low-frequency user timer that runs a `tick-all` style command over explicitly
+   registered workspace roots. Each workspace still owns a separate queue.
+
+6. Exact wakeups as optimization.
+
+   Per-intent timers can be revisited later as an optimization for exact
+   wakeups. They should enqueue or wake a workspace tick, not bypass the queue
+   lease and attempt machinery. The simple one-timer-per-workspace model should
+   stay the default until the operator experience proves it needs finer
+   granularity.
+
+7. Better operator surfaces.
+
+   Add compact views for pending, due, running, failed, completed, and
+   uncollected results, plus the runner that is expected to service each queue.
+   This can be a CLI summary first and a dashboard later. It should read the
+   same intent records and doctor data rather than inventing a second state
+   source.
+
 ## Local Usage Today
 
 Create a one-shot turn or automation for later:
