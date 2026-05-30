@@ -19,7 +19,7 @@ jobs:
     environment: npm-publish
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup VitePlus
         uses: voidzero-dev/setup-vp@v1
@@ -28,7 +28,7 @@ jobs:
           cache: true
 
       - name: Setup npm publishing
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
