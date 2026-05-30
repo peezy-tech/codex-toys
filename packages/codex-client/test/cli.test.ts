@@ -162,6 +162,18 @@ describe("codex-toys CLI args", () => {
 		});
 
 		test("parses turn run as the core prompt primitive", () => {
+			expect(() =>
+				parseArgs([
+					"--ssh",
+					"devbox",
+					"--cwd",
+					"/repo",
+					"turn",
+					"run",
+					"scan current folder",
+				], {})
+			).toThrow("SSH turn run requires --wait");
+
 			expect(parseArgs([
 				"--ssh",
 				"devbox",

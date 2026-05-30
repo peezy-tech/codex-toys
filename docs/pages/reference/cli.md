@@ -124,6 +124,11 @@ codex-toys --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 starts or reuses a Codex thread, starts a turn, and optionally waits for the
 final assistant message.
 
+SSH-backed `turn run` requires `--wait`. The SSH toybox is tied to the command
+lifecycle, so unsupervised fire-and-forget turns are rejected instead of
+returning a thread id for work that may be killed when the SSH session closes.
+Use `workspace delegate start` for supervised background work.
+
 ## Turn Automation
 
 ```bash

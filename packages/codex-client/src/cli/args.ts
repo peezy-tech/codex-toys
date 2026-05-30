@@ -776,6 +776,11 @@ export function parseArgs(
 			if (subcommand !== "run") {
 				throw new Error("turn requires run");
 			}
+			if (sshTarget && !wait) {
+				throw new Error(
+					"SSH turn run requires --wait. Fire-and-forget turns over SSH are not durable because the remote toybox is closed when the command exits; use --wait or workspace delegate start for supervised background work.",
+				);
+			}
 			return {
 				type: "turn-run",
 				prompt: prompt ?? requiredPositional(
