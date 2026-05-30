@@ -176,9 +176,17 @@ export type DeferredRunCreateParams = {
 	source?: Record<string, unknown>;
 };
 
+export type DeferredRunAttemptOutput = {
+	attemptId: string;
+	outputPath: string;
+	output?: unknown;
+	error?: string;
+};
+
 export type DeferredRunReadResult = {
 	intent: DeferredRunIntent;
 	attempts: DeferredRunAttempt[];
+	outputs?: DeferredRunAttemptOutput[];
 };
 
 export type DeferredRunExecution = {
@@ -602,10 +610,14 @@ export async function listDeferredRunIntents(
 export async function readDeferredRun(
 	context: WorkspaceContext,
 	intentId: string,
+	options: { includeOutput?: boolean } = {},
 ): Promise<DeferredRunReadResult> {
 	const intent = await readDeferredRunIntent(context, intentId);
 	const attempts = await readDeferredRunAttempts(context, intent.attemptIds);
-	return { intent, attempts };
+	const outputs = options.includeOutput
+		? await readDeferredRunAttemptOutputs(attempts)
+		: undefined;
+	return compactUndefined({ intent, attempts, outputs });
 }
 
 export async function cancelDeferredRunIntent(
@@ -1210,6 +1222,31 @@ async function readDeferredRunAttempts(
 		} catch {}
 	}
 	return attempts.sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+}
+
+async function readDeferredRunAttemptOutputs(
+	attempts: DeferredRunAttempt[],
+): Promise<DeferredRunAttemptOutput[]> {
+	const outputs: DeferredRunAttemptOutput[] = [];
+	for (const attempt of attempts) {
+		if (!attempt.outputPath) {
+			continue;
+		}
+		try {
+			outputs.push({
+				attemptId: attempt.id,
+				outputPath: attempt.outputPath,
+				output: parseJsonText(await readFile(attempt.outputPath, "utf8"), attempt.outputPath),
+			});
+		} catch (error) {
+			outputs.push({
+				attemptId: attempt.id,
+				outputPath: attempt.outputPath,
+				error: errorMessage(error),
+			});
+		}
+	}
+	return outputs;
 }
 
 async function claimDeferredRunIntent(

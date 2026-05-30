@@ -88,7 +88,10 @@ export function createWorkspaceDeferredRunMethods(
 		},
 		[WORKSPACE_DEFERRED_READ_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
-			return await readDeferredRun(context, requiredString(record(params).id, "deferred.read id"));
+			const input = record(params);
+			return await readDeferredRun(context, requiredString(input.id, "deferred.read id"), {
+				includeOutput: input.includeOutput === true,
+			});
 		},
 		[WORKSPACE_DEFERRED_CANCEL_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);

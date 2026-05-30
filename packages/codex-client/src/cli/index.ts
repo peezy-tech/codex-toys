@@ -451,6 +451,7 @@ async function main(): Promise<void> {
 		const result = hasSshRemote(parsed)
 			? await callToybox("deferred.read", compactUndefined({
 				id: parsed.intentId,
+				includeOutput: parsed.includeOutput,
 				mode: parsed.mode,
 				workspaceRoot: parsed.workspaceRoot,
 			}), parsed)
@@ -460,6 +461,7 @@ async function main(): Promise<void> {
 					mode: parsed.mode,
 				}),
 				parsed.intentId,
+				{ includeOutput: parsed.includeOutput },
 			);
 		write(parsed.json
 			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
@@ -1303,7 +1305,8 @@ Usage:
   codex-toys workspace run <task-id> [--mode auto|local|actions]
   codex-toys workspace deferred create --params-json <json>
   codex-toys workspace deferred list [--mode auto|local|actions] [--json]
-  codex-toys workspace deferred read <intent-id> [--json]
+  codex-toys workspace deferred read <intent-id> [--include-output] [--json]
+  codex-toys workspace deferred pull <intent-id> [--json]
   codex-toys workspace deferred cancel <intent-id>
   codex-toys workspace deferred run-due [--mode auto|local|actions]
   codex-toys workspace deferred prune --older-than-days <days> [--dry-run]

@@ -206,6 +206,7 @@ type ParsedCliBase =
 	| {
 			type: "workspace-deferred-read";
 			intentId: string;
+			includeOutput: boolean;
 			mode?: WorkspaceModeInput;
 			workspaceRoot?: string;
 			url: string;
@@ -386,6 +387,7 @@ export function parseArgs(
 	let wait = false;
 	let allowAbsoluteCwd = false;
 	let dryRun = false;
+	let includeOutput = false;
 	let olderThanDays: number | undefined;
 	let model: string | undefined;
 	let paramsJson: string | undefined;
@@ -649,6 +651,10 @@ export function parseArgs(
 			}
 			if (arg === "--dry-run") {
 				dryRun = true;
+				continue;
+			}
+			if (arg === "--include-output" || arg === "--with-output") {
+				includeOutput = true;
 				continue;
 			}
 			if (arg === "--older-than-days") {
@@ -1068,10 +1074,11 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			if (action === "read" || action === "show") {
+			if (action === "read" || action === "show" || action === "pull") {
 				return {
 					type: "workspace-deferred-read",
-					intentId: requiredPositional(positionals, 3, "workspace deferred read requires <intent-id>"),
+					intentId: requiredPositional(positionals, 3, `workspace deferred ${action} requires <intent-id>`),
+					includeOutput: includeOutput || action === "pull",
 					mode,
 					workspaceRoot,
 					url: workspaceUrl,

@@ -274,6 +274,13 @@ describe("Codex toybox protocol", () => {
 			{},
 			jsonRpcRequest("list", "deferred.list"),
 		) as { intents: Array<{ id: string; status: string }> };
+		const read = await methods["deferred.read"]!(
+			{
+				id: created.intent.id,
+				includeOutput: true,
+			},
+			jsonRpcRequest("read", "deferred.read"),
+		) as { intent: { id: string }; attempts: unknown[]; outputs: unknown[] };
 		const pruned = await methods["deferred.prune"]!(
 			{
 				olderThanDays: 1,
@@ -287,6 +294,11 @@ describe("Codex toybox protocol", () => {
 			id: created.intent.id,
 			status: "pending",
 		}));
+		expect(read).toMatchObject({
+			intent: { id: created.intent.id },
+			attempts: [],
+			outputs: [],
+		});
 		expect(pruned.pruned).toBe(0);
 	});
 });

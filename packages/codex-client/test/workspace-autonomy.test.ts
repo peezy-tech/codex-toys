@@ -76,6 +76,10 @@ describe("workspace autonomy", () => {
 		});
 		expect(parseArgs(["workspace", "deferred", "list", "--json"], {}))
 			.toMatchObject({ type: "workspace-deferred-list", json: true });
+		expect(parseArgs(["workspace", "deferred", "read", "later-1", "--include-output"], {}))
+			.toMatchObject({ type: "workspace-deferred-read", intentId: "later-1", includeOutput: true });
+		expect(parseArgs(["workspace", "deferred", "pull", "later-1"], {}))
+			.toMatchObject({ type: "workspace-deferred-read", intentId: "later-1", includeOutput: true });
 		expect(parseArgs(["workspace", "deferred", "run-due"], {}))
 			.toMatchObject({ type: "workspace-deferred-run-due" });
 		expect(parseArgs(["workspace", "deferred", "prune", "--older-than-days", "30", "--dry-run"], {}))
@@ -234,6 +238,14 @@ command = ["node", "-e", "console.log('hello deferred')"]
 		expect(read.intent.status).toBe("completed");
 		expect(read.attempts).toHaveLength(1);
 		expect(read.attempts[0]?.status).toBe("completed");
+		expect(read.outputs).toBeUndefined();
+		const readWithOutput = await readDeferredRun(context, intent.id, { includeOutput: true });
+		expect(readWithOutput.outputs).toHaveLength(1);
+		expect(readWithOutput.outputs?.[0]).toMatchObject({
+			attemptId: read.attempts[0]?.id,
+		});
+		expect((readWithOutput.outputs?.[0]?.output as { workspaceRun?: { taskId?: string } }).workspaceRun)
+			.toMatchObject({ taskId: "hello" });
 		const workspaceRun = JSON.parse(await readFile(read.attempts[0]!.outputPath!, "utf8"))
 			.workspaceRun as { taskId: string; status: string };
 		expect(workspaceRun).toMatchObject({

@@ -129,6 +129,7 @@ Run it locally without changing your active Codex home:
 codex-toys workspace doctor
 codex-toys workspace tick --mode local
 codex-toys workspace deferred list --json
+codex-toys workspace deferred pull <intent-id> --json
 codex-toys workspace deferred prune --older-than-days 30 --dry-run
 ```
 

@@ -62,6 +62,7 @@ codex-toys workspace tick --mode local
 codex-toys workspace run morning-brief --mode actions
 codex-toys workspace deferred create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workspace."}}'
 codex-toys workspace deferred list --json
+codex-toys workspace deferred pull <intent-id> --json
 codex-toys workspace deferred run-due
 codex-toys workspace init actions --forgejo
 CODEX_WORKSPACE_MODE=actions codex-toys workspace doctor
@@ -81,6 +82,9 @@ evaluates reactive rules.
 durable future run intents. A deferred target can wrap a direct Codex turn, a
 named turn automation, or a configured workspace task. Pruning is explicit and
 only removes terminal history older than the requested retention window.
+`deferred read --include-output` and its `deferred pull` shorthand include
+saved attempt outputs in the JSON response, which lets SSH callers pull remote
+deferred results back to the local operator surface.
 
 `init actions` scaffolds an Actions-ready workspace. The command can generate:
 
