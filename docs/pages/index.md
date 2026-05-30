@@ -154,7 +154,8 @@ state goes under `.codex/workspace/actions`, and Actions mode always runs with
 Deferred runs add durable future run intents in those same mode-specific roots.
 They can wrap a direct Codex turn, a named turn automation, or a configured
 workspace task, and scheduled tasks now flow through the same intent/attempt
-inspection path.
+inspection path. The recommended next work is tracked in
+[`Deferred Runs Roadmap`](concepts/deferred-runs-roadmap.md).
 
 ## Memory Transplant In One Screen
 

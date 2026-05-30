@@ -31,6 +31,7 @@ export default {
 			group: "Concepts",
 			pages: [
 				"concepts/architecture",
+				"concepts/deferred-runs-roadmap",
 				"concepts/backends",
 				"concepts/domain-boundaries",
 				"concepts/toyboxes",
