@@ -1,6 +1,6 @@
 {
   "name": "codex-toys-local-workspace",
-  "version": "0.135.0",
+  "version": "0.136.0",
   "description": "Local Codex workspace toybox operation and plugin-bundled hooks.",
   "author": {
     "name": "Peezy",
