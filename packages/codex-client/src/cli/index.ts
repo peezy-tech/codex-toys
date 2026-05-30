@@ -378,11 +378,12 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			mode: parsed.mode,
 		});
-		const result = await tickWorkspace(context, {
-			callToybox: async (method, params) =>
-				await callToybox(method, params, parsed),
-			automationCwd: parsed.cwd,
-		});
+		const result = await withToyboxRequest(parsed, async (request) =>
+			await tickWorkspace(context, {
+				callToybox: request,
+				automationCwd: parsed.cwd,
+			})
+		);
 		writeJson({
 			...result,
 			actionsCommit: await commitActionsWorkspaceState(context),
@@ -394,11 +395,12 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			mode: parsed.mode,
 		});
-		const run = await runWorkspaceTaskById(context, parsed.taskId, {
-			callToybox: async (method, params) =>
-				await callToybox(method, params, parsed),
-			automationCwd: parsed.cwd,
-		});
+		const run = await withToyboxRequest(parsed, async (request) =>
+			await runWorkspaceTaskById(context, parsed.taskId, {
+				callToybox: request,
+				automationCwd: parsed.cwd,
+			})
+		);
 		writeJson({
 			run,
 			actionsCommit: await commitActionsWorkspaceState(context, {
@@ -513,16 +515,17 @@ async function main(): Promise<void> {
 				mode: parsed.mode,
 				workspaceRoot: parsed.workspaceRoot,
 			}), parsed)
-			: await runDueDeferredRuns(
-				await createWorkspaceContext({
-					workspaceRoot: parsed.workspaceRoot,
-					mode: parsed.mode,
-				}),
-				{
-					callToybox: async (method, params) =>
-						await callToybox(method, params, parsed),
-					automationCwd: parsed.cwd,
-				},
+			: await withToyboxRequest(parsed, async (request) =>
+				await runDueDeferredRuns(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					{
+						callToybox: request,
+						automationCwd: parsed.cwd,
+					},
+				)
 			);
 		writeJson(result, parsed.pretty);
 		return;
@@ -920,6 +923,20 @@ async function callToybox(
 	return await withWorkspaceTransport(options, async (transport) => {
 		await initialize(transport);
 		return await transport.request(method, params);
+	});
+}
+
+async function withToyboxRequest<T>(
+	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
+	callback: (
+		request: (method: string, params: unknown) => Promise<unknown>,
+	) => Promise<T>,
+): Promise<T> {
+	return await withWorkspaceTransport(options, async (transport) => {
+		await initialize(transport);
+		return await callback(async (method, params) =>
+			await transport.request(method, params)
+		);
 	});
 }
 
