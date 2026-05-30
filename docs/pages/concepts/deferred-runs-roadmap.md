@@ -6,10 +6,11 @@ description: Recommended order for turning deferred run intents into a complete 
 # Deferred Runs Roadmap
 
 Deferred runs give codex-toys a durable way to say "do this later" without
-leaving an ad hoc agent process running forever. The first slice is live in
-`codex-toys@0.137.0`: workspaces can create one-shot future intents, run due
+leaving an ad hoc agent process running forever. The first slices are live in
+`codex-toys@0.138.0`: workspaces can create one-shot future intents, run due
 intents locally or over SSH, inspect pending/completed/failed state, prune old
-terminal history, and pull saved attempt output back through the toybox.
+terminal history, pull one saved attempt output back through the toybox, and
+collect unseen terminal results with a queue-local cursor.
 
 This roadmap keeps the next work ordered around operator trust: first make
 results easy to harvest, then make scheduled runners easy to install, then add
@@ -44,20 +45,26 @@ interval scheduling.
 
 ## Recommended Order
 
-1. Add deferred result collection.
+1. Harden deferred result collection.
 
-   Today, an operator can inspect one completed result with:
+   An operator can inspect one completed result with:
 
    ```bash
    codex-toys workspace deferred pull <intent-id> --json
    codex-toys --ssh rammstein --cwd /repo workspace deferred pull <intent-id> --json
    ```
 
-   The next step is a `deferred collect` style workflow with a local cursor:
-   "pull completed results I have not seen yet." This matters for local
-   operator work because a remote runner can finish work while the local vault
-   or browser session is offline. Collection should be read-oriented and should
-   not re-run completed work.
+   `deferred collect` adds the batch form:
+
+   ```bash
+   codex-toys workspace deferred collect --cursor operator --json
+   codex-toys --ssh rammstein --cwd /repo workspace deferred collect --cursor operator --json
+   ```
+
+   The cursor lives with the queue being collected. Local collection advances a
+   local queue cursor; SSH collection advances a remote queue cursor. The next
+   hardening work is about operator presentation, not semantics: friendlier
+   summaries, dashboard use, and optional cursor naming conventions.
 
 2. Add CI and scheduled-runner setup.
 
@@ -68,6 +75,14 @@ interval scheduling.
 
    This should land after result collection so CI-produced outputs have a clear
    local harvest path.
+
+   Recommended next slice: add scheduled runner scaffolding for
+   `workspace tick --mode actions`. The scaffold should create or update a
+   Forgejo/GitHub workflow that runs on `workflow_dispatch` and a configurable
+   cron, installs codex-toys, runs `codex-toys actions prepare-auth`, runs
+   `codex-toys workspace tick --mode actions`, always runs
+   `codex-toys actions cleanup`, and commits only durable workspace state when
+   that state changed.
 
 3. Add an explicit retention policy.
 
@@ -118,6 +133,7 @@ Pull a completed result:
 
 ```bash
 codex-toys workspace deferred pull <intent-id> --json
+codex-toys workspace deferred collect --cursor operator --json
 ```
 
 Operate a remote workspace's local queue over SSH:
@@ -126,6 +142,7 @@ Operate a remote workspace's local queue over SSH:
 codex-toys --ssh rammstein --cwd /remote/workspace workspace deferred list --json
 codex-toys --ssh rammstein --cwd /remote/workspace workspace deferred run-due
 codex-toys --ssh rammstein --cwd /remote/workspace workspace deferred pull <intent-id> --json
+codex-toys --ssh rammstein --cwd /remote/workspace workspace deferred collect --cursor operator --json
 ```
 
 Configure a low-frequency local scheduled task in `.codex/workspace.toml`:

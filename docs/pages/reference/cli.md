@@ -205,6 +205,7 @@ codex-toys workspace deferred create --params-json <json>
 codex-toys workspace deferred list [--mode auto|local|actions] [--json]
 codex-toys workspace deferred read <intent-id> [--include-output] [--json]
 codex-toys workspace deferred pull <intent-id> [--json]
+codex-toys workspace deferred collect [--cursor <name>] [--json]
 codex-toys workspace deferred cancel <intent-id>
 codex-toys workspace deferred run-due [--mode auto|local|actions]
 codex-toys workspace deferred prune --older-than-days <days> [--dry-run]
@@ -228,6 +229,11 @@ queue through the SSH toybox.
 in the response. `workspace deferred pull` is a shorthand for that form, which
 is useful when a local operator wants to inspect a remote deferred run result
 without separately reading remote filesystem paths.
+
+`workspace deferred collect` returns terminal deferred runs that have not been
+seen by the named cursor yet, including saved attempt outputs. The cursor is
+stored with the queue being collected; over SSH, that means the remote
+workspace queue advances its own cursor.
 
 `workspace deferred prune` removes only terminal deferred history (`completed`,
 `failed`, or `canceled`) older than the requested retention window. Pending and

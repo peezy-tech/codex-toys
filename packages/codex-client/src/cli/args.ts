@@ -215,6 +215,16 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
+			type: "workspace-deferred-collect";
+			cursor?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
 			type: "workspace-deferred-cancel";
 			intentId: string;
 			mode?: WorkspaceModeInput;
@@ -389,6 +399,7 @@ export function parseArgs(
 	let dryRun = false;
 	let includeOutput = false;
 	let olderThanDays: number | undefined;
+	let cursor: string | undefined;
 	let model: string | undefined;
 	let paramsJson: string | undefined;
 	let paramsFile: string | undefined;
@@ -663,6 +674,14 @@ export function parseArgs(
 			}
 			if (arg.startsWith("--older-than-days=")) {
 				olderThanDays = positiveInteger(arg.slice("--older-than-days=".length), "--older-than-days");
+				continue;
+			}
+			if (arg === "--cursor") {
+				cursor = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--cursor=")) {
+				cursor = arg.slice("--cursor=".length);
 				continue;
 			}
 			if (arg === "--allow-absolute-cwd") {
@@ -1088,6 +1107,19 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
+			if (action === "collect") {
+				return {
+					type: "workspace-deferred-collect",
+					cursor,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
 			if (action === "cancel") {
 				return {
 					type: "workspace-deferred-cancel",
@@ -1127,7 +1159,7 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			throw new Error("workspace deferred requires create, list, read, cancel, run-due, or prune");
+			throw new Error("workspace deferred requires create, list, read, collect, cancel, run-due, or prune");
 		}
 		if (subcommand === "run") {
 			return {

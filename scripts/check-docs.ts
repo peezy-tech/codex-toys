@@ -69,6 +69,7 @@ const requiredCliLines = [
 	"codex-toys workspace deferred list [--mode auto|local|actions] [--json]",
 	"codex-toys workspace deferred read <intent-id> [--include-output] [--json]",
 	"codex-toys workspace deferred pull <intent-id> [--json]",
+	"codex-toys workspace deferred collect [--cursor <name>] [--json]",
 	"codex-toys workspace deferred run-due [--mode auto|local|actions]",
 	"codex-toys workspace deferred prune --older-than-days <days> [--dry-run]",
 	"codex-toys memories transplant global-to-workspace [--apply]",

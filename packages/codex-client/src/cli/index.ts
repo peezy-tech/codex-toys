@@ -93,6 +93,7 @@ import {
 	transplantThreadRollout,
 } from "../threads.ts";
 import {
+	collectDeferredRuns,
 	collectWorkspaceDoctorInfo,
 	commitActionsWorkspaceState,
 	cancelDeferredRunIntent,
@@ -462,6 +463,25 @@ async function main(): Promise<void> {
 				}),
 				parsed.intentId,
 				{ includeOutput: parsed.includeOutput },
+			);
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: `${JSON.stringify(result, null, 2)}\n`);
+		return;
+	}
+	if (parsed.type === "workspace-deferred-collect") {
+		const result = hasSshRemote(parsed)
+			? await callToybox("deferred.collect", compactUndefined({
+				cursor: parsed.cursor,
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}), parsed)
+			: await collectDeferredRuns(
+				await createWorkspaceContext({
+					workspaceRoot: parsed.workspaceRoot,
+					mode: parsed.mode,
+				}),
+				{ cursor: parsed.cursor },
 			);
 		write(parsed.json
 			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
@@ -1307,6 +1327,7 @@ Usage:
   codex-toys workspace deferred list [--mode auto|local|actions] [--json]
   codex-toys workspace deferred read <intent-id> [--include-output] [--json]
   codex-toys workspace deferred pull <intent-id> [--json]
+  codex-toys workspace deferred collect [--cursor <name>] [--json]
   codex-toys workspace deferred cancel <intent-id>
   codex-toys workspace deferred run-due [--mode auto|local|actions]
   codex-toys workspace deferred prune --older-than-days <days> [--dry-run]
@@ -1371,6 +1392,7 @@ Options:
                                              remote workspace root.
   --dry-run                                  Preview supported write operations.
   --older-than-days <days>                   Retention window for deferred prune.
+  --cursor <name>                            Deferred collect cursor name.
   --via <workspace|app>                      Turn surface. Defaults to workspace.
   --sandbox <mode>                           Turn sandbox: danger-full-access,
                                              workspace-write, or read-only.

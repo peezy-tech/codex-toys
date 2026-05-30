@@ -5,6 +5,7 @@ import path from "node:path";
 import { parseArgs } from "../src/cli/args.ts";
 import {
 	cancelDeferredRunIntent,
+	collectDeferredRuns,
 	collectWorkspaceDoctorInfo,
 	createDeferredRunIntent,
 	createWorkspaceContext,
@@ -80,6 +81,8 @@ describe("workspace autonomy", () => {
 			.toMatchObject({ type: "workspace-deferred-read", intentId: "later-1", includeOutput: true });
 		expect(parseArgs(["workspace", "deferred", "pull", "later-1"], {}))
 			.toMatchObject({ type: "workspace-deferred-read", intentId: "later-1", includeOutput: true });
+		expect(parseArgs(["workspace", "deferred", "collect", "--cursor", "operator", "--json"], {}))
+			.toMatchObject({ type: "workspace-deferred-collect", cursor: "operator", json: true });
 		expect(parseArgs(["workspace", "deferred", "run-due"], {}))
 			.toMatchObject({ type: "workspace-deferred-run-due" });
 		expect(parseArgs(["workspace", "deferred", "prune", "--older-than-days", "30", "--dry-run"], {}))
@@ -246,6 +249,18 @@ command = ["node", "-e", "console.log('hello deferred')"]
 		});
 		expect((readWithOutput.outputs?.[0]?.output as { workspaceRun?: { taskId?: string } }).workspaceRun)
 			.toMatchObject({ taskId: "hello" });
+		const firstCollect = await collectDeferredRuns(context, { now: new Date("2026-01-01T00:00:03.000Z") });
+		const secondCollect = await collectDeferredRuns(context, { now: new Date("2026-01-01T00:00:04.000Z") });
+		const namedCollect = await collectDeferredRuns(context, {
+			cursor: "operator",
+			now: new Date("2026-01-01T00:00:05.000Z"),
+		});
+		expect(firstCollect.intents).toHaveLength(1);
+		expect(firstCollect.cursorState.lastIntentId).toBe(intent.id);
+		expect(firstCollect.intents[0]?.outputs).toHaveLength(1);
+		expect(secondCollect.intents).toHaveLength(0);
+		expect(secondCollect.previousCursor?.lastIntentId).toBe(intent.id);
+		expect(namedCollect.intents.map((item) => item.intent.id)).toEqual([intent.id]);
 		const workspaceRun = JSON.parse(await readFile(read.attempts[0]!.outputPath!, "utf8"))
 			.workspaceRun as { taskId: string; status: string };
 		expect(workspaceRun).toMatchObject({

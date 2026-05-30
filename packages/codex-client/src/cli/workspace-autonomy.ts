@@ -189,6 +189,22 @@ export type DeferredRunReadResult = {
 	outputs?: DeferredRunAttemptOutput[];
 };
 
+export type DeferredRunCollectCursor = {
+	cursor: string;
+	updatedAt: string;
+	lastUpdatedAt?: string;
+	lastIntentId?: string;
+};
+
+export type DeferredRunCollectResult = {
+	mode: WorkspaceMode;
+	cursor: string;
+	collectedAt: string;
+	previousCursor?: DeferredRunCollectCursor;
+	cursorState: DeferredRunCollectCursor;
+	intents: DeferredRunReadResult[];
+};
+
 export type DeferredRunExecution = {
 	intent: DeferredRunIntent;
 	attempt: DeferredRunAttempt;
@@ -618,6 +634,46 @@ export async function readDeferredRun(
 		? await readDeferredRunAttemptOutputs(attempts)
 		: undefined;
 	return compactUndefined({ intent, attempts, outputs });
+}
+
+export async function collectDeferredRuns(
+	context: WorkspaceContext,
+	options: {
+		cursor?: string;
+		now?: Date;
+	} = {},
+): Promise<DeferredRunCollectResult> {
+	await ensureDeferredRunDirs(context);
+	const cursor = deferredCollectCursorName(options.cursor);
+	const previousCursor = await readDeferredRunCollectCursor(context, cursor);
+	const collectedAt = (options.now ?? new Date()).toISOString();
+	const terminalIntents = (await listDeferredRunIntents(context))
+		.filter((intent) => isTerminalDeferredRunStatus(intent.status))
+		.toSorted((left, right) =>
+			left.updatedAt.localeCompare(right.updatedAt) || left.id.localeCompare(right.id)
+		)
+		.filter((intent) => isAfterDeferredRunCollectCursor(intent, previousCursor));
+	const intents = await Promise.all(
+		terminalIntents.map(async (intent) =>
+			await readDeferredRun(context, intent.id, { includeOutput: true })
+		),
+	);
+	const last = terminalIntents.at(-1);
+	const cursorState: DeferredRunCollectCursor = compactUndefined({
+		cursor,
+		updatedAt: collectedAt,
+		lastUpdatedAt: last?.updatedAt ?? previousCursor?.lastUpdatedAt,
+		lastIntentId: last?.id ?? previousCursor?.lastIntentId,
+	});
+	await writeJsonFileAtomic(deferredCollectCursorPath(context, cursor), cursorState);
+	return compactUndefined({
+		mode: context.mode,
+		cursor,
+		collectedAt,
+		previousCursor,
+		cursorState,
+		intents,
+	});
 }
 
 export async function cancelDeferredRunIntent(
@@ -1249,6 +1305,21 @@ async function readDeferredRunAttemptOutputs(
 	return outputs;
 }
 
+async function readDeferredRunCollectCursor(
+	context: WorkspaceContext,
+	cursor: string,
+): Promise<DeferredRunCollectCursor | undefined> {
+	const file = deferredCollectCursorPath(context, cursor);
+	try {
+		return normalizeDeferredRunCollectCursor(parseJsonText(await readFile(file, "utf8"), file), cursor);
+	} catch (error) {
+		if (isNotFoundError(error)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
 async function claimDeferredRunIntent(
 	context: WorkspaceContext,
 	intent: DeferredRunIntent,
@@ -1434,6 +1505,19 @@ function normalizeDeferredRunAttempt(value: unknown): DeferredRunAttempt {
 	};
 }
 
+function normalizeDeferredRunCollectCursor(
+	value: unknown,
+	fallbackCursor: string,
+): DeferredRunCollectCursor {
+	const input = record(value);
+	return compactUndefined({
+		cursor: optionalString(input.cursor) ?? fallbackCursor,
+		updatedAt: requiredString(input.updatedAt, "deferred run collect cursor updatedAt"),
+		lastUpdatedAt: optionalString(input.lastUpdatedAt),
+		lastIntentId: optionalString(input.lastIntentId),
+	});
+}
+
 function dueTasks(
 	tasks: WorkspaceTask[],
 	runs: WorkspaceRunRecord[],
@@ -1511,6 +1595,20 @@ function isTerminalDeferredRunStatus(
 	return status === "completed" || status === "failed" || status === "canceled";
 }
 
+function isAfterDeferredRunCollectCursor(
+	intent: DeferredRunIntent,
+	cursor: DeferredRunCollectCursor | undefined,
+): boolean {
+	if (!cursor?.lastUpdatedAt) {
+		return true;
+	}
+	const updatedAtOrder = intent.updatedAt.localeCompare(cursor.lastUpdatedAt);
+	if (updatedAtOrder !== 0) {
+		return updatedAtOrder > 0;
+	}
+	return cursor.lastIntentId ? intent.id.localeCompare(cursor.lastIntentId) > 0 : true;
+}
+
 function isWorkspaceRunRecord(value: unknown): value is WorkspaceRunRecord {
 	const input = record(value);
 	return typeof input.id === "string" &&
@@ -1580,6 +1678,7 @@ async function ensureDeferredRunDirs(context: WorkspaceContext): Promise<void> {
 		deferredAttemptDir(context),
 		deferredOutputDir(context),
 		deferredClaimDir(context),
+		deferredCollectCursorDir(context),
 	]) {
 		await mkdir(dir, { recursive: true });
 	}
@@ -1605,6 +1704,10 @@ function deferredClaimDir(context: WorkspaceContext): string {
 	return path.join(deferredRoot(context), "claims");
 }
 
+function deferredCollectCursorDir(context: WorkspaceContext): string {
+	return path.join(deferredRoot(context), "collect-cursors");
+}
+
 function deferredIntentPath(context: WorkspaceContext, intentId: string): string {
 	return path.join(deferredIntentDir(context), `${safeFileSegment(intentId)}.json`);
 }
@@ -1615,6 +1718,18 @@ function deferredAttemptPath(context: WorkspaceContext, attemptId: string): stri
 
 function deferredClaimPath(context: WorkspaceContext, intentId: string): string {
 	return path.join(deferredClaimDir(context), `${safeFileSegment(intentId)}.json`);
+}
+
+function deferredCollectCursorPath(context: WorkspaceContext, cursor: string): string {
+	return path.join(deferredCollectCursorDir(context), `${safeFileSegment(cursor)}.json`);
+}
+
+function deferredCollectCursorName(value: string | undefined): string {
+	const cursor = value?.trim() || "default";
+	if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(cursor)) {
+		throw new Error(`Invalid deferred collect cursor: ${cursor}`);
+	}
+	return cursor;
 }
 
 function deferredRunId(createdAt: string): string {

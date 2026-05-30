@@ -5,6 +5,7 @@ import {
 import type { ToyboxMethodHandler } from "./server.ts";
 import {
 	cancelDeferredRunIntent,
+	collectDeferredRuns,
 	createDeferredRunIntent,
 	createWorkspaceContext,
 	listDeferredRunIntents,
@@ -18,6 +19,7 @@ import {
 export const WORKSPACE_DEFERRED_CREATE_METHOD = "deferred.create";
 export const WORKSPACE_DEFERRED_LIST_METHOD = "deferred.list";
 export const WORKSPACE_DEFERRED_READ_METHOD = "deferred.read";
+export const WORKSPACE_DEFERRED_COLLECT_METHOD = "deferred.collect";
 export const WORKSPACE_DEFERRED_CANCEL_METHOD = "deferred.cancel";
 export const WORKSPACE_DEFERRED_RUN_DUE_METHOD = "deferred.runDue";
 export const WORKSPACE_DEFERRED_PRUNE_METHOD = "deferred.prune";
@@ -39,6 +41,12 @@ export const workspaceDeferredRunMethodMetadata: ToyboxMethodMetadata[] = [
 		name: WORKSPACE_DEFERRED_READ_METHOD,
 		description: "Read one deferred run intent and its attempts.",
 		sideEffects: "read-only",
+		category: "deferred",
+	},
+	{
+		name: WORKSPACE_DEFERRED_COLLECT_METHOD,
+		description: "Collect terminal deferred run results after a named cursor.",
+		sideEffects: "writes-local",
 		category: "deferred",
 	},
 	{
@@ -91,6 +99,13 @@ export function createWorkspaceDeferredRunMethods(
 			const input = record(params);
 			return await readDeferredRun(context, requiredString(input.id, "deferred.read id"), {
 				includeOutput: input.includeOutput === true,
+			});
+		},
+		[WORKSPACE_DEFERRED_COLLECT_METHOD]: async (params) => {
+			const context = await contextFromParams(params, options);
+			const input = record(params);
+			return await collectDeferredRuns(context, {
+				cursor: stringValue(input.cursor),
 			});
 		},
 		[WORKSPACE_DEFERRED_CANCEL_METHOD]: async (params) => {
