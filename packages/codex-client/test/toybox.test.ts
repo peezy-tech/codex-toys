@@ -388,12 +388,87 @@ describe("Codex toybox protocol", () => {
 			},
 			jsonRpcRequest("read", "deferred.read"),
 		) as { intent: { id: string }; attempts: unknown[]; outputs: unknown[] };
-		const collected = await methods["deferred.collect"]!(
+			const collected = await methods["deferred.collect"]!(
+				{
+					cursor: "operator",
+				},
+				jsonRpcRequest("collect", "deferred.collect"),
+			) as { cursor: string; intents: unknown[] };
+			const queuedPrompt = await methods["promptQueue.enqueue"]!(
+				{
+					prompt: "queue this for later",
+					queue: "night",
+					title: "later",
+					effort: "low",
+					runAt: "2100-01-01T00:00:00.000Z",
+				},
+				jsonRpcRequest("prompt-enqueue", "promptQueue.enqueue"),
+			) as { intent: { id: string; status: string; source: { kind: string; queue: string }; target: { effort: string } } };
+			const queuedPrompts = await methods["promptQueue.list"]!(
+				{ queue: "night" },
+				jsonRpcRequest("prompt-list", "promptQueue.list"),
+			) as { intents: Array<{ id: string; source: { queue: string } }> };
+			const promptRead = await methods["promptQueue.read"]!(
+				{ id: queuedPrompt.intent.id },
+				jsonRpcRequest("prompt-read", "promptQueue.read"),
+			) as { intent: { id: string; source: { kind: string; queue: string } } };
+			const promptCollect = await methods["promptQueue.collect"]!(
+				{ queue: "night" },
+				jsonRpcRequest("prompt-collect", "promptQueue.collect"),
+			) as { cursor: string; intents: unknown[] };
+			const handoff = await methods["localHandoff.enqueue"]!(
+				{
+					prompt: "run this locally",
+					queue: "local",
+					title: "browser smoke",
+					targetHost: "local-controller",
+					requiredCapabilities: ["browser"],
+					runAt: "2000-01-01T00:00:00.000Z",
+				},
+				jsonRpcRequest("handoff-enqueue", "localHandoff.enqueue"),
+			) as { intent: { id: string; status: string; source: { kind: string; queue: string; targetHost: string } } };
+			const handoffs = await methods["localHandoff.list"]!(
+				{ queue: "local" },
+				jsonRpcRequest("handoff-list", "localHandoff.list"),
+			) as { intents: Array<{ id: string; source: { queue: string } }> };
+			const handoffRead = await methods["localHandoff.read"]!(
+				{ id: handoff.intent.id },
+				jsonRpcRequest("handoff-read", "localHandoff.read"),
+			) as { intent: { id: string; source: { kind: string; queue: string } } };
+			const handoffCollect = await methods["localHandoff.collect"]!(
+				{ queue: "local" },
+				jsonRpcRequest("handoff-collect", "localHandoff.collect"),
+			) as { cursor: string; intents: unknown[] };
+			const handoffBlocked = await methods["localHandoff.drain"]!(
+				{},
+				jsonRpcRequest("handoff-blocked", "localHandoff.drain"),
+			) as { executions: unknown[] };
+			const due = await methods["deferred.runDue"]!(
+				{},
+				jsonRpcRequest("run", "deferred.runDue"),
+			) as { executions: Array<{ intent: { id: string; status: string } }> };
+			const handoffMaterialized = await methods["localHandoff.drain"]!(
+				{
+					capabilities: ["browser"],
+					action: "materialize",
+					promptQueue: "local-followups",
+				},
+				jsonRpcRequest("handoff-drain", "localHandoff.drain"),
+			) as { action: string; executions: Array<{ output: { localHandoff: { handoffIntentId: string; promptIntentId: string; queue: string } } }> };
+		const retried = await methods["deferred.retry"]!(
 			{
-				cursor: "operator",
+				id: created.intent.id,
+				runAt: "2100-01-01T00:00:00.000Z",
 			},
-			jsonRpcRequest("collect", "deferred.collect"),
-		) as { cursor: string; intents: unknown[] };
+			jsonRpcRequest("retry", "deferred.retry"),
+		) as { intent: { id: string; status: string; runAt: string }; originalIntent: { id: string; status: string } };
+		const oldRead = await methods["deferred.read"]!(
+			{
+				id: created.intent.id,
+				includeOutput: true,
+			},
+			jsonRpcRequest("old-read", "deferred.read"),
+		) as { intent: { id: string; status: string }; attempts: unknown[]; outputs: unknown[] };
 		const pruned = await methods["deferred.prune"]!(
 			{
 				olderThanDays: 1,
@@ -412,9 +487,73 @@ describe("Codex toybox protocol", () => {
 			attempts: [],
 			outputs: [],
 		});
-		expect(collected).toMatchObject({
-			cursor: "operator",
-			intents: [],
+			expect(collected).toMatchObject({
+				cursor: "operator",
+				intents: [],
+			});
+			expect(queuedPrompt).toMatchObject({
+				intent: {
+					status: "pending",
+					source: {
+						kind: "prompt-queue",
+						queue: "night",
+					},
+					target: {
+						effort: "low",
+					},
+				},
+			});
+			expect(queuedPrompts.intents.map((intent) => intent.id)).toEqual([queuedPrompt.intent.id]);
+			expect(promptRead.intent.source).toMatchObject({ kind: "prompt-queue", queue: "night" });
+			expect(promptCollect).toMatchObject({ cursor: "prompt-queue", intents: [] });
+			expect(handoff).toMatchObject({
+				intent: {
+					status: "pending",
+					source: {
+						kind: "local-handoff",
+						queue: "local",
+						targetHost: "local-controller",
+					},
+				},
+			});
+			expect(handoffs.intents.map((intent) => intent.id)).toEqual([handoff.intent.id]);
+			expect(handoffRead.intent.source).toMatchObject({ kind: "local-handoff", queue: "local" });
+			expect(handoffCollect).toMatchObject({ cursor: "local-handoff", intents: [] });
+			expect(handoffBlocked.executions).toEqual([]);
+			expect(due.executions[0]?.intent).toMatchObject({
+				id: created.intent.id,
+				status: "failed",
+		});
+			expect(due.executions.map((execution) => execution.intent.id)).not.toContain(handoff.intent.id);
+			expect(handoffMaterialized).toMatchObject({
+				action: "materialize",
+				executions: [{
+					output: {
+						localHandoff: {
+							handoffIntentId: handoff.intent.id,
+							queue: "local-followups",
+						},
+					},
+				}],
+			});
+		expect(retried).toMatchObject({
+			intent: {
+				status: "pending",
+				runAt: "2100-01-01T00:00:00.000Z",
+			},
+			originalIntent: {
+				id: created.intent.id,
+				status: "failed",
+			},
+		});
+		expect(retried.intent.id).not.toBe(created.intent.id);
+		expect(oldRead).toMatchObject({
+			intent: {
+				id: created.intent.id,
+				status: "failed",
+			},
+			attempts: [expect.any(Object)],
+			outputs: [expect.any(Object)],
 		});
 		expect(pruned.pruned).toBe(0);
 	});

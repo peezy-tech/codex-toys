@@ -221,6 +221,24 @@ explicit opt-in.
 codex-toys workspace doctor [--mode auto|local|actions] [--json]
 codex-toys workspace tick [--mode auto|local|actions]
 codex-toys workspace run <task-id> [--mode auto|local|actions]
+codex-toys workspace prompt enqueue <prompt> [--run-at <iso>] [--queue <name>]
+codex-toys workspace prompt enqueue <prompt> --after <intent-id> [--after-status completed|terminal]
+codex-toys workspace prompt list [--queue <name>] [--status pending|running|completed|failed|canceled] [--json]
+codex-toys workspace prompt read <intent-id> [--include-output] [--json]
+codex-toys workspace prompt pull <intent-id> [--json]
+codex-toys workspace prompt collect [--cursor <name>] [--queue <name>] [--json]
+codex-toys workspace prompt cancel <intent-id>
+codex-toys workspace prompt retry <intent-id> [--run-at <iso>]
+codex-toys workspace prompt run-due [--queue <name>] [--limit <n>]
+codex-toys workspace handoff enqueue <prompt> [--run-at <iso>] [--queue <name>]
+codex-toys workspace handoff enqueue <prompt> [--target-host <host>] [--capability <name>]
+codex-toys workspace handoff list [--queue <name>] [--target-host <host>] [--json]
+codex-toys workspace handoff read <intent-id> [--include-output] [--json]
+codex-toys workspace handoff pull <intent-id> [--json]
+codex-toys workspace handoff collect [--cursor <name>] [--queue <name>] [--json]
+codex-toys workspace handoff cancel <intent-id>
+codex-toys workspace handoff retry <intent-id> [--run-at <iso>]
+codex-toys workspace handoff drain [--host-id <host>] [--capability <name>] [--materialize]
 codex-toys workspace deferred create --params-json <json>
 codex-toys workspace deferred list [--mode auto|local|actions] [--json]
 codex-toys workspace deferred read <intent-id> [--include-output] [--json]
@@ -246,6 +264,24 @@ or a configured workspace task. `workspace tick` creates scheduled task intents
 and runs due deferred work; `workspace deferred run-due` runs only due deferred
 intents. With `--ssh`, deferred methods operate on the remote workspace's local
 queue through the SSH toybox.
+
+`workspace prompt` is the Deferred Prompt Queue surface for one-off Codex
+prompts. It stores queued prompts as deferred turn intents marked with
+`source.kind = "prompt-queue"`, so they share deferred claiming, attempts,
+outputs, retries, SSH behavior, and result collection. `--after <intent-id>`
+adds a dependency on another deferred intent; `--after-status` defaults to
+`completed`, and `terminal` accepts completed, failed, or canceled parents.
+`workspace prompt run-due` drains only queued prompts, while `workspace tick`
+runs queued prompts along with all other due deferred work.
+
+`workspace handoff` is the Local Handoff Queue surface for prompts that require
+a local controller, local browser, plugin install, dashboard smoke, or another
+host-specific capability. Handoffs are deferred turn intents marked with
+`source.kind = "local-handoff"`, but `workspace tick` and generic
+`workspace deferred run-due` skip them. `workspace handoff drain` is the local
+controller path: it advertises a `--host-id` and repeated `--capability` values,
+then either runs matching handoffs immediately or, with `--materialize`, creates
+a prompt-queue intent such as `--prompt-queue local-followups`.
 
 `workspace doctor` includes local systemd user runner visibility when it is run
 on Linux. A matching runner is a timer whose service invokes `codex-toys

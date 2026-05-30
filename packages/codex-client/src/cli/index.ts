@@ -99,15 +99,24 @@ import {
 } from "../threads.ts";
 import {
 	collectDeferredRuns,
+	collectLocalHandoffRuns,
+	collectPromptQueueRuns,
 	collectWorkspaceDoctorInfo,
 	commitActionsWorkspaceState,
 	cancelDeferredRunIntent,
 	createWorkspaceContext,
 	createDeferredRunIntent,
+	drainLocalHandoffQueue,
+	enqueueLocalHandoffIntent,
+	enqueuePromptQueueIntent,
+	listLocalHandoffIntents,
+	listPromptQueueIntents,
 	listDeferredRunIntents,
 	pruneDeferredRunHistory,
 	readDeferredRun,
 	formatWorkspaceDoctorInfo,
+	retryDeferredRunIntent,
+	runDuePromptQueueIntents,
 	runDueDeferredRuns,
 	runWorkspaceTaskById,
 	scaffoldActionsWorkspace,
@@ -413,10 +422,10 @@ async function main(): Promise<void> {
 		}, parsed.pretty);
 		return;
 	}
-	if (parsed.type === "workspace-run") {
-		const context = await createWorkspaceContext({
-			workspaceRoot: parsed.workspaceRoot,
-			mode: parsed.mode,
+		if (parsed.type === "workspace-run") {
+			const context = await createWorkspaceContext({
+				workspaceRoot: parsed.workspaceRoot,
+				mode: parsed.mode,
 		});
 		const run = await withToyboxRequest(parsed, async (request) =>
 			await runWorkspaceTaskById(context, parsed.taskId, {
@@ -429,10 +438,372 @@ async function main(): Promise<void> {
 			actionsCommit: await commitActionsWorkspaceState(context, {
 				message: `Update Codex workspace state for ${parsed.taskId}`,
 			}),
-		}, parsed.pretty);
-		return;
-	}
-	if (parsed.type === "workspace-deferred-create") {
+			}, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-prompt-enqueue") {
+			validateAutomationTurnOptions(parsed);
+			const params = compactUndefined({
+				prompt: parsed.prompt,
+				title: parsed.title,
+				queue: parsed.queue,
+				labels: parsed.labels.length > 0 ? parsed.labels : undefined,
+				runAt: parsed.runAt,
+				afterIntentId: parsed.afterIntentId,
+				afterStatus: parsed.afterStatus,
+				threadId: parsed.threadId,
+				cwd: parsed.cwd,
+				model: parsed.model,
+				serviceTier: parsed.serviceTier,
+				effort: parsed.effort,
+				sandbox: parsed.sandbox,
+				approvalPolicy: parsed.approvalPolicy,
+				permissions: parsed.permissions,
+			});
+			const result = hasSshRemote(parsed)
+				? await callToybox("promptQueue.enqueue", compactUndefined({
+					...params,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: {
+					intent: await enqueuePromptQueueIntent(
+						await createWorkspaceContext({
+							workspaceRoot: parsed.workspaceRoot,
+							mode: parsed.mode,
+						}),
+						params,
+					),
+				};
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-prompt-list") {
+			if (hasSshRemote(parsed)) {
+				const result = await callToybox("promptQueue.list", compactUndefined({
+					status: parsed.status,
+					queue: parsed.queue,
+					limit: parsed.limit,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed);
+				write(parsed.json
+					? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+					: formatPromptQueueList((record(result).intents ?? []) as DeferredRunIntent[]));
+				return;
+			}
+			const context = await createWorkspaceContext({
+				workspaceRoot: parsed.workspaceRoot,
+				mode: parsed.mode,
+			});
+			const intents = await listPromptQueueIntents(context, {
+				status: parsed.status,
+				queue: parsed.queue,
+				limit: parsed.limit,
+			});
+			write(parsed.json
+				? `${JSON.stringify({ intents }, null, parsed.pretty ? 2 : 0)}\n`
+				: formatPromptQueueList(intents));
+			return;
+		}
+		if (parsed.type === "workspace-prompt-read") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("promptQueue.read", compactUndefined({
+					id: parsed.intentId,
+					includeOutput: parsed.includeOutput,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await readDeferredRun(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					parsed.intentId,
+					{ includeOutput: parsed.includeOutput },
+				);
+			write(parsed.json
+				? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+				: `${JSON.stringify(result, null, 2)}\n`);
+			return;
+		}
+		if (parsed.type === "workspace-prompt-collect") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("promptQueue.collect", compactUndefined({
+					cursor: parsed.cursor,
+					queue: parsed.queue,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await collectPromptQueueRuns(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					{ cursor: parsed.cursor, queue: parsed.queue },
+				);
+			write(parsed.json
+				? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+				: `${JSON.stringify(result, null, 2)}\n`);
+			return;
+		}
+		if (parsed.type === "workspace-prompt-cancel") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("promptQueue.cancel", compactUndefined({
+					id: parsed.intentId,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: {
+					intent: await cancelDeferredRunIntent(
+						await createWorkspaceContext({
+							workspaceRoot: parsed.workspaceRoot,
+							mode: parsed.mode,
+						}),
+						parsed.intentId,
+					),
+				};
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-prompt-retry") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("promptQueue.retry", compactUndefined({
+					id: parsed.intentId,
+					runAt: parsed.runAt,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await retryDeferredRunIntent(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					parsed.intentId,
+					compactUndefined({
+						runAt: parsed.runAt,
+					}),
+				);
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-prompt-run-due") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("promptQueue.runDue", compactUndefined({
+					queue: parsed.queue,
+					limit: parsed.limit,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await withToyboxRequest(parsed, async (request) =>
+					await runDuePromptQueueIntents(
+						await createWorkspaceContext({
+							workspaceRoot: parsed.workspaceRoot,
+							mode: parsed.mode,
+						}),
+						{
+							queue: parsed.queue,
+							limit: parsed.limit,
+							callToybox: request,
+							automationCwd: parsed.cwd,
+						},
+					)
+				);
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-handoff-enqueue") {
+			validateAutomationTurnOptions(parsed);
+			const params = compactUndefined({
+				prompt: parsed.prompt,
+				title: parsed.title,
+				queue: parsed.queue,
+				labels: parsed.labels.length > 0 ? parsed.labels : undefined,
+				runAt: parsed.runAt,
+				afterIntentId: parsed.afterIntentId,
+				afterStatus: parsed.afterStatus,
+				targetHost: parsed.targetHost,
+				requiredCapabilities: parsed.requiredCapabilities.length > 0 ? parsed.requiredCapabilities : undefined,
+				requesterHost: parsed.requesterHost,
+				requesterThreadId: parsed.requesterThreadId,
+				threadId: parsed.threadId,
+				cwd: parsed.cwd,
+				model: parsed.model,
+				serviceTier: parsed.serviceTier,
+				effort: parsed.effort,
+				sandbox: parsed.sandbox,
+				approvalPolicy: parsed.approvalPolicy,
+				permissions: parsed.permissions,
+			});
+			const result = hasSshRemote(parsed)
+				? await callToybox("localHandoff.enqueue", compactUndefined({
+					...params,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: {
+					intent: await enqueueLocalHandoffIntent(
+						await createWorkspaceContext({
+							workspaceRoot: parsed.workspaceRoot,
+							mode: parsed.mode,
+						}),
+						params,
+					),
+				};
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-handoff-list") {
+			if (hasSshRemote(parsed)) {
+				const result = await callToybox("localHandoff.list", compactUndefined({
+					status: parsed.status,
+					queue: parsed.queue,
+					targetHost: parsed.targetHost,
+					capabilities: parsed.capabilities.length > 0 ? parsed.capabilities : undefined,
+					limit: parsed.limit,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed);
+				write(parsed.json
+					? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+					: formatLocalHandoffList((record(result).intents ?? []) as DeferredRunIntent[]));
+				return;
+			}
+			const context = await createWorkspaceContext({
+				workspaceRoot: parsed.workspaceRoot,
+				mode: parsed.mode,
+			});
+			const intents = await listLocalHandoffIntents(context, {
+				status: parsed.status,
+				queue: parsed.queue,
+				targetHost: parsed.targetHost,
+				capabilities: parsed.capabilities.length > 0 ? parsed.capabilities : undefined,
+				limit: parsed.limit,
+			});
+			write(parsed.json
+				? `${JSON.stringify({ intents }, null, parsed.pretty ? 2 : 0)}\n`
+				: formatLocalHandoffList(intents));
+			return;
+		}
+		if (parsed.type === "workspace-handoff-read") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("localHandoff.read", compactUndefined({
+					id: parsed.intentId,
+					includeOutput: parsed.includeOutput,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await readDeferredRun(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					parsed.intentId,
+					{ includeOutput: parsed.includeOutput },
+				);
+			write(parsed.json
+				? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+				: `${JSON.stringify(result, null, 2)}\n`);
+			return;
+		}
+		if (parsed.type === "workspace-handoff-collect") {
+			const options = compactUndefined({
+				cursor: parsed.cursor,
+				queue: parsed.queue,
+				targetHost: parsed.targetHost,
+				capabilities: parsed.capabilities.length > 0 ? parsed.capabilities : undefined,
+			});
+			const result = hasSshRemote(parsed)
+				? await callToybox("localHandoff.collect", compactUndefined({
+					...options,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await collectLocalHandoffRuns(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					options,
+				);
+			write(parsed.json
+				? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+				: `${JSON.stringify(result, null, 2)}\n`);
+			return;
+		}
+		if (parsed.type === "workspace-handoff-cancel") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("localHandoff.cancel", compactUndefined({
+					id: parsed.intentId,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: {
+					intent: await cancelDeferredRunIntent(
+						await createWorkspaceContext({
+							workspaceRoot: parsed.workspaceRoot,
+							mode: parsed.mode,
+						}),
+						parsed.intentId,
+					),
+				};
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-handoff-retry") {
+			const result = hasSshRemote(parsed)
+				? await callToybox("localHandoff.retry", compactUndefined({
+					id: parsed.intentId,
+					runAt: parsed.runAt,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await retryDeferredRunIntent(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					parsed.intentId,
+					compactUndefined({
+						runAt: parsed.runAt,
+					}),
+				);
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-handoff-drain") {
+			const action = parsed.materialize ? "materialize" as const : "run" as const;
+			const drainParams = compactUndefined({
+				queue: parsed.queue,
+				hostId: parsed.hostId,
+				capabilities: parsed.capabilities.length > 0 ? parsed.capabilities : undefined,
+				limit: parsed.limit,
+				action,
+				promptQueue: parsed.promptQueue,
+			});
+			const result = hasSshRemote(parsed)
+				? await callToybox("localHandoff.drain", compactUndefined({
+					...drainParams,
+					mode: parsed.mode,
+					workspaceRoot: parsed.workspaceRoot,
+				}), parsed)
+				: await withToyboxRequest(parsed, async (request) =>
+					await drainLocalHandoffQueue(
+						await createWorkspaceContext({
+							workspaceRoot: parsed.workspaceRoot,
+							mode: parsed.mode,
+						}),
+						{
+							...drainParams,
+							callToybox: request,
+							automationCwd: parsed.cwd,
+						},
+					)
+				);
+			writeJson(result, parsed.pretty);
+			return;
+		}
+		if (parsed.type === "workspace-deferred-create") {
 		const params = await readParams(parsed.paramsText, parsed.paramsFile);
 		const result = hasSshRemote(parsed)
 			? await callToybox("deferred.create", compactUndefined({
@@ -529,6 +900,27 @@ async function main(): Promise<void> {
 					parsed.intentId,
 				),
 			};
+		writeJson(result, parsed.pretty);
+		return;
+	}
+	if (parsed.type === "workspace-deferred-retry") {
+		const result = hasSshRemote(parsed)
+			? await callToybox("deferred.retry", compactUndefined({
+				id: parsed.intentId,
+				runAt: parsed.runAt,
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}), parsed)
+			: await retryDeferredRunIntent(
+				await createWorkspaceContext({
+					workspaceRoot: parsed.workspaceRoot,
+					mode: parsed.mode,
+				}),
+				parsed.intentId,
+				compactUndefined({
+					runAt: parsed.runAt,
+				}),
+			);
 		writeJson(result, parsed.pretty);
 		return;
 	}
@@ -1258,9 +1650,9 @@ function truncate(value: string, maxLength: number): string {
 	return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
 }
 
-function formatDeferredRunList(intents: DeferredRunIntent[]): string {
-	if (intents.length === 0) {
-		return "No deferred runs found.\n";
+	function formatDeferredRunList(intents: DeferredRunIntent[]): string {
+		if (intents.length === 0) {
+			return "No deferred runs found.\n";
 	}
 	return intents.map((intent) => [
 		intent.id,
@@ -1277,10 +1669,55 @@ function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
 	if (target.kind === "automation") {
 		return `automation:${target.automation}`;
 	}
-	return "turn";
-}
+		return "turn";
+	}
 
-function record(value: unknown): Record<string, unknown> {
+	function formatPromptQueueList(intents: DeferredRunIntent[]): string {
+		if (intents.length === 0) {
+			return "No queued prompts found.\n";
+		}
+		return intents.map((intent) => [
+			intent.id,
+			intent.status,
+			intent.runAt,
+			promptQueueLabel(intent),
+		].join("  ")).join("\n") + "\n";
+	}
+
+	function promptQueueLabel(intent: DeferredRunIntent): string {
+		const source = record(intent.source);
+		const queue = stringValue(source.queue) ?? "default";
+		const title = stringValue(source.title);
+		if (title) {
+			return `${queue}:${title}`;
+		}
+		return queue;
+	}
+
+	function formatLocalHandoffList(intents: DeferredRunIntent[]): string {
+		if (intents.length === 0) {
+			return "No local handoffs found.\n";
+		}
+		return intents.map((intent) => [
+			intent.id,
+			intent.status,
+			intent.runAt,
+			localHandoffLabel(intent),
+		].join("  ")).join("\n") + "\n";
+	}
+
+	function localHandoffLabel(intent: DeferredRunIntent): string {
+		const source = record(intent.source);
+		const queue = stringValue(source.queue) ?? "local";
+		const targetHost = stringValue(source.targetHost) ?? "local-controller";
+		const title = stringValue(source.title);
+		if (title) {
+			return `${queue}:${targetHost}:${title}`;
+		}
+		return `${queue}:${targetHost}`;
+	}
+
+	function record(value: unknown): Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 		? value as Record<string, unknown>
 		: {};
@@ -1384,15 +1821,24 @@ Usage:
   codex-toys workspace overview [--json]
   codex-toys workspace delegate list [--json]
   codex-toys workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
-  codex-toys workspace doctor [--mode auto|local|actions] [--json]
-  codex-toys workspace tick [--mode auto|local|actions]
-  codex-toys workspace run <task-id> [--mode auto|local|actions]
-  codex-toys workspace deferred create --params-json <json>
+	  codex-toys workspace doctor [--mode auto|local|actions] [--json]
+	  codex-toys workspace tick [--mode auto|local|actions]
+	  codex-toys workspace run <task-id> [--mode auto|local|actions]
+	  codex-toys workspace prompt enqueue <prompt> [--run-at <iso>] [--after <intent-id>]
+	  codex-toys workspace prompt list [--queue <name>] [--status <status>] [--json]
+	  codex-toys workspace prompt pull <intent-id> [--json]
+	  codex-toys workspace prompt collect [--cursor <name>] [--queue <name>] [--json]
+	  codex-toys workspace prompt run-due [--queue <name>] [--limit <n>]
+	  codex-toys workspace handoff enqueue <prompt> [--target-host <host>] [--capability <name>]
+	  codex-toys workspace handoff list [--queue <name>] [--status <status>] [--json]
+	  codex-toys workspace handoff drain [--host-id <host>] [--capability <name>] [--materialize]
+	  codex-toys workspace deferred create --params-json <json>
   codex-toys workspace deferred list [--mode auto|local|actions] [--json]
   codex-toys workspace deferred read <intent-id> [--include-output] [--json]
   codex-toys workspace deferred pull <intent-id> [--json]
   codex-toys workspace deferred collect [--cursor <name>] [--json]
   codex-toys workspace deferred cancel <intent-id>
+  codex-toys workspace deferred retry <intent-id> [--run-at <iso>]
   codex-toys workspace deferred run-due [--mode auto|local|actions]
   codex-toys workspace deferred prune --older-than-days <days> [--dry-run]
   codex-toys workspace init actions [--forgejo|--github]
@@ -1443,9 +1889,20 @@ Options:
                                              or workspace tasks.
   --forgejo                                  Generate a Forgejo Actions workflow.
   --github                                   Generate a GitHub Actions workflow.
-  --prompt <text>                            Prompt text for automation script context.
-  --title <text>                             Delegation thread title.
-  --group-id <id>                            Delegation group id.
+	  --prompt <text>                            Prompt text for automation script context.
+	  --title <text>                             Delegation thread title or queued prompt title.
+	  --queue <name>                             Prompt queue name.
+	  --label <label>                            Prompt queue label. Repeatable.
+	  --after <intent-id>                        Hold queued prompt until another intent finishes.
+	  --after-status <status>                    Dependency status: completed, failed,
+	                                             canceled, or terminal.
+	  --status <status>                          Deferred/prompt status filter.
+	  --limit <n>                                Limit listed or due queued work.
+	  --run-at <iso>                             Future run time for deferred or queued work.
+	  --service-tier <tier>                      Turn service tier for queued prompts.
+	  --effort <effort>                          Reasoning effort: none, minimal, low,
+	                                             medium, high, or xhigh.
+	  --group-id <id>                            Delegation group id.
   --return-mode <mode>                       Delegation return mode: detached,
                                              record_only, wake_on_done,
                                              wake_on_group, or manual.

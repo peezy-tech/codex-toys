@@ -164,6 +164,11 @@ codex-toys workspace app thread/list --params-json '{"limit":20,"sourceKinds":[]
 codex-toys workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
 codex-toys workspace doctor
 codex-toys workspace tick --mode local
+codex-toys workspace prompt enqueue "Review later." --queue low-priority --effort low
+codex-toys workspace prompt run-due --queue low-priority --limit 1
+codex-toys workspace prompt collect --queue low-priority --json
+codex-toys workspace handoff enqueue "Test the dashboard locally." --capability browser
+codex-toys workspace handoff drain --capability browser --materialize --prompt-queue local-followups
 codex-toys workspace deferred create --params-json '{"target":{"kind":"turn","prompt":"Review later."}}'
 codex-toys workspace deferred list --json
 codex-toys workspace deferred prune --older-than-days 30 --dry-run

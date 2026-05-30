@@ -82,6 +82,20 @@ export type WorkspaceContext = {
 	actionsCommitPaths: string[];
 };
 
+export type DeferredReasoningEffort =
+	| "none"
+	| "minimal"
+	| "low"
+	| "medium"
+	| "high"
+	| "xhigh";
+
+export type DeferredRunDependency = {
+	kind: "deferred-run";
+	intentId: string;
+	status?: "completed" | "failed" | "canceled" | "terminal";
+};
+
 export type WorkspaceRunRecord = {
 	id: string;
 	taskId: string;
@@ -102,6 +116,7 @@ export type DeferredRunTarget =
 			cwd?: string;
 			model?: string;
 			serviceTier?: string;
+			effort?: DeferredReasoningEffort;
 			sandbox?: "danger-full-access" | "read-only" | "workspace-write";
 			approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
 			permissions?: string;
@@ -142,6 +157,7 @@ export type DeferredRunIntent = {
 	createdBy?: string;
 	reason?: string;
 	source?: Record<string, unknown>;
+	dependsOn?: DeferredRunDependency[];
 	attemptIds: string[];
 	lease?: {
 		attemptId: string;
@@ -174,7 +190,70 @@ export type DeferredRunCreateParams = {
 	createdBy?: string;
 	reason?: string;
 	source?: Record<string, unknown>;
+	dependsOn?: DeferredRunDependency[];
 };
+
+export type DeferredRunRetryParams = {
+	id?: string;
+	runAt?: string;
+	createdBy?: string;
+	reason?: string;
+	source?: Record<string, unknown>;
+};
+
+export type PromptQueueEnqueueParams = {
+	id?: string;
+	runAt?: string;
+	prompt: string;
+	title?: string;
+	queue?: string;
+	labels?: string[];
+	threadId?: string;
+	cwd?: string;
+	model?: string;
+	serviceTier?: string;
+	effort?: DeferredReasoningEffort;
+	sandbox?: "danger-full-access" | "read-only" | "workspace-write";
+	approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
+	permissions?: string;
+	responsesapiClientMetadata?: Record<string, string>;
+	outputSchema?: unknown;
+	afterIntentId?: string;
+	afterStatus?: "completed" | "failed" | "canceled" | "terminal";
+	createdBy?: string;
+	reason?: string;
+	source?: Record<string, unknown>;
+};
+
+export type LocalHandoffEnqueueParams = {
+	id?: string;
+	runAt?: string;
+	prompt: string;
+	title?: string;
+	queue?: string;
+	labels?: string[];
+	targetHost?: string;
+	requiredCapabilities?: string[];
+	requesterHost?: string;
+	requesterThreadId?: string;
+	threadId?: string;
+	cwd?: string;
+	model?: string;
+	serviceTier?: string;
+	effort?: DeferredReasoningEffort;
+	sandbox?: "danger-full-access" | "read-only" | "workspace-write";
+	approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
+	permissions?: string;
+	responsesapiClientMetadata?: Record<string, string>;
+	outputSchema?: unknown;
+	afterIntentId?: string;
+	afterStatus?: "completed" | "failed" | "canceled" | "terminal";
+	createdBy?: string;
+	reason?: string;
+	source?: Record<string, unknown>;
+};
+
+export type LocalHandoffDrainAction = "run" | "materialize";
 
 export type DeferredRunAttemptOutput = {
 	attemptId: string;
@@ -187,6 +266,11 @@ export type DeferredRunReadResult = {
 	intent: DeferredRunIntent;
 	attempts: DeferredRunAttempt[];
 	outputs?: DeferredRunAttemptOutput[];
+};
+
+export type DeferredRunRetryResult = {
+	intent: DeferredRunIntent;
+	originalIntent: DeferredRunIntent;
 };
 
 export type DeferredRunCollectCursor = {
@@ -209,6 +293,12 @@ export type DeferredRunExecution = {
 	intent: DeferredRunIntent;
 	attempt: DeferredRunAttempt;
 	output: unknown;
+};
+
+export type LocalHandoffDrainResult = {
+	mode: WorkspaceMode;
+	action: LocalHandoffDrainAction;
+	executions: DeferredRunExecution[];
 };
 
 export type DeferredRunPruneResult = {
@@ -432,6 +522,9 @@ export async function collectWorkspaceDoctorInfo(
 	const now = new Date();
 	const latestDeferredRun = deferredRuns
 		.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+	const deferredDueFlags = await Promise.all(
+		deferredRuns.map(async (intent) => await isDeferredIntentDue(context, intent, now)),
+	);
 	const failingCount = countFailingTasks(config?.tasks ?? [], runs);
 	const includeRunner = options.includeRunner === true || options.runnerProbe !== undefined;
 	const runner = includeRunner
@@ -461,7 +554,7 @@ export async function collectWorkspaceDoctorInfo(
 		dueCount: dueTasks(config?.tasks ?? [], runs, new Date()).length,
 		failingCount,
 		deferredCount: deferredRuns.length,
-		deferredDueCount: deferredRuns.filter((intent) => isDeferredIntentDue(intent, now)).length,
+		deferredDueCount: deferredDueFlags.filter(Boolean).length,
 		deferredRunningCount: deferredRuns.filter((intent) => intent.status === "running").length,
 		deferredFailedCount: deferredRuns.filter((intent) => intent.status === "failed").length,
 		latestRun,
@@ -641,6 +734,7 @@ export async function createDeferredRunIntent(
 		createdBy: input.createdBy,
 		reason: input.reason,
 		source: input.source,
+		dependsOn: input.dependsOn,
 		attemptIds: [],
 	});
 	await writeNewJsonFile(deferredIntentPath(context, intent.id), intent);
@@ -696,18 +790,219 @@ export async function readDeferredRun(
 	return compactUndefined({ intent, attempts, outputs });
 }
 
+export async function enqueuePromptQueueIntent(
+	context: WorkspaceContext,
+	params: unknown,
+): Promise<DeferredRunIntent> {
+	const input = parsePromptQueueEnqueueParams(params);
+	const after = input.afterIntentId
+		? {
+			kind: "deferred-run" as const,
+			intentId: input.afterIntentId,
+			status: input.afterStatus,
+		}
+		: undefined;
+	return await createDeferredRunIntent(context, {
+		id: input.id,
+		runAt: input.runAt,
+		target: compactUndefined({
+			kind: "turn" as const,
+			prompt: input.prompt,
+			threadId: input.threadId,
+			cwd: input.cwd,
+			model: input.model,
+			serviceTier: input.serviceTier,
+			effort: input.effort,
+			sandbox: input.sandbox,
+			approvalPolicy: input.approvalPolicy,
+			permissions: input.permissions,
+			responsesapiClientMetadata: input.responsesapiClientMetadata,
+			outputSchema: input.outputSchema,
+		}),
+		createdBy: input.createdBy ?? "workspace-prompt-queue",
+		reason: input.reason ?? input.title,
+		source: promptQueueSource(input, after),
+		dependsOn: after ? [after] : undefined,
+	});
+}
+
+export async function listPromptQueueIntents(
+	context: WorkspaceContext,
+	options: {
+		status?: DeferredRunIntentStatus;
+		queue?: string;
+		limit?: number;
+	} = {},
+): Promise<DeferredRunIntent[]> {
+	const intents = await listDeferredRunIntents(context, {
+		status: options.status,
+	});
+	return intents
+		.filter((intent) => isPromptQueueIntent(intent, options.queue))
+		.slice(0, clampLimit(options.limit, 500));
+}
+
+export async function collectPromptQueueRuns(
+	context: WorkspaceContext,
+	options: {
+		cursor?: string;
+		queue?: string;
+		now?: Date;
+	} = {},
+): Promise<DeferredRunCollectResult> {
+	return await collectDeferredRuns(context, {
+		cursor: options.cursor,
+		defaultCursor: "prompt-queue",
+		now: options.now,
+		filter: (intent) => isPromptQueueIntent(intent, options.queue),
+	});
+}
+
+export async function runDuePromptQueueIntents(
+	context: WorkspaceContext,
+	options: {
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+		now?: Date;
+		limit?: number;
+		leaseMs?: number;
+		queue?: string;
+	},
+): Promise<{ mode: WorkspaceMode; executions: DeferredRunExecution[] }> {
+	return await runDueDeferredRuns(context, {
+		...options,
+		filter: (intent) => isPromptQueueIntent(intent, options.queue),
+	});
+}
+
+export async function enqueueLocalHandoffIntent(
+	context: WorkspaceContext,
+	params: unknown,
+): Promise<DeferredRunIntent> {
+	const input = parseLocalHandoffEnqueueParams(params);
+	const after = input.afterIntentId
+		? {
+			kind: "deferred-run" as const,
+			intentId: input.afterIntentId,
+			status: input.afterStatus,
+		}
+		: undefined;
+	return await createDeferredRunIntent(context, {
+		id: input.id,
+		runAt: input.runAt,
+		target: compactUndefined({
+			kind: "turn" as const,
+			prompt: input.prompt,
+			threadId: input.threadId,
+			cwd: input.cwd,
+			model: input.model,
+			serviceTier: input.serviceTier,
+			effort: input.effort,
+			sandbox: input.sandbox,
+			approvalPolicy: input.approvalPolicy,
+			permissions: input.permissions,
+			responsesapiClientMetadata: input.responsesapiClientMetadata,
+			outputSchema: input.outputSchema,
+		}),
+		createdBy: input.createdBy ?? "workspace-local-handoff",
+		reason: input.reason ?? input.title,
+		source: localHandoffSource(input, after),
+		dependsOn: after ? [after] : undefined,
+	});
+}
+
+export async function listLocalHandoffIntents(
+	context: WorkspaceContext,
+	options: {
+		status?: DeferredRunIntentStatus;
+		queue?: string;
+		targetHost?: string;
+		capabilities?: string[];
+		limit?: number;
+	} = {},
+): Promise<DeferredRunIntent[]> {
+	const intents = await listDeferredRunIntents(context, {
+		status: options.status,
+	});
+	return intents
+		.filter((intent) => isLocalHandoffIntent(intent, options))
+		.slice(0, clampLimit(options.limit, 500));
+}
+
+export async function collectLocalHandoffRuns(
+	context: WorkspaceContext,
+	options: {
+		cursor?: string;
+		queue?: string;
+		targetHost?: string;
+		capabilities?: string[];
+		now?: Date;
+	} = {},
+): Promise<DeferredRunCollectResult> {
+	return await collectDeferredRuns(context, {
+		cursor: options.cursor,
+		defaultCursor: "local-handoff",
+		now: options.now,
+		filter: (intent) => isLocalHandoffIntent(intent, options),
+	});
+}
+
+export async function drainLocalHandoffQueue(
+	context: WorkspaceContext,
+	options: {
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+		now?: Date;
+		limit?: number;
+		leaseMs?: number;
+		queue?: string;
+		hostId?: string;
+		capabilities?: string[];
+		action?: LocalHandoffDrainAction;
+		promptQueue?: string;
+	},
+): Promise<LocalHandoffDrainResult> {
+	const action = options.action ?? "run";
+	const result = await runDueDeferredRuns(context, {
+		...options,
+		includeLocalHandoffs: true,
+		localHandoffMaterialize: action === "materialize"
+			? { queue: options.promptQueue }
+			: undefined,
+		filter: (intent) => isLocalHandoffIntent(intent, {
+			queue: options.queue,
+			targetHost: options.hostId ? undefined : "local-controller",
+			hostId: options.hostId,
+			capabilities: options.capabilities ?? [],
+		}),
+	});
+	return {
+		mode: result.mode,
+		action,
+		executions: result.executions,
+	};
+}
+
 export async function collectDeferredRuns(
 	context: WorkspaceContext,
 	options: {
 		cursor?: string;
 		now?: Date;
+		defaultCursor?: string;
+		filter?: (intent: DeferredRunIntent) => boolean | Promise<boolean>;
 	} = {},
 ): Promise<DeferredRunCollectResult> {
 	await ensureDeferredRunDirs(context);
-	const cursor = deferredCollectCursorName(options.cursor);
+	const cursor = deferredCollectCursorName(options.cursor, options.defaultCursor);
 	const previousCursor = await readDeferredRunCollectCursor(context, cursor);
 	const collectedAt = (options.now ?? new Date()).toISOString();
-	const terminalIntents = (await listDeferredRunIntents(context))
+	const filteredIntents: DeferredRunIntent[] = [];
+	for (const intent of await listDeferredRunIntents(context)) {
+		if (!options.filter || await options.filter(intent)) {
+			filteredIntents.push(intent);
+		}
+	}
+	const terminalIntents = filteredIntents
 		.filter((intent) => isTerminalDeferredRunStatus(intent.status))
 		.toSorted((left, right) =>
 			left.updatedAt.localeCompare(right.updatedAt) || left.id.localeCompare(right.id)
@@ -755,6 +1050,49 @@ export async function cancelDeferredRunIntent(
 	return canceled;
 }
 
+export async function retryDeferredRunIntent(
+	context: WorkspaceContext,
+	intentId: string,
+	params: unknown = {},
+	options: { now?: Date } = {},
+): Promise<DeferredRunRetryResult> {
+	await ensureDeferredRunDirs(context);
+	const originalIntent = await readDeferredRunIntent(context, intentId);
+	if (!isTerminalDeferredRunStatus(originalIntent.status)) {
+		throw new Error(`Only terminal deferred runs can be retried: ${intentId} is ${originalIntent.status}`);
+	}
+	const input = parseDeferredRunRetryParams(params);
+	const now = (options.now ?? new Date()).toISOString();
+	const retrySource = retryDeferredRunSource(originalIntent, input.source);
+	let id = input.id ?? deferredRetryRunId(originalIntent.id, now);
+	for (let attempt = 0; attempt < 10; attempt += 1) {
+		const intent: DeferredRunIntent = compactUndefined({
+			id,
+			status: "pending",
+			mode: context.mode,
+			runAt: input.runAt ?? now,
+			target: originalIntent.target,
+			createdAt: now,
+			updatedAt: now,
+			createdBy: input.createdBy ?? "workspace-deferred-retry",
+			reason: input.reason ?? `Retry deferred run ${originalIntent.id}`,
+			source: retrySource,
+			dependsOn: originalIntent.dependsOn,
+			attemptIds: [],
+		});
+		try {
+			await writeNewJsonFile(deferredIntentPath(context, intent.id), intent);
+			return { intent, originalIntent };
+		} catch (error) {
+			if (!isAlreadyExistsError(error)) {
+				throw error;
+			}
+			id = deferredRetryRunId(originalIntent.id, now);
+		}
+	}
+	throw new Error(`Could not allocate retry deferred run id for ${intentId}`);
+}
+
 export async function runDueDeferredRuns(
 	context: WorkspaceContext,
 	options: {
@@ -763,13 +1101,28 @@ export async function runDueDeferredRuns(
 		now?: Date;
 		limit?: number;
 		leaseMs?: number;
+		filter?: (intent: DeferredRunIntent) => boolean | Promise<boolean>;
+		includeLocalHandoffs?: boolean;
+		localHandoffMaterialize?: {
+			queue?: string;
+		};
 	}): Promise<{ mode: WorkspaceMode; executions: DeferredRunExecution[] }> {
 	await ensureStateDirs(context);
 	await ensureDeferredRunDirs(context);
 	const now = options.now ?? new Date();
-	const due = (await listDeferredRunIntents(context))
-		.filter((intent) => isDeferredIntentDue(intent, now))
-		.slice(0, clampLimit(options.limit, 100));
+	const due: DeferredRunIntent[] = [];
+	for (const intent of await listDeferredRunIntents(context)) {
+		if (
+			await isDeferredIntentDue(context, intent, now) &&
+			(options.includeLocalHandoffs === true || !isLocalHandoffIntent(intent)) &&
+			(!options.filter || await options.filter(intent))
+		) {
+			due.push(intent);
+		}
+		if (due.length >= clampLimit(options.limit, 100)) {
+			break;
+		}
+	}
 	const executions: DeferredRunExecution[] = [];
 	for (const intent of due) {
 		const claim = await claimDeferredRunIntent(context, intent, {
@@ -785,6 +1138,7 @@ export async function runDueDeferredRuns(
 			const result = await executeDeferredRunTarget(context, claim.intent, {
 				callToybox: options.callToybox,
 				automationCwd: options.automationCwd,
+				localHandoffMaterialize: options.localHandoffMaterialize,
 			});
 			await writeJsonFileAtomic(outputPath, result.output);
 			const finishedAt = new Date().toISOString();
@@ -964,10 +1318,24 @@ async function executeDeferredRunTarget(
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
+		localHandoffMaterialize?: {
+			queue?: string;
+		};
 	},
 ): Promise<{ status: "completed" | "failed"; output: unknown; error?: string }> {
 	try {
 		const target = intent.target;
+		if (options.localHandoffMaterialize && isLocalHandoffIntent(intent)) {
+			const materialized = await materializeLocalHandoffIntent(
+				context,
+				intent,
+				options.localHandoffMaterialize,
+			);
+			return {
+				status: "completed",
+				output: { localHandoff: materialized },
+			};
+		}
 		if (target.kind === "workspace-task") {
 			const config = await loadWorkspaceConfig(context);
 			const task = config.tasks.find((item) => item.id === target.taskId);
@@ -1026,6 +1394,54 @@ async function executeDeferredRunTarget(
 			error: errorMessage(error),
 		};
 	}
+}
+
+async function materializeLocalHandoffIntent(
+	context: WorkspaceContext,
+	intent: DeferredRunIntent,
+	options: {
+		queue?: string;
+	},
+): Promise<{
+	action: "materialized";
+	handoffIntentId: string;
+	promptIntentId: string;
+	queue: string;
+}> {
+	if (intent.target.kind !== "turn") {
+		throw new Error(`Local handoff can only materialize turn targets: ${intent.id}`);
+	}
+	const source = recordOrUndefined(intent.source) ?? {};
+	const queue = options.queue ?? optionalString(source.queue) ?? "local";
+	const promptIntent = await enqueuePromptQueueIntent(context, {
+		prompt: intent.target.prompt,
+		title: optionalString(source.title) ?? intent.reason,
+		queue,
+		labels: stringArray(source.labels),
+		threadId: intent.target.threadId,
+		cwd: intent.target.cwd,
+		model: intent.target.model,
+		serviceTier: intent.target.serviceTier,
+		effort: intent.target.effort,
+		sandbox: intent.target.sandbox,
+		approvalPolicy: intent.target.approvalPolicy,
+		permissions: intent.target.permissions,
+		responsesapiClientMetadata: intent.target.responsesapiClientMetadata,
+		outputSchema: intent.target.outputSchema,
+		createdBy: "workspace-local-handoff-drain",
+		reason: intent.reason,
+		source: compactUndefined({
+			kind: "local-handoff-materialized",
+			handoffIntentId: intent.id,
+			handoffSource: source,
+		}),
+	});
+	return {
+		action: "materialized",
+		handoffIntentId: intent.id,
+		promptIntentId: promptIntent.id,
+		queue,
+	};
 }
 
 async function runAutomationDeferredTarget(
@@ -1402,7 +1818,7 @@ async function claimDeferredRunIntent(
 	},
 ): Promise<{ intent: DeferredRunIntent; attempt: DeferredRunAttempt } | undefined> {
 	const current = await readDeferredRunIntent(context, intent.id);
-	if (!isDeferredIntentDue(current, options.now)) {
+	if (!await isDeferredIntentDue(context, current, options.now)) {
 		return undefined;
 	}
 	const claimPath = deferredClaimPath(context, current.id);
@@ -1488,7 +1904,211 @@ function parseDeferredRunCreateParams(value: unknown): DeferredRunCreateParams {
 		createdBy: optionalString(input.createdBy),
 		reason: optionalString(input.reason),
 		source,
+		dependsOn: parseDeferredRunDependencies(input.dependsOn),
 	});
+}
+
+function parsePromptQueueEnqueueParams(value: unknown): PromptQueueEnqueueParams {
+	const input = record(value);
+	const runAt = optionalString(input.runAt);
+	if (runAt && Number.isNaN(Date.parse(runAt))) {
+		throw new Error(`Prompt queue runAt must be an ISO-compatible date: ${runAt}`);
+	}
+	const afterStatus = deferredDependencyStatusValue(input.afterStatus, "prompt queue afterStatus");
+	return compactUndefined({
+		id: optionalString(input.id),
+		runAt,
+		prompt: requiredString(input.prompt, "prompt queue prompt"),
+		title: optionalString(input.title),
+		queue: optionalString(input.queue),
+		labels: stringArray(input.labels),
+		threadId: optionalString(input.threadId),
+		cwd: optionalString(input.cwd),
+		model: optionalString(input.model),
+		serviceTier: optionalString(input.serviceTier),
+		effort: reasoningEffortValue(input.effort, "prompt queue effort"),
+		sandbox: sandboxValue(input.sandbox, "prompt queue sandbox"),
+		approvalPolicy: approvalPolicyValue(input.approvalPolicy, "prompt queue approvalPolicy"),
+		permissions: optionalString(input.permissions),
+		responsesapiClientMetadata: stringRecord(input.responsesapiClientMetadata),
+		outputSchema: input.outputSchema,
+		afterIntentId: optionalString(input.afterIntentId),
+		afterStatus,
+		createdBy: optionalString(input.createdBy),
+		reason: optionalString(input.reason),
+		source: recordOrUndefined(input.source),
+	});
+}
+
+function parseLocalHandoffEnqueueParams(value: unknown): LocalHandoffEnqueueParams {
+	const input = record(value);
+	const runAt = optionalString(input.runAt);
+	if (runAt && Number.isNaN(Date.parse(runAt))) {
+		throw new Error(`Local handoff runAt must be an ISO-compatible date: ${runAt}`);
+	}
+	const afterStatus = deferredDependencyStatusValue(input.afterStatus, "local handoff afterStatus");
+	return compactUndefined({
+		id: optionalString(input.id),
+		runAt,
+		prompt: requiredString(input.prompt, "local handoff prompt"),
+		title: optionalString(input.title),
+		queue: optionalString(input.queue),
+		labels: stringArray(input.labels),
+		targetHost: optionalString(input.targetHost),
+		requiredCapabilities: stringArray(input.requiredCapabilities),
+		requesterHost: optionalString(input.requesterHost),
+		requesterThreadId: optionalString(input.requesterThreadId),
+		threadId: optionalString(input.threadId),
+		cwd: optionalString(input.cwd),
+		model: optionalString(input.model),
+		serviceTier: optionalString(input.serviceTier),
+		effort: reasoningEffortValue(input.effort, "local handoff effort"),
+		sandbox: sandboxValue(input.sandbox, "local handoff sandbox"),
+		approvalPolicy: approvalPolicyValue(input.approvalPolicy, "local handoff approvalPolicy"),
+		permissions: optionalString(input.permissions),
+		responsesapiClientMetadata: stringRecord(input.responsesapiClientMetadata),
+		outputSchema: input.outputSchema,
+		afterIntentId: optionalString(input.afterIntentId),
+		afterStatus,
+		createdBy: optionalString(input.createdBy),
+		reason: optionalString(input.reason),
+		source: recordOrUndefined(input.source),
+	});
+}
+
+function parseDeferredRunDependencies(value: unknown): DeferredRunDependency[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const dependencies = value.map(parseDeferredRunDependency);
+	return dependencies.length > 0 ? dependencies : undefined;
+}
+
+function parseDeferredRunDependency(value: unknown): DeferredRunDependency {
+	const input = record(value);
+	const kind = requiredString(input.kind, "deferred run dependency kind");
+	if (kind !== "deferred-run") {
+		throw new Error(`Invalid deferred run dependency kind: ${kind}`);
+	}
+	return compactUndefined({
+		kind: "deferred-run" as const,
+		intentId: requiredString(input.intentId, "deferred run dependency intentId"),
+		status: deferredDependencyStatusValue(input.status, "deferred run dependency status"),
+	});
+}
+
+function parseDeferredRunRetryParams(value: unknown): DeferredRunRetryParams {
+	const input = record(value);
+	const runAt = optionalString(input.runAt);
+	if (runAt && Number.isNaN(Date.parse(runAt))) {
+		throw new Error(`Deferred run retry runAt must be an ISO-compatible date: ${runAt}`);
+	}
+	return compactUndefined({
+		id: optionalString(input.id),
+		runAt,
+		createdBy: optionalString(input.createdBy),
+		reason: optionalString(input.reason),
+		source: recordOrUndefined(input.source),
+	});
+}
+
+function retryDeferredRunSource(
+	originalIntent: DeferredRunIntent,
+	source: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+	const originalSource = recordOrUndefined(originalIntent.source) ?? {};
+	return compactUndefined({
+		...originalSource,
+		kind: optionalString(originalSource.kind) ?? "deferred-retry",
+		retry: compactUndefined({
+			kind: "deferred-retry",
+			originalIntentId: originalIntent.id,
+			originalStatus: originalIntent.status,
+			originalRunAt: originalIntent.runAt,
+			originalUpdatedAt: originalIntent.updatedAt,
+			details: source,
+		}),
+	});
+}
+
+function promptQueueSource(
+	input: PromptQueueEnqueueParams,
+	after: DeferredRunDependency | undefined,
+): Record<string, unknown> {
+	return compactUndefined({
+		kind: "prompt-queue",
+		queue: input.queue ?? "default",
+		title: input.title,
+		labels: input.labels,
+		after,
+		details: input.source,
+	});
+}
+
+function localHandoffSource(
+	input: LocalHandoffEnqueueParams,
+	after: DeferredRunDependency | undefined,
+): Record<string, unknown> {
+	const requester = compactUndefined({
+		host: input.requesterHost,
+		threadId: input.requesterThreadId,
+	});
+	return compactUndefined({
+		kind: "local-handoff",
+		queue: input.queue ?? "local",
+		title: input.title,
+		labels: input.labels,
+		targetHost: input.targetHost ?? "local-controller",
+		requiredCapabilities: input.requiredCapabilities,
+		requester: Object.keys(requester).length > 0 ? requester : undefined,
+		after,
+		details: input.source,
+	});
+}
+
+function isPromptQueueIntent(intent: DeferredRunIntent, queue?: string): boolean {
+	if (intent.target.kind !== "turn") {
+		return false;
+	}
+	const source = recordOrUndefined(intent.source);
+	if (source?.kind !== "prompt-queue") {
+		return false;
+	}
+	return !queue || source.queue === queue;
+}
+
+function isLocalHandoffIntent(
+	intent: DeferredRunIntent,
+	options: {
+		queue?: string;
+		targetHost?: string;
+		hostId?: string;
+		capabilities?: string[];
+	} = {},
+): boolean {
+	if (intent.target.kind !== "turn") {
+		return false;
+	}
+	const source = recordOrUndefined(intent.source);
+	if (source?.kind !== "local-handoff") {
+		return false;
+	}
+	if (options.queue && source.queue !== options.queue) {
+		return false;
+	}
+	const targetHost = optionalString(source.targetHost) ?? "local-controller";
+	if (options.targetHost && targetHost !== options.targetHost) {
+		return false;
+	}
+	if (options.hostId && targetHost !== "local-controller" && targetHost !== options.hostId) {
+		return false;
+	}
+	if (options.capabilities) {
+		const requiredCapabilities = stringArray(source.requiredCapabilities) ?? [];
+		const availableCapabilities = new Set(options.capabilities);
+		return requiredCapabilities.every((capability) => availableCapabilities.has(capability));
+	}
+	return true;
 }
 
 function parseDeferredRunTarget(value: unknown): DeferredRunTarget {
@@ -1522,6 +2142,7 @@ function parseDeferredRunTarget(value: unknown): DeferredRunTarget {
 			cwd: optionalString(target.cwd),
 			model: optionalString(target.model),
 			serviceTier: optionalString(target.serviceTier),
+			effort: reasoningEffortValue(target.effort, "deferred run turn target effort"),
 			sandbox: sandboxValue(target.sandbox, "deferred run turn target sandbox"),
 			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "deferred run turn target approvalPolicy"),
 			permissions: optionalString(target.permissions),
@@ -1545,6 +2166,7 @@ function normalizeDeferredRunIntent(value: unknown): DeferredRunIntent {
 		createdBy: optionalString(input.createdBy),
 		reason: optionalString(input.reason),
 		source: recordOrUndefined(input.source),
+		dependsOn: parseDeferredRunDependencies(input.dependsOn),
 		attemptIds: Array.isArray(input.attemptIds)
 			? input.attemptIds.filter((entry): entry is string => typeof entry === "string")
 			: [],
@@ -1652,14 +2274,50 @@ function hasScheduledIntentForDate(
 	);
 }
 
-function isDeferredIntentDue(intent: DeferredRunIntent, now: Date): boolean {
+async function isDeferredIntentDue(
+	context: WorkspaceContext,
+	intent: DeferredRunIntent,
+	now: Date,
+): Promise<boolean> {
 	if (intent.status === "pending") {
-		return intent.runAt <= now.toISOString();
+		return intent.runAt <= now.toISOString() &&
+			await areDeferredRunDependenciesSatisfied(context, intent.dependsOn);
 	}
 	if (intent.status === "running" && intent.lease?.expiresAt) {
 		return intent.lease.expiresAt <= now.toISOString();
 	}
 	return false;
+}
+
+async function areDeferredRunDependenciesSatisfied(
+	context: WorkspaceContext,
+	dependencies: DeferredRunDependency[] | undefined,
+): Promise<boolean> {
+	if (!dependencies || dependencies.length === 0) {
+		return true;
+	}
+	for (const dependency of dependencies) {
+		if (dependency.kind !== "deferred-run") {
+			return false;
+		}
+		let intent: DeferredRunIntent;
+		try {
+			intent = await readDeferredRunIntent(context, dependency.intentId);
+		} catch {
+			return false;
+		}
+		const status = dependency.status ?? "completed";
+		if (status === "terminal") {
+			if (!isTerminalDeferredRunStatus(intent.status)) {
+				return false;
+			}
+			continue;
+		}
+		if (intent.status !== status) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function isTerminalDeferredRunStatus(
@@ -1995,8 +2653,8 @@ function deferredCollectCursorPath(context: WorkspaceContext, cursor: string): s
 	return path.join(deferredCollectCursorDir(context), `${safeFileSegment(cursor)}.json`);
 }
 
-function deferredCollectCursorName(value: string | undefined): string {
-	const cursor = value?.trim() || "default";
+function deferredCollectCursorName(value: string | undefined, defaultCursor = "default"): string {
+	const cursor = value?.trim() || defaultCursor;
 	if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(cursor)) {
 		throw new Error(`Invalid deferred collect cursor: ${cursor}`);
 	}
@@ -2005,6 +2663,12 @@ function deferredCollectCursorName(value: string | undefined): string {
 
 function deferredRunId(createdAt: string): string {
 	return `deferred-${createdAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
+}
+
+function deferredRetryRunId(originalIntentId: string, createdAt: string): string {
+	return `retry-${safeFileSegment(originalIntentId).slice(0, 40)}-${createdAt.replace(/[:.]/g, "-")}-${
+		randomUUID().slice(0, 8)
+	}`;
 }
 
 function deferredAttemptId(intentId: string, startedAt: string): string {
@@ -2299,6 +2963,14 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
 	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
+function stringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const entries = value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+	return entries.length > 0 ? entries : undefined;
+}
+
 function sandboxValue(
 	value: unknown,
 	label: string,
@@ -2330,6 +3002,44 @@ function approvalPolicyValue(
 	}
 	if (value !== undefined) {
 		throw new Error(`${label} must be never, on-failure, on-request, or untrusted`);
+	}
+	return undefined;
+}
+
+function reasoningEffortValue(
+	value: unknown,
+	label: string,
+): DeferredReasoningEffort | undefined {
+	if (
+		value === "none" ||
+		value === "minimal" ||
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh"
+	) {
+		return value;
+	}
+	if (value !== undefined) {
+		throw new Error(`${label} must be none, minimal, low, medium, high, or xhigh`);
+	}
+	return undefined;
+}
+
+function deferredDependencyStatusValue(
+	value: unknown,
+	label: string,
+): DeferredRunDependency["status"] | undefined {
+	if (
+		value === "completed" ||
+		value === "failed" ||
+		value === "canceled" ||
+		value === "terminal"
+	) {
+		return value;
+	}
+	if (value !== undefined) {
+		throw new Error(`${label} must be completed, failed, canceled, or terminal`);
 	}
 	return undefined;
 }

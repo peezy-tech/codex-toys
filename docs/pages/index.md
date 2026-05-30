@@ -127,6 +127,11 @@ Run it locally without changing your active Codex home:
 ```bash
 codex-toys workspace doctor
 codex-toys workspace tick --mode local
+codex-toys workspace prompt enqueue "Review this branch later." --queue low-priority --effort low
+codex-toys workspace prompt run-due --queue low-priority --limit 1
+codex-toys workspace prompt collect --queue low-priority --json
+codex-toys workspace handoff enqueue "Run the local browser smoke." --capability browser
+codex-toys workspace handoff drain --capability browser --materialize --prompt-queue local-followups
 codex-toys workspace deferred list --json
 codex-toys workspace deferred pull <intent-id> --json
 codex-toys workspace deferred collect --cursor operator --json

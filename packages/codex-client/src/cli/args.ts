@@ -1,5 +1,5 @@
 import { validateMethodName } from "./actions.ts";
-import { parseMode, type WorkspaceModeInput } from "./workspace-autonomy.ts";
+import { parseMode, type DeferredRunIntentStatus, type DeferredReasoningEffort, type WorkspaceModeInput } from "./workspace-autonomy.ts";
 import type { MemoryTransplantDirection } from "./memories.ts";
 
 export type ParsedRemoteOptions = {
@@ -250,6 +250,16 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
+			type: "workspace-deferred-retry";
+			intentId: string;
+			runAt?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
 			type: "workspace-deferred-run-due";
 			mode?: WorkspaceModeInput;
 			workspaceRoot?: string;
@@ -263,6 +273,190 @@ type ParsedCliBase =
 			workspaceRoot?: string;
 			olderThanDays: number;
 			dryRun: boolean;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-prompt-enqueue";
+			prompt: string;
+			title?: string;
+			queue?: string;
+			labels: string[];
+			runAt?: string;
+			afterIntentId?: string;
+			afterStatus?: "completed" | "failed" | "canceled" | "terminal";
+			threadId?: string;
+			cwd?: string;
+			model?: string;
+			serviceTier?: string;
+			effort?: DeferredReasoningEffort;
+			sandbox?: RemoteTurnSandbox;
+			approvalPolicy?: RemoteTurnApprovalPolicy;
+			permissions?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-prompt-list";
+			status?: DeferredRunIntentStatus;
+			queue?: string;
+			limit?: number;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-prompt-read";
+			intentId: string;
+			includeOutput: boolean;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-prompt-collect";
+			cursor?: string;
+			queue?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-prompt-cancel";
+			intentId: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-prompt-retry";
+			intentId: string;
+			runAt?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-prompt-run-due";
+			queue?: string;
+			limit?: number;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-handoff-enqueue";
+			prompt: string;
+			title?: string;
+			queue?: string;
+			labels: string[];
+			runAt?: string;
+			afterIntentId?: string;
+			afterStatus?: "completed" | "failed" | "canceled" | "terminal";
+			targetHost?: string;
+			requiredCapabilities: string[];
+			requesterHost?: string;
+			requesterThreadId?: string;
+			threadId?: string;
+			cwd?: string;
+			model?: string;
+			serviceTier?: string;
+			effort?: DeferredReasoningEffort;
+			sandbox?: RemoteTurnSandbox;
+			approvalPolicy?: RemoteTurnApprovalPolicy;
+			permissions?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-handoff-list";
+			status?: DeferredRunIntentStatus;
+			queue?: string;
+			targetHost?: string;
+			capabilities: string[];
+			limit?: number;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-handoff-read";
+			intentId: string;
+			includeOutput: boolean;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-handoff-collect";
+			cursor?: string;
+			queue?: string;
+			targetHost?: string;
+			capabilities: string[];
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-handoff-cancel";
+			intentId: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-handoff-retry";
+			intentId: string;
+			runAt?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-handoff-drain";
+			queue?: string;
+			hostId?: string;
+			capabilities: string[];
+			limit?: number;
+			materialize: boolean;
+			promptQueue?: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
 			url: string;
 			timeoutMs: number;
 			pretty: boolean;
@@ -416,7 +610,21 @@ export function parseArgs(
 	let includeOutput = false;
 	let olderThanDays: number | undefined;
 	let cursor: string | undefined;
+	let runAt: string | undefined;
 	let model: string | undefined;
+	let serviceTier: string | undefined;
+	let effort: DeferredReasoningEffort | undefined;
+	let queue: string | undefined;
+	let promptQueue: string | undefined;
+	let afterIntentId: string | undefined;
+	let afterStatus: "completed" | "failed" | "canceled" | "terminal" | undefined;
+	let status: DeferredRunIntentStatus | undefined;
+	let limit: number | undefined;
+	let targetHost: string | undefined;
+	let hostId: string | undefined;
+	let requesterHost: string | undefined;
+	let requesterThreadId: string | undefined;
+	let materialize = false;
 	let paramsJson: string | undefined;
 	let paramsFile: string | undefined;
 	let cwd: string | undefined = env.CODEX_TOYS_REMOTE_CWD;
@@ -431,6 +639,8 @@ export function parseArgs(
 	let permissions: string | undefined;
 	const include: string[] = [];
 	const exclude: string[] = [];
+	const labels: string[] = [];
+	const capabilities: string[] = [];
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
@@ -700,6 +910,118 @@ export function parseArgs(
 				cursor = arg.slice("--cursor=".length);
 				continue;
 			}
+			if (arg === "--run-at") {
+				runAt = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--run-at=")) {
+				runAt = arg.slice("--run-at=".length);
+				continue;
+			}
+			if (arg === "--queue") {
+				queue = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--queue=")) {
+				queue = arg.slice("--queue=".length);
+				continue;
+			}
+			if (arg === "--prompt-queue") {
+				promptQueue = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--prompt-queue=")) {
+				promptQueue = arg.slice("--prompt-queue=".length);
+				continue;
+			}
+			if (arg === "--label") {
+				labels.push(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--label=")) {
+				labels.push(arg.slice("--label=".length));
+				continue;
+			}
+			if (arg === "--capability" || arg === "--required-capability") {
+				capabilities.push(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--capability=")) {
+				capabilities.push(arg.slice("--capability=".length));
+				continue;
+			}
+			if (arg.startsWith("--required-capability=")) {
+				capabilities.push(arg.slice("--required-capability=".length));
+				continue;
+			}
+			if (arg === "--target-host") {
+				targetHost = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--target-host=")) {
+				targetHost = arg.slice("--target-host=".length);
+				continue;
+			}
+			if (arg === "--host-id") {
+				hostId = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--host-id=")) {
+				hostId = arg.slice("--host-id=".length);
+				continue;
+			}
+			if (arg === "--requester-host") {
+				requesterHost = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--requester-host=")) {
+				requesterHost = arg.slice("--requester-host=".length);
+				continue;
+			}
+			if (arg === "--requester-thread-id") {
+				requesterThreadId = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--requester-thread-id=")) {
+				requesterThreadId = arg.slice("--requester-thread-id=".length);
+				continue;
+			}
+			if (arg === "--materialize") {
+				materialize = true;
+				continue;
+			}
+			if (arg === "--after") {
+				afterIntentId = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--after=")) {
+				afterIntentId = arg.slice("--after=".length);
+				continue;
+			}
+			if (arg === "--after-status") {
+				afterStatus = parseDeferredDependencyStatus(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--after-status=")) {
+				afterStatus = parseDeferredDependencyStatus(arg.slice("--after-status=".length));
+				continue;
+			}
+			if (arg === "--status") {
+				status = parseDeferredRunStatus(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--status=")) {
+				status = parseDeferredRunStatus(arg.slice("--status=".length));
+				continue;
+			}
+			if (arg === "--limit") {
+				limit = positiveInteger(required(argv, ++index, arg), arg);
+				continue;
+			}
+			if (arg.startsWith("--limit=")) {
+				limit = positiveInteger(arg.slice("--limit=".length), "--limit");
+				continue;
+			}
 			if (arg === "--allow-absolute-cwd") {
 				allowAbsoluteCwd = true;
 				continue;
@@ -710,6 +1032,22 @@ export function parseArgs(
 			}
 			if (arg.startsWith("--model=")) {
 				model = arg.slice("--model=".length);
+				continue;
+			}
+			if (arg === "--service-tier") {
+				serviceTier = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--service-tier=")) {
+				serviceTier = arg.slice("--service-tier=".length);
+				continue;
+			}
+			if (arg === "--effort") {
+				effort = parseReasoningEffort(required(argv, ++index, arg));
+				continue;
+			}
+			if (arg.startsWith("--effort=")) {
+				effort = parseReasoningEffort(arg.slice("--effort=".length));
 				continue;
 			}
 			if (arg === "--via") {
@@ -1119,6 +1457,250 @@ export function parseArgs(
 				...remoteFields(),
 			};
 		}
+		if (subcommand === "prompt" || subcommand === "prompts" || subcommand === "prompt-queue") {
+			const action = positionals[2] ?? "list";
+			if (action === "enqueue" || action === "queue" || action === "add" || action === "create") {
+				const positionalPrompt = positionals.slice(3).join(" ");
+				return {
+					type: "workspace-prompt-enqueue",
+					prompt: prompt ?? (positionalPrompt || requiredPositional(
+						positionals,
+						3,
+						"workspace prompt enqueue requires <prompt> or --prompt <text>",
+					)),
+					title,
+					queue,
+					labels,
+					runAt,
+					afterIntentId,
+					afterStatus,
+					threadId,
+					cwd: targetCwd ?? (!sshTarget ? cwd : undefined),
+					model,
+					serviceTier,
+					effort,
+					sandbox,
+					approvalPolicy,
+					permissions,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "list" || action === "ls") {
+				return {
+					type: "workspace-prompt-list",
+					status,
+					queue,
+					limit,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "read" || action === "show" || action === "pull") {
+				return {
+					type: "workspace-prompt-read",
+					intentId: requiredPositional(positionals, 3, `workspace prompt ${action} requires <intent-id>`),
+					includeOutput: includeOutput || action === "pull",
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "collect") {
+				return {
+					type: "workspace-prompt-collect",
+					cursor,
+					queue,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "cancel") {
+				return {
+					type: "workspace-prompt-cancel",
+					intentId: requiredPositional(positionals, 3, "workspace prompt cancel requires <intent-id>"),
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "retry" || action === "requeue") {
+				return {
+					type: "workspace-prompt-retry",
+					intentId: requiredPositional(positionals, 3, `workspace prompt ${action} requires <intent-id>`),
+					runAt,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "run-due" || action === "run") {
+				return {
+					type: "workspace-prompt-run-due",
+					queue,
+					limit,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			throw new Error("workspace prompt requires enqueue, list, read, collect, cancel, retry, or run-due");
+		}
+		if (subcommand === "handoff" || subcommand === "handoffs" || subcommand === "local-handoff") {
+			const action = positionals[2] ?? "list";
+			if (action === "enqueue" || action === "queue" || action === "add" || action === "create") {
+				const positionalPrompt = positionals.slice(3).join(" ");
+				return {
+					type: "workspace-handoff-enqueue",
+					prompt: prompt ?? (positionalPrompt || requiredPositional(
+						positionals,
+						3,
+						"workspace handoff enqueue requires <prompt> or --prompt <text>",
+					)),
+					title,
+					queue,
+					labels,
+					runAt,
+					afterIntentId,
+					afterStatus,
+					targetHost,
+					requiredCapabilities: capabilities,
+					requesterHost,
+					requesterThreadId,
+					threadId,
+					cwd: targetCwd ?? (!sshTarget ? cwd : undefined),
+					model,
+					serviceTier,
+					effort,
+					sandbox,
+					approvalPolicy,
+					permissions,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "list" || action === "ls") {
+				return {
+					type: "workspace-handoff-list",
+					status,
+					queue,
+					targetHost,
+					capabilities,
+					limit,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "read" || action === "show" || action === "pull") {
+				return {
+					type: "workspace-handoff-read",
+					intentId: requiredPositional(positionals, 3, `workspace handoff ${action} requires <intent-id>`),
+					includeOutput: includeOutput || action === "pull",
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "collect") {
+				return {
+					type: "workspace-handoff-collect",
+					cursor,
+					queue,
+					targetHost,
+					capabilities,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "cancel") {
+				return {
+					type: "workspace-handoff-cancel",
+					intentId: requiredPositional(positionals, 3, "workspace handoff cancel requires <intent-id>"),
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "retry" || action === "requeue") {
+				return {
+					type: "workspace-handoff-retry",
+					intentId: requiredPositional(positionals, 3, `workspace handoff ${action} requires <intent-id>`),
+					runAt,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "drain" || action === "run-due" || action === "run") {
+				return {
+					type: "workspace-handoff-drain",
+					queue,
+					hostId,
+					capabilities,
+					limit,
+					materialize,
+					promptQueue,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			throw new Error("workspace handoff requires enqueue, list, read, collect, cancel, retry, or drain");
+		}
 		if (subcommand === "deferred" || subcommand === "defer") {
 			const action = positionals[2] ?? "list";
 			if (action === "create" || action === "add") {
@@ -1184,6 +1766,19 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
+			if (action === "retry" || action === "requeue") {
+				return {
+					type: "workspace-deferred-retry",
+					intentId: requiredPositional(positionals, 3, `workspace deferred ${action} requires <intent-id>`),
+					runAt,
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
 			if (action === "run-due" || action === "run") {
 				return {
 					type: "workspace-deferred-run-due",
@@ -1211,7 +1806,7 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			throw new Error("workspace deferred requires create, list, read, collect, cancel, run-due, or prune");
+			throw new Error("workspace deferred requires create, list, read, collect, cancel, retry, run-due, or prune");
 		}
 		if (subcommand === "run") {
 			return {
@@ -1450,6 +2045,45 @@ function parseRemoteTurnApprovalPolicy(value: string): RemoteTurnApprovalPolicy 
 		return value;
 	}
 	throw new Error("--approval-policy must be never, on-failure, on-request, or untrusted");
+}
+
+function parseReasoningEffort(value: string): DeferredReasoningEffort {
+	if (
+		value === "none" ||
+		value === "minimal" ||
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh"
+	) {
+		return value;
+	}
+	throw new Error("--effort must be none, minimal, low, medium, high, or xhigh");
+}
+
+function parseDeferredDependencyStatus(value: string): "completed" | "failed" | "canceled" | "terminal" {
+	if (
+		value === "completed" ||
+		value === "failed" ||
+		value === "canceled" ||
+		value === "terminal"
+	) {
+		return value;
+	}
+	throw new Error("--after-status must be completed, failed, canceled, or terminal");
+}
+
+function parseDeferredRunStatus(value: string): DeferredRunIntentStatus {
+	if (
+		value === "pending" ||
+		value === "running" ||
+		value === "completed" ||
+		value === "failed" ||
+		value === "canceled"
+	) {
+		return value;
+	}
+	throw new Error("--status must be pending, running, completed, failed, or canceled");
 }
 
 function parseDelegationReturnMode(value: string): DelegationReturnMode {

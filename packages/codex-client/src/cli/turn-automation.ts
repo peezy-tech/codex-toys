@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { v2 } from "../app-server/generated/index.ts";
+import type { ReasoningEffort } from "../app-server/generated/ReasoningEffort.ts";
 import type {
 	WorkspaceDelegation,
 	WorkspaceDelegationStatus,
@@ -35,6 +36,7 @@ export type TurnAutomationTurnStartParams = {
 	cwd?: string;
 	model?: string;
 	serviceTier?: string;
+	effort?: ReasoningEffort;
 	sandbox?: v2.SandboxMode;
 	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
@@ -186,6 +188,7 @@ export type TurnAutomationHostDelegationStartParams = {
 	allowAbsoluteCwd?: boolean;
 	model?: string;
 	serviceTier?: string;
+	effort?: ReasoningEffort;
 	sandbox?: v2.SandboxMode;
 	approvalPolicy?: v2.AskForApproval;
 	permissions?: string;
@@ -248,10 +251,11 @@ export type CreateTurnAutomationHostOptions = {
 		skills?: string[];
 		sandbox?: v2.SandboxMode;
 		approvalPolicy?: v2.AskForApproval;
-		permissions?: string;
-		model?: string;
+			permissions?: string;
+			model?: string;
+			effort?: ReasoningEffort;
+		};
 	};
-};
 
 export type TurnAutomationManifest = {
 	name?: string;
@@ -774,6 +778,7 @@ function turnStartParamsFromHostParams(
 		cwd: optionalString(params.cwd) ?? defaults.cwd,
 		model: optionalString(params.model) ?? defaults.model,
 		serviceTier: optionalString(params.serviceTier),
+		effort: reasoningEffortValue(params.effort) ?? defaults.effort,
 		sandbox: sandboxModeValue(params.sandbox) ?? defaults.sandbox,
 		approvalPolicy: approvalPolicyValue(params.approvalPolicy) ??
 			defaults.approvalPolicy,
@@ -799,6 +804,7 @@ function delegationStartParamsFromHostParams(
 		allowAbsoluteCwd: optionalBoolean(params.allowAbsoluteCwd),
 		model: optionalString(params.model) ?? defaults.model,
 		serviceTier: optionalString(params.serviceTier),
+		effort: reasoningEffortValue(params.effort) ?? defaults.effort,
 		sandbox: sandboxModeValue(params.sandbox) ?? defaults.sandbox,
 		approvalPolicy: approvalPolicyValue(params.approvalPolicy) ??
 			defaults.approvalPolicy,
@@ -856,12 +862,12 @@ function threadStartParamsFromAutomation(
 	turn: TurnAutomationTurnStartParams,
 ): v2.ThreadStartParams {
 	return compactUndefined({
-		cwd: turn.cwd,
-		model: turn.model,
-		serviceTier: turn.serviceTier,
-		sandbox: turn.sandbox,
-		approvalPolicy: turn.approvalPolicy,
-		permissions: turn.permissions,
+			cwd: turn.cwd,
+			model: turn.model,
+			serviceTier: turn.serviceTier,
+			sandbox: turn.sandbox,
+			approvalPolicy: turn.approvalPolicy,
+			permissions: turn.permissions,
 		experimentalRawEvents: false,
 		persistExtendedHistory: false,
 	});
@@ -883,12 +889,13 @@ function turnStartParamsFromAutomation(
 				text_elements: [],
 			},
 		],
-		cwd: turn.cwd,
-		model: turn.model,
-		serviceTier: turn.serviceTier,
-		approvalPolicy: turn.approvalPolicy,
-		sandboxPolicy: flags.includeSandboxPolicy
-			? sandboxPolicyFromMode(turn.sandbox)
+			cwd: turn.cwd,
+			model: turn.model,
+			serviceTier: turn.serviceTier,
+			effort: turn.effort,
+			approvalPolicy: turn.approvalPolicy,
+			sandboxPolicy: flags.includeSandboxPolicy
+				? sandboxPolicyFromMode(turn.sandbox)
 			: undefined,
 		permissions: turn.permissions,
 		responsesapiClientMetadata: turn.responsesapiClientMetadata,
@@ -927,6 +934,23 @@ function approvalPolicyValue(value: unknown): v2.AskForApproval | undefined {
 	}
 	if (value !== undefined) {
 		throw new Error("ctx.turn.start approvalPolicy must be never, on-failure, on-request, or untrusted");
+	}
+	return undefined;
+}
+
+function reasoningEffortValue(value: unknown): ReasoningEffort | undefined {
+	if (
+		value === "none" ||
+		value === "minimal" ||
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh"
+	) {
+		return value;
+	}
+	if (value !== undefined) {
+		throw new Error("ctx.turn.start effort must be none, minimal, low, medium, high, or xhigh");
 	}
 	return undefined;
 }

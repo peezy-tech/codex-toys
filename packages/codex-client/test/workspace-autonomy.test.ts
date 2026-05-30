@@ -6,14 +6,23 @@ import { parseArgs } from "../src/cli/args.ts";
 import {
 	cancelDeferredRunIntent,
 	collectDeferredRuns,
+	collectLocalHandoffRuns,
+	collectPromptQueueRuns,
 	collectWorkspaceDoctorInfo,
 	createDeferredRunIntent,
 	createWorkspaceContext,
+	drainLocalHandoffQueue,
+	enqueueLocalHandoffIntent,
+	enqueuePromptQueueIntent,
+	listLocalHandoffIntents,
+	listPromptQueueIntents,
 	listDeferredRunIntents,
 	loadWorkspaceConfig,
 	pruneDeferredRunHistory,
 	readDeferredRun,
 	resolveWorkspaceMode,
+	retryDeferredRunIntent,
+	runDuePromptQueueIntents,
 	runDueDeferredRuns,
 	runWorkspaceTaskById,
 	scaffoldActionsWorkspace,
@@ -63,11 +72,87 @@ describe("workspace autonomy", () => {
 			.toMatchObject({ type: "workspace-doctor", mode: "actions" });
 		expect(parseArgs(["workspace", "tick", "--workspace-root", "/tmp/work"], {}))
 			.toMatchObject({ type: "workspace-tick", workspaceRoot: "/tmp/work" });
-		expect(parseArgs(["workspace", "run", "morning-brief"], {}))
-			.toMatchObject({ type: "workspace-run", taskId: "morning-brief" });
-		expect(parseArgs([
-			"workspace",
-			"deferred",
+			expect(parseArgs(["workspace", "run", "morning-brief"], {}))
+				.toMatchObject({ type: "workspace-run", taskId: "morning-brief" });
+			expect(parseArgs([
+				"workspace",
+				"prompt",
+				"enqueue",
+				"review this later",
+				"--queue",
+				"night",
+				"--label",
+				"docs",
+				"--after",
+				"parent-1",
+				"--after-status",
+				"terminal",
+				"--effort",
+				"low",
+				"--service-tier",
+				"default",
+			], {})).toMatchObject({
+				type: "workspace-prompt-enqueue",
+				prompt: "review this later",
+				queue: "night",
+				labels: ["docs"],
+				afterIntentId: "parent-1",
+				afterStatus: "terminal",
+				effort: "low",
+				serviceTier: "default",
+			});
+			expect(parseArgs(["workspace", "prompt", "list", "--queue", "night", "--status", "pending", "--limit", "2"], {}))
+				.toMatchObject({ type: "workspace-prompt-list", queue: "night", status: "pending", limit: 2 });
+			expect(parseArgs(["workspace", "prompt", "run-due", "--limit", "1"], {}))
+				.toMatchObject({ type: "workspace-prompt-run-due", limit: 1 });
+			expect(parseArgs([
+				"workspace",
+				"handoff",
+				"enqueue",
+				"test the dashboard locally",
+				"--queue",
+				"local",
+				"--target-host",
+				"local-controller",
+				"--required-capability",
+				"browser",
+				"--requester-thread-id",
+				"remote-thread",
+				"--effort",
+				"low",
+			], {})).toMatchObject({
+				type: "workspace-handoff-enqueue",
+				prompt: "test the dashboard locally",
+				queue: "local",
+				targetHost: "local-controller",
+				requiredCapabilities: ["browser"],
+				requesterThreadId: "remote-thread",
+				effort: "low",
+			});
+			expect(parseArgs([
+				"workspace",
+				"handoff",
+				"drain",
+				"--host-id",
+				"range-windows",
+				"--capability",
+				"browser",
+				"--materialize",
+				"--prompt-queue",
+				"local-followups",
+				"--limit",
+				"1",
+			], {})).toMatchObject({
+				type: "workspace-handoff-drain",
+				hostId: "range-windows",
+				capabilities: ["browser"],
+				materialize: true,
+				promptQueue: "local-followups",
+				limit: 1,
+			});
+			expect(parseArgs([
+				"workspace",
+				"deferred",
 			"create",
 			"--params-json",
 			"{\"target\":{\"kind\":\"turn\",\"prompt\":\"review later\"}}",
@@ -83,6 +168,12 @@ describe("workspace autonomy", () => {
 			.toMatchObject({ type: "workspace-deferred-read", intentId: "later-1", includeOutput: true });
 		expect(parseArgs(["workspace", "deferred", "collect", "--cursor", "operator", "--json"], {}))
 			.toMatchObject({ type: "workspace-deferred-collect", cursor: "operator", json: true });
+		expect(parseArgs(["workspace", "deferred", "retry", "later-1", "--run-at", "2026-01-02T00:00:00.000Z"], {}))
+			.toMatchObject({
+				type: "workspace-deferred-retry",
+				intentId: "later-1",
+				runAt: "2026-01-02T00:00:00.000Z",
+			});
 		expect(parseArgs(["workspace", "deferred", "run-due"], {}))
 			.toMatchObject({ type: "workspace-deferred-run-due" });
 		expect(parseArgs(["workspace", "deferred", "prune", "--older-than-days", "30", "--dry-run"], {}))
@@ -312,6 +403,354 @@ command = ["node", "-e", "console.log('hello deferred')"]
 			taskId: "hello",
 			status: "completed",
 		});
+	});
+
+	test("queues prompt intents and gates follow-up prompts on deferred completion", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `[workspace]\nname = "demo"\n`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const parent = await enqueuePromptQueueIntent(context, {
+			id: "parent-prompt",
+			runAt: "2026-01-01T00:00:00.000Z",
+			prompt: "Parent prompt",
+			title: "parent",
+			queue: "night",
+			labels: ["low-priority"],
+			effort: "low",
+			serviceTier: "default",
+		});
+		const child = await enqueuePromptQueueIntent(context, {
+			id: "child-prompt",
+			runAt: "2026-01-01T00:00:00.000Z",
+			prompt: "Child prompt",
+			title: "child",
+			queue: "night",
+			afterIntentId: parent.id,
+			afterStatus: "completed",
+		});
+
+		expect(parent).toMatchObject({
+			id: "parent-prompt",
+			target: {
+				kind: "turn",
+				prompt: "Parent prompt",
+				effort: "low",
+				serviceTier: "default",
+			},
+			source: {
+				kind: "prompt-queue",
+				queue: "night",
+				title: "parent",
+				labels: ["low-priority"],
+			},
+		});
+		expect(child.dependsOn).toEqual([{
+			kind: "deferred-run",
+			intentId: parent.id,
+			status: "completed",
+		}]);
+		expect((await listPromptQueueIntents(context, { queue: "night" })).map((intent) => intent.id))
+			.toEqual([parent.id, child.id]);
+
+		const callToybox = fakeCompletedTurnToybox();
+		const first = await runDuePromptQueueIntents(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox,
+		});
+		const blockedChild = await readDeferredRun(context, child.id);
+		const second = await runDuePromptQueueIntents(context, {
+			now: new Date("2026-01-01T00:00:02.000Z"),
+			callToybox,
+		});
+
+		expect(first.executions.map((execution) => execution.intent.id)).toEqual([parent.id]);
+		expect(blockedChild.intent.status).toBe("pending");
+		expect(second.executions.map((execution) => execution.intent.id)).toEqual([child.id]);
+		expect((await readDeferredRun(context, child.id)).intent.status).toBe("completed");
+
+		const collected = await collectPromptQueueRuns(context, {
+			queue: "night",
+			now: new Date("2026-01-01T00:00:03.000Z"),
+		});
+		expect(collected.cursor).toBe("prompt-queue");
+		expect(collected.intents.map((item) => item.intent.id)).toEqual([parent.id, child.id]);
+		expect(collected.intents[0]?.outputs?.[0]?.output).toMatchObject({
+			turn: {
+				status: "completed",
+				outputText: "done",
+			},
+		});
+	});
+
+	test("queues local handoffs and gates draining on host affinity and capabilities", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `[workspace]\nname = "demo"\n`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const browserHandoff = await enqueueLocalHandoffIntent(context, {
+			id: "browser-handoff",
+			runAt: "2026-01-01T00:00:00.000Z",
+			prompt: "Open the dashboard and smoke test it.",
+			title: "dashboard smoke",
+			queue: "local",
+			targetHost: "local-controller",
+			requiredCapabilities: ["browser"],
+			requesterHost: "remote-linux",
+			requesterThreadId: "remote-thread",
+			effort: "low",
+		});
+		const hostHandoff = await enqueueLocalHandoffIntent(context, {
+			id: "host-handoff",
+			runAt: "2026-01-01T00:00:00.000Z",
+			prompt: "Install the package locally.",
+			title: "local package",
+			queue: "local",
+			targetHost: "range-windows",
+			requiredCapabilities: ["plugin-install"],
+		});
+
+		expect(browserHandoff).toMatchObject({
+			target: {
+				kind: "turn",
+				prompt: "Open the dashboard and smoke test it.",
+				effort: "low",
+			},
+			source: {
+				kind: "local-handoff",
+				queue: "local",
+				title: "dashboard smoke",
+				targetHost: "local-controller",
+				requiredCapabilities: ["browser"],
+				requester: {
+					host: "remote-linux",
+					threadId: "remote-thread",
+				},
+			},
+		});
+		expect((await listLocalHandoffIntents(context, { queue: "local" })).map((intent) => intent.id))
+			.toEqual([browserHandoff.id, hostHandoff.id]);
+
+		const generic = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox: fakeCompletedTurnToybox(),
+		});
+		const missingCapability = await drainLocalHandoffQueue(context, {
+			now: new Date("2026-01-01T00:00:02.000Z"),
+			callToybox: fakeCompletedTurnToybox(),
+		});
+		const browserDrain = await drainLocalHandoffQueue(context, {
+			now: new Date("2026-01-01T00:00:03.000Z"),
+			capabilities: ["browser"],
+			callToybox: fakeCompletedTurnToybox(),
+		});
+		const hostDrain = await drainLocalHandoffQueue(context, {
+			now: new Date("2026-01-01T00:00:04.000Z"),
+			hostId: "range-windows",
+			capabilities: ["plugin-install"],
+			callToybox: fakeCompletedTurnToybox(),
+		});
+
+		expect(generic.executions).toHaveLength(0);
+		expect(missingCapability.executions).toHaveLength(0);
+		expect(browserDrain.executions.map((execution) => execution.intent.id)).toEqual([browserHandoff.id]);
+		expect(hostDrain.executions.map((execution) => execution.intent.id)).toEqual([hostHandoff.id]);
+		expect((await readDeferredRun(context, browserHandoff.id)).intent.status).toBe("completed");
+		expect((await readDeferredRun(context, hostHandoff.id)).intent.status).toBe("completed");
+
+		const collected = await collectLocalHandoffRuns(context, {
+			queue: "local",
+			now: new Date("2026-01-01T00:00:05.000Z"),
+		});
+		expect(collected.cursor).toBe("local-handoff");
+		expect(collected.intents.map((item) => item.intent.id)).toEqual([browserHandoff.id, hostHandoff.id]);
+	});
+
+	test("materializes local handoffs into prompt queue intents", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `[workspace]\nname = "demo"\n`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const handoff = await enqueueLocalHandoffIntent(context, {
+			id: "materialize-handoff",
+			runAt: "2026-01-01T00:00:00.000Z",
+			prompt: "Update local plugins and run the browser smoke.",
+			title: "local update",
+			queue: "local",
+			requiredCapabilities: ["browser"],
+			model: "gpt-test",
+			serviceTier: "default",
+		});
+
+		const result = await drainLocalHandoffQueue(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			capabilities: ["browser"],
+			action: "materialize",
+			promptQueue: "local-followups",
+			callToybox: async () => {
+				throw new Error("materialize should not call the app server");
+			},
+		});
+		const prompts = await listPromptQueueIntents(context, { queue: "local-followups" });
+
+		expect(result.action).toBe("materialize");
+		expect(result.executions).toHaveLength(1);
+		expect(result.executions[0]?.output).toMatchObject({
+			localHandoff: {
+				action: "materialized",
+				handoffIntentId: handoff.id,
+				queue: "local-followups",
+			},
+		});
+		expect((await readDeferredRun(context, handoff.id)).intent.status).toBe("completed");
+		expect(prompts).toHaveLength(1);
+		expect(prompts[0]).toMatchObject({
+			target: {
+				kind: "turn",
+				prompt: "Update local plugins and run the browser smoke.",
+				model: "gpt-test",
+				serviceTier: "default",
+			},
+			source: {
+				kind: "prompt-queue",
+				queue: "local-followups",
+				title: "local update",
+				details: {
+					kind: "local-handoff-materialized",
+					handoffIntentId: handoff.id,
+				},
+			},
+		});
+	});
+
+	test("retries failed deferred intents as new pending intents without mutating history", async () => {
+		const root = await tempWorkspace();
+		const marker = path.join(root, "retry-ok");
+		const command = [
+			"node",
+			"-e",
+			`const fs = require("fs"); if (!fs.existsSync(${JSON.stringify(marker)})) { console.error("missing marker"); process.exit(2); } console.log("retry ok");`,
+		];
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "flaky"
+enabled = true
+kind = "command"
+command = ${JSON.stringify(command)}
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const original = await createDeferredRunIntent(context, {
+			runAt: "2026-01-01T00:00:00.000Z",
+			target: {
+				kind: "workspace-task",
+				taskId: "flaky",
+			},
+			reason: "first attempt",
+		});
+
+		const failedRun = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+		expect(failedRun.executions[0]?.intent.status).toBe("failed");
+		const failedRead = await readDeferredRun(context, original.id, { includeOutput: true });
+		expect(failedRead.intent.status).toBe("failed");
+		expect(failedRead.attempts).toHaveLength(1);
+		expect(failedRead.outputs).toHaveLength(1);
+
+		const retry = await retryDeferredRunIntent(
+			context,
+			original.id,
+			{ id: original.id },
+			{ now: new Date("2026-01-01T00:00:02.000Z") },
+		);
+		expect(retry.originalIntent).toMatchObject({
+			id: original.id,
+			status: "failed",
+		});
+		expect(retry.intent).toMatchObject({
+			status: "pending",
+			runAt: "2026-01-01T00:00:02.000Z",
+			target: {
+				kind: "workspace-task",
+				taskId: "flaky",
+			},
+			createdBy: "workspace-deferred-retry",
+			source: {
+				kind: "deferred-retry",
+				retry: {
+					originalIntentId: original.id,
+					originalStatus: "failed",
+				},
+			},
+			attemptIds: [],
+		});
+		expect(retry.intent.id).not.toBe(original.id);
+
+		const unchangedOriginal = await readDeferredRun(context, original.id, { includeOutput: true });
+		expect(unchangedOriginal.intent).toEqual(failedRead.intent);
+		expect(unchangedOriginal.attempts).toEqual(failedRead.attempts);
+		expect(unchangedOriginal.outputs).toEqual(failedRead.outputs);
+
+		await writeFile(marker, "ok");
+		const retryRun = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:03.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+		expect(retryRun.executions).toHaveLength(1);
+		expect(retryRun.executions[0]?.intent.id).toBe(retry.intent.id);
+		expect(retryRun.executions[0]?.intent.status).toBe("completed");
+
+		const retryRead = await readDeferredRun(context, retry.intent.id, { includeOutput: true });
+		expect(retryRead.intent.status).toBe("completed");
+		expect(retryRead.attempts).toHaveLength(1);
+		expect((retryRead.outputs?.[0]?.output as { workspaceRun?: { taskId?: string; status?: string } }).workspaceRun)
+			.toMatchObject({ taskId: "flaky", status: "completed" });
+		expect((await readDeferredRun(context, original.id)).attempts).toHaveLength(1);
+	});
+
+	test("rejects retry for non-terminal deferred intents", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `[workspace]\nname = "demo"\n`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const pending = await createDeferredRunIntent(context, {
+			id: "pending-retry",
+			target: {
+				kind: "turn",
+				prompt: "not yet",
+			},
+		});
+		await expect(retryDeferredRunIntent(context, pending.id))
+			.rejects.toThrow("Only terminal deferred runs can be retried");
+
+		const running = await createDeferredRunIntent(context, {
+			id: "running-retry",
+			target: {
+				kind: "turn",
+				prompt: "in flight",
+			},
+		});
+		const runningPath = path.join(
+			root,
+			".codex",
+			"workspace",
+			"local",
+			"deferred",
+			"intents",
+			"running-retry.json",
+		);
+		await writeFile(runningPath, `${JSON.stringify({
+			...running,
+			status: "running",
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		}, null, 2)}\n`);
+
+		await expect(retryDeferredRunIntent(context, running.id))
+			.rejects.toThrow("Only terminal deferred runs can be retried");
 	});
 
 	test("does not run future deferred intents and supports canceling pending work", async () => {
@@ -804,4 +1243,47 @@ async function tempWorkspace(): Promise<string> {
 async function writeWorkspaceToml(root: string, text: string): Promise<void> {
 	await mkdir(path.join(root, ".codex"), { recursive: true });
 	await writeFile(path.join(root, ".codex", "workspace.toml"), text.trimStart());
+}
+
+function fakeCompletedTurnToybox(): (method: string, params: unknown) => Promise<unknown> {
+	let threadCount = 0;
+	let turnCount = 0;
+	const turnsByThread = new Map<string, string[]>();
+	return async (method, params) => {
+		if (method !== "app.call") {
+			throw new Error(`unexpected toybox method: ${method}`);
+		}
+		const call = params as { method: string; params?: Record<string, unknown> };
+		if (call.method === "thread/start") {
+			threadCount += 1;
+			const id = `thread-${threadCount}`;
+			turnsByThread.set(id, []);
+			return { thread: { id, turns: [] } };
+		}
+		if (call.method === "turn/start") {
+			turnCount += 1;
+			const id = `turn-${turnCount}`;
+			const threadId = String(call.params?.threadId);
+			turnsByThread.set(threadId, [...(turnsByThread.get(threadId) ?? []), id]);
+			return { turn: { id } };
+		}
+		if (call.method === "thread/read") {
+			const threadId = String(call.params?.threadId);
+			return {
+				thread: {
+					id: threadId,
+					turns: (turnsByThread.get(threadId) ?? []).map((id) => ({
+						id,
+						status: "completed",
+						items: [{
+							type: "agentMessage",
+							phase: "final_answer",
+							text: "done",
+						}],
+					})),
+				},
+			};
+		}
+		throw new Error(`unexpected app method: ${call.method}`);
+	};
 }
