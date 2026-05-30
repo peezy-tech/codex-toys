@@ -343,6 +343,7 @@ export async function createWorkspaceContext(options: {
 		actionsCommitPaths: [
 			path.join(workspaceCodexHome, "memories"),
 			path.join(workspaceCodexHome, "workspace", "actions"),
+			path.join(workspaceCodexHome, "sessions"),
 		],
 	};
 }
@@ -473,7 +474,11 @@ export async function scaffoldActionsWorkspace(
 	if (options.github || !options.forgejo) {
 		await write(".github/workflows/codex-toys-actions.yml", actionsWorkflowTemplate("github"));
 	}
-	files.push(await appendGitignoreEntries(workspaceRoot, actionsGitignoreEntries()));
+	files.push(await appendGitignoreEntries(
+		workspaceRoot,
+		actionsGitignoreEntries(),
+		retiredActionsGitignoreEntries(),
+	));
 	return { workspaceRoot, files };
 }
 
@@ -542,7 +547,12 @@ export async function commitActionsWorkspaceState(
 		return { attempted: false, committed: false, paths: context.actionsCommitPaths };
 	}
 	const relativePaths = context.actionsCommitPaths.map((item) => path.relative(context.repoRoot, item));
-	await runGit(context.repoRoot, ["add", "--", ...relativePaths]);
+	const sessionsPath = path.relative(context.repoRoot, path.join(context.workspaceCodexHome, "sessions"));
+	const normalPaths = relativePaths.filter((item) => item !== sessionsPath);
+	await runGit(context.repoRoot, ["add", "--", ...normalPaths]);
+	if (await exists(path.join(context.repoRoot, sessionsPath))) {
+		await runGit(context.repoRoot, ["add", "-A", "-f", "--", sessionsPath]);
+	}
 	const staged = await runGit(context.repoRoot, ["diff", "--cached", "--name-only", "--", ...relativePaths]);
 	if (!staged.stdout.trim()) {
 		return { attempted: true, committed: false, paths: context.actionsCommitPaths };
@@ -1793,6 +1803,7 @@ async function writeScaffoldFile(
 async function appendGitignoreEntries(
 	workspaceRoot: string,
 	entries: string[],
+	removeEntries: string[] = [],
 ): Promise<ScaffoldActionsWorkspaceResult["files"][number]> {
 	const file = path.join(workspaceRoot, ".gitignore");
 	let current = "";
@@ -1803,15 +1814,17 @@ async function appendGitignoreEntries(
 			throw error;
 		}
 	}
-	const lines = new Set(current.split(/\r?\n/).filter(Boolean));
+	const removeSet = new Set(removeEntries);
+	const currentLines = current.split(/\r?\n/).filter(Boolean);
+	const keptLines = currentLines.filter((line) => !removeSet.has(line));
+	const lines = new Set(keptLines);
 	const missing = entries.filter((entry) => !lines.has(entry));
-	if (missing.length === 0) {
+	const changed = missing.length > 0 || keptLines.length !== currentLines.length;
+	if (!changed) {
 		return { path: file, action: current ? "unchanged" : "created" };
 	}
 	await mkdir(path.dirname(file), { recursive: true });
-	const prefix = current && !current.endsWith("\n") ? "\n" : "";
-	const separator = current && !current.endsWith("\n\n") ? "\n" : "";
-	await writeFile(file, `${current}${prefix}${separator}${missing.join("\n")}\n`);
+	await writeFile(file, `${[...keptLines, ...missing].join("\n")}\n`);
 	return { path: file, action: current ? "updated" : "created" };
 }
 
@@ -1864,7 +1877,10 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 		"        run: vp dlx codex-toys actions cleanup",
 		"      - if: always()",
 		"        run: |",
-		"          git add .codex/memories .codex/workspace/actions",
+		"          git add -- .codex/memories .codex/workspace/actions",
+		"          if [ -d .codex/sessions ]; then",
+		"            git add -A -f -- .codex/sessions",
+		"          fi",
 		"          git diff --cached --quiet && exit 0",
 		"          git config user.name codex-toys-actions",
 		"          git config user.email codex-toys-actions@users.noreply.github.com",
@@ -1880,7 +1896,6 @@ function actionsGitignoreEntries(): string[] {
 		".codex/install_id",
 		".codex/install-id",
 		".codex/installation_id",
-		".codex/sessions/",
 		".codex/shell_snapshots/",
 		".codex/shell-snapshots/",
 		".codex/tmp/",
@@ -1889,6 +1904,12 @@ function actionsGitignoreEntries(): string[] {
 		".codex/**/*.sqlite",
 		".codex/**/*.sqlite3",
 		".codex/**/*.db",
+	];
+}
+
+function retiredActionsGitignoreEntries(): string[] {
+	return [
+		".codex/sessions/",
 	];
 }
 

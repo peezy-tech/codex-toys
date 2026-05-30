@@ -48,7 +48,7 @@ describe("Actions helpers", () => {
 			.toMatchObject({ source: "none", wrote: false });
 	});
 
-	test("cleanup removes runtime-only files and preserves durable Actions state", async () => {
+	test("cleanup removes runtime-only files and preserves durable Actions state and sessions", async () => {
 		const root = await tempWorkspace();
 		const codexHome = repoCodexHome(root);
 		await writeFile(path.join(codexHome, "auth.json"), "{}");
@@ -69,11 +69,11 @@ describe("Actions helpers", () => {
 			"install_id",
 			"memories/.git",
 			"memories/phase2_workspace_diff.md",
-			"sessions",
 			"shell_snapshots",
 			"state.sqlite",
 			"tmp",
 		]);
+		expect(await readFile(path.join(codexHome, "sessions", "rollout.jsonl"), "utf8")).toBe("{}");
 		expect(await readFile(path.join(codexHome, "memories", "raw_memories.md"), "utf8")).toBe("keep");
 		expect(await readFile(path.join(codexHome, "workspace", "actions", "state.json"), "utf8")).toBe("{}");
 	});

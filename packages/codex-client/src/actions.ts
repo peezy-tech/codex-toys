@@ -61,7 +61,6 @@ export async function cleanupActionsCodexHome(
 		"install_id",
 		"install-id",
 		"installation_id",
-		"sessions",
 		"shell_snapshots",
 		"shell-snapshots",
 		"tmp",

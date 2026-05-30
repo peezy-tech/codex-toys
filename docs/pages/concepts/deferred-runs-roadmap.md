@@ -21,7 +21,8 @@ retention and broader scheduling ergonomics.
 Deferred runs are mode-scoped:
 
 - Local mode writes to `.codex/workspace/local`.
-- Actions mode writes to `.codex/workspace/actions`.
+- Actions mode writes queue state to `.codex/workspace/actions` and durable
+  thread rollouts to `.codex/sessions`.
 - SSH is transport, not a third queue. `--ssh --cwd /repo` operates the remote
   workspace's local queue.
 
@@ -66,23 +67,21 @@ interval scheduling.
    hardening work is about operator presentation, not semantics: friendlier
    summaries, dashboard use, and optional cursor naming conventions.
 
-2. Add CI and scheduled-runner setup.
+2. Harden CI and scheduled-runner setup.
 
-   `workspace tick --mode actions` already runs due workspace tasks and due
-   Actions-mode deferred intents. The missing piece is an easy setup path for a
-   scheduled Forgejo/GitHub workflow that prepares auth, runs tick, cleans up
-   runtime auth, and commits only durable workspace state when needed.
+   `workspace tick --mode actions` runs due workspace tasks and due
+   Actions-mode deferred intents. `workspace init actions` scaffolds a
+   Forgejo/GitHub workflow that prepares auth, runs tick, cleans up runtime
+   auth, and commits only durable workspace state when needed.
 
    This should land after result collection so CI-produced outputs have a clear
    local harvest path.
 
-   Recommended next slice: add scheduled runner scaffolding for
-   `workspace tick --mode actions`. The scaffold should create or update a
-   Forgejo/GitHub workflow that runs on `workflow_dispatch` and a configurable
-   cron, installs codex-toys, runs `codex-toys actions prepare-auth`, runs
-   `codex-toys workspace tick --mode actions`, always runs
-   `codex-toys actions cleanup`, and commits only durable workspace state when
-   that state changed.
+   The scaffold commits `.codex/memories`, `.codex/workspace/actions`, and
+   `.codex/sessions`. Sessions are included because generated or resumed Codex
+   thread rollouts are durable handoff data for local thread transplant. The
+   next hardening work is around configurable cadence and clearer operator
+   setup prompts, not a separate scheduler model.
 
 3. Add an explicit retention policy.
 

@@ -216,7 +216,8 @@ codex-toys actions cleanup
 
 Workspace autonomy reads `.codex/workspace.toml`, writes local runtime state
 under `.codex/workspace/local`, and writes CI runtime state under
-`.codex/workspace/actions`.
+`.codex/workspace/actions`. Actions-mode runners also preserve
+`.codex/sessions` rollout JSONL as durable thread handoff data.
 
 Deferred runs are durable future run intents in those same mode-specific state
 roots. A deferred target can wrap a direct Codex turn, a named turn automation,
@@ -238,6 +239,11 @@ workspace queue advances its own cursor.
 `workspace deferred prune` removes only terminal deferred history (`completed`,
 `failed`, or `canceled`) older than the requested retention window. Pending and
 running intents are never pruned.
+
+`workspace init actions` scaffolds a scheduled runner workflow. The generated
+workflow prepares auth, runs `workspace tick --mode actions`, cleans up
+runtime-only files, and commits changed `.codex/memories`,
+`.codex/workspace/actions`, and `.codex/sessions`.
 
 ## Memories
 

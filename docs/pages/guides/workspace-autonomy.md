@@ -101,6 +101,11 @@ with `--ssh`.
 - `.github/workflows/codex-toys-actions.yml` with `--github`
 - `.gitignore` entries for runtime-only Codex files
 
+The generated workflow runs on `workflow_dispatch` and an hourly cron. It
+prepares auth, runs `workspace tick --mode actions`, always cleans up
+runtime-only files, and commits changed `.codex/memories`,
+`.codex/workspace/actions`, and `.codex/sessions` rollout data.
+
 Existing JSON-RPC passthrough commands stay intact:
 
 ```bash
@@ -248,18 +253,23 @@ codex-toys actions cleanup
 - `OPENAI_API_KEY`
 
 It writes `.codex/auth.json` with `0600` permissions. `cleanup` removes auth,
-install ids, sessions, shell snapshots, temp dirs, SQLite databases,
-`.codex/memories/.git`, and `phase2_workspace_diff.md`.
+install ids, shell snapshots, temp dirs, SQLite databases,
+`.codex/memories/.git`, and `phase2_workspace_diff.md`. It preserves
+`.codex/sessions` because Actions-created or resumed thread rollouts are
+durable handoff data for later thread transplant.
 
 Actions commits should be limited to:
 
 ```text
 .codex/memories/
 .codex/workspace/actions/
+.codex/sessions/
 ```
 
 Use job logs for verbose logs. Local mode generated state should not be
-committed.
+committed. Raw rollout JSONL can contain prompts, model output, tool calls,
+command output, file paths, and other sensitive text, so only enable the
+scheduled runner in repositories where that durable history belongs in git.
 
 ## Local Actions Simulation
 

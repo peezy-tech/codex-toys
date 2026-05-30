@@ -132,6 +132,7 @@ skill = "skill-repair"
 		expect(context.actionsCommitPaths).toEqual([
 			path.join(root, ".codex", "memories"),
 			path.join(root, ".codex", "workspace", "actions"),
+			path.join(root, ".codex", "sessions"),
 		]);
 	});
 
@@ -720,12 +721,14 @@ schedule = "not-cron"
 			paths: [
 				path.join(root, ".codex", "memories"),
 				path.join(root, ".codex", "workspace", "actions"),
+				path.join(root, ".codex", "sessions"),
 			],
 		});
 	});
 
 	test("scaffoldActionsWorkspace creates Actions config, workflows, and gitignore entries", async () => {
 		const root = await tempWorkspace();
+		await writeFile(path.join(root, ".gitignore"), ".codex/sessions/\n");
 		const result = await scaffoldActionsWorkspace({
 			workspaceRoot: root,
 			forgejo: true,
@@ -739,8 +742,12 @@ schedule = "not-cron"
 			.toContain("codex-toys actions prepare-auth");
 		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-toys-actions.yml"), "utf8"))
 			.toContain("codex-toys actions cleanup");
-		expect(await readFile(path.join(root, ".gitignore"), "utf8"))
-			.toContain(".codex/auth.json");
+		const workflow = await readFile(path.join(root, ".forgejo", "workflows", "codex-toys-actions.yml"), "utf8");
+		expect(workflow).toContain("git add -- .codex/memories .codex/workspace/actions");
+		expect(workflow).toContain("git add -A -f -- .codex/sessions");
+		const gitignore = await readFile(path.join(root, ".gitignore"), "utf8");
+		expect(gitignore).toContain(".codex/auth.json");
+		expect(gitignore).not.toContain(".codex/sessions/");
 	});
 });
 

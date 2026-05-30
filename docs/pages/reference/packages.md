@@ -116,9 +116,9 @@ Actions-mode simulation:
 - `repoCodexHome(workspaceRoot)` returns `<repo>/.codex`
 - `prepareActionsCodexAuth` writes `.codex/auth.json` from
   `CODEX_AUTH_JSON_B64`, `CODEX_AUTH_JSON`, or `OPENAI_API_KEY`
-- `cleanupActionsCodexHome` removes runtime-only auth, sessions, temp dirs, and
-  SQLite databases without deleting durable memory markdown or
-  `.codex/workspace/actions`
+- `cleanupActionsCodexHome` removes runtime-only auth, temp dirs, and SQLite
+  databases without deleting durable memory markdown,
+  `.codex/workspace/actions`, or `.codex/sessions` rollout files
 
 ## `codex-toys/memories`
 

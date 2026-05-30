@@ -149,7 +149,8 @@ codex-toys workspace init actions --forgejo
 ```
 
 Local generated state goes under `.codex/workspace/local`. Actions generated
-state goes under `.codex/workspace/actions`, and Actions mode always runs with
+state goes under `.codex/workspace/actions`, durable Actions thread rollouts go
+under `.codex/sessions`, and Actions mode always runs with
 `CODEX_HOME=<repo>/.codex`.
 
 Deferred runs add durable future run intents in those same mode-specific roots.

@@ -477,7 +477,9 @@ describe("codex-toys CLI args", () => {
 		]);
 		expect(cleanup.exitCode).toBe(0);
 		expect(JSON.parse(cleanup.stdout).removed).toContain("auth.json");
-		expect(JSON.parse(cleanup.stdout).removed).toContain("sessions");
+		expect(JSON.parse(cleanup.stdout).removed).not.toContain("sessions");
+		expect(await readFile(path.join(root, ".codex", "sessions", "one.jsonl"), "utf8"))
+			.toBe("{}");
 		expect(await readFile(path.join(root, ".codex", "memories", "raw_memories.md"), "utf8"))
 			.toBe("keep\n");
 	});
