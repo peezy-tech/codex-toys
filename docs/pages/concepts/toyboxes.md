@@ -15,6 +15,7 @@ The built-in capability families are:
 - workspace functions
 - automation helpers
 - delegation lifecycle, return modes, result flushing, and group wakes
+- deferred run intents, attempts, claiming, and inspection
 - workbench state and presentation routing
 
 Native app-server methods stay app-server-native. Calls such as `thread/list`,

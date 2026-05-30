@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +8,8 @@ import {
 	createTurnAutomationHost,
 	resolveTurnAutomationTarget,
 	runTurnAutomationScript,
+	startAutomationTurnWithRequest,
+	waitAutomationTurnWithRequest,
 } from "./turn-automation.ts";
 import { parseJsonText } from "./json.ts";
 
@@ -92,6 +94,114 @@ export type WorkspaceRunRecord = {
 	error?: string;
 };
 
+export type DeferredRunTarget =
+	| {
+			kind: "turn";
+			prompt: string;
+			threadId?: string;
+			cwd?: string;
+			model?: string;
+			serviceTier?: string;
+			sandbox?: "danger-full-access" | "read-only" | "workspace-write";
+			approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
+			permissions?: string;
+			responsesapiClientMetadata?: Record<string, string>;
+			outputSchema?: unknown;
+	  }
+	| {
+			kind: "automation";
+			automation: string;
+			event?: Record<string, unknown>;
+			prompt?: string;
+			cwd?: string;
+			model?: string;
+			sandbox?: "danger-full-access" | "read-only" | "workspace-write";
+			approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
+			permissions?: string;
+	  }
+	| {
+			kind: "workspace-task";
+			taskId: string;
+	  };
+
+export type DeferredRunIntentStatus =
+	| "pending"
+	| "running"
+	| "completed"
+	| "failed"
+	| "canceled";
+
+export type DeferredRunIntent = {
+	id: string;
+	status: DeferredRunIntentStatus;
+	mode: WorkspaceMode;
+	runAt: string;
+	target: DeferredRunTarget;
+	createdAt: string;
+	updatedAt: string;
+	createdBy?: string;
+	reason?: string;
+	source?: Record<string, unknown>;
+	attemptIds: string[];
+	lease?: {
+		attemptId: string;
+		claimedAt: string;
+		expiresAt: string;
+		executorId: string;
+	};
+	completedAt?: string;
+	canceledAt?: string;
+	error?: string;
+};
+
+export type DeferredRunAttempt = {
+	id: string;
+	intentId: string;
+	status: "running" | "completed" | "failed";
+	mode: WorkspaceMode;
+	startedAt: string;
+	finishedAt?: string;
+	executorId: string;
+	leaseExpiresAt: string;
+	outputPath?: string;
+	error?: string;
+};
+
+export type DeferredRunCreateParams = {
+	id?: string;
+	runAt?: string;
+	target: DeferredRunTarget;
+	createdBy?: string;
+	reason?: string;
+	source?: Record<string, unknown>;
+};
+
+export type DeferredRunReadResult = {
+	intent: DeferredRunIntent;
+	attempts: DeferredRunAttempt[];
+};
+
+export type DeferredRunExecution = {
+	intent: DeferredRunIntent;
+	attempt: DeferredRunAttempt;
+	output: unknown;
+};
+
+export type DeferredRunPruneResult = {
+	mode: WorkspaceMode;
+	cutoff: string;
+	dryRun: boolean;
+	inspected: number;
+	pruned: number;
+	intents: Array<{
+		id: string;
+		status: Extract<DeferredRunIntentStatus, "completed" | "failed" | "canceled">;
+		updatedAt: string;
+		attemptIds: string[];
+		outputPaths: string[];
+	}>;
+};
+
 export type WorkspaceDoctorInfo = {
 	mode: WorkspaceMode;
 	requestedMode: WorkspaceModeInput;
@@ -110,7 +220,12 @@ export type WorkspaceDoctorInfo = {
 	taskCount: number;
 	dueCount: number;
 	failingCount: number;
+	deferredCount: number;
+	deferredDueCount: number;
+	deferredRunningCount: number;
+	deferredFailedCount: number;
 	latestRun?: WorkspaceRunRecord;
+	latestDeferredRun?: DeferredRunIntent;
 	surfaces: WorkspaceSurface[];
 	errors: string[];
 };
@@ -252,6 +367,10 @@ export async function collectWorkspaceDoctorInfo(context: WorkspaceContext): Pro
 	}
 	const runs = await readRuns(context);
 	const latestRun = runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+	const deferredRuns = await listDeferredRunIntents(context);
+	const now = new Date();
+	const latestDeferredRun = deferredRuns
+		.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 	const failingCount = countFailingTasks(config?.tasks ?? [], runs);
 	return {
 		mode: context.mode,
@@ -271,7 +390,12 @@ export async function collectWorkspaceDoctorInfo(context: WorkspaceContext): Pro
 		taskCount: config?.tasks.length ?? 0,
 		dueCount: dueTasks(config?.tasks ?? [], runs, new Date()).length,
 		failingCount,
+		deferredCount: deferredRuns.length,
+		deferredDueCount: deferredRuns.filter((intent) => isDeferredIntentDue(intent, now)).length,
+		deferredRunningCount: deferredRuns.filter((intent) => intent.status === "running").length,
+		deferredFailedCount: deferredRuns.filter((intent) => intent.status === "failed").length,
 		latestRun,
+		latestDeferredRun,
 		surfaces: config?.surfaces ?? [],
 		errors: workspaceDoctorErrors(context),
 	};
@@ -291,6 +415,16 @@ export function formatWorkspaceDoctorInfo(info: WorkspaceDoctorInfo): string {
 		["workspace memories", `${info.workspaceMemoryRoot}${info.workspaceMemorySummaryExists ? " (summary)" : ""}`],
 		["tasks", `${info.taskCount} configured, ${info.dueCount} due, ${info.failingCount} failing`],
 		["latest run", info.latestRun ? `${info.latestRun.status} ${info.latestRun.taskId} ${info.latestRun.finishedAt}` : "none"],
+		[
+			"deferred runs",
+			`${info.deferredCount} total, ${info.deferredDueCount} due, ${info.deferredRunningCount} running, ${info.deferredFailedCount} failed`,
+		],
+		[
+			"latest deferred",
+			info.latestDeferredRun
+				? `${info.latestDeferredRun.status} ${info.latestDeferredRun.id} ${info.latestDeferredRun.updatedAt}`
+				: "none",
+		],
 	];
 	for (const error of info.errors) {
 		rows.push(["error", error]);
@@ -329,10 +463,19 @@ export async function tickWorkspace(
 	await ensureStateDirs(context);
 	const config = await loadWorkspaceConfig(context);
 	const previousRuns = await readRuns(context);
-	const due = dueTasks(config.tasks, previousRuns, new Date());
+	const previousIntents = await listDeferredRunIntents(context);
+	const now = new Date();
+	const due = dueTasks(config.tasks, previousRuns, now, previousIntents);
 	const runs: WorkspaceRunRecord[] = [];
 	for (const task of due) {
-		runs.push(await runWorkspaceTask(context, config, task, options));
+		await createScheduledWorkspaceTaskIntent(context, task, now);
+	}
+	const executions = await runDueDeferredRuns(context, options);
+	for (const execution of executions.executions) {
+		const workspaceRun = record(execution.output).workspaceRun;
+		if (isWorkspaceRunRecord(workspaceRun)) {
+			runs.push(workspaceRun);
+		}
 	}
 	const allRuns = [...previousRuns, ...runs];
 	for (const rule of config.reactive.filter((item) => item.enabled)) {
@@ -392,6 +535,208 @@ export async function commitActionsWorkspaceState(
 		committed: true,
 		paths: context.actionsCommitPaths,
 		output: commit.stdout || commit.stderr,
+	};
+}
+
+export async function createDeferredRunIntent(
+	context: WorkspaceContext,
+	params: unknown,
+): Promise<DeferredRunIntent> {
+	await ensureDeferredRunDirs(context);
+	const input = parseDeferredRunCreateParams(params);
+	const now = new Date().toISOString();
+	const runAt = input.runAt ?? now;
+	const intent: DeferredRunIntent = compactUndefined({
+		id: input.id ?? deferredRunId(now),
+		status: "pending",
+		mode: context.mode,
+		runAt,
+		target: input.target,
+		createdAt: now,
+		updatedAt: now,
+		createdBy: input.createdBy,
+		reason: input.reason,
+		source: input.source,
+		attemptIds: [],
+	});
+	await writeNewJsonFile(deferredIntentPath(context, intent.id), intent);
+	return intent;
+}
+
+export async function listDeferredRunIntents(
+	context: WorkspaceContext,
+	options: {
+		status?: DeferredRunIntentStatus;
+		limit?: number;
+	} = {},
+): Promise<DeferredRunIntent[]> {
+	const dir = deferredIntentDir(context);
+	try {
+		const entries = await readdir(dir);
+		const intents: DeferredRunIntent[] = [];
+		for (const entry of entries) {
+			if (!entry.endsWith(".json")) {
+				continue;
+			}
+			try {
+				const intent = normalizeDeferredRunIntent(
+					parseJsonText(
+						await readFile(path.join(dir, entry), "utf8"),
+						path.join(dir, entry),
+					),
+				);
+				if (!options.status || intent.status === options.status) {
+					intents.push(intent);
+				}
+			} catch {}
+		}
+		const sorted = intents.sort((left, right) =>
+			left.runAt.localeCompare(right.runAt) || left.createdAt.localeCompare(right.createdAt)
+		);
+		return sorted.slice(0, clampLimit(options.limit, 500));
+	} catch {
+		return [];
+	}
+}
+
+export async function readDeferredRun(
+	context: WorkspaceContext,
+	intentId: string,
+): Promise<DeferredRunReadResult> {
+	const intent = await readDeferredRunIntent(context, intentId);
+	const attempts = await readDeferredRunAttempts(context, intent.attemptIds);
+	return { intent, attempts };
+}
+
+export async function cancelDeferredRunIntent(
+	context: WorkspaceContext,
+	intentId: string,
+): Promise<DeferredRunIntent> {
+	const intent = await readDeferredRunIntent(context, intentId);
+	if (intent.status !== "pending") {
+		throw new Error(`Only pending deferred runs can be canceled: ${intentId}`);
+	}
+	const now = new Date().toISOString();
+	const canceled: DeferredRunIntent = {
+		...intent,
+		status: "canceled",
+		updatedAt: now,
+		canceledAt: now,
+	};
+	await writeJsonFileAtomic(deferredIntentPath(context, intentId), canceled);
+	return canceled;
+}
+
+export async function runDueDeferredRuns(
+	context: WorkspaceContext,
+	options: {
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+		now?: Date;
+		limit?: number;
+		leaseMs?: number;
+	}): Promise<{ mode: WorkspaceMode; executions: DeferredRunExecution[] }> {
+	await ensureStateDirs(context);
+	await ensureDeferredRunDirs(context);
+	const now = options.now ?? new Date();
+	const due = (await listDeferredRunIntents(context))
+		.filter((intent) => isDeferredIntentDue(intent, now))
+		.slice(0, clampLimit(options.limit, 100));
+	const executions: DeferredRunExecution[] = [];
+	for (const intent of due) {
+		const claim = await claimDeferredRunIntent(context, intent, {
+			now,
+			leaseMs: options.leaseMs ?? 30 * 60 * 1000,
+		});
+		if (!claim) {
+			continue;
+		}
+		try {
+			const outputPath = path.join(deferredOutputDir(context), `${claim.attempt.id}.json`);
+			await writeJsonFileAtomic(deferredAttemptPath(context, claim.attempt.id), claim.attempt);
+			const result = await executeDeferredRunTarget(context, claim.intent, {
+				callToybox: options.callToybox,
+				automationCwd: options.automationCwd,
+			});
+			await writeJsonFileAtomic(outputPath, result.output);
+			const finishedAt = new Date().toISOString();
+			const attempt: DeferredRunAttempt = compactUndefined({
+				...claim.attempt,
+				status: result.status,
+				finishedAt,
+				outputPath,
+				error: result.error,
+			});
+			const completedIntent: DeferredRunIntent = compactUndefined({
+				...claim.intent,
+				status: result.status,
+				updatedAt: finishedAt,
+				attemptIds: [...new Set([...claim.intent.attemptIds, attempt.id])],
+				lease: undefined,
+				completedAt: result.status === "completed" ? finishedAt : undefined,
+				error: result.error,
+			});
+			await writeJsonFileAtomic(deferredAttemptPath(context, attempt.id), attempt);
+			await writeJsonFileAtomic(deferredIntentPath(context, completedIntent.id), completedIntent);
+			executions.push({
+				intent: completedIntent,
+				attempt,
+				output: result.output,
+			});
+		} finally {
+			await releaseDeferredRunClaim(context, claim.intent.id);
+		}
+	}
+	return { mode: context.mode, executions };
+}
+
+export async function pruneDeferredRunHistory(
+	context: WorkspaceContext,
+	options: {
+		olderThanDays: number;
+		dryRun?: boolean;
+		now?: Date;
+	},
+): Promise<DeferredRunPruneResult> {
+	if (!Number.isInteger(options.olderThanDays) || options.olderThanDays <= 0) {
+		throw new Error("olderThanDays must be a positive integer");
+	}
+	const now = options.now ?? new Date();
+	const cutoff = new Date(now.getTime() - options.olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+	const intents = await listDeferredRunIntents(context);
+	const pruned: DeferredRunPruneResult["intents"] = [];
+	for (const intent of intents) {
+		if (!isTerminalDeferredRunStatus(intent.status) || intent.updatedAt >= cutoff) {
+			continue;
+		}
+		const attempts = await readDeferredRunAttempts(context, intent.attemptIds);
+		const outputPaths = attempts.flatMap((attempt) => attempt.outputPath ? [attempt.outputPath] : []);
+		pruned.push({
+			id: intent.id,
+			status: intent.status,
+			updatedAt: intent.updatedAt,
+			attemptIds: attempts.map((attempt) => attempt.id),
+			outputPaths,
+		});
+		if (options.dryRun === true) {
+			continue;
+		}
+		await releaseDeferredRunClaim(context, intent.id);
+		for (const outputPath of outputPaths) {
+			await rm(outputPath, { force: true });
+		}
+		for (const attempt of attempts) {
+			await rm(deferredAttemptPath(context, attempt.id), { force: true });
+		}
+		await rm(deferredIntentPath(context, intent.id), { force: true });
+	}
+	return {
+		mode: context.mode,
+		cutoff,
+		dryRun: options.dryRun === true,
+		inspected: intents.length,
+		pruned: pruned.length,
+		intents: pruned,
 	};
 }
 
@@ -485,6 +830,123 @@ async function runAutomationTask(
 	return scriptRun.result;
 }
 
+async function executeDeferredRunTarget(
+	context: WorkspaceContext,
+	intent: DeferredRunIntent,
+	options: {
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+	},
+): Promise<{ status: "completed" | "failed"; output: unknown; error?: string }> {
+	try {
+		const target = intent.target;
+		if (target.kind === "workspace-task") {
+			const config = await loadWorkspaceConfig(context);
+			const task = config.tasks.find((item) => item.id === target.taskId);
+			if (!task) {
+				throw new Error(`Unknown workspace task: ${target.taskId}`);
+			}
+			const workspaceRun = await runWorkspaceTask(context, config, task, options);
+			return {
+				status: workspaceRun.status === "failed" ? "failed" : "completed",
+				output: { workspaceRun },
+				error: workspaceRun.error,
+			};
+		}
+		if (target.kind === "automation") {
+			const config = await loadWorkspaceConfig(context).catch(() => ({
+				name: path.basename(context.repoRoot),
+				surfaces: [],
+				tasks: [],
+				reactive: [],
+				path: context.configPath,
+			} satisfies WorkspaceConfig));
+			const result = await runAutomationDeferredTarget(
+				context,
+				config,
+				{ ...intent, target },
+				options,
+			);
+			return { status: "completed", output: result };
+		}
+		if (target.kind === "turn") {
+			const started = await startAutomationTurnWithRequest(
+				"workspace",
+				target,
+				async (method, params) =>
+					await options.callToybox("app.call", {
+						method,
+						params,
+					}),
+			);
+			const snapshot = await waitAutomationTurnWithRequest(
+				"workspace",
+				async (method, params) =>
+					await options.callToybox("app.call", {
+						method,
+						params,
+					}),
+				started,
+			);
+			return { status: "completed", output: { turn: snapshot } };
+		}
+		return exhaustiveTarget(target);
+	} catch (error) {
+		return {
+			status: "failed",
+			output: { error: errorMessage(error) },
+			error: errorMessage(error),
+		};
+	}
+}
+
+async function runAutomationDeferredTarget(
+	context: WorkspaceContext,
+	config: WorkspaceConfig,
+	intent: DeferredRunIntent & {
+		target: Extract<DeferredRunTarget, { kind: "automation" }>;
+	},
+	options: {
+		callToybox: (method: string, params: unknown) => Promise<unknown>;
+		automationCwd?: string;
+	},
+): Promise<unknown> {
+	const target = await resolveTurnAutomationTarget(intent.target.automation, {
+		cwd: context.repoRoot,
+	});
+	const startedAt = new Date().toISOString();
+	const event = deferredAutomationEvent(config, intent, startedAt);
+	const prompt = intent.target.prompt ?? target.prompt;
+	const cwd = intent.target.cwd ?? options.automationCwd ?? target.cwd ?? context.repoRoot;
+	const scriptRun = await runTurnAutomationScript({
+		scriptPath: target.scriptPath,
+		automation: target.automation,
+		event,
+		prompt,
+		cwd,
+		timeoutMs: 90_000,
+		host: createTurnAutomationHost({
+			via: "workspace",
+			appRequest: async (method, params) =>
+				await options.callToybox("app.call", {
+					method,
+					params,
+				}),
+			workspaceRequest: options.callToybox,
+			defaults: {
+				prompt,
+				cwd,
+				skills: target.skills,
+				model: intent.target.model,
+				sandbox: intent.target.sandbox,
+				approvalPolicy: intent.target.approvalPolicy,
+				permissions: intent.target.permissions,
+			},
+		}),
+	});
+	return scriptRun.result;
+}
+
 function workspaceAutomationEvent(
 	config: WorkspaceConfig,
 	task: Extract<WorkspaceTask, { kind: "automation" }>,
@@ -505,6 +967,33 @@ function workspaceAutomationEvent(
 			...payload,
 		},
 	};
+}
+
+function deferredAutomationEvent(
+	config: WorkspaceConfig,
+	intent: DeferredRunIntent & {
+		target: Extract<DeferredRunTarget, { kind: "automation" }>;
+	},
+	startedAt: string,
+): Record<string, unknown> {
+	const event = intent.target.event ?? {};
+	const payload = isRecord(event.payload) ? event.payload : {};
+	return {
+		...event,
+		id: stringValue(event.id, `deferred:${config.name}:${intent.id}`),
+		type: stringValue(event.type, intent.target.automation),
+		source: stringValue(event.source, config.name),
+		occurredAt: stringValue(event.occurredAt, intent.runAt),
+		receivedAt: stringValue(event.receivedAt, startedAt),
+		payload: {
+			deferredRunId: intent.id,
+			...payload,
+		},
+	};
+}
+
+function exhaustiveTarget(value: never): never {
+	throw new Error(`Unsupported deferred run target: ${JSON.stringify(value)}`);
 }
 
 async function runReactiveRule(
@@ -646,11 +1135,11 @@ async function readRuns(context: WorkspaceContext): Promise<WorkspaceRunRecord[]
 				continue;
 			}
 			try {
-					const runPath = path.join(dir, entry);
-					const parsed = parseJsonText(
-						await readFile(runPath, "utf8"),
-						runPath,
-					) as WorkspaceRunRecord;
+				const runPath = path.join(dir, entry);
+				const parsed = parseJsonText(
+					await readFile(runPath, "utf8"),
+					runPath,
+				) as WorkspaceRunRecord;
 				if (parsed && typeof parsed.taskId === "string") {
 					runs.push(parsed);
 				}
@@ -662,7 +1151,258 @@ async function readRuns(context: WorkspaceContext): Promise<WorkspaceRunRecord[]
 	}
 }
 
-function dueTasks(tasks: WorkspaceTask[], runs: WorkspaceRunRecord[], now: Date): WorkspaceTask[] {
+async function createScheduledWorkspaceTaskIntent(
+	context: WorkspaceContext,
+	task: WorkspaceTask,
+	now: Date,
+): Promise<DeferredRunIntent | undefined> {
+	try {
+		return await createDeferredRunIntent(context, {
+			id: scheduledDeferredRunId(task.id, now),
+			runAt: now.toISOString(),
+			target: {
+				kind: "workspace-task",
+				taskId: task.id,
+			},
+			createdBy: "workspace-schedule",
+			reason: `Scheduled workspace task ${task.id}`,
+			source: {
+				kind: "workspace-task-schedule",
+				taskId: task.id,
+				schedule: task.schedule,
+				date: now.toISOString().slice(0, 10),
+			},
+		});
+	} catch (error) {
+		if (isAlreadyExistsError(error)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+async function readDeferredRunIntent(
+	context: WorkspaceContext,
+	intentId: string,
+): Promise<DeferredRunIntent> {
+	const intentPath = deferredIntentPath(context, intentId);
+	try {
+		return normalizeDeferredRunIntent(parseJsonText(await readFile(intentPath, "utf8"), intentPath));
+	} catch (error) {
+		if (isNotFoundError(error)) {
+			throw new Error(`Unknown deferred run: ${intentId}`);
+		}
+		throw error;
+	}
+}
+
+async function readDeferredRunAttempts(
+	context: WorkspaceContext,
+	attemptIds: string[],
+): Promise<DeferredRunAttempt[]> {
+	const attempts: DeferredRunAttempt[] = [];
+	for (const attemptId of attemptIds) {
+		const attemptPath = deferredAttemptPath(context, attemptId);
+		try {
+			attempts.push(normalizeDeferredRunAttempt(
+				parseJsonText(await readFile(attemptPath, "utf8"), attemptPath),
+			));
+		} catch {}
+	}
+	return attempts.sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+}
+
+async function claimDeferredRunIntent(
+	context: WorkspaceContext,
+	intent: DeferredRunIntent,
+	options: {
+		now: Date;
+		leaseMs: number;
+	},
+): Promise<{ intent: DeferredRunIntent; attempt: DeferredRunAttempt } | undefined> {
+	const current = await readDeferredRunIntent(context, intent.id);
+	if (!isDeferredIntentDue(current, options.now)) {
+		return undefined;
+	}
+	const claimPath = deferredClaimPath(context, current.id);
+	const claimedAt = options.now.toISOString();
+	const attemptId = deferredAttemptId(current.id, claimedAt);
+	const leaseExpiresAt = new Date(options.now.getTime() + options.leaseMs).toISOString();
+	const executorId = `${process.pid}:${randomUUID()}`;
+	const claim = { intentId: current.id, attemptId, claimedAt, leaseExpiresAt, executorId };
+	try {
+		await writeNewJsonFile(claimPath, claim);
+	} catch (error) {
+		if (!isAlreadyExistsError(error)) {
+			throw error;
+		}
+		const existing = await readClaimFile(claimPath);
+		if (!existing || existing.leaseExpiresAt > options.now.toISOString()) {
+			return undefined;
+		}
+		await rm(claimPath, { force: true });
+		try {
+			await writeNewJsonFile(claimPath, claim);
+		} catch (retryError) {
+			if (isAlreadyExistsError(retryError)) {
+				return undefined;
+			}
+			throw retryError;
+		}
+	}
+	const attempt: DeferredRunAttempt = {
+		id: attemptId,
+		intentId: current.id,
+		status: "running",
+		mode: context.mode,
+		startedAt: claimedAt,
+		executorId,
+		leaseExpiresAt,
+	};
+	const running: DeferredRunIntent = {
+		...current,
+		status: "running",
+		updatedAt: claimedAt,
+		lease: {
+			attemptId,
+			claimedAt,
+			expiresAt: leaseExpiresAt,
+			executorId,
+		},
+	};
+	await writeJsonFileAtomic(deferredIntentPath(context, current.id), running);
+	return { intent: running, attempt };
+}
+
+async function releaseDeferredRunClaim(
+	context: WorkspaceContext,
+	intentId: string,
+): Promise<void> {
+	await rm(deferredClaimPath(context, intentId), { force: true });
+}
+
+async function readClaimFile(file: string): Promise<{ leaseExpiresAt: string } | undefined> {
+	try {
+		const parsed = parseJsonText(await readFile(file, "utf8"), file);
+		return isRecord(parsed) && typeof parsed.leaseExpiresAt === "string"
+			? { leaseExpiresAt: parsed.leaseExpiresAt }
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function parseDeferredRunCreateParams(value: unknown): DeferredRunCreateParams {
+	const input = record(value);
+	const runAt = optionalString(input.runAt);
+	if (runAt && Number.isNaN(Date.parse(runAt))) {
+		throw new Error(`Deferred run runAt must be an ISO-compatible date: ${runAt}`);
+	}
+	const target = parseDeferredRunTarget(input.target);
+	const source = recordOrUndefined(input.source);
+	return compactUndefined({
+		id: optionalString(input.id),
+		runAt,
+		target,
+		createdBy: optionalString(input.createdBy),
+		reason: optionalString(input.reason),
+		source,
+	});
+}
+
+function parseDeferredRunTarget(value: unknown): DeferredRunTarget {
+	const target = record(value);
+	const kind = requiredString(target.kind, "deferred run target kind");
+	if (kind === "workspace-task") {
+		return {
+			kind,
+			taskId: requiredString(target.taskId, "deferred run workspace-task taskId"),
+		};
+	}
+	if (kind === "automation") {
+		return compactUndefined({
+			kind,
+			automation: requiredString(target.automation, "deferred run automation target automation"),
+			event: recordOrUndefined(target.event),
+			prompt: optionalString(target.prompt),
+			cwd: optionalString(target.cwd),
+			model: optionalString(target.model),
+			sandbox: sandboxValue(target.sandbox, "deferred run automation target sandbox"),
+			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "deferred run automation target approvalPolicy"),
+			permissions: optionalString(target.permissions),
+		});
+	}
+	if (kind === "turn") {
+		const prompt = requiredString(target.prompt, "deferred run turn target prompt");
+		return compactUndefined({
+			kind,
+			prompt,
+			threadId: optionalString(target.threadId),
+			cwd: optionalString(target.cwd),
+			model: optionalString(target.model),
+			serviceTier: optionalString(target.serviceTier),
+			sandbox: sandboxValue(target.sandbox, "deferred run turn target sandbox"),
+			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "deferred run turn target approvalPolicy"),
+			permissions: optionalString(target.permissions),
+			responsesapiClientMetadata: stringRecord(target.responsesapiClientMetadata),
+			outputSchema: target.outputSchema,
+		});
+	}
+	throw new Error(`Invalid deferred run target kind: ${kind}`);
+}
+
+function normalizeDeferredRunIntent(value: unknown): DeferredRunIntent {
+	const input = record(value);
+	return {
+		id: requiredString(input.id, "deferred run id"),
+		status: deferredRunStatus(input.status),
+		mode: workspaceMode(input.mode),
+		runAt: requiredString(input.runAt, "deferred run runAt"),
+		target: parseDeferredRunTarget(input.target),
+		createdAt: requiredString(input.createdAt, "deferred run createdAt"),
+		updatedAt: requiredString(input.updatedAt, "deferred run updatedAt"),
+		createdBy: optionalString(input.createdBy),
+		reason: optionalString(input.reason),
+		source: recordOrUndefined(input.source),
+		attemptIds: Array.isArray(input.attemptIds)
+			? input.attemptIds.filter((entry): entry is string => typeof entry === "string")
+			: [],
+		lease: isRecord(input.lease)
+			? {
+				attemptId: requiredString(input.lease.attemptId, "deferred run lease attemptId"),
+				claimedAt: requiredString(input.lease.claimedAt, "deferred run lease claimedAt"),
+				expiresAt: requiredString(input.lease.expiresAt, "deferred run lease expiresAt"),
+				executorId: requiredString(input.lease.executorId, "deferred run lease executorId"),
+			}
+			: undefined,
+		completedAt: optionalString(input.completedAt),
+		canceledAt: optionalString(input.canceledAt),
+		error: optionalString(input.error),
+	};
+}
+
+function normalizeDeferredRunAttempt(value: unknown): DeferredRunAttempt {
+	const input = record(value);
+	return {
+		id: requiredString(input.id, "deferred run attempt id"),
+		intentId: requiredString(input.intentId, "deferred run attempt intentId"),
+		status: deferredAttemptStatus(input.status),
+		mode: workspaceMode(input.mode),
+		startedAt: requiredString(input.startedAt, "deferred run attempt startedAt"),
+		finishedAt: optionalString(input.finishedAt),
+		executorId: requiredString(input.executorId, "deferred run attempt executorId"),
+		leaseExpiresAt: requiredString(input.leaseExpiresAt, "deferred run attempt leaseExpiresAt"),
+		outputPath: optionalString(input.outputPath),
+		error: optionalString(input.error),
+	};
+}
+
+function dueTasks(
+	tasks: WorkspaceTask[],
+	runs: WorkspaceRunRecord[],
+	now: Date,
+	intents: DeferredRunIntent[] = [],
+): WorkspaceTask[] {
 	return tasks.filter((task) => {
 		if (!task.enabled) {
 			return false;
@@ -670,7 +1410,9 @@ function dueTasks(tasks: WorkspaceTask[], runs: WorkspaceRunRecord[], now: Date)
 		if (!task.schedule) {
 			return false;
 		}
-		return isScheduleDue(task.schedule, now) && !hasRunForDate(task.id, runs, now);
+		return isScheduleDue(task.schedule, now) &&
+			!hasRunForDate(task.id, runs, now) &&
+			!hasScheduledIntentForDate(task.id, intents, now);
 	});
 }
 
@@ -697,6 +1439,46 @@ function cronPartMatches(part: string | undefined, value: number): boolean {
 function hasRunForDate(taskId: string, runs: WorkspaceRunRecord[], now: Date): boolean {
 	const today = now.toISOString().slice(0, 10);
 	return runs.some((run) => run.taskId === taskId && run.startedAt.startsWith(today));
+}
+
+function hasScheduledIntentForDate(
+	taskId: string,
+	intents: DeferredRunIntent[],
+	now: Date,
+): boolean {
+	const expected = scheduledDeferredRunId(taskId, now);
+	return intents.some((intent) =>
+		intent.id === expected ||
+		(
+			intent.target.kind === "workspace-task" &&
+			intent.target.taskId === taskId &&
+			intent.source?.kind === "workspace-task-schedule" &&
+			intent.source.date === now.toISOString().slice(0, 10)
+		)
+	);
+}
+
+function isDeferredIntentDue(intent: DeferredRunIntent, now: Date): boolean {
+	if (intent.status === "pending") {
+		return intent.runAt <= now.toISOString();
+	}
+	if (intent.status === "running" && intent.lease?.expiresAt) {
+		return intent.lease.expiresAt <= now.toISOString();
+	}
+	return false;
+}
+
+function isTerminalDeferredRunStatus(
+	status: DeferredRunIntentStatus,
+): status is Extract<DeferredRunIntentStatus, "completed" | "failed" | "canceled"> {
+	return status === "completed" || status === "failed" || status === "canceled";
+}
+
+function isWorkspaceRunRecord(value: unknown): value is WorkspaceRunRecord {
+	const input = record(value);
+	return typeof input.id === "string" &&
+		typeof input.taskId === "string" &&
+		(input.status === "completed" || input.status === "failed" || input.status === "skipped");
 }
 
 function countFailingTasks(tasks: WorkspaceTask[], runs: WorkspaceRunRecord[]): number {
@@ -753,6 +1535,83 @@ async function ensureStateDirs(context: WorkspaceContext): Promise<void> {
 	for (const name of ["state", "runs", "outputs", "health"]) {
 		await mkdir(path.join(context.stateRoot, name), { recursive: true });
 	}
+}
+
+async function ensureDeferredRunDirs(context: WorkspaceContext): Promise<void> {
+	for (const dir of [
+		deferredIntentDir(context),
+		deferredAttemptDir(context),
+		deferredOutputDir(context),
+		deferredClaimDir(context),
+	]) {
+		await mkdir(dir, { recursive: true });
+	}
+}
+
+function deferredRoot(context: WorkspaceContext): string {
+	return path.join(context.stateRoot, "deferred");
+}
+
+function deferredIntentDir(context: WorkspaceContext): string {
+	return path.join(deferredRoot(context), "intents");
+}
+
+function deferredAttemptDir(context: WorkspaceContext): string {
+	return path.join(deferredRoot(context), "attempts");
+}
+
+function deferredOutputDir(context: WorkspaceContext): string {
+	return path.join(deferredRoot(context), "outputs");
+}
+
+function deferredClaimDir(context: WorkspaceContext): string {
+	return path.join(deferredRoot(context), "claims");
+}
+
+function deferredIntentPath(context: WorkspaceContext, intentId: string): string {
+	return path.join(deferredIntentDir(context), `${safeFileSegment(intentId)}.json`);
+}
+
+function deferredAttemptPath(context: WorkspaceContext, attemptId: string): string {
+	return path.join(deferredAttemptDir(context), `${safeFileSegment(attemptId)}.json`);
+}
+
+function deferredClaimPath(context: WorkspaceContext, intentId: string): string {
+	return path.join(deferredClaimDir(context), `${safeFileSegment(intentId)}.json`);
+}
+
+function deferredRunId(createdAt: string): string {
+	return `deferred-${createdAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
+}
+
+function deferredAttemptId(intentId: string, startedAt: string): string {
+	return `${startedAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}-${safeFileSegment(intentId).slice(0, 48)}`;
+}
+
+function scheduledDeferredRunId(taskId: string, now: Date): string {
+	return `scheduled-${safeFileSegment(taskId)}-${now.toISOString().slice(0, 10)}`;
+}
+
+function safeFileSegment(value: string): string {
+	const safe = value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+	return safe.slice(0, 120) || "deferred-run";
+}
+
+async function writeNewJsonFile(file: string, value: unknown): Promise<void> {
+	await mkdir(path.dirname(file), { recursive: true });
+	const handle = await open(file, "wx");
+	try {
+		await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`);
+	} finally {
+		await handle.close();
+	}
+}
+
+async function writeJsonFileAtomic(file: string, value: unknown): Promise<void> {
+	await mkdir(path.dirname(file), { recursive: true });
+	const tmpPath = `${file}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
+	await writeFile(tmpPath, `${JSON.stringify(value, null, 2)}\n`);
+	await rename(tmpPath, file);
 }
 
 async function writeScaffoldFile(
@@ -967,6 +1826,10 @@ function optionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function recordOrUndefined(value: unknown): Record<string, unknown> | undefined {
+	return isRecord(value) ? value : undefined;
+}
+
 function record(value: unknown): Record<string, unknown> {
 	return isRecord(value) ? value : {};
 }
@@ -992,6 +1855,78 @@ function booleanValue(value: unknown, label: string): boolean {
 	return value;
 }
 
+function stringRecord(value: unknown): Record<string, string> | undefined {
+	if (!isRecord(value)) {
+		return undefined;
+	}
+	const entries = Object.entries(value).filter((entry): entry is [string, string] =>
+		typeof entry[1] === "string"
+	);
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function sandboxValue(
+	value: unknown,
+	label: string,
+): "danger-full-access" | "read-only" | "workspace-write" | undefined {
+	if (
+		value === "danger-full-access" ||
+		value === "read-only" ||
+		value === "workspace-write"
+	) {
+		return value;
+	}
+	if (value !== undefined) {
+		throw new Error(`${label} must be danger-full-access, workspace-write, or read-only`);
+	}
+	return undefined;
+}
+
+function approvalPolicyValue(
+	value: unknown,
+	label: string,
+): "never" | "on-failure" | "on-request" | "untrusted" | undefined {
+	if (
+		value === "never" ||
+		value === "on-failure" ||
+		value === "on-request" ||
+		value === "untrusted"
+	) {
+		return value;
+	}
+	if (value !== undefined) {
+		throw new Error(`${label} must be never, on-failure, on-request, or untrusted`);
+	}
+	return undefined;
+}
+
+function deferredRunStatus(value: unknown): DeferredRunIntentStatus {
+	if (
+		value === "pending" ||
+		value === "running" ||
+		value === "completed" ||
+		value === "failed" ||
+		value === "canceled"
+	) {
+		return value;
+	}
+	throw new Error(`Invalid deferred run status: ${String(value)}`);
+}
+
+function deferredAttemptStatus(value: unknown): DeferredRunAttempt["status"] {
+	if (value === "running" || value === "completed" || value === "failed") {
+		return value;
+	}
+	throw new Error(`Invalid deferred run attempt status: ${String(value)}`);
+}
+
+function workspaceMode(value: unknown): WorkspaceMode {
+	if (value === "local" || value === "actions") {
+		return value;
+	}
+	throw new Error(`Invalid workspace mode: ${String(value)}`);
+}
+
 function positiveInteger(value: unknown, label: string): number {
 	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
 		throw new Error(`${label} must be a positive integer`);
@@ -1001,6 +1936,21 @@ function positiveInteger(value: unknown, label: string): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function clampLimit(value: number | undefined, fallback: number): number {
+	if (value === undefined || !Number.isFinite(value)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(1_000, Math.trunc(value)));
+}
+
+function isNotFoundError(error: unknown): boolean {
+	return isRecord(error) && error.code === "ENOENT";
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+	return isRecord(error) && error.code === "EEXIST";
 }
 
 async function exists(file: string): Promise<boolean> {

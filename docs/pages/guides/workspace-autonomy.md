@@ -20,11 +20,21 @@ generated state live under `.codex`.
       runs/
       outputs/
       health/
+      deferred/
+        intents/
+        attempts/
+        outputs/
+        claims/
     local/
       state/
       runs/
       outputs/
       health/
+      deferred/
+        intents/
+        attempts/
+        outputs/
+        claims/
 ```
 
 There is no root-level `workspace/` directory and no persistent `logs/`
@@ -50,6 +60,9 @@ and memories. This is enforced centrally: `createWorkspaceContext({ mode:
 codex-toys workspace doctor
 codex-toys workspace tick --mode local
 codex-toys workspace run morning-brief --mode actions
+codex-toys workspace deferred create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workspace."}}'
+codex-toys workspace deferred list --json
+codex-toys workspace deferred run-due
 codex-toys workspace init actions --forgejo
 CODEX_WORKSPACE_MODE=actions codex-toys workspace doctor
 ```
@@ -59,9 +72,15 @@ roots, task health, latest run, memory roots, memory summary presence, and
 toybox status when reachable. In Actions mode it reports an error if
 the runtime Codex home would not be `<repo>/.codex`.
 
-`tick` runs due scheduled tasks once and evaluates reactive rules.
+`tick` creates due scheduled task intents, runs due deferred intents once, and
+evaluates reactive rules.
 
 `run <task-id>` runs one configured task immediately.
+
+`deferred create`, `list`, `read`, `cancel`, `run-due`, and `prune` manage
+durable future run intents. A deferred target can wrap a direct Codex turn, a
+named turn automation, or a configured workspace task. Pruning is explicit and
+only removes terminal history older than the requested retention window.
 
 `init actions` scaffolds an Actions-ready workspace. The command can generate:
 
@@ -188,6 +207,17 @@ consecutive_failures_gte = 3
 kind = "skill"
 skill = "skill-repair"
 ```
+
+## Deferred Runs
+
+Deferred runs are mode-scoped. Local mode writes to `.codex/workspace/local`;
+Actions mode writes to `.codex/workspace/actions`. SSH operation is transport:
+`--ssh --cwd /repo` operates the remote workspace's local queue.
+
+Each intent has a `runAt` time, target, status, and separate attempt records.
+One-shot intents run at most once unless a new retry intent is created. Recurring
+workspace schedules produce task intents, so scheduled and one-shot work share
+the same claiming, output, and inspection path.
 
 ## Actions Mode
 

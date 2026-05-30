@@ -9,12 +9,19 @@ export {
 export {
 	CodexToyboxClient,
 	CodexToyboxProtocolServer,
+	WORKSPACE_DEFERRED_CANCEL_METHOD,
+	WORKSPACE_DEFERRED_CREATE_METHOD,
+	WORKSPACE_DEFERRED_LIST_METHOD,
+	WORKSPACE_DEFERRED_PRUNE_METHOD,
+	WORKSPACE_DEFERRED_READ_METHOD,
+	WORKSPACE_DEFERRED_RUN_DUE_METHOD,
 	type CodexToyboxAppServer,
 	type CodexToyboxClientOptions,
 	type CodexToyboxPeer,
 	type CodexToyboxProtocolServerOptions,
 	type CodexToyboxTransport,
 	type ToyboxEvent,
+	type WorkspaceDeferredRunRuntimeOptions,
 } from "./toybox/index.ts";
 export {
 	CodexStdioTransport,

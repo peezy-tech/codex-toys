@@ -4,10 +4,16 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "../src/cli/args.ts";
 import {
+	cancelDeferredRunIntent,
 	collectWorkspaceDoctorInfo,
+	createDeferredRunIntent,
 	createWorkspaceContext,
+	listDeferredRunIntents,
 	loadWorkspaceConfig,
+	pruneDeferredRunHistory,
+	readDeferredRun,
 	resolveWorkspaceMode,
+	runDueDeferredRuns,
 	runWorkspaceTaskById,
 	scaffoldActionsWorkspace,
 	tickWorkspace,
@@ -58,6 +64,22 @@ describe("workspace autonomy", () => {
 			.toMatchObject({ type: "workspace-tick", workspaceRoot: "/tmp/work" });
 		expect(parseArgs(["workspace", "run", "morning-brief"], {}))
 			.toMatchObject({ type: "workspace-run", taskId: "morning-brief" });
+		expect(parseArgs([
+			"workspace",
+			"deferred",
+			"create",
+			"--params-json",
+			"{\"target\":{\"kind\":\"turn\",\"prompt\":\"review later\"}}",
+		], {})).toMatchObject({
+			type: "workspace-deferred-create",
+			paramsText: "{\"target\":{\"kind\":\"turn\",\"prompt\":\"review later\"}}",
+		});
+		expect(parseArgs(["workspace", "deferred", "list", "--json"], {}))
+			.toMatchObject({ type: "workspace-deferred-list", json: true });
+		expect(parseArgs(["workspace", "deferred", "run-due"], {}))
+			.toMatchObject({ type: "workspace-deferred-run-due" });
+		expect(parseArgs(["workspace", "deferred", "prune", "--older-than-days", "30", "--dry-run"], {}))
+			.toMatchObject({ type: "workspace-deferred-prune", olderThanDays: 30, dryRun: true });
 		expect(() => parseArgs(["workspace", "backend", "start"], {}))
 			.toThrow("toybox service commands have been removed");
 		expect(parseArgs(["workspace", "call", "delegation.list"], {}))
@@ -167,7 +189,310 @@ schedule = "* * * * *"
 		const doctor = await collectWorkspaceDoctorInfo(context);
 		expect(doctor.taskCount).toBe(1);
 		expect(doctor.latestRun?.taskId).toBe("command-due");
+		expect(doctor.deferredCount).toBe(1);
 		expect(doctor.errors).toEqual([]);
+	});
+
+	test("creates and runs one-shot deferred workspace task intents once", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "hello"
+enabled = true
+kind = "command"
+command = ["node", "-e", "console.log('hello deferred')"]
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const intent = await createDeferredRunIntent(context, {
+			runAt: "2026-01-01T00:00:00.000Z",
+			target: {
+				kind: "workspace-task",
+				taskId: "hello",
+			},
+			reason: "one shot",
+		});
+
+		const first = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+		const second = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:02.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+
+		expect(first.executions).toHaveLength(1);
+		expect(second.executions).toHaveLength(0);
+		const read = await readDeferredRun(context, intent.id);
+		expect(read.intent.status).toBe("completed");
+		expect(read.attempts).toHaveLength(1);
+		expect(read.attempts[0]?.status).toBe("completed");
+		const workspaceRun = JSON.parse(await readFile(read.attempts[0]!.outputPath!, "utf8"))
+			.workspaceRun as { taskId: string; status: string };
+		expect(workspaceRun).toMatchObject({
+			taskId: "hello",
+			status: "completed",
+		});
+	});
+
+	test("does not run future deferred intents and supports canceling pending work", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "hello"
+enabled = true
+kind = "command"
+command = ["node", "--version"]
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const intent = await createDeferredRunIntent(context, {
+			runAt: "2026-01-02T00:00:00.000Z",
+			target: {
+				kind: "workspace-task",
+				taskId: "hello",
+			},
+		});
+
+		const result = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T23:59:59.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+		expect(result.executions).toEqual([]);
+		expect((await cancelDeferredRunIntent(context, intent.id)).status).toBe("canceled");
+	});
+
+	test("prunes only terminal deferred run history older than the retention window", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "hello"
+enabled = true
+kind = "command"
+command = ["node", "-e", "console.log('prune me')"]
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const completed = await createDeferredRunIntent(context, {
+			runAt: "2026-01-01T00:00:00.000Z",
+			target: {
+				kind: "workspace-task",
+				taskId: "hello",
+			},
+		});
+		const pending = await createDeferredRunIntent(context, {
+			runAt: "2100-01-01T00:00:00.000Z",
+			target: {
+				kind: "workspace-task",
+				taskId: "hello",
+			},
+		});
+
+		await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+		const before = await readDeferredRun(context, completed.id);
+		const outputPath = before.attempts[0]?.outputPath;
+		expect(outputPath).toBeTruthy();
+		const dryRun = await pruneDeferredRunHistory(context, {
+			olderThanDays: 1,
+			dryRun: true,
+			now: new Date("2100-01-03T00:00:00.000Z"),
+		});
+		expect(dryRun.pruned).toBe(1);
+		expect(await readFile(outputPath!, "utf8")).toContain("workspaceRun");
+
+		const pruned = await pruneDeferredRunHistory(context, {
+			olderThanDays: 1,
+			now: new Date("2100-01-03T00:00:00.000Z"),
+		});
+		expect(pruned.pruned).toBe(1);
+		await expect(readDeferredRun(context, completed.id)).rejects.toThrow("Unknown deferred run");
+		await expect(readFile(outputPath!, "utf8")).rejects.toThrow();
+		expect((await readDeferredRun(context, pending.id)).intent.status).toBe("pending");
+	});
+
+	test("runs direct turn deferred intents through app-server pass-through", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `[workspace]\nname = "demo"\n`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		await createDeferredRunIntent(context, {
+			runAt: "2026-01-01T00:00:00.000Z",
+			target: {
+				kind: "turn",
+				prompt: "Review the workspace later.",
+				cwd: root,
+			},
+		});
+		const calls: Array<{ method: string; params: unknown }> = [];
+		const result = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox: async (method, params) => {
+				calls.push({ method, params });
+				const appMethod = String((params as { method?: unknown }).method);
+				if (appMethod === "thread/start") {
+					return { thread: { id: "thread-1" } };
+				}
+				if (appMethod === "turn/start") {
+					return { turn: { id: "turn-1" } };
+				}
+				if (appMethod === "thread/read") {
+					return {
+						thread: {
+							turns: [{
+								id: "turn-1",
+								status: "completed",
+								items: [{
+									type: "agentMessage",
+									phase: "final_answer",
+									text: "Done",
+								}],
+							}],
+						},
+					};
+				}
+				return { ok: true };
+			},
+		});
+
+		expect(result.executions).toHaveLength(1);
+		expect(result.executions[0]?.intent.status).toBe("completed");
+		expect(calls.map((call) => (call.params as { method?: string }).method)).toEqual([
+			"thread/start",
+			"turn/start",
+			"thread/read",
+		]);
+	});
+
+	test("runs direct automation deferred intents through the turn automation host", async () => {
+		const root = await tempWorkspace();
+		const automationRoot = path.join(root, "automations", "release-check");
+		await mkdir(automationRoot, { recursive: true });
+		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+			script: "check.ts",
+			prompt: "inspect",
+		}));
+		await writeFile(path.join(automationRoot, "check.ts"), `
+export default async function run(context) {
+  return {
+    status: "skipped",
+    reason: context.event.payload.reason
+  };
+}
+`);
+		await writeWorkspaceToml(root, `[workspace]\nname = "demo"\n`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		await createDeferredRunIntent(context, {
+			runAt: "2026-01-01T00:00:00.000Z",
+			target: {
+				kind: "automation",
+				automation: "release-check",
+				event: {
+					type: "manual.review",
+					payload: {
+						reason: "later",
+					},
+				},
+			},
+		});
+
+		const result = await runDueDeferredRuns(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+
+		expect(result.executions).toHaveLength(1);
+		expect(result.executions[0]?.intent.status).toBe("completed");
+		expect(result.executions[0]?.output).toMatchObject({
+			status: "skipped",
+			reason: "later",
+		});
+	});
+
+	test("keeps local and actions deferred queues separate", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `[workspace]\nname = "demo"\n`);
+		const local = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const actions = await createWorkspaceContext({ workspaceRoot: root, mode: "actions", env: {} });
+		await createDeferredRunIntent(local, {
+			target: {
+				kind: "turn",
+				prompt: "local review",
+			},
+		});
+		await createDeferredRunIntent(actions, {
+			target: {
+				kind: "turn",
+				prompt: "actions review",
+			},
+		});
+
+		expect(await listDeferredRunIntents(local)).toHaveLength(1);
+		expect(await listDeferredRunIntents(actions)).toHaveLength(1);
+		expect((await listDeferredRunIntents(local))[0]?.target).toMatchObject({
+			kind: "turn",
+			prompt: "local review",
+		});
+		expect((await listDeferredRunIntents(actions))[0]?.target).toMatchObject({
+			kind: "turn",
+			prompt: "actions review",
+		});
+	});
+
+	test("claims due deferred intents once across overlapping runners", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "slow"
+enabled = true
+kind = "command"
+command = ["node", "-e", "setTimeout(() => console.log('done'), 100)"]
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		await createDeferredRunIntent(context, {
+			runAt: "2026-01-01T00:00:00.000Z",
+			target: {
+				kind: "workspace-task",
+				taskId: "slow",
+			},
+		});
+		const [left, right] = await Promise.all([
+			runDueDeferredRuns(context, {
+				now: new Date("2026-01-01T00:00:01.000Z"),
+				callToybox: async () => {
+					throw new Error("unused");
+				},
+			}),
+			runDueDeferredRuns(context, {
+				now: new Date("2026-01-01T00:00:01.000Z"),
+				callToybox: async () => {
+					throw new Error("unused");
+				},
+			}),
+		]);
+
+		expect(left.executions.length + right.executions.length).toBe(1);
 	});
 
 	test("automation tasks run scripts and start turns through toybox", async () => {

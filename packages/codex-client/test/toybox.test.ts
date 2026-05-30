@@ -5,6 +5,7 @@ import path from "node:path";
 import {
 	CodexToyboxClient,
 	CodexToyboxProtocolServer,
+	createWorkspaceDeferredRunMethods,
 	createWorkspaceDelegationMethods,
 	type CodexToyboxAppServer,
 	type CodexToyboxPeer,
@@ -249,6 +250,44 @@ describe("Codex toybox protocol", () => {
 			{ cwd: target, prompt: "absolute path without gate" },
 			jsonRpcRequest("absolute", "delegation.start"),
 		)).rejects.toThrow(/Absolute delegation cwd requires/);
+	});
+
+	test("deferred run methods persist mode-scoped intents", async () => {
+		const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-deferred-"));
+		await mkdir(path.join(workspaceRoot, ".codex"), { recursive: true });
+		const methods = createWorkspaceDeferredRunMethods({
+			workspaceRoot,
+			appRequest: async () => ({ ok: true }),
+			workspaceRequest: async () => ({ ok: true }),
+		});
+
+		const created = await methods["deferred.create"]!(
+			{
+				target: {
+					kind: "turn",
+					prompt: "review later",
+				},
+			},
+			jsonRpcRequest("create", "deferred.create"),
+		) as { intent: { id: string; status: string } };
+		const listed = await methods["deferred.list"]!(
+			{},
+			jsonRpcRequest("list", "deferred.list"),
+		) as { intents: Array<{ id: string; status: string }> };
+		const pruned = await methods["deferred.prune"]!(
+			{
+				olderThanDays: 1,
+				dryRun: true,
+			},
+			jsonRpcRequest("prune", "deferred.prune"),
+		) as { pruned: number };
+
+		expect(created.intent.status).toBe("pending");
+		expect(listed.intents).toContainEqual(expect.objectContaining({
+			id: created.intent.id,
+			status: "pending",
+		}));
+		expect(pruned.pruned).toBe(0);
 	});
 });
 

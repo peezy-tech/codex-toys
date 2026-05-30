@@ -164,6 +164,9 @@ codex-toys workspace app thread/list --params-json '{"limit":20,"sourceKinds":[]
 codex-toys workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
 codex-toys workspace doctor
 codex-toys workspace tick --mode local
+codex-toys workspace deferred create --params-json '{"target":{"kind":"turn","prompt":"Review later."}}'
+codex-toys workspace deferred list --json
+codex-toys workspace deferred prune --older-than-days 30 --dry-run
 codex-toys memories transplant global-to-workspace
 codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
 

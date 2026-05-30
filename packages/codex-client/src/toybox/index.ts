@@ -82,3 +82,14 @@ export {
 	type WorkspaceDelegationRuntimeOptions,
 	type WorkspaceDelegationTarget,
 } from "./delegation-methods.ts";
+export {
+	WORKSPACE_DEFERRED_CANCEL_METHOD,
+	WORKSPACE_DEFERRED_CREATE_METHOD,
+	WORKSPACE_DEFERRED_LIST_METHOD,
+	WORKSPACE_DEFERRED_PRUNE_METHOD,
+	WORKSPACE_DEFERRED_READ_METHOD,
+	WORKSPACE_DEFERRED_RUN_DUE_METHOD,
+	createWorkspaceDeferredRunMethods,
+	workspaceDeferredRunMethodMetadata,
+	type WorkspaceDeferredRunRuntimeOptions,
+} from "./deferred-run-methods.ts";

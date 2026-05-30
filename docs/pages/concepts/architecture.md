@@ -9,6 +9,9 @@ codex-toys centers on plugin-native prompt automation and native Codex turns.
 The primary runtime is intentionally narrow: a named automation runs code,
 decides whether work is needed, and can start, wait on, and compose native
 app-server turns only when there is something worth asking Codex to do.
+Workspace schedules and operator requests can also create deferred run intents,
+which the toybox claims and executes through the same turn automation,
+workspace task, or native turn primitives.
 
 ```mermaid
 sequenceDiagram

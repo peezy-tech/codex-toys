@@ -95,11 +95,18 @@ import {
 import {
 	collectWorkspaceDoctorInfo,
 	commitActionsWorkspaceState,
+	cancelDeferredRunIntent,
 	createWorkspaceContext,
+	createDeferredRunIntent,
+	listDeferredRunIntents,
+	pruneDeferredRunHistory,
+	readDeferredRun,
 	formatWorkspaceDoctorInfo,
+	runDueDeferredRuns,
 	runWorkspaceTaskById,
 	scaffoldActionsWorkspace,
 	tickWorkspace,
+	type DeferredRunIntent,
 } from "./workspace-autonomy.ts";
 import {
 	formatWorkspaceDelegationListResult,
@@ -397,6 +404,126 @@ async function main(): Promise<void> {
 				message: `Update Codex workspace state for ${parsed.taskId}`,
 			}),
 		}, parsed.pretty);
+		return;
+	}
+	if (parsed.type === "workspace-deferred-create") {
+		const params = await readParams(parsed.paramsText, parsed.paramsFile);
+		const result = hasSshRemote(parsed)
+			? await callToybox("deferred.create", compactUndefined({
+				...record(params),
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}), parsed)
+			: {
+				intent: await createDeferredRunIntent(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					params,
+				),
+			};
+		writeJson(result, parsed.pretty);
+		return;
+	}
+	if (parsed.type === "workspace-deferred-list") {
+		if (hasSshRemote(parsed)) {
+			const result = await callToybox("deferred.list", compactUndefined({
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}), parsed);
+			write(parsed.json
+				? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+				: formatDeferredRunList((record(result).intents ?? []) as DeferredRunIntent[]));
+			return;
+		}
+		const context = await createWorkspaceContext({
+			workspaceRoot: parsed.workspaceRoot,
+			mode: parsed.mode,
+		});
+		const intents = await listDeferredRunIntents(context);
+		write(parsed.json
+			? `${JSON.stringify({ intents }, null, parsed.pretty ? 2 : 0)}\n`
+			: formatDeferredRunList(intents));
+		return;
+	}
+	if (parsed.type === "workspace-deferred-read") {
+		const result = hasSshRemote(parsed)
+			? await callToybox("deferred.read", compactUndefined({
+				id: parsed.intentId,
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}), parsed)
+			: await readDeferredRun(
+				await createWorkspaceContext({
+					workspaceRoot: parsed.workspaceRoot,
+					mode: parsed.mode,
+				}),
+				parsed.intentId,
+			);
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: `${JSON.stringify(result, null, 2)}\n`);
+		return;
+	}
+	if (parsed.type === "workspace-deferred-cancel") {
+		const result = hasSshRemote(parsed)
+			? await callToybox("deferred.cancel", compactUndefined({
+				id: parsed.intentId,
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}), parsed)
+			: {
+				intent: await cancelDeferredRunIntent(
+					await createWorkspaceContext({
+						workspaceRoot: parsed.workspaceRoot,
+						mode: parsed.mode,
+					}),
+					parsed.intentId,
+				),
+			};
+		writeJson(result, parsed.pretty);
+		return;
+	}
+	if (parsed.type === "workspace-deferred-run-due") {
+		const result = hasSshRemote(parsed)
+			? await callToybox("deferred.runDue", compactUndefined({
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}), parsed)
+			: await runDueDeferredRuns(
+				await createWorkspaceContext({
+					workspaceRoot: parsed.workspaceRoot,
+					mode: parsed.mode,
+				}),
+				{
+					callToybox: async (method, params) =>
+						await callToybox(method, params, parsed),
+					automationCwd: parsed.cwd,
+				},
+			);
+		writeJson(result, parsed.pretty);
+		return;
+	}
+	if (parsed.type === "workspace-deferred-prune") {
+		const result = hasSshRemote(parsed)
+			? await callToybox("deferred.prune", compactUndefined({
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+				olderThanDays: parsed.olderThanDays,
+				dryRun: parsed.dryRun,
+			}), parsed)
+			: await pruneDeferredRunHistory(
+				await createWorkspaceContext({
+					workspaceRoot: parsed.workspaceRoot,
+					mode: parsed.mode,
+				}),
+				{
+					olderThanDays: parsed.olderThanDays,
+					dryRun: parsed.dryRun,
+				},
+			);
+		writeJson(result, parsed.pretty);
 		return;
 	}
 	if (parsed.type === "workspace-init-actions") {
@@ -1048,6 +1175,28 @@ function truncate(value: string, maxLength: number): string {
 	return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
 }
 
+function formatDeferredRunList(intents: DeferredRunIntent[]): string {
+	if (intents.length === 0) {
+		return "No deferred runs found.\n";
+	}
+	return intents.map((intent) => [
+		intent.id,
+		intent.status,
+		intent.runAt,
+		deferredTargetLabel(intent.target),
+	].join("  ")).join("\n") + "\n";
+}
+
+function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
+	if (target.kind === "workspace-task") {
+		return `workspace-task:${target.taskId}`;
+	}
+	if (target.kind === "automation") {
+		return `automation:${target.automation}`;
+	}
+	return "turn";
+}
+
 function record(value: unknown): Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 		? value as Record<string, unknown>
@@ -1152,6 +1301,12 @@ Usage:
   codex-toys workspace doctor [--mode auto|local|actions] [--json]
   codex-toys workspace tick [--mode auto|local|actions]
   codex-toys workspace run <task-id> [--mode auto|local|actions]
+  codex-toys workspace deferred create --params-json <json>
+  codex-toys workspace deferred list [--mode auto|local|actions] [--json]
+  codex-toys workspace deferred read <intent-id> [--json]
+  codex-toys workspace deferred cancel <intent-id>
+  codex-toys workspace deferred run-due [--mode auto|local|actions]
+  codex-toys workspace deferred prune --older-than-days <days> [--dry-run]
   codex-toys workspace init actions [--forgejo|--github]
 
   codex-toys actions prepare-auth
@@ -1211,6 +1366,8 @@ Options:
   --target-cwd <path>                        Delegation target cwd. Useful with
                                              --ssh, where --cwd selects the
                                              remote workspace root.
+  --dry-run                                  Preview supported write operations.
+  --older-than-days <days>                   Retention window for deferred prune.
   --via <workspace|app>                      Turn surface. Defaults to workspace.
   --sandbox <mode>                           Turn sandbox: danger-full-access,
                                              workspace-write, or read-only.
@@ -1252,6 +1409,7 @@ Examples:
   codex-toys workspace delegation.list
   codex-toys workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
   codex-toys workspace doctor --mode actions
+  codex-toys workspace deferred create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workspace."}}'
   codex-toys workspace init actions --forgejo
   codex-toys memories transplant global-to-workspace
   codex-toys threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex

@@ -7,7 +7,9 @@ import {
 	type CodexToyboxPeer,
 	type ToyboxMethodHandler,
 	type ToyboxMethodMetadata,
+	createWorkspaceDeferredRunMethods,
 	createWorkspaceDelegationMethods,
+	workspaceDeferredRunMethodMetadata,
 	workspaceDelegationMethodMetadata,
 } from "../toybox/index.ts";
 import {
@@ -88,6 +90,11 @@ export async function serveToybox(
 		appServer: client,
 		workspaceRoot,
 	}));
+	Object.assign(methods, createWorkspaceDeferredRunMethods({
+		appRequest: async (method, params) => await client.request(method, params),
+		workspaceRequest,
+		workspaceRoot,
+	}));
 	Object.assign(methods, createRemoteAutomationMethods({
 		cwd: workspaceRoot,
 		timeoutMs: options.timeoutMs,
@@ -101,11 +108,12 @@ export async function serveToybox(
 		serverVersion: "0.1.0",
 		methods,
 		toyboxMethodMetadata: [
-			...toyboxStatusMethodMetadata,
-			...workspaceFunctionMethodMetadata,
-			...workspaceDelegationMethodMetadata,
-			...remoteAutomationMethodMetadata,
-		],
+				...toyboxStatusMethodMetadata,
+				...workspaceFunctionMethodMetadata,
+				...workspaceDelegationMethodMetadata,
+				...workspaceDeferredRunMethodMetadata,
+				...remoteAutomationMethodMetadata,
+			],
 	});
 	const peer: CodexToyboxPeer = {
 		send: (message) => stdout.write(`${message}\n`),

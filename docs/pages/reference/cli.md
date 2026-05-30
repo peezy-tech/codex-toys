@@ -201,6 +201,12 @@ explicit opt-in.
 codex-toys workspace doctor [--mode auto|local|actions] [--json]
 codex-toys workspace tick [--mode auto|local|actions]
 codex-toys workspace run <task-id> [--mode auto|local|actions]
+codex-toys workspace deferred create --params-json <json>
+codex-toys workspace deferred list [--mode auto|local|actions] [--json]
+codex-toys workspace deferred read <intent-id> [--json]
+codex-toys workspace deferred cancel <intent-id>
+codex-toys workspace deferred run-due [--mode auto|local|actions]
+codex-toys workspace deferred prune --older-than-days <days> [--dry-run]
 codex-toys workspace init actions [--forgejo|--github]
 codex-toys actions prepare-auth
 codex-toys actions cleanup
@@ -209,6 +215,17 @@ codex-toys actions cleanup
 Workspace autonomy reads `.codex/workspace.toml`, writes local runtime state
 under `.codex/workspace/local`, and writes CI runtime state under
 `.codex/workspace/actions`.
+
+Deferred runs are durable future run intents in those same mode-specific state
+roots. A deferred target can wrap a direct Codex turn, a named turn automation,
+or a configured workspace task. `workspace tick` creates scheduled task intents
+and runs due deferred work; `workspace deferred run-due` runs only due deferred
+intents. With `--ssh`, deferred methods operate on the remote workspace's local
+queue through the SSH toybox.
+
+`workspace deferred prune` removes only terminal deferred history (`completed`,
+`failed`, or `canceled`) older than the requested retention window. Pending and
+running intents are never pruned.
 
 ## Memories
 

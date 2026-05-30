@@ -128,6 +128,8 @@ Run it locally without changing your active Codex home:
 ```bash
 codex-toys workspace doctor
 codex-toys workspace tick --mode local
+codex-toys workspace deferred list --json
+codex-toys workspace deferred prune --older-than-days 30 --dry-run
 ```
 
 Run it in CI with the repo `.codex` home:
@@ -147,6 +149,11 @@ codex-toys workspace init actions --forgejo
 Local generated state goes under `.codex/workspace/local`. Actions generated
 state goes under `.codex/workspace/actions`, and Actions mode always runs with
 `CODEX_HOME=<repo>/.codex`.
+
+Deferred runs add durable future run intents in those same mode-specific roots.
+They can wrap a direct Codex turn, a named turn automation, or a configured
+workspace task, and scheduled tasks now flow through the same intent/attempt
+inspection path.
 
 ## Memory Transplant In One Screen
 

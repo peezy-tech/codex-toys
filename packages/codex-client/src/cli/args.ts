@@ -185,6 +185,62 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
+			type: "workspace-deferred-create";
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			paramsText?: string;
+			paramsFile?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-deferred-list";
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-deferred-read";
+			intentId: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-deferred-cancel";
+			intentId: string;
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-deferred-run-due";
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
+			type: "workspace-deferred-prune";
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			olderThanDays: number;
+			dryRun: boolean;
+			url: string;
+			timeoutMs: number;
+			pretty: boolean;
+	  }
+	| {
 			type: "workspace-init-actions";
 			workspaceRoot?: string;
 			forgejo: boolean;
@@ -329,6 +385,8 @@ export function parseArgs(
 	let threadId: string | undefined;
 	let wait = false;
 	let allowAbsoluteCwd = false;
+	let dryRun = false;
+	let olderThanDays: number | undefined;
 	let model: string | undefined;
 	let paramsJson: string | undefined;
 	let paramsFile: string | undefined;
@@ -587,6 +645,18 @@ export function parseArgs(
 			}
 			if (arg === "--wait") {
 				wait = true;
+				continue;
+			}
+			if (arg === "--dry-run") {
+				dryRun = true;
+				continue;
+			}
+			if (arg === "--older-than-days") {
+				olderThanDays = positiveInteger(required(argv, ++index, arg), arg);
+				continue;
+			}
+			if (arg.startsWith("--older-than-days=")) {
+				olderThanDays = positiveInteger(arg.slice("--older-than-days=".length), "--older-than-days");
 				continue;
 			}
 			if (arg === "--allow-absolute-cwd") {
@@ -971,6 +1041,86 @@ export function parseArgs(
 				pretty,
 				...remoteFields(),
 			};
+		}
+		if (subcommand === "deferred" || subcommand === "defer") {
+			const action = positionals[2] ?? "list";
+			if (action === "create" || action === "add") {
+				return {
+					type: "workspace-deferred-create",
+					mode,
+					workspaceRoot,
+					...paramsSource(positionals.slice(3), paramsJson, paramsFile),
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "list" || action === "ls") {
+				return {
+					type: "workspace-deferred-list",
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "read" || action === "show") {
+				return {
+					type: "workspace-deferred-read",
+					intentId: requiredPositional(positionals, 3, "workspace deferred read requires <intent-id>"),
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "cancel") {
+				return {
+					type: "workspace-deferred-cancel",
+					intentId: requiredPositional(positionals, 3, "workspace deferred cancel requires <intent-id>"),
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "run-due" || action === "run") {
+				return {
+					type: "workspace-deferred-run-due",
+					mode,
+					workspaceRoot,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "prune") {
+				if (olderThanDays === undefined) {
+					throw new Error("workspace deferred prune requires --older-than-days");
+				}
+				return {
+					type: "workspace-deferred-prune",
+					mode,
+					workspaceRoot,
+					olderThanDays,
+					dryRun,
+					url: workspaceUrl,
+					timeoutMs,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			throw new Error("workspace deferred requires create, list, read, cancel, run-due, or prune");
 		}
 		if (subcommand === "run") {
 			return {
