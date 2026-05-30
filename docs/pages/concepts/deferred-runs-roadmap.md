@@ -7,7 +7,7 @@ description: Recommended order for turning deferred run intents into a complete 
 
 Deferred runs give codex-toys a durable way to say "do this later" without
 leaving an ad hoc agent process running forever. The first slices are live in
-`codex-toys@0.140.0`: workspaces can create one-shot future intents, run due
+`codex-toys@0.140.1`: workspaces can create one-shot future intents, run due
 intents locally or over SSH, inspect pending/completed/failed state, prune old
 terminal history, pull one saved attempt output back through the toybox, and
 collect unseen terminal results with a queue-local cursor.
