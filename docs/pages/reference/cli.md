@@ -227,6 +227,7 @@ codex-toys workspace deferred read <intent-id> [--include-output] [--json]
 codex-toys workspace deferred pull <intent-id> [--json]
 codex-toys workspace deferred collect [--cursor <name>] [--json]
 codex-toys workspace deferred cancel <intent-id>
+codex-toys workspace deferred retry <intent-id> [--run-at <iso>]
 codex-toys workspace deferred run-due [--mode auto|local|actions]
 codex-toys workspace deferred prune --older-than-days <days> [--dry-run]
 codex-toys workspace init actions [--forgejo|--github]
@@ -261,6 +262,11 @@ without separately reading remote filesystem paths.
 seen by the named cursor yet, including saved attempt outputs. The cursor is
 stored with the queue being collected; over SSH, that means the remote
 workspace queue advances its own cursor.
+
+`workspace deferred retry` creates a new pending intent from a terminal
+`completed`, `failed`, or `canceled` intent and leaves the original intent,
+attempt records, and outputs untouched. By default the retry is due immediately;
+use `--run-at <iso>` to requeue it for a future time.
 
 `workspace deferred prune` removes only terminal deferred history (`completed`,
 `failed`, or `canceled`) older than the requested retention window. Pending and
@@ -303,5 +309,5 @@ codex-toys pack doctor [--json]
 codex-toys pack list [--json]
 ```
 
-Pack commands copy selected skills, plugins, and hooks into a workspace and
+Pack commands copy selected skills, plugins, and automations into a workspace and
 record provenance in `.codex/pack-lock.json`.

@@ -10,7 +10,7 @@ after installing a codex-toys plugin.
 
 ## Boundaries
 
-- Plugin install gives Codex skills, MCP config, hooks, and scripts.
+- Plugin install gives Codex skills, MCP config, and scripts.
 - Core codex-toys operation is stdio-first: local stdio or SSH stdio.
 - `codex-toys toybox serve` is the runtime primitive.
 - `codex-toys-proxy serve` is the explicit browser/dashboard HTTP edge.

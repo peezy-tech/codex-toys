@@ -1,7 +1,7 @@
 {
   "name": "codex-toys-local-workspace",
   "version": "0.140.3",
-  "description": "Local Codex workspace toybox operation and plugin-bundled hooks.",
+  "description": "Local Codex workspace toybox operation guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -14,14 +14,13 @@
     "codex",
     "workspace",
     "toybox",
-    "hooks",
     "local-workspace"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-toys local workspace",
-    "shortDescription": "Operate a local workspace toybox with plugin-bundled hooks.",
-    "longDescription": "codex-toys local workspace installs skills for local toybox operation and passive Codex lifecycle hooks that write workspace hook-spool events. It does not automatically start or install a persistent service.",
+    "shortDescription": "Operate a local workspace toybox.",
+    "longDescription": "codex-toys local workspace installs skills for local toybox operation. It does not automatically start or install a persistent service.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -34,7 +33,7 @@
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
       "Check the local Codex workspace toybox.",
-      "Check workspace toybox and hook status."
+      "Check workspace toybox status."
     ],
     "brandColor": "#7C3AED"
   }

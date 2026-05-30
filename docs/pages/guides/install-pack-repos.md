@@ -1,6 +1,6 @@
 ---
 title: Install pack repos
-description: Copy repo-local skills, plugins, hooks, and automations from capability pack repositories.
+description: Copy repo-local skills, plugins, and automations from capability pack repositories.
 ---
 
 # Install pack repos
@@ -11,10 +11,7 @@ parallel distribution model.
 
 Pack repos are the lower-level file-copy path for workspaces that intentionally
 want repo-local copies, such as skills under `.agents/skills`, local plugins
-under `plugins`, direct hook config under `.codex/hooks`, or automation
-templates under `.codex/automations`. For codex-toys itself, prefer the plugin
-install because its hooks are bundled in the plugin and discovered by Codex
-without a pack copy.
+under `plugins`, or automation templates under `.codex/automations`.
 
 A workspace repo is the operational target. `codex-toys pack add` installs
 selected capabilities into that repo's Codex-native locations. V1 is repo-local
@@ -27,7 +24,6 @@ Pack repos work without a manifest by scanning conventional folders:
 ```text
 skills/**/<skill>/SKILL.md
 plugins/**/.codex-plugin/plugin.json
-hooks/<hook-pack>/hooks.json
 automations/<automation>/automation.json
 ```
 
@@ -38,7 +34,7 @@ item names and paths:
 [pack]
 name = "engineering-capabilities"
 version = "0.1.0"
-description = "Reusable engineering skills, plugins, hooks, and automations."
+description = "Reusable engineering skills, plugins, and automations."
 
 [[pack.items]]
 name = "tdd"
@@ -49,11 +45,6 @@ path = "skills/engineering/tdd"
 name = "repo-policy"
 kind = "plugin"
 path = "plugins/repo-policy"
-
-[[pack.items]]
-name = "workspace-stop-hooks"
-kind = "hook"
-path = "hooks/workspace-stop"
 
 [[pack.items]]
 name = "release-candidate"
@@ -98,28 +89,18 @@ Overwrite backs up replaced item directories under `.codex/pack-backups/<timesta
 |------|--------|-----------------------|
 | Skill | `skills/**/<skill>/SKILL.md` | `.agents/skills/<skill>` |
 | Plugin | `plugins/**/.codex-plugin/plugin.json` | `plugins/<plugin-name>` and `.agents/plugins/marketplace.json` |
-| Hook | `hooks/**/hooks.json` | `.codex/hooks/<hook-pack>` and `.codex/hooks.json` |
 | Automation | `automations/**/automation.json` | `.codex/automations/<automation>` |
 
 The installer writes `.codex/pack-lock.json` with source, ref or commit when
 known, selected capabilities, destination paths, and content hashes.
 
-## Plugins and hooks
+## Plugins
 
 Plugin entries are local marketplace entries pointing at
 `./plugins/<plugin-name>`. Existing marketplace entries are preserved unless
 they point at the same installed local plugin path. If another marketplace entry
 already uses the same plugin name, install reports a conflict unless `--overwrite`
 is set.
-
-Direct hook packs are workspace policy. Their bundle directory is copied under
-`.codex/hooks/<hook-pack>`, and their hook groups are merged into
-`.codex/hooks.json`.
-
-Plugin-bundled hooks remain inside the plugin. Codex discovers default plugin
-hooks from `hooks/hooks.json` when `[features].plugin_hooks = true`; the pack
-installer reports that requirement when it sees plugin hooks, but it does not
-enable the feature automatically.
 
 ## Automations
 
@@ -138,5 +119,4 @@ codex-toys pack doctor --json
 ```
 
 `pack list` reads `.codex/pack-lock.json`. `pack doctor` validates the lock,
-destination paths and content hashes, `.agents/plugins/marketplace.json`, and
-`.codex/hooks.json`.
+destination paths and content hashes, and `.agents/plugins/marketplace.json`.

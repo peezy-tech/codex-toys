@@ -18,8 +18,7 @@ turn. It has these related surfaces:
 - first-class workspace delegation into `@/workspaces/*` and `@/repos/*`
 - SSH-backed remote workspace operation from a local CLI or Codex App
 - repo-native workspace autonomy and Codex memory/thread transplant tools
-- Git-backed Codex plugin install for turn automation guidance and bundled
-  lifecycle hooks
+- Git-backed Codex plugin install for turn automation and toybox guidance
 
 The project keeps product-specific completion outside the automation layer.
 Workspace tools can schedule tasks and start Codex turns, but each installing
@@ -39,8 +38,8 @@ side effects.
 | Schedule repo-local workspace tasks | [Workspace autonomy](guides/workspace-autonomy) |
 | Move durable Codex memories between global and repo homes | [Memory transplant](guides/memory-transplant) |
 | Move a Codex thread rollout between Codex homes | [Thread transplant](guides/thread-transplant) |
-| Install codex-toys skills and hooks into Codex | [Install the Codex plugin](guides/install-codex-plugin) |
-| Copy skills, plugins, or direct hooks into a workspace | [Install pack repos](guides/install-pack-repos) |
+| Install codex-toys skills into Codex | [Install the Codex plugin](guides/install-codex-plugin) |
+| Copy skills, plugins, or automations into a workspace | [Install pack repos](guides/install-pack-repos) |
 | Understand the single-package platform target | [Single package platform](concepts/single-package-platform) |
 | Maintain releases | `RELEASE.md` |
 
@@ -197,8 +196,7 @@ loose-file import without introducing a separate bundle format.
 
 The shared Peezy Tech marketplace is the normal Codex plugin install surface.
 Install it from GitHub to load codex-toys skills without copying runtime files
-into your workspace. Install the local workspace plugin when you want
-plugin-bundled lifecycle hooks:
+into your workspace:
 
 ```bash
 codex plugin marketplace add peezy-tech/skills --ref main
@@ -217,10 +215,9 @@ codex plugin add codex-toys-local-workspace@codex-toys
 Install `codex-toys-remote-control` on a local Codex App when the toybox runs on
 a VPS reached through Tailscale SSH. The full plugin is still available as
 `codex-toys`. Source definitions still live in this repo; release syncs the
-installable bundles into `peezy-tech/skills`. The bundled hooks live at
-`hooks/hooks.json` in the local workspace plugin and are discovered by Codex as
-plugin hooks. Pack install remains available when a workspace intentionally
-wants file copies, such as pinning a skill or merging direct hook config.
+installable bundles into `peezy-tech/skills`. Pack install remains available
+when a workspace intentionally wants file copies, such as pinning a skill or
+copying automation templates.
 
 The CLI can also target an SSH workspace directly:
 
@@ -239,7 +236,7 @@ codex-toys --ssh devbox --cwd /repo automation run openai-codex-bindings --event
   under `.codex/workspace`.
 - Memory transplant owns file-based copies under `memories/` only.
 - Thread transplant owns byte-preserving rollout copies under `sessions/` only.
-- Plugin install owns Codex-facing skills, bundled hooks, and plugin metadata.
+- Plugin install owns Codex-facing skills and plugin metadata.
 - Pack install owns optional repo-local file copies and `.codex/pack-lock.json`.
 - Products own final domain completion, external credentials, deployment policy,
   operator routing policy, and release side effects.

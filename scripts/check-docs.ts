@@ -150,9 +150,6 @@ await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin 
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-toys-local-workspace@peezy-tech");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-toys-remote-control@peezy-tech");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex plugin add codex-toys@codex-toys");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "hooks/hooks.json");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "plugin_hooks = true");
-await expectIncludes("docs/pages/guides/install-codex-plugin.md", "CODEX_TOYS_HOOK_SPOOL_DIR");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-toys toybox serve --cwd /repo");
 await expectIncludes("docs/pages/guides/install-codex-plugin.md", "codex-toys-proxy serve --cwd /repo --static ./dashboard");
 await expectIncludes("docs/pages/guides/turn-automation.md", "export default async function run");
@@ -165,7 +162,6 @@ await expectIncludes("docs/pages/reference/cli.md", "codex-toys automation run <
 await expectIncludes("docs/pages/guides/install-pack-repos.md", "pack repo");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".codex/pack-lock.json");
 await expectIncludes("docs/pages/guides/install-pack-repos.md", ".agents/plugins/marketplace.json");
-await expectIncludes("docs/pages/guides/install-pack-repos.md", "[features].plugin_hooks = true");
 
 await expectIncludes("packages/codex-client/README.md", "codex-toys automation run");
 await expectIncludes("packages/codex-client/README.md", "codex-toys workspace doctor");

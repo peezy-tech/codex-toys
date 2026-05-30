@@ -1,6 +1,5 @@
 {
   "name": "repo-policy",
   "version": "0.1.0",
-  "description": "Repository policy helpers.",
-  "hooks": "./hooks/hooks.json"
+  "description": "Repository policy helpers."
 }

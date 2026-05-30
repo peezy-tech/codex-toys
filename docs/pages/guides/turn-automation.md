@@ -16,7 +16,7 @@ that can check APIs, repositories, files, queues, release feeds, or any other
 external signal before spending Codex turns.
 
 ```text
-event, schedule, hook, or operator command
+event, schedule, or operator command
   -> pre-turn script
      -> return JSON
      -> optionally start native Codex turns with prompt/cwd/settings

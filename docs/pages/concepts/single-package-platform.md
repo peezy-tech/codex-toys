@@ -29,7 +29,7 @@ in-repo app structure.
 
 `toybox.initialize` is the stable composition point. Toyboxes expose
 capabilities such as app-server pass-through, functions, delegation, workbench
-state, hook-spool handling, and workspace task execution. The proxy projects
+state, and workspace task execution. The proxy projects
 that self-described surface into HTTP without duplicating feature-specific
 routes.
 

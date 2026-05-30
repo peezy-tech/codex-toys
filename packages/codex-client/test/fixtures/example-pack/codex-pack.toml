@@ -1,7 +1,7 @@
 [pack]
 name = "engineering-capabilities"
 version = "0.1.0"
-description = "Reusable engineering skills, plugins, hooks, and automations."
+description = "Reusable engineering skills, plugins, and automations."
 
 [[pack.items]]
 name = "tdd"
@@ -12,11 +12,6 @@ path = "skills/engineering/tdd"
 name = "repo-policy"
 kind = "plugin"
 path = "plugins/repo-policy"
-
-[[pack.items]]
-name = "workspace-stop"
-kind = "hook"
-path = "hooks/workspace-stop"
 
 [[pack.items]]
 name = "release-candidate"

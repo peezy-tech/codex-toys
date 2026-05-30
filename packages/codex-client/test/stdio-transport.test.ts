@@ -34,7 +34,7 @@ test("round-trips JSON-RPC over Node stdio transport", async () => {
 test("resolves default stdio command from app-server options", () => {
 	expect(resolveCodexStdioCommand({}, {})).toEqual({
 		command: "codex",
-		args: ["app-server", "--listen", "stdio://", "--enable", "apps", "--enable", "hooks"],
+		args: ["app-server", "--listen", "stdio://", "--enable", "apps"],
 	});
 	expect(
 		resolveCodexStdioCommand(
@@ -80,8 +80,6 @@ test("resolves extra Codex args from env JSON", () => {
 			"stdio://",
 			"--enable",
 			"apps",
-			"--enable",
-			"hooks",
 		],
 	});
 });

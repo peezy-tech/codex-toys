@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "codex-toys",
     "shortDescription": "Run turn automation and operate Codex-native toyboxes.",
-    "longDescription": "codex-toys provides Codex guidance for plugin-native turn automation, local and SSH stdio toyboxes, optional dashboard proxy use, workspace delegation, local MCP delegation tools, and passive workspace lifecycle hooks. This plugin installs the Codex-facing guidance and hook surfaces directly from the Git repository.",
+    "longDescription": "codex-toys provides Codex guidance for plugin-native turn automation, local and SSH stdio toyboxes, optional dashboard proxy use, workspace delegation, and local MCP delegation tools. This plugin installs the Codex-facing guidance directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [

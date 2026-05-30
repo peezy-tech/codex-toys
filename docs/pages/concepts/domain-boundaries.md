@@ -28,5 +28,5 @@ can inspect an upstream signal and start a Codex turn, but the product still
 owns publishing, branch protection, credential use, and any external writes.
 
 Presenter wrappers follow the same rule. Their app-server thread presentation,
-delegation policy, workbench presentation state, and hook-spool wake behavior
-are not part of turn automation itself.
+delegation policy, and workbench presentation state are not part of turn
+automation itself.

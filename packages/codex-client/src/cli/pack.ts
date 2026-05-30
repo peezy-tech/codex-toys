@@ -16,7 +16,7 @@ import { parse as parseToml } from "smol-toml";
 import { parseJsonText } from "./json.ts";
 import { discoverWorkspaceRoot } from "./workspace-autonomy.ts";
 
-export type PackKind = "skill" | "plugin" | "hook" | "automation";
+export type PackKind = "skill" | "plugin" | "automation";
 
 export type PackSourceDescriptor = {
 	input: string;
@@ -41,7 +41,6 @@ export type PackCapability = {
 	sourceRelativePath: string;
 	contentHash: string;
 	bytes: number;
-	pluginHasHooks?: boolean;
 };
 
 export type PackInspection = {
@@ -102,7 +101,6 @@ export type PackDoctorResult = {
 	missingDestinations: PackLockItem[];
 	changedDestinations: PackChangedDestination[];
 	marketplace: JsonFileCheck;
-	hooks: JsonFileCheck;
 	errors: string[];
 };
 
@@ -132,17 +130,6 @@ type PathInspection =
 
 const lockRelativePath = path.join(".codex", "pack-lock.json");
 const marketplaceRelativePath = path.join(".agents", "plugins", "marketplace.json");
-const hooksRelativePath = path.join(".codex", "hooks.json");
-const hookEventNames = [
-	"PreToolUse",
-	"PermissionRequest",
-	"PostToolUse",
-	"PreCompact",
-	"PostCompact",
-	"SessionStart",
-	"UserPromptSubmit",
-	"Stop",
-] as const;
 
 export async function inspectPackSource(options: {
 	source: string;
@@ -256,7 +243,6 @@ export async function collectPackDoctor(options: {
 		missingDestinations,
 		changedDestinations,
 		marketplace: await checkJsonFile(path.join(workspaceRoot, marketplaceRelativePath)),
-		hooks: await checkJsonFile(path.join(workspaceRoot, hooksRelativePath)),
 		errors,
 	};
 }
@@ -326,7 +312,6 @@ export function formatPackDoctor(result: PackDoctorResult): string {
 		`missing destinations  ${result.missingDestinations.length}`,
 		`changed destinations  ${result.changedDestinations.length}`,
 		`marketplace           ${jsonCheckLabel(result.marketplace)}`,
-		`hooks                 ${jsonCheckLabel(result.hooks)}`,
 	];
 	for (const item of result.missingDestinations) {
 		lines.push(`missing               ${item.kind}/${item.name} -> ${item.destinationPath}`);
@@ -458,16 +443,6 @@ async function buildPackAddPlan(
 			});
 		}
 	}
-	for (const item of inspection.items) {
-		if (item.kind === "plugin" && item.pluginHasHooks && isIncludedInPlan(items, item)) {
-			warnings.push(
-				`Plugin ${item.name} includes plugin-bundled hooks; enable [features].plugin_hooks = true to run them.`,
-			);
-		}
-	}
-	if (items.some((item) => item.kind === "hook" && item.action !== "skip")) {
-		warnings.push("Direct hook packs update .codex/hooks.json; enable [features].hooks = true to run them.");
-	}
 	return {
 		apply: options.apply ?? false,
 		workspaceRoot,
@@ -522,9 +497,6 @@ async function applyPlan(plan: PackAddPlan): Promise<void> {
 	if (installableItems.some((item) => item.kind === "plugin")) {
 		await updateMarketplace(plan, installableItems.filter((item) => item.kind === "plugin"));
 	}
-	if (installableItems.some((item) => item.kind === "hook")) {
-		await updateHooksJson(plan, installableItems.filter((item) => item.kind === "hook"));
-	}
 	await updatePackLock(plan, installableItems);
 }
 
@@ -570,66 +542,6 @@ function pluginMarketplaceEntry(name: string): Record<string, unknown> {
 		},
 		category: "Productivity",
 	};
-}
-
-async function updateHooksJson(
-	plan: PackAddPlan,
-	hookItems: PackItemPlan[],
-): Promise<void> {
-	const hooksPath = path.join(plan.workspaceRoot, hooksRelativePath);
-	const hooksRoot = await readJsonObjectIfExists(hooksPath);
-	const hooks = isRecord(hooksRoot.hooks) ? hooksRoot.hooks : {};
-	const metadataRoot = isRecord(hooksRoot.codexPack) ? hooksRoot.codexPack : {};
-	const metadataHooks = isRecord(metadataRoot.hooks) ? metadataRoot.hooks : {};
-	for (const item of hookItems) {
-		const sourceHooks = record(await readJsonObject(path.join(item.sourcePath, "hooks.json")));
-		const sourceEvents = record(sourceHooks.hooks);
-		const previous = record(metadataHooks[item.name]);
-		const previousEvents = record(previous.events);
-		for (const eventName of hookEventNames) {
-			const existingGroups = arrayValue(hooks[eventName]);
-			const previousGroups = arrayValue(previousEvents[eventName]);
-			const incomingGroups = arrayValue(sourceEvents[eventName]);
-			const withoutPrevious = existingGroups.filter((group) =>
-				!previousGroups.some((previousGroup) => deepEqual(previousGroup, group))
-			);
-			hooks[eventName] = appendUniqueGroups(withoutPrevious, incomingGroups);
-		}
-		metadataHooks[item.name] = {
-			kind: "hook",
-			destinationPath: item.destinationRelativePath,
-			events: pickHookEvents(sourceEvents),
-		};
-	}
-	hooksRoot.hooks = hooks;
-	hooksRoot.codexPack = {
-		...metadataRoot,
-		version: 1,
-		hooks: metadataHooks,
-	};
-	await mkdir(path.dirname(hooksPath), { recursive: true });
-	await writeFile(hooksPath, `${JSON.stringify(hooksRoot, null, 2)}\n`);
-}
-
-function appendUniqueGroups(existing: unknown[], incoming: unknown[]): unknown[] {
-	const result = [...existing];
-	for (const group of incoming) {
-		if (!result.some((existingGroup) => deepEqual(existingGroup, group))) {
-			result.push(group);
-		}
-	}
-	return result;
-}
-
-function pickHookEvents(sourceEvents: Record<string, unknown>): Record<string, unknown[]> {
-	const events: Record<string, unknown[]> = {};
-	for (const eventName of hookEventNames) {
-		const groups = arrayValue(sourceEvents[eventName]);
-		if (groups.length > 0) {
-			events[eventName] = groups;
-		}
-	}
-	return events;
 }
 
 async function updatePackLock(
@@ -732,7 +644,6 @@ async function discoverPackByConvention(
 	const items = [
 		...await discoverSkills(root, warnings),
 		...await discoverPlugins(root, warnings),
-		...await discoverHooks(root, warnings),
 		...await discoverAutomations(root, warnings),
 	];
 	return {
@@ -779,31 +690,6 @@ async function discoverPlugins(root: string, warnings: string[]): Promise<PackCa
 			root,
 			name,
 			kind: "plugin",
-			sourcePath,
-			warnings,
-		});
-		if (capability) {
-			capabilities.push(capability);
-		}
-	}
-	return capabilities;
-}
-
-async function discoverHooks(root: string, warnings: string[]): Promise<PackCapability[]> {
-	const capabilities: PackCapability[] = [];
-	const hooksRoot = path.join(root, "hooks");
-	for (const file of await walkFiles(hooksRoot)) {
-		if (path.basename(file) !== "hooks.json") {
-			continue;
-		}
-		const sourcePath = path.dirname(file);
-		if (path.resolve(sourcePath) === path.resolve(hooksRoot)) {
-			continue;
-		}
-		const capability = await capabilityFromPath({
-			root,
-			name: path.basename(sourcePath),
-			kind: "hook",
 			sourcePath,
 			warnings,
 		});
@@ -863,9 +749,6 @@ async function capabilityFromPath(options: {
 		sourceRelativePath: toPosix(path.relative(options.root, options.sourcePath)),
 		contentHash: digest.hash,
 		bytes: digest.bytes,
-		...(options.kind === "plugin" && await pluginHasHooks(options.sourcePath)
-			? { pluginHasHooks: true }
-			: {}),
 	};
 }
 
@@ -879,21 +762,7 @@ function expectedFile(sourcePath: string, kind: PackKind): string {
 	if (kind === "automation") {
 		return path.join(sourcePath, "automation.json");
 	}
-	return path.join(sourcePath, "hooks.json");
-}
-
-async function pluginHasHooks(pluginRoot: string): Promise<boolean> {
-	const manifestPath = path.join(pluginRoot, ".codex-plugin", "plugin.json");
-	try {
-		const manifest = record(await readJsonObject(manifestPath));
-		if (manifest.hooks !== undefined) {
-			return true;
-		}
-	} catch {
-		return false;
-	}
-	return await exists(path.join(pluginRoot, "hooks", "hooks.json")) ||
-		await exists(path.join(pluginRoot, "hooks.json"));
+	throw new Error(`Unsupported pack kind: ${kind}`);
 }
 
 function dedupeCapabilities(
@@ -929,7 +798,7 @@ function destinationForItem(workspaceRoot: string, item: Pick<PackCapability, "k
 	if (item.kind === "automation") {
 		return path.join(workspaceRoot, ".codex", "automations", item.name);
 	}
-	return path.join(workspaceRoot, ".codex", "hooks", item.name);
+	throw new Error(`Unsupported pack kind: ${item.kind}`);
 }
 
 async function collectMarketplacePluginConflicts(
@@ -983,14 +852,6 @@ function selectionReason(
 		return "excluded";
 	}
 	return undefined;
-}
-
-function isIncludedInPlan(planItems: PackItemPlan[], capability: PackCapability): boolean {
-	return planItems.some((item) =>
-		item.name === capability.name &&
-		item.kind === capability.kind &&
-		item.action !== "skip"
-	);
 }
 
 async function withResolvedPackSource<T>(
@@ -1272,7 +1133,7 @@ function isSubpath(root: string, candidate: string): boolean {
 }
 
 function packKind(value: unknown): PackKind | undefined {
-	if (value === "skill" || value === "plugin" || value === "hook" || value === "automation") {
+	if (value === "skill" || value === "plugin" || value === "automation") {
 		return value;
 	}
 	return undefined;
@@ -1375,22 +1236,6 @@ function arrayValue(value: unknown): unknown[] {
 
 function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim().length > 0 ? value : undefined;
-}
-
-function deepEqual(left: unknown, right: unknown): boolean {
-	return stableStringify(left) === stableStringify(right);
-}
-
-function stableStringify(value: unknown): string {
-	if (Array.isArray(value)) {
-		return `[${value.map(stableStringify).join(",")}]`;
-	}
-	if (isRecord(value)) {
-		return `{${Object.keys(value).sort().map((key) =>
-			`${JSON.stringify(key)}:${stableStringify(value[key])}`
-		).join(",")}}`;
-	}
-	return JSON.stringify(value);
 }
 
 function errorMessage(error: unknown): string {

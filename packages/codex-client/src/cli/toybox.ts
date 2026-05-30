@@ -57,8 +57,6 @@ export async function serveToybox(
 				"stdio://",
 				"--enable",
 				"apps",
-				"--enable",
-				"hooks",
 			],
 			cwd: workspaceRoot,
 			requestTimeoutMs: options.timeoutMs,

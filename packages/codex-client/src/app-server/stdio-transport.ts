@@ -297,7 +297,5 @@ function defaultCodexArgs(appServerSocket: string | undefined): string[] {
 		"stdio://",
 		"--enable",
 		"apps",
-		"--enable",
-		"hooks",
 	];
 }

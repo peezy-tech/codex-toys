@@ -14,7 +14,7 @@ reachable over SSH or Tailscale.
 - Local machine: where the Codex App plugin and this skill are installed.
 - Remote target: the machine where Codex, the workspace, `codex-toys`, and
   `CODEX_HOME` live.
-- The local plugin does not install hooks or start a local service.
+- The local plugin does not start a local service.
 - Prefer the global `--ssh` provider. It starts `codex-toys toybox serve` on
   the target over SSH and speaks workspace JSON-RPC over stdio.
 - Do not guide users toward backend tunnels, service profiles, or WebSocket

@@ -25,11 +25,9 @@ describe("pack installer", () => {
 		});
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
 			"automation:release-candidate",
-			"hook:workspace-stop",
 			"plugin:repo-policy",
 			"skill:tdd",
 		]);
-		expect(inspection.items.find((item) => item.name === "repo-policy")?.pluginHasHooks).toBe(true);
 	});
 
 	test("dry-run reports selected copies without writing workspace files", async () => {
@@ -37,19 +35,19 @@ describe("pack installer", () => {
 		const plan = await planPackAdd({
 			source: fixtureRoot,
 			workspaceRoot,
-			include: ["tdd", "workspace-stop"],
+			include: ["tdd", "release-candidate"],
 		});
 
 		expect(plan.apply).toBe(false);
 		expect(plan.items.filter((item) => item.action === "add").map((item) => item.name).sort())
-			.toEqual(["tdd", "workspace-stop"]);
+			.toEqual(["release-candidate", "tdd"]);
 		expect(plan.items.filter((item) => item.action === "skip").map((item) => item.name).sort())
-			.toEqual(["release-candidate", "repo-policy"]);
+			.toEqual(["repo-policy"]);
 		expect(await exists(path.join(workspaceRoot, ".agents", "skills", "tdd"))).toBe(false);
 		expect(await exists(path.join(workspaceRoot, ".codex", "pack-lock.json"))).toBe(false);
 	});
 
-	test("apply installs capabilities, marketplace entries, hooks, and lockfile", async () => {
+	test("apply installs capabilities, marketplace entries, and lockfile", async () => {
 		const workspaceRoot = await tempWorkspace();
 		const plan = await applyPackAdd({
 			source: fixtureRoot,
@@ -75,25 +73,17 @@ describe("pack installer", () => {
 			source: { source: "local", path: "./plugins/repo-policy" },
 		}));
 
-		const hooks = JSON.parse(
-			await readFile(path.join(workspaceRoot, ".codex", "hooks.json"), "utf8"),
-		) as { hooks: { PostToolUse: unknown[] }; codexPack: { hooks: Record<string, unknown> } };
-		expect(hooks.hooks.PostToolUse).toHaveLength(1);
-		expect(hooks.codexPack.hooks["workspace-stop"]).toBeDefined();
-
 		const list = await listInstalledPacks({ workspaceRoot });
 		expect(list.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
 			"automation:release-candidate",
-			"hook:workspace-stop",
 			"plugin:repo-policy",
 			"skill:tdd",
 		]);
 
 		const doctor = await collectPackDoctor({ workspaceRoot });
-		expect(doctor.installedItems).toBe(4);
+		expect(doctor.installedItems).toBe(3);
 		expect(doctor.missingDestinations).toEqual([]);
 		expect(doctor.marketplace.valid).toBe(true);
-		expect(doctor.hooks.valid).toBe(true);
 	});
 
 	test("conflicts skip changed destinations and overwrite backs them up", async () => {
@@ -271,27 +261,15 @@ describe("pack installer", () => {
 		const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-pack-source-"));
 		await writeFixtureFile(sourceRoot, "skills/demo/SKILL.md", "# Demo\n");
 		await writeFixtureFile(sourceRoot, "plugins/demo-plugin/.codex-plugin/plugin.json", '{"name":"demo-plugin"}');
-		await writeFixtureFile(sourceRoot, "hooks/demo-hooks/hooks.json", '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo stop"}]}]}}');
 		await writeFixtureFile(sourceRoot, "automations/demo-automation/automation.json", '{"name":"demo-automation"}');
 
 		const inspection = await inspectPackSource({ source: sourceRoot });
 
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
 			"automation:demo-automation",
-			"hook:demo-hooks",
 			"plugin:demo-plugin",
 			"skill:demo",
 		]);
-	});
-
-	test("does not treat root plugin hooks as direct hook packs", async () => {
-		const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-plugin-source-"));
-		await writeFixtureFile(sourceRoot, ".codex-plugin/plugin.json", '{"name":"demo-plugin"}');
-		await writeFixtureFile(sourceRoot, "hooks/hooks.json", '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo stop"}]}]}}');
-
-		const inspection = await inspectPackSource({ source: sourceRoot });
-
-		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([]);
 	});
 });
 

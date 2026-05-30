@@ -15,7 +15,7 @@ workspace task, or native turn primitives.
 
 ```mermaid
 sequenceDiagram
-  participant Signal as Event, schedule, hook, or operator
+  participant Signal as Event, schedule, or operator
   participant Agent as codex-toys toybox
   participant Script as Pre-turn script
   participant Codex as Codex app-server

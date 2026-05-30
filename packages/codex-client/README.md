@@ -22,7 +22,7 @@ Full documentation lives in the repo docs site:
 - workspace autonomy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/workspace-autonomy.md>
 - memory transplant: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/memory-transplant.md>
 - thread transplant: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/thread-transplant.md>
-- Codex plugin skills and hooks: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-codex-plugin.md>
+- Codex plugin skills: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-codex-plugin.md>
 - optional pack copies: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-pack-repos.md>
 
 ## Exports

@@ -1,14 +1,13 @@
 ---
 title: Install the Codex plugin
-description: Install codex-toys skills and hooks from a Git-backed Codex plugin marketplace.
+description: Install codex-toys skills from a Git-backed Codex plugin marketplace.
 ---
 
 # Install the Codex plugin
 
-The preferred way to install codex-toys toybox guidance and passive lifecycle
-hooks is the shared Peezy Tech Codex plugin marketplace. Source definitions
-live in this repository; release syncs installable plugin bundles into
-`peezy-tech/skills`.
+The preferred way to install codex-toys toybox guidance is the shared Peezy
+Tech Codex plugin marketplace. Source definitions live in this repository;
+release syncs installable plugin bundles into `peezy-tech/skills`.
 
 The repository root also remains a product-local plugin marketplace for
 development, with a full plugin plus granular install options:
@@ -20,14 +19,12 @@ plugins/codex-toys-author/
 plugins/codex-toys-local-workspace/
 plugins/codex-toys-remote-control/
 skills/
-hooks/hooks.json
-hooks/hook-event.mjs
 ```
 
 | Plugin | Installs |
 |--------|----------|
 | `codex-toys-author` | Turn automation authoring guidance. |
-| `codex-toys-local-workspace` | Local toybox operation guidance and plugin-bundled hooks. |
+| `codex-toys-local-workspace` | Local toybox operation guidance. |
 | `codex-toys-remote-control` | Local Codex App guidance for SSH toybox preflight, remote automation, turns in remote workspaces, and proxy dashboards. |
 | `codex-toys` | Product-local full install for development and compatibility. |
 
@@ -36,7 +33,7 @@ hooks/hook-event.mjs
 In Codex App, open Plugins, choose Add marketplace, enter
 `peezy-tech/skills` or `https://github.com/peezy-tech/skills`, then install the
 plugin you need from the `peezy-tech` marketplace. Start a new thread so the
-plugin skills and hooks are loaded.
+plugin skills are loaded.
 
 The same install can be done from a Codex CLI that shares the same `CODEX_HOME`:
 
@@ -59,32 +56,7 @@ codex plugin add codex-toys-local-workspace@codex-toys
 ```
 
 After changing plugin metadata or skills, reinstall the plugin and start a new
-thread to pick up the updated skill and hook list.
-
-## Hook Surface
-
-The local workspace and full plugins use Codex's native plugin hook discovery.
-The hook config stays inside the plugin at `hooks/hooks.json`; it is not copied
-into `~/.codex/hooks.json`.
-
-Make sure plugin hooks are enabled in the Codex home that runs the workspace:
-
-```toml
-[features]
-plugins = true
-hooks = true
-plugin_hooks = true
-```
-
-The bundled hook command is:
-
-```bash
-node "${PLUGIN_ROOT}/hooks/hook-event.mjs"
-```
-
-Codex expands `${PLUGIN_ROOT}` from the installed plugin bundle. The command is
-self-contained and writes lifecycle events into the hook spool used by
-workspace surfaces. Override the spool with `CODEX_TOYS_HOOK_SPOOL_DIR`.
+thread to pick up the updated skill list.
 
 ## Local Agent
 
