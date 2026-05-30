@@ -108,6 +108,7 @@ export const toyboxOwnedMethodPrefixes = [
 	"automation.",
 	"delegation.",
 	"functions.",
+	"host.",
 	"toybox.",
 	"workbench.",
 ] as const;

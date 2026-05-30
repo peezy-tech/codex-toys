@@ -14,6 +14,7 @@ import {
 	hasSshRemote,
 	type SshRemoteProviderOptions,
 } from "./cli/remote-provider.ts";
+import { HOST_OVERVIEW_METHOD } from "./host-overview.ts";
 
 export type CodexToysProxyOptions = Partial<SshRemoteProviderOptions> & {
 	staticDir?: string;
@@ -142,6 +143,11 @@ async function handleApiRequest(
 		const body = record(await readJsonBody(request));
 		const method = requiredString(body.method, "method");
 		writeJson(response, 200, await requester.request(method, body.params));
+		return;
+	}
+	if (request.method === "POST" && apiPath === "/host/overview") {
+		await readJsonBody(request);
+		writeJson(response, 200, await requester.request(HOST_OVERVIEW_METHOD, {}));
 		return;
 	}
 	if (request.method === "POST" && apiPath.startsWith("/app/")) {

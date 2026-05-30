@@ -57,6 +57,8 @@ start a specific Codex binary or pass explicit app-server flags.
 
 ```bash
 codex-toys --ssh <target> --cwd <remote-workspace> remote preflight [--json]
+codex-toys host overview --json
+codex-toys --ssh <target> --cwd <remote-workspace> remote host-overview --json
 codex-toys --ssh <target> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-toys --ssh <target> --cwd <remote-workspace> workspace delegation.list
 codex-toys --ssh <target> --cwd <remote-workspace> functions list --json
@@ -68,6 +70,11 @@ codex-toys --ssh <target> --cwd <remote-workspace> turn run "Scan current folder
 `codex-toys`, Codex, toybox startup, and app-server pass-through. All other
 commands use `--ssh` directly; there is no separate remote controller command
 family.
+
+`host overview --json` calls the toybox-owned `host.overview` method and returns
+a bounded dashboard-friendly snapshot of host disk, memory, Docker, failed
+systemd units, Tailscale health, and package versions. `remote host-overview
+--json` is the SSH alias for the same method on the remote host.
 
 Useful SSH options and environment:
 
@@ -100,6 +107,7 @@ routes:
 GET  /api/status
 GET  /api/schema
 POST /api/rpc
+POST /api/host/overview
 POST /api/app/:method
 POST /api/workspace/:method
 POST /api/workspace/overview
@@ -108,7 +116,8 @@ POST /api/workspace/overview
 `/api/schema` is derived from `toybox.initialize`; route behavior forwards to
 toybox methods instead of duplicating feature-specific endpoint logic.
 `/api/workspace/overview` is a convenience alias for the `workspace.overview`
-toybox method.
+toybox method, and `POST /api/host/overview` is equivalent to `POST /api/rpc`
+with method `host.overview`.
 
 Direct browser calls to the proxy API intentionally receive CORS headers only
 for loopback origins such as `localhost`, `127.0.0.1`, `::1`, and

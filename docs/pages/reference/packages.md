@@ -40,13 +40,15 @@ The proxy package exposes a generic HTTP handler for dashboards:
 GET  /api/status
 GET  /api/schema
 POST /api/rpc
+POST /api/host/overview
 POST /api/app/:method
 POST /api/workspace/:method
 ```
 
 The proxy starts or connects to a codex-toys toybox internally. `/api/schema`
 comes from `toybox.initialize`, so dashboards can discover available
-workspace methods without duplicated route definitions.
+workspace methods without duplicated route definitions. `POST /api/host/overview`
+is a convenience route for the read-only `host.overview` toybox method.
 
 For direct browser use, the proxy reflects CORS only for loopback origins such
 as `localhost`, `127.0.0.1`, `::1`, and `*.localhost`. Requests carrying a

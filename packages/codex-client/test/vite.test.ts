@@ -28,7 +28,7 @@ describe("codexToysRemote Vite plugin", () => {
 			const schema = await fetchJson(`${baseUrl}/__codex_toys/api/schema`);
 			expect(schema).toMatchObject({
 				capabilities: {
-					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workspace.overview"],
+					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workspace.overview", "host.overview"],
 				},
 			});
 
@@ -60,6 +60,16 @@ describe("codexToysRemote Vite plugin", () => {
 				body: JSON.stringify({}),
 			});
 			expect(overview).toEqual({ ok: true, workspace: { cwd: "/remote" } });
+			const hostOverview = await fetchJson(`${baseUrl}/__codex_toys/api/host/overview`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({}),
+			});
+			expect(hostOverview).toMatchObject({
+				ok: true,
+				status: "ok",
+				disk: { status: "ok" },
+			});
 			expect(transport.requests.map((request) => request.method)).toEqual([
 				"toybox.initialize",
 				"toybox.status",
@@ -67,6 +77,7 @@ describe("codexToysRemote Vite plugin", () => {
 				"functions.describe",
 				"functions.call",
 				"workspace.overview",
+				"host.overview",
 			]);
 		} finally {
 			await server.close();
@@ -128,7 +139,7 @@ class FakeWorkspaceTransport extends CodexEventEmitter implements CodexToyboxTra
 				serverInfo: { name: "fake", version: "0.1.0" },
 				capabilities: {
 					appPassThrough: true,
-					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workspace.overview"],
+					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workspace.overview", "host.overview"],
 					toyboxMethodMetadata: [],
 				},
 			} as T;
@@ -152,6 +163,13 @@ class FakeWorkspaceTransport extends CodexEventEmitter implements CodexToyboxTra
 		}
 		if (method === "workspace.overview") {
 			return { ok: true, workspace: { cwd: "/remote" } } as T;
+		}
+		if (method === "host.overview") {
+			return {
+				ok: true,
+				status: "ok",
+				disk: { ok: true, status: "ok", summary: "/ ok", filesystems: [] },
+			} as T;
 		}
 		throw new Error(`Unexpected request: ${method}`);
 	}

@@ -13,6 +13,11 @@ import {
 	type CodexToyboxPeer,
 } from "../src/toybox/index.ts";
 import { CodexEventEmitter } from "../src/app-server/events.ts";
+import {
+	collectHostOverview,
+	createHostOverviewMethods,
+	type HostOverviewCommandResult,
+} from "../src/host-overview.ts";
 import type {
 	JsonRpcId,
 	JsonRpcNotification,
@@ -65,6 +70,106 @@ describe("Codex toybox protocol", () => {
 
 		expect(appServer.requests).toEqual([]);
 		expect(peer.response("delegation")?.result).toEqual({ delegations: [] });
+	});
+
+	test("host overview method returns bounded dashboard sections", async () => {
+		const result = await collectHostOverview({
+			now: () => new Date("2026-05-30T00:00:00.000Z"),
+			packageVersion: "0.140.2",
+			homedir: () => "/home/test",
+			totalmem: () => 1_000,
+			freemem: () => 250,
+			uptime: () => 42,
+			platform: () => "linux",
+			arch: () => "x64",
+			statfs: async () => ({
+				bsize: 10,
+				blocks: 100,
+				bfree: 40,
+				bavail: 30,
+			}),
+			runCommand: async (command) => {
+				if (command === "docker") {
+					return shellResult({
+						stdout: JSON.stringify({
+							ServerVersion: "26.0.0",
+							Containers: 3,
+							ContainersRunning: 1,
+							Images: 8,
+						}),
+					});
+				}
+				if (command === "systemctl") {
+					return shellResult({ stdout: "failed.service loaded failed failed Example failure\n" });
+				}
+				if (command === "tailscale") {
+					return shellResult({
+						stdout: JSON.stringify({
+							BackendState: "Running",
+							Self: { Online: true },
+							Health: [],
+						}),
+					});
+				}
+				if (command === "codex") {
+					return shellResult({ stdout: "codex-cli 1.2.3\n" });
+				}
+				return shellResult({ code: 127, error: `${command} not found` });
+			},
+			toyboxServerInfo: { name: "codex-toys-toybox", version: "0.1.0" },
+		});
+
+		expect(result).toMatchObject({
+			ok: true,
+			status: "degraded",
+			generatedAt: "2026-05-30T00:00:00.000Z",
+			disk: {
+				status: "ok",
+				filesystems: [
+					expect.objectContaining({
+						path: "/",
+						totalBytes: 1_000,
+						availableBytes: 300,
+						usedPercent: 60,
+					}),
+					expect.objectContaining({ path: "/home/test" }),
+				],
+			},
+			memory: {
+				status: "ok",
+				totalBytes: 1_000,
+				freeBytes: 250,
+				usedPercent: 75,
+			},
+			docker: {
+				status: "ok",
+				serverVersion: "26.0.0",
+				running: 1,
+			},
+			systemd: {
+				status: "degraded",
+				failedUnits: [expect.objectContaining({ unit: "failed.service" })],
+			},
+			tailscale: {
+				status: "ok",
+				backendState: "Running",
+				online: true,
+			},
+			versions: {
+				toybox: { name: "codex-toys-toybox", version: "0.1.0" },
+				packages: expect.arrayContaining([
+					expect.objectContaining({ name: "codex-toys", version: "0.140.2" }),
+					expect.objectContaining({ name: "codex-cli", version: "codex-cli 1.2.3" }),
+				]),
+			},
+		});
+
+		const methods = createHostOverviewMethods({
+			packageVersion: "0.140.2",
+			runCommand: async () => shellResult({ code: 127, error: "not found" }),
+		});
+		expect(await methods["host.overview"]!({}, jsonRpcRequest("host", "host.overview")))
+			.toMatchObject({ ok: true, disk: { status: "ok" } });
 	});
 
 	test("unknown toybox methods return method not found", async () => {
@@ -502,5 +607,17 @@ function jsonRpcRequest(id: JsonRpcId, method: string) {
 		id,
 		method,
 		params: {},
+	};
+}
+
+function shellResult(
+	overrides: Partial<HostOverviewCommandResult> = {},
+): HostOverviewCommandResult {
+	return {
+		code: 0,
+		signal: null,
+		stdout: "",
+		stderr: "",
+		...overrides,
 	};
 }

@@ -136,7 +136,7 @@ describe("codex-toys CLI args", () => {
 
 	test("parses toybox and SSH preflight commands", () => {
 		expect(() => parseArgs(["remote", "status", "--json"], {}))
-			.toThrow("remote supports only preflight");
+			.toThrow("remote supports only preflight or host-overview");
 		expect(parseArgs([
 			"--ssh",
 			"devbox",
@@ -164,8 +164,31 @@ describe("codex-toys CLI args", () => {
 			remoteCodexCommand: "/opt/codex",
 		});
 		expect(() => parseArgs(["remote", "turn", "start", "--prompt", "hello"], {}))
-			.toThrow("remote supports only preflight");
+			.toThrow("remote supports only preflight or host-overview");
 		});
+
+	test("parses host overview commands", () => {
+		expect(parseArgs(["host", "overview", "--json"], {})).toMatchObject({
+			type: "host-overview",
+			url: "toybox://local",
+			json: true,
+		});
+		expect(parseArgs([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/home/peezy",
+			"remote",
+			"host-overview",
+			"--json",
+		], {})).toMatchObject({
+			type: "host-overview",
+			sshTarget: "devbox",
+			cwd: "/home/peezy",
+			json: true,
+		});
+		expect(() => parseArgs(["host", "status"], {})).toThrow("host requires overview");
+	});
 
 		test("parses turn run as the core prompt primitive", () => {
 			expect(() =>
@@ -397,6 +420,27 @@ describe("codex-toys CLI args", () => {
 		expect(call.exitCode).toBe(0);
 		expect(JSON.parse(call.stdout)).toEqual({
 			result: { account: "demo", equity: 456 },
+		});
+
+		const hostOverview = await runCli([
+			"--ssh",
+			"devbox",
+			"--cwd",
+			"/repo",
+			"remote",
+			"host-overview",
+			"--json",
+		], env);
+		expect(hostOverview.exitCode).toBe(0);
+		expect(JSON.parse(hostOverview.stdout)).toMatchObject({
+			ok: true,
+			disk: { status: "ok" },
+			versions: {
+				packages: expect.arrayContaining([
+					expect.objectContaining({ name: "node" }),
+					expect.objectContaining({ name: "codex-toys" }),
+				]),
+			},
 		});
 	});
 
@@ -728,8 +772,50 @@ function resultFor(method, params) {
 			serverInfo: { name: "fake-toybox", version: "0.1.0" },
 			capabilities: {
 				appPassThrough: true,
-				toyboxMethods: ["functions.list", "functions.describe", "functions.call"],
+				toyboxMethods: ["functions.list", "functions.describe", "functions.call", "host.overview"],
 				toyboxMethodMetadata: [],
+			},
+		};
+	}
+	if (method === "host.overview") {
+		return {
+			ok: true,
+			status: "ok",
+			generatedAt: "2026-05-30T00:00:00.000Z",
+			system: { platform: "linux", arch: "x64", uptimeSeconds: 100 },
+			disk: {
+				ok: true,
+				status: "ok",
+				summary: "/ 10 GiB available",
+				filesystems: [{
+					path: "/",
+					totalBytes: 20,
+					freeBytes: 10,
+					availableBytes: 10,
+					usedBytes: 10,
+					usedPercent: 50,
+				}],
+			},
+			memory: {
+				ok: true,
+				status: "ok",
+				summary: "1 GiB free",
+				totalBytes: 2,
+				freeBytes: 1,
+				usedBytes: 1,
+				usedPercent: 50,
+			},
+			docker: { ok: true, status: "ok", summary: "docker 26.0.0", serverVersion: "26.0.0" },
+			systemd: { ok: true, status: "ok", summary: "no failed systemd units", failedUnits: [], truncated: false },
+			tailscale: { ok: true, status: "ok", summary: "tailscale healthy", backendState: "Running", online: true, health: [] },
+			versions: {
+				ok: true,
+				status: "ok",
+				summary: "node v24.0.0; codex-toys 0.140.2",
+				packages: [
+					{ name: "node", ok: true, status: "ok", version: "v24.0.0" },
+					{ name: "codex-toys", ok: true, status: "ok", version: "0.140.2" },
+				],
 			},
 		};
 	}

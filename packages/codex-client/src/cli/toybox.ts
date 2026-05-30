@@ -17,6 +17,10 @@ import {
 	remoteAutomationMethodMetadata,
 } from "./remote-automation.ts";
 import {
+	createHostOverviewMethods,
+	hostOverviewMethodMetadata,
+} from "../host-overview.ts";
+import {
 	createWorkspaceOverviewMethods,
 	workspaceOverviewMethodMetadata,
 } from "../workspace-overview.ts";
@@ -87,6 +91,13 @@ export async function serveToybox(
 		codexCommand: options.codexCommand ?? "codex",
 		codexArgs: options.codexArgs ?? [],
 	});
+	Object.assign(methods, createHostOverviewMethods({
+		codexCommand: options.codexCommand,
+		toyboxServerInfo: {
+			name: "codex-toys-toybox",
+			version: "0.1.0",
+		},
+	}));
 	Object.assign(methods, createWorkspaceFunctionMethods({
 		cwd: workspaceRoot,
 	}));
@@ -126,6 +137,7 @@ export async function serveToybox(
 		methods,
 		toyboxMethodMetadata: [
 				...toyboxStatusMethodMetadata,
+				...hostOverviewMethodMetadata,
 				...workspaceFunctionMethodMetadata,
 				...workspaceDelegationMethodMetadata,
 				...workspaceDeferredRunMethodMetadata,

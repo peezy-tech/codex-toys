@@ -51,6 +51,13 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
+			type: "host-overview";
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
 			type: "toybox-serve";
 			cwd?: string;
 			timeoutMs: number;
@@ -873,8 +880,32 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			throw new Error("remote supports only preflight; use --ssh with fetch, app, workspace, automation, functions, or turn run");
+			if (subcommand === "host-overview" || subcommand === "host") {
+				return {
+					type: "host-overview",
+					url: workspaceUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			throw new Error("remote supports only preflight or host-overview; use --ssh with fetch, app, workspace, automation, functions, or turn run");
 		}
+	if (command === "host") {
+		const subcommand = positionals[1];
+		if (subcommand !== "overview") {
+			throw new Error("host requires overview");
+		}
+		return {
+			type: "host-overview",
+			url: workspaceUrl,
+			timeoutMs,
+			json,
+			pretty,
+			...remoteFields(),
+		};
+	}
 	if (command === "turn") {
 			const subcommand = positionals[1];
 			if (subcommand !== "run") {

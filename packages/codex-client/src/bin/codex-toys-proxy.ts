@@ -176,6 +176,7 @@ HTTP API:
   GET  /api/status
   GET  /api/schema
   POST /api/rpc
+  POST /api/host/overview
   POST /api/app/:method
   POST /api/workspace/:method
   POST /api/workspace/overview

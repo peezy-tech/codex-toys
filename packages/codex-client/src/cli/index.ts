@@ -71,6 +71,7 @@ import {
 	type RemoteAutomationListResponse,
 	type RemoteAutomationRunParams,
 } from "./remote-automation.ts";
+import { HOST_OVERVIEW_METHOD } from "../host-overview.ts";
 import {
 	WORKSPACE_FUNCTIONS_CALL_METHOD,
 	WORKSPACE_FUNCTIONS_DESCRIBE_METHOD,
@@ -268,6 +269,10 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(response, null, parsed.pretty ? 2 : 0)}\n`
 			: `${JSON.stringify(response.result, null, 2)}\n`);
+		return;
+	}
+	if (parsed.type === "host-overview") {
+		writeJson(await callToybox(HOST_OVERVIEW_METHOD, {}, parsed), parsed.pretty);
 		return;
 	}
 	if (parsed.type === "turn-run") {
@@ -1347,6 +1352,8 @@ Usage:
   codex-toys mcp serve
 
   codex-toys --ssh <target> --cwd <remote-workspace> remote preflight [--json]
+  codex-toys host overview --json
+  codex-toys --ssh <target> --cwd <remote-workspace> remote host-overview --json
 
   codex-toys turn run <prompt> [--wait] [--thread-id <id>]
   codex-toys --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
@@ -1477,6 +1484,8 @@ Examples:
   codex-toys mcp serve
   codex-toys toybox serve --cwd /repo
   codex-toys --ssh devbox --cwd /repo fetch
+  codex-toys host overview --json
+  codex-toys --ssh devbox --cwd /repo remote host-overview --json
   codex-toys --ssh devbox --cwd /repo turn run "Scan current folder" --wait
   codex-toys automation list
   codex-toys automation run check-release --event event.json

@@ -108,6 +108,17 @@ export {
 	type CodexToysProxyOptions,
 } from "./proxy.ts";
 export {
+	HOST_OVERVIEW_METHOD,
+	collectHostOverview,
+	createHostOverviewMethods,
+	hostOverviewMethodMetadata,
+	type HostOverview,
+	type HostOverviewCommandResult,
+	type HostOverviewOptions,
+	type HostOverviewSection,
+	type HostOverviewStatus,
+} from "./host-overview.ts";
+export {
 	WORKSPACE_OVERVIEW_METHOD,
 	collectWorkspaceOverview,
 	createWorkspaceOverviewMethods,
