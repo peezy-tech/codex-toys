@@ -201,6 +201,50 @@ schedule = "* * * * *"
 		expect(doctor.errors).toEqual([]);
 	});
 
+	test("doctor can report matching local systemd workspace tick runner", async () => {
+		const root = await tempWorkspace();
+		await writeWorkspaceToml(root, `
+[workspace]
+name = "demo"
+
+[[workspace.tasks]]
+id = "command-due"
+enabled = true
+kind = "command"
+command = ["node", "-e", "console.log('done')"]
+schedule = "* * * * *"
+`);
+		const context = await createWorkspaceContext({ workspaceRoot: root, mode: "local", env: {} });
+		const doctor = await collectWorkspaceDoctorInfo(context, {
+			runnerProbe: async (args) => {
+				if (args[0] === "list-timers") {
+					return `Sat 2026-05-30 12:57:32 UTC 59s - - demo-workspace-tick.timer demo-workspace-tick.service\n`;
+				}
+				const unit = args[1];
+				if (unit === "demo-workspace-tick.service") {
+					return [
+						"ActiveState=inactive",
+						"UnitFileState=static",
+						`ExecStart={ path=/usr/bin/codex-toys ; argv[]=/usr/bin/codex-toys workspace tick --mode local --workspace-root ${root} ; }`,
+					].join("\n");
+				}
+				if (unit === "demo-workspace-tick.timer") {
+					return [
+						"ActiveState=active",
+						"UnitFileState=enabled",
+						"NextElapseUSecRealtime=Sat 2026-05-30 12:57:32 UTC",
+						"LastTriggerUSec=Sat 2026-05-30 12:56:32 UTC",
+					].join("\n");
+				}
+				throw new Error(`unexpected probe: ${args.join(" ")}`);
+			},
+		});
+		expect(doctor.runner?.status).toBe("active");
+		expect(doctor.runner?.selected?.timer).toBe("demo-workspace-tick.timer");
+		expect(doctor.runner?.selected?.runsWorkspaceTick).toBe(true);
+		expect(doctor.runner?.selected?.matchesWorkspace).toBe(true);
+	});
+
 	test("creates and runs one-shot deferred workspace task intents once", async () => {
 		const root = await tempWorkspace();
 		await writeWorkspaceToml(root, `

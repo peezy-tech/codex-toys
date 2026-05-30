@@ -159,9 +159,13 @@ schedule = "0 14 * * *"
 ```
 
 Then run `workspace tick` from a user timer, cron, CI workflow, or a manual
-operator command. Today this is best for daily or occasional agentic work. Keep
-frequent runtime jobs, such as market-data collection or short interval
-aggregation, in product-owned system services.
+operator command. A local systemd user timer should call `workspace tick`, not a
+separate deferred-only runner, so scheduled tasks and one-shot deferred intents
+share the same queue and claiming path. `workspace doctor` reports whether it
+can see a matching local systemd user timer for the current workspace root.
+Today this is best for daily or occasional agentic work. Keep frequent runtime
+jobs, such as market-data collection or short interval aggregation, in
+product-owned system services.
 
 ## Boundaries
 

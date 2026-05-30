@@ -226,6 +226,38 @@ export type DeferredRunPruneResult = {
 	}>;
 };
 
+export type WorkspaceRunnerCandidate = {
+	kind: "systemd-user";
+	timer: string;
+	service: string;
+	command?: string;
+	activeState?: string;
+	unitFileState?: string;
+	timerActiveState?: string;
+	timerUnitFileState?: string;
+	nextTrigger?: string;
+	lastTrigger?: string;
+	workspaceRoot?: string;
+	runsWorkspaceTick: boolean;
+	runsDeferredOnly: boolean;
+	matchesWorkspace: boolean;
+};
+
+export type WorkspaceRunnerInfo = {
+	kind: "systemd-user";
+	status: "active" | "inactive" | "missing" | "unsupported" | "unknown";
+	workspaceRoot: string;
+	selected?: WorkspaceRunnerCandidate;
+	candidates: WorkspaceRunnerCandidate[];
+	warning?: string;
+	error?: string;
+};
+
+export type WorkspaceDoctorOptions = {
+	includeRunner?: boolean;
+	runnerProbe?: (args: string[]) => Promise<string>;
+};
+
 export type WorkspaceDoctorInfo = {
 	mode: WorkspaceMode;
 	requestedMode: WorkspaceModeInput;
@@ -250,6 +282,7 @@ export type WorkspaceDoctorInfo = {
 	deferredFailedCount: number;
 	latestRun?: WorkspaceRunRecord;
 	latestDeferredRun?: DeferredRunIntent;
+	runner?: WorkspaceRunnerInfo;
 	surfaces: WorkspaceSurface[];
 	errors: string[];
 };
@@ -375,7 +408,10 @@ export async function loadWorkspaceConfig(context: WorkspaceContext): Promise<Wo
 	};
 }
 
-export async function collectWorkspaceDoctorInfo(context: WorkspaceContext): Promise<WorkspaceDoctorInfo> {
+export async function collectWorkspaceDoctorInfo(
+	context: WorkspaceContext,
+	options: WorkspaceDoctorOptions = {},
+): Promise<WorkspaceDoctorInfo> {
 	let config: WorkspaceConfig | undefined;
 	let configExists = true;
 	try {
@@ -397,6 +433,15 @@ export async function collectWorkspaceDoctorInfo(context: WorkspaceContext): Pro
 	const latestDeferredRun = deferredRuns
 		.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 	const failingCount = countFailingTasks(config?.tasks ?? [], runs);
+	const includeRunner = options.includeRunner === true || options.runnerProbe !== undefined;
+	const runner = includeRunner
+		? await collectWorkspaceRunnerInfo(
+			context,
+			config?.tasks ?? [],
+			deferredRuns,
+			options.runnerProbe ?? runSystemctlUser,
+		)
+		: undefined;
 	return {
 		mode: context.mode,
 		requestedMode: context.requestedMode,
@@ -421,6 +466,7 @@ export async function collectWorkspaceDoctorInfo(context: WorkspaceContext): Pro
 		deferredFailedCount: deferredRuns.filter((intent) => intent.status === "failed").length,
 		latestRun,
 		latestDeferredRun,
+		runner,
 		surfaces: config?.surfaces ?? [],
 		errors: workspaceDoctorErrors(context),
 	};
@@ -450,7 +496,11 @@ export function formatWorkspaceDoctorInfo(info: WorkspaceDoctorInfo): string {
 				? `${info.latestDeferredRun.status} ${info.latestDeferredRun.id} ${info.latestDeferredRun.updatedAt}`
 				: "none",
 		],
+		["runner", formatWorkspaceRunnerInfo(info.runner)],
 	];
+	if (info.runner?.warning) {
+		rows.push(["runner warning", info.runner.warning]);
+	}
 	for (const error of info.errors) {
 		rows.push(["error", error]);
 	}
@@ -1156,6 +1206,19 @@ async function runGit(cwd: string, args: string[]): Promise<{ stdout: string; st
 	return { stdout, stderr };
 }
 
+async function runSystemctlUser(args: string[]): Promise<string> {
+	const proc = spawn("systemctl", ["--user", ...args]);
+	const [stdout, stderr, exitCode] = await Promise.all([
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
+	]);
+	if (exitCode !== 0) {
+		throw new Error(`systemctl --user ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`);
+	}
+	return stdout;
+}
+
 function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
 	return new Promise((resolve, reject) => {
 		let output = "";
@@ -1640,6 +1703,204 @@ function workspaceDoctorErrors(context: WorkspaceContext): string[] {
 		];
 	}
 	return [];
+}
+
+async function collectWorkspaceRunnerInfo(
+	context: WorkspaceContext,
+	tasks: WorkspaceTask[],
+	deferredRuns: DeferredRunIntent[],
+	probe: (args: string[]) => Promise<string>,
+): Promise<WorkspaceRunnerInfo> {
+	const workspaceRoot = path.resolve(context.repoRoot);
+	const hasScheduledWork = tasks.some((task) => task.enabled && task.schedule);
+	const hasPendingDeferredWork = deferredRuns.some((intent) =>
+		intent.status === "pending" || intent.status === "running"
+	);
+	const hasRunnableWork = hasScheduledWork || hasPendingDeferredWork;
+	const base: Pick<WorkspaceRunnerInfo, "kind" | "workspaceRoot" | "candidates"> = {
+		kind: "systemd-user",
+		workspaceRoot,
+		candidates: [],
+	};
+	if (context.mode !== "local") {
+		return {
+			...base,
+			status: "unsupported",
+			warning: hasRunnableWork
+				? "Runner visibility currently checks local systemd user timers only."
+				: undefined,
+		};
+	}
+	if (os.platform() !== "linux") {
+		return {
+			...base,
+			status: "unsupported",
+			warning: hasRunnableWork
+				? "No local systemd user timer check is available on this platform."
+				: undefined,
+		};
+	}
+	try {
+		const timerRows = parseSystemdTimerRows(
+			await probe(["list-timers", "--all", "--no-legend", "--no-pager"]),
+		);
+		const candidates: WorkspaceRunnerCandidate[] = [];
+		for (const row of timerRows) {
+			const serviceShow = parseSystemdShow(await probe([
+				"show",
+				row.service,
+				"--property=ExecStart",
+				"--property=ActiveState",
+				"--property=UnitFileState",
+				"--no-pager",
+			]));
+			const command = normalizeSystemdCommand(serviceShow.ExecStart);
+			if (!command.includes("codex-toys")) {
+				continue;
+			}
+			const runsWorkspaceTick = /\bworkspace\s+tick\b/.test(command);
+			const runsDeferredOnly = /\bworkspace\s+deferred\s+run-due\b/.test(command);
+			if (!runsWorkspaceTick && !runsDeferredOnly) {
+				continue;
+			}
+			const timerShow = parseSystemdShow(await probe([
+				"show",
+				row.timer,
+				"--property=ActiveState",
+				"--property=UnitFileState",
+				"--property=NextElapseUSecRealtime",
+				"--property=LastTriggerUSec",
+				"--no-pager",
+			]));
+			const runnerWorkspaceRoot = extractWorkspaceRootFromCommand(command);
+			const matchesWorkspace = runnerWorkspaceRoot
+				? path.resolve(runnerWorkspaceRoot) === workspaceRoot
+				: command.includes(workspaceRoot);
+			candidates.push(compactUndefined({
+				kind: "systemd-user",
+				timer: row.timer,
+				service: row.service,
+				command,
+				activeState: serviceShow.ActiveState,
+				unitFileState: serviceShow.UnitFileState,
+				timerActiveState: timerShow.ActiveState,
+				timerUnitFileState: timerShow.UnitFileState,
+				nextTrigger: timerShow.NextElapseUSecRealtime,
+				lastTrigger: timerShow.LastTriggerUSec,
+				workspaceRoot: runnerWorkspaceRoot,
+				runsWorkspaceTick,
+				runsDeferredOnly,
+				matchesWorkspace,
+			}));
+		}
+		const selected = candidates.find((candidate) =>
+			candidate.matchesWorkspace &&
+			candidate.runsWorkspaceTick &&
+			candidate.timerActiveState === "active"
+		) ?? candidates.find((candidate) =>
+			candidate.matchesWorkspace &&
+			candidate.timerActiveState === "active"
+		) ?? candidates.find((candidate) =>
+			candidate.matchesWorkspace &&
+			candidate.runsWorkspaceTick
+		) ?? candidates.find((candidate) => candidate.matchesWorkspace);
+		if (!selected) {
+			return {
+				...base,
+				status: "missing",
+				candidates,
+				warning: hasRunnableWork
+					? "No matching local runner was found; due work needs a manual tick or another scheduler."
+					: undefined,
+			};
+		}
+		const status = selected.timerActiveState === "active" ? "active" : "inactive";
+		return {
+			...base,
+			status,
+			selected,
+			candidates,
+			warning: selected.runsDeferredOnly
+				? "The matching runner only runs deferred work; scheduled tasks need workspace tick."
+				: status === "inactive" && hasRunnableWork
+					? "The matching local runner is not active; due work needs a manual tick or another scheduler."
+					: undefined,
+		};
+	} catch (error) {
+		return {
+			...base,
+			status: "unknown",
+			error: error instanceof Error ? error.message : String(error),
+			warning: hasRunnableWork
+				? "Could not inspect local runner status; due work may need a manual tick or another scheduler."
+				: undefined,
+		};
+	}
+}
+
+function parseSystemdTimerRows(output: string): Array<{ timer: string; service: string }> {
+	const rows: Array<{ timer: string; service: string }> = [];
+	for (const line of output.split(/\r?\n/)) {
+		const trimmed = line.trim();
+		if (!trimmed) {
+			continue;
+		}
+		const fields = trimmed.split(/\s+/);
+		const timerIndex = fields.findIndex((field) => field.endsWith(".timer"));
+		if (timerIndex < 0) {
+			continue;
+		}
+		const timer = fields[timerIndex];
+		const service = fields[timerIndex + 1];
+		if (!timer || !service?.endsWith(".service")) {
+			continue;
+		}
+		rows.push({ timer, service });
+	}
+	return rows;
+}
+
+function parseSystemdShow(output: string): Record<string, string> {
+	const result: Record<string, string> = {};
+	for (const line of output.split(/\r?\n/)) {
+		const index = line.indexOf("=");
+		if (index <= 0) {
+			continue;
+		}
+		result[line.slice(0, index)] = line.slice(index + 1);
+	}
+	return result;
+}
+
+function normalizeSystemdCommand(value: string | undefined): string {
+	return (value ?? "")
+		.replace(/\\x([0-9a-fA-F]{2})/g, (_match, hex: string) =>
+			String.fromCharCode(Number.parseInt(hex, 16))
+		)
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function extractWorkspaceRootFromCommand(command: string): string | undefined {
+	const match = command.match(/--workspace-root(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s;]+))/);
+	return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function formatWorkspaceRunnerInfo(runner: WorkspaceRunnerInfo | undefined): string {
+	if (!runner) {
+		return "not checked";
+	}
+	if (runner.selected) {
+		const command = runner.selected.runsWorkspaceTick ? "workspace tick" : "workspace deferred run-due";
+		return `${runner.status} ${runner.selected.timer} -> ${runner.selected.service} (${command})`;
+	}
+	if (runner.status === "unsupported") {
+		return "unsupported";
+	}
+	if (runner.status === "unknown") {
+		return `unknown${runner.error ? ` (${runner.error})` : ""}`;
+	}
+	return `${runner.status}${runner.candidates.length > 0 ? ` (${runner.candidates.length} codex-toys runner candidates)` : ""}`;
 }
 
 function consecutiveFailures(taskId: string, runs: WorkspaceRunRecord[]): number {

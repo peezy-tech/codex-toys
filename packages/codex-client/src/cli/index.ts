@@ -355,7 +355,7 @@ async function main(): Promise<void> {
 			workspaceRoot: parsed.workspaceRoot,
 			mode: parsed.mode,
 		});
-		const info = await collectWorkspaceDoctorInfo(context);
+		const info = await collectWorkspaceDoctorInfo(context, { includeRunner: true });
 		const toybox = await collectToyboxInfo({
 			appUrl: parsed.appUrl,
 			workspaceUrl: parsed.workspaceUrl,

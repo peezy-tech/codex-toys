@@ -176,6 +176,9 @@ codex-toys-proxy serve --ssh devbox --cwd /repo --static ./dashboard
 
 See `docs/pages/reference/cli.md` for the full command surface.
 
+`workspace doctor` also reports whether it can see a matching local systemd
+user timer that runs `workspace tick` for the current workspace root.
+
 Local CLI, MCP, automation, functions, and delegation use a spawned
 `codex-toys toybox serve` process over stdio. With `--ssh`, the local CLI starts
 the same toybox on the target and speaks JSON-RPC over the SSH stdio stream. No

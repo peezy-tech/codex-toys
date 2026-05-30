@@ -226,6 +226,12 @@ and runs due deferred work; `workspace deferred run-due` runs only due deferred
 intents. With `--ssh`, deferred methods operate on the remote workspace's local
 queue through the SSH toybox.
 
+`workspace doctor` includes local systemd user runner visibility when it is run
+on Linux. A matching runner is a timer whose service invokes `codex-toys
+workspace tick --workspace-root <current-workspace>`. If pending deferred work
+or scheduled tasks exist without a matching active runner, doctor reports a
+runner warning so the operator can add a timer, CI schedule, or manual tick.
+
 `workspace deferred read --include-output` embeds completed attempt output JSON
 in the response. `workspace deferred pull` is a shorthand for that form, which
 is useful when a local operator wants to inspect a remote deferred run result

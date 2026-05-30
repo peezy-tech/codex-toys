@@ -70,9 +70,10 @@ CODEX_WORKSPACE_MODE=actions codex-toys workspace doctor
 ```
 
 `doctor` reports mode, repo root, config path, runtime `CODEX_HOME`, state
-roots, task health, latest run, memory roots, memory summary presence, and
-toybox status when reachable. In Actions mode it reports an error if
-the runtime Codex home would not be `<repo>/.codex`.
+roots, task health, latest run, memory roots, memory summary presence, local
+systemd user runner status when available, and toybox status when reachable. In
+Actions mode it reports an error if the runtime Codex home would not be
+`<repo>/.codex`.
 
 `tick` creates due scheduled task intents, runs due deferred intents once, and
 evaluates reactive rules.
