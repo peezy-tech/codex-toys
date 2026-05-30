@@ -1,6 +1,6 @@
 {
 	"name": "codex-toys-monorepo",
-	"version": "0.136.0",
+	"version": "0.137.0",
 	"description": "Codex-native stdio agent, turn automation, SSH workspace operation, and generic HTTP proxy tools.",
 	"private": true,
 	"license": "Apache-2.0",
