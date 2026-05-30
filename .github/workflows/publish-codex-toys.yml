@@ -27,17 +27,17 @@ jobs:
           node-version: 24
           cache: true
 
-      - name: Setup npm publishing
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
-
       - name: Update npm
         run: npm install -g npm@^11.10.0
 
       - name: Install pnpm
         run: npm install -g pnpm@11.1.3
+
+      - name: Setup npm publishing
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: vp install --frozen-lockfile
