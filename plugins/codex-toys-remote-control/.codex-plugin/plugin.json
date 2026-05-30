@@ -1,6 +1,6 @@
 {
   "name": "codex-toys-remote-control",
-  "version": "0.140.2",
+  "version": "0.140.3",
   "description": "Operate remote Codex workspaces from a local Codex App over SSH.",
   "author": {
     "name": "Peezy",

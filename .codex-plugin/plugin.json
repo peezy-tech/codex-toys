@@ -1,6 +1,6 @@
 {
   "name": "codex-toys",
-  "version": "0.140.2",
+  "version": "0.140.3",
   "description": "Codex-native turn automation, toybox operation, SSH workspace orchestration, and dashboard proxy guidance.",
   "author": {
     "name": "Peezy",

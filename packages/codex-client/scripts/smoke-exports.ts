@@ -1,5 +1,5 @@
 const checks = [
-	["codex-toys", ["CodexAppServerClient", "CodexEventEmitter"]],
+	["codex-toys", ["CodexAppServerClient", "CodexEventEmitter", "collectHostOverview", "collectWorkspaceOverview"]],
 	["codex-toys/browser", ["createCodexToysBrowserClient", "codexToys"]],
 	["codex-toys/functions", ["defineFunctions", "createWorkspaceFunctionMethods"]],
 	["codex-toys/vite", ["codexToysRemote"]],

@@ -1,6 +1,6 @@
 {
 	"name": "codex-toys",
-	"version": "0.140.2",
+	"version": "0.140.3",
 	"description": "Codex-native stdio agent, turn automation, SSH workspace tools, and generic HTTP proxy.",
 	"type": "module",
 	"license": "Apache-2.0",
