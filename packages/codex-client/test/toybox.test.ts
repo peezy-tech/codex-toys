@@ -1,12 +1,14 @@
 import { describe, expect, test } from "vite-plus/test";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
 	CodexToyboxClient,
 	CodexToyboxProtocolServer,
+	WORKSPACE_OVERVIEW_METHOD,
 	createWorkspaceDeferredRunMethods,
 	createWorkspaceDelegationMethods,
+	createWorkspaceOverviewMethods,
 	type CodexToyboxAppServer,
 	type CodexToyboxPeer,
 } from "../src/toybox/index.ts";
@@ -310,6 +312,59 @@ describe("Codex toybox protocol", () => {
 			intents: [],
 		});
 		expect(pruned.pruned).toBe(0);
+	});
+
+	test("workspace overview method returns bounded workspace status", async () => {
+		const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-overview-"));
+		await mkdir(path.join(workspaceRoot, ".codex"), { recursive: true });
+		await writeFile(path.join(workspaceRoot, ".codex", "workspace.toml"), [
+			"[workspace]",
+			"name = \"overview\"",
+			"",
+			"[[workspace.tasks]]",
+			"id = \"hello\"",
+			"enabled = true",
+			"kind = \"command\"",
+			"command = [\"node\", \"--version\"]",
+		].join("\n"));
+		const appServer = new FakeAppServer();
+		const methods = createWorkspaceOverviewMethods({
+			workspaceRoot,
+			appRequest: async (method, params) => await appServer.request(method, params),
+			toybox: {
+				transport: "local",
+				status: "connected",
+				url: "toybox://local",
+				server: { name: "test-toybox", version: "0.1.0" },
+			},
+			now: () => new Date("2026-05-30T12:00:00.000Z"),
+		});
+
+		const overview = await methods[WORKSPACE_OVERVIEW_METHOD]!(
+			{},
+			jsonRpcRequest("overview", WORKSPACE_OVERVIEW_METHOD),
+		) as {
+			generatedAt: string;
+			workspace: { repoRoot: string; config: { exists: boolean } };
+			fetch: { package: string; toybox: { status: string } };
+			deferred: { summary: { total: number }; intents: unknown[] };
+			threads: { ok: boolean; total: number };
+			health: { checks: Array<{ name: string; ok: boolean }> };
+		};
+
+		expect(overview.generatedAt).toBe("2026-05-30T12:00:00.000Z");
+		expect(overview.workspace.repoRoot).toBe(workspaceRoot);
+		expect(overview.workspace.config.exists).toBe(true);
+		expect(overview.fetch.package).toBe("codex-toys");
+		expect(overview.fetch.toybox.status).toBe("connected");
+		expect(overview.deferred.summary.total).toBe(0);
+		expect(overview.deferred.intents).toEqual([]);
+		expect(overview.threads).toMatchObject({ ok: true, total: 0 });
+		expect(overview.health.checks.map((check) => check.name)).toContain("workspace-config");
+		expect(appServer.requests).toContainEqual({
+			method: "thread/list",
+			params: expect.objectContaining({ cwd: workspaceRoot, limit: 10 }),
+		});
 	});
 });
 

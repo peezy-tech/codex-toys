@@ -16,6 +16,10 @@ import {
 	createRemoteAutomationMethods,
 	remoteAutomationMethodMetadata,
 } from "./remote-automation.ts";
+import {
+	createWorkspaceOverviewMethods,
+	workspaceOverviewMethodMetadata,
+} from "../workspace-overview.ts";
 
 export const TOYBOX_STATUS_METHOD = "toybox.status";
 
@@ -95,6 +99,19 @@ export async function serveToybox(
 		workspaceRequest,
 		workspaceRoot,
 	}));
+	Object.assign(methods, createWorkspaceOverviewMethods({
+		workspaceRoot,
+		appRequest: async (method, params) => await client.request(method, params),
+		toybox: {
+			transport: "local",
+			status: "connected",
+			url: "toybox://local",
+			server: {
+				name: "codex-toys-toybox",
+				version: "0.1.0",
+			},
+		},
+	}));
 	Object.assign(methods, createRemoteAutomationMethods({
 		cwd: workspaceRoot,
 		timeoutMs: options.timeoutMs,
@@ -112,6 +129,7 @@ export async function serveToybox(
 				...workspaceFunctionMethodMetadata,
 				...workspaceDelegationMethodMetadata,
 				...workspaceDeferredRunMethodMetadata,
+				...workspaceOverviewMethodMetadata,
 				...remoteAutomationMethodMetadata,
 			],
 	});

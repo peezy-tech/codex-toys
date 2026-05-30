@@ -6,6 +6,7 @@ import {
 	TOYBOX_INITIALIZE_METHOD,
 	type ToyboxInitializeResponse,
 } from "./toybox/index.ts";
+import { WORKSPACE_OVERVIEW_METHOD } from "./workspace-overview.ts";
 import type { CodexToyboxTransport } from "./toybox/client.ts";
 import {
 	createLocalToyboxTransport,
@@ -156,7 +157,10 @@ async function handleApiRequest(
 		return;
 	}
 	if (request.method === "POST" && apiPath.startsWith("/workspace/")) {
-		const method = decodeURIComponent(apiPath.slice("/workspace/".length));
+		const requested = decodeURIComponent(apiPath.slice("/workspace/".length));
+		const method = requested === "overview"
+			? WORKSPACE_OVERVIEW_METHOD
+			: requested;
 		writeJson(response, 200, await requester.request(method, await readJsonBody(request)));
 		return;
 	}

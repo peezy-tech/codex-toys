@@ -133,6 +133,15 @@ type ParsedCliBase =
 	  }
 	| { type: "workspace-methods"; url: string; timeoutMs: number; pretty: boolean }
 	| {
+			type: "workspace-overview";
+			mode?: WorkspaceModeInput;
+			workspaceRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
 			type: "workspace-delegate-list";
 			url: string;
 			timeoutMs: number;
@@ -1010,6 +1019,18 @@ export function parseArgs(
 				timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
 				color,
 				json,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "overview") {
+			return {
+				type: "workspace-overview",
+				mode,
+				workspaceRoot,
+				url: workspaceUrl,
+				timeoutMs: timeoutMs === defaultTimeoutMs ? 5_000 : timeoutMs,
+				json,
+				pretty,
 				...remoteFields(),
 			};
 		}

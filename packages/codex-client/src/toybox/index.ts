@@ -93,3 +93,12 @@ export {
 	workspaceDeferredRunMethodMetadata,
 	type WorkspaceDeferredRunRuntimeOptions,
 } from "./deferred-run-methods.ts";
+export {
+	WORKSPACE_OVERVIEW_METHOD,
+	collectWorkspaceOverview,
+	createWorkspaceOverviewMethods,
+	workspaceOverviewMethodMetadata,
+	type WorkspaceOverview,
+	type WorkspaceOverviewParams,
+	type WorkspaceOverviewRuntimeOptions,
+} from "../workspace-overview.ts";

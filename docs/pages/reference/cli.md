@@ -102,10 +102,13 @@ GET  /api/schema
 POST /api/rpc
 POST /api/app/:method
 POST /api/workspace/:method
+POST /api/workspace/overview
 ```
 
 `/api/schema` is derived from `toybox.initialize`; route behavior forwards to
 toybox methods instead of duplicating feature-specific endpoint logic.
+`/api/workspace/overview` is a convenience alias for the `workspace.overview`
+toybox method.
 
 Direct browser calls to the proxy API intentionally receive CORS headers only
 for loopback origins such as `localhost`, `127.0.0.1`, `::1`, and
@@ -177,10 +180,18 @@ codex-toys workspace <method> --params-file <file>
 codex-toys workspace call <method> [params-json]
 codex-toys workspace app <method> [params-json]
 codex-toys workspace methods
+codex-toys workspace overview [--json]
 ```
 
 Workspace calls go through the toybox. `workspace app <method>` is a convenience
 alias for generic app-server pass-through.
+
+`workspace overview --json` returns a bounded dashboard-friendly snapshot for
+the current workspace cwd: fetch and workspace doctor summary, deferred queue
+counts and compact intents, latest deferred output status, automations,
+functions, recent cwd threads, git state, and health checks for Node,
+codex-toys, Codex, toybox, app-server, and workspace config. The JSON shape is
+also available through `POST /api/workspace/overview` with `{}`.
 
 ## Workspace Delegation
 

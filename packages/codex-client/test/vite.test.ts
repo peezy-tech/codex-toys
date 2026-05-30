@@ -28,7 +28,7 @@ describe("codexToysRemote Vite plugin", () => {
 			const schema = await fetchJson(`${baseUrl}/__codex_toys/api/schema`);
 			expect(schema).toMatchObject({
 				capabilities: {
-					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call"],
+					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workspace.overview"],
 				},
 			});
 
@@ -54,12 +54,19 @@ describe("codexToysRemote Vite plugin", () => {
 				body: JSON.stringify({ name: "snapshot", params: { id: "one" } }),
 			});
 			expect(called).toEqual({ result: { id: "one", ok: true } });
+			const overview = await fetchJson(`${baseUrl}/__codex_toys/api/workspace/overview`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({}),
+			});
+			expect(overview).toEqual({ ok: true, workspace: { cwd: "/remote" } });
 			expect(transport.requests.map((request) => request.method)).toEqual([
 				"toybox.initialize",
 				"toybox.status",
 				"functions.list",
 				"functions.describe",
 				"functions.call",
+				"workspace.overview",
 			]);
 		} finally {
 			await server.close();
@@ -121,7 +128,7 @@ class FakeWorkspaceTransport extends CodexEventEmitter implements CodexToyboxTra
 				serverInfo: { name: "fake", version: "0.1.0" },
 				capabilities: {
 					appPassThrough: true,
-					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call"],
+					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workspace.overview"],
 					toyboxMethodMetadata: [],
 				},
 			} as T;
@@ -142,6 +149,9 @@ class FakeWorkspaceTransport extends CodexEventEmitter implements CodexToyboxTra
 		if (method === "functions.call") {
 			const input = params as { params?: { id?: string } };
 			return { result: { id: input.params?.id, ok: true } } as T;
+		}
+		if (method === "workspace.overview") {
+			return { ok: true, workspace: { cwd: "/remote" } } as T;
 		}
 		throw new Error(`Unexpected request: ${method}`);
 	}

@@ -99,6 +99,12 @@ describe("codex-toys CLI args", () => {
 				type: "workspace-delegate-list",
 				json: true,
 			});
+		expect(parseArgs(["workspace", "overview", "--json"], {}))
+			.toMatchObject({
+				type: "workspace-overview",
+				json: true,
+				timeoutMs: 5_000,
+			});
 		expect(parseArgs([
 			"--ssh",
 			"devbox",

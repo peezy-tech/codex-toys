@@ -107,6 +107,15 @@ export {
 	createProxyRequester,
 	type CodexToysProxyOptions,
 } from "./proxy.ts";
+export {
+	WORKSPACE_OVERVIEW_METHOD,
+	collectWorkspaceOverview,
+	createWorkspaceOverviewMethods,
+	workspaceOverviewMethodMetadata,
+	type WorkspaceOverview,
+	type WorkspaceOverviewParams,
+	type WorkspaceOverviewRuntimeOptions,
+} from "./workspace-overview.ts";
 export type {
 	JsonRpcErrorObject,
 	JsonRpcId,

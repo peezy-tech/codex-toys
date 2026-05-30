@@ -178,6 +178,7 @@ HTTP API:
   POST /api/rpc
   POST /api/app/:method
   POST /api/workspace/:method
+  POST /api/workspace/overview
 `;
 }
 

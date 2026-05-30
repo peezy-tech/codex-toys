@@ -80,6 +80,10 @@ import {
 	type WorkspaceFunctionsDescribeResponse,
 	type WorkspaceFunctionsListResponse,
 } from "../functions.ts";
+import {
+	WORKSPACE_OVERVIEW_METHOD,
+	type WorkspaceOverview,
+} from "../workspace-overview.ts";
 import { serveToybox } from "./toybox.ts";
 import type { CodexToyboxTransport } from "../toybox/client.ts";
 import {
@@ -371,6 +375,20 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
 			: `${formatWorkspaceDoctorInfo(info)}toybox             ${toyboxLabelForDoctor(toybox)}\n`);
+		return;
+	}
+	if (parsed.type === "workspace-overview") {
+		const overview = await callToybox(
+			WORKSPACE_OVERVIEW_METHOD,
+			compactUndefined({
+				mode: parsed.mode,
+				workspaceRoot: parsed.workspaceRoot,
+			}),
+			parsed,
+		) as WorkspaceOverview;
+		write(parsed.json
+			? `${JSON.stringify(overview, null, parsed.pretty ? 2 : 0)}\n`
+			: formatWorkspaceOverview(overview));
 		return;
 	}
 	if (parsed.type === "workspace-tick") {
@@ -676,6 +694,27 @@ function toyboxLabelForDoctor(toybox: FetchToyboxInfo): string {
 		return toybox.url ? `${toybox.transport} connected (${toybox.url})` : `${toybox.transport} connected`;
 	}
 	return toybox.error ? `unavailable (${toybox.error})` : "unavailable";
+}
+
+function formatWorkspaceOverview(overview: WorkspaceOverview): string {
+	const lines = [
+		`workspace          ${overview.workspace.repoRoot}`,
+		`mode               ${overview.workspace.mode}`,
+		`config             ${overview.workspace.config.exists ? "found" : "missing"} ${overview.workspace.config.path}`,
+		`health             ${overview.health.ok ? "ok" : "attention"}`,
+		`deferred           ${overview.deferred.summary.total} total, ${overview.deferred.summary.due} due, ${overview.deferred.summary.running} running, ${overview.deferred.summary.failed} failed`,
+		`automations        ${overview.automations.ok ? overview.automations.total : `error: ${overview.automations.error}`}`,
+		`functions          ${overview.functions.ok ? overview.functions.total : `error: ${overview.functions.error}`}`,
+		`threads            ${overview.threads.ok ? `${overview.threads.total} recent for cwd` : `error: ${overview.threads.error}`}`,
+		`git                ${overview.git.ok && overview.git.isRepo ? `${overview.git.branch ?? "unknown"} ${overview.git.commit ?? ""}${overview.git.dirty ? " dirty" : ""}` : overview.git.error ?? "not a git repo"}`,
+	];
+	if (overview.deferred.latest) {
+		lines.push(`latest deferred    ${overview.deferred.latest.status} ${overview.deferred.latest.id} ${overview.deferred.latest.updatedAt}`);
+	}
+	for (const check of overview.health.checks.filter((item) => !item.ok)) {
+		lines.push(`check              ${check.name} ${check.status}${check.error ? `: ${check.error}` : ""}`);
+	}
+	return `${lines.join("\n")}\n`;
 }
 
 async function callAppServer(
@@ -1335,6 +1374,7 @@ Usage:
   codex-toys workspace call <method> [params-json]
   codex-toys workspace app <method> [params-json]
   codex-toys workspace methods
+  codex-toys workspace overview [--json]
   codex-toys workspace delegate list [--json]
   codex-toys workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
   codex-toys workspace doctor [--mode auto|local|actions] [--json]
@@ -1449,6 +1489,7 @@ Examples:
   codex-toys app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-toys workspace app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-toys workspace delegation.list
+  codex-toys workspace overview --json
   codex-toys workspace delegate start --cwd @/workspaces/trading --prompt "Inspect status"
   codex-toys workspace doctor --mode actions
   codex-toys workspace deferred create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workspace."}}'
