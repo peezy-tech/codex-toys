@@ -1,12 +1,10 @@
-import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { helpText } from "../packages/codex-toys/src/cli/help.ts";
 
 const checks: string[] = [];
 const failures: string[] = [];
 
 const root = new URL("..", import.meta.url);
-const rootPath = fileURLToPath(root);
 
 const textFiles = new Map<string, string>();
 
@@ -37,20 +35,7 @@ async function expectExcludes(file: string, needle: string, label?: string): Pro
 }
 
 async function main(): Promise<void> {
-	const helpProc = spawn(process.execPath, ["--import", "tsx", "packages/codex-toys/src/cli/index.ts", "--help"], {
-		cwd: rootPath,
-	});
-	const [help, helpError, helpExit] = await Promise.all([
-		collectText(helpProc.stdout),
-		collectText(helpProc.stderr),
-		exitCodeFor(helpProc),
-	]);
-
-if (helpExit !== 0) {
-	process.stderr.write(helpError);
-	process.stderr.write(help);
-	process.exit(helpExit);
-}
+	const help = helpText();
 
 const cliDoc = await read("docs/pages/reference/cli.md");
 const requiredCliLines = [
@@ -188,29 +173,6 @@ if (failures.length > 0) {
 }
 
 	console.log(`docs check passed (${checks.length} conditions)`);
-}
-
-function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
-	return new Promise((resolve, reject) => {
-		let output = "";
-		if (!stream) {
-			resolve(output);
-			return;
-		}
-		stream.setEncoding("utf8");
-		stream.on("data", (chunk: string) => {
-			output += chunk;
-		});
-		stream.once("error", reject);
-		stream.once("end", () => resolve(output));
-	});
-}
-
-function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
-	return new Promise((resolve, reject) => {
-		child.once("error", reject);
-		child.once("exit", (code) => resolve(code));
-	});
 }
 
 void main().catch((error) => {

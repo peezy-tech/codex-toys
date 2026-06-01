@@ -33,6 +33,10 @@ export default defineConfig({
 				replacement: path.join(packageSrc("proxy"), "vite.ts"),
 			},
 			{
+				find: /^@codex-toys\/(actions|bridge|kits|proxy|remote|toybox|workbench)\/(.+)$/,
+				replacement: path.resolve(root, "packages/$1/src/$2.ts"),
+			},
+			{
 				find: /^@codex-toys\/([^/]+)$/,
 				replacement: path.resolve(root, "packages/$1/src/index.ts"),
 			},
