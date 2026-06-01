@@ -1,6 +1,6 @@
 {
 	"name": "codex-toys",
-	"version": "0.140.5",
+	"version": "0.140.6",
 	"description": "Codex CLI and umbrella runtime export for bridge, toybox, remote, workbench, actions, proxy, and kits.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -101,7 +101,11 @@
 		"@codex-toys/proxy",
 		"@codex-toys/remote",
 		"@codex-toys/toybox",
-		"@codex-toys/workbench"
+		"@codex-toys/workbench",
+		"smol-toml",
+		"tsx",
+		"esbuild",
+		"@esbuild/linux-x64"
 	],
 	"engines": {
 		"node": ">=24.0.0 <25"
@@ -129,7 +133,11 @@
 		"@codex-toys/remote": "workspace:*",
 		"@codex-toys/toybox": "workspace:*",
 		"@codex-toys/workbench": "workspace:*",
+		"esbuild": "catalog:",
 		"smol-toml": "catalog:",
 		"tsx": "catalog:"
+	},
+	"optionalDependencies": {
+		"@esbuild/linux-x64": "0.28.0"
 	}
 }

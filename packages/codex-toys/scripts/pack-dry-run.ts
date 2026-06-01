@@ -21,6 +21,10 @@ const requiredTarEntries = [
 	"package/node_modules/@codex-toys/remote/dist/index.js",
 	"package/node_modules/@codex-toys/toybox/dist/index.js",
 	"package/node_modules/@codex-toys/workbench/dist/index.js",
+	"package/node_modules/smol-toml/dist/index.js",
+	"package/node_modules/tsx/dist/loader.mjs",
+	"package/node_modules/esbuild/lib/main.js",
+	"package/node_modules/@esbuild/linux-x64/bin/esbuild",
 ] as const;
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-pack-"));
@@ -28,6 +32,8 @@ const tempRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-pack-"));
 try {
 	const packDir = path.join(tempRoot, "pack");
 	const installDir = path.join(tempRoot, "install");
+	const globalInstallDir = path.join(tempRoot, "global-install");
+	const globalIgnoreScriptsInstallDir = path.join(tempRoot, "global-ignore-scripts-install");
 	await mkdir(packDir, { recursive: true });
 	await mkdir(installDir, { recursive: true });
 	await run("tsx", [
@@ -91,6 +97,31 @@ for (const [specifier, expectedExports] of checks) {
 	await run(path.join(installDir, "node_modules", ".bin", "codex-toys-proxy"), ["--help"], {
 		cwd: installDir,
 	});
+
+	await run("npm", [
+		"install",
+		"-g",
+		"--prefix",
+		globalInstallDir,
+		"--no-audit",
+		"--no-fund",
+		tarballPath,
+	]);
+	await run(path.join(globalInstallDir, "bin", "codex-toys"), ["--help"]);
+	await run(path.join(globalInstallDir, "bin", "codex-toys-proxy"), ["--help"]);
+
+	await run("npm", [
+		"install",
+		"-g",
+		"--prefix",
+		globalIgnoreScriptsInstallDir,
+		"--ignore-scripts",
+		"--no-audit",
+		"--no-fund",
+		tarballPath,
+	]);
+	await run(path.join(globalIgnoreScriptsInstallDir, "bin", "codex-toys"), ["--help"]);
+	await run(path.join(globalIgnoreScriptsInstallDir, "bin", "codex-toys-proxy"), ["--help"]);
 
 	const byTopLevel = new Map<string, number>();
 	for (const entry of tarEntries) {

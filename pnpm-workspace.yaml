@@ -8,6 +8,7 @@ allowBuilds:
 
 catalog:
   "@types/node": ^24.12.4
+  esbuild: ^0.28.0
   smol-toml: ^1.6.1
   react: ^19.2.4
   react-dom: ^19.2.4

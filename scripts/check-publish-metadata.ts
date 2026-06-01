@@ -48,6 +48,13 @@ const bundledInternalPackages = [
 	"@codex-toys/workbench",
 ] as const;
 
+const bundledRuntimePackages = [
+	"smol-toml",
+	"tsx",
+	"esbuild",
+	"@esbuild/linux-x64",
+] as const;
+
 const publicSubpathExports = [
 	".",
 	"./actions",
@@ -119,7 +126,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log(
-		`publish metadata ok: codex-toys bundles ${bundledInternalPackages.join(", ")}`,
+		`publish metadata ok: codex-toys bundles ${[...bundledInternalPackages, ...bundledRuntimePackages].join(", ")}`,
 	);
 }
 
@@ -136,11 +143,14 @@ async function checkSourceManifests(): Promise<void> {
 		...(publicManifest.bundledDependencies ?? []),
 		...(publicManifest.bundleDependencies ?? []),
 	]);
-	for (const packageName of bundledInternalPackages) {
+	for (const packageName of [...bundledInternalPackages, ...bundledRuntimePackages]) {
 		if (!bundled.has(packageName)) {
 			failures.push(`${publicManifestPath}: missing bundled dependency ${packageName}`);
 		}
-		if (publicManifest.dependencies?.[packageName] === undefined) {
+		if (
+			publicManifest.dependencies?.[packageName] === undefined &&
+			publicManifest.optionalDependencies?.[packageName] === undefined
+		) {
 			failures.push(`${publicManifestPath}: missing dependency ${packageName}`);
 		}
 	}
@@ -205,6 +215,10 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 		"package/dist/proxy/browser.js",
 		"package/dist/bridge/json.js",
 		"package/node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js",
+		"package/node_modules/smol-toml/dist/index.js",
+		"package/node_modules/tsx/dist/loader.mjs",
+		"package/node_modules/esbuild/lib/main.js",
+		"package/node_modules/@esbuild/linux-x64/bin/esbuild",
 	]) {
 		if (!tarEntries.has(entry)) {
 			failures.push(`${publicManifestPath}: packed tarball is missing ${entry}`);
@@ -234,6 +248,29 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 		}
 		if (internalManifest.publishConfig !== undefined) {
 			failures.push(`${packageJsonPath}: bundled internal package must not declare publishConfig`);
+		}
+	}
+
+	const tsxManifestText = extractTarText(tarballPath, "package/node_modules/tsx/package.json");
+	if (tsxManifestText === null) {
+		failures.push(`${publicManifestPath}: failed to inspect bundled tsx package.json`);
+	} else {
+		const tsxManifest = JSON.parse(tsxManifestText) as PackageJson;
+		if (tsxManifest.optionalDependencies?.fsevents !== undefined) {
+			failures.push(`${publicManifestPath}: bundled tsx package must not include fsevents`);
+		}
+	}
+
+	const esbuildManifestText = extractTarText(
+		tarballPath,
+		"package/node_modules/esbuild/package.json",
+	);
+	if (esbuildManifestText === null) {
+		failures.push(`${publicManifestPath}: failed to inspect bundled esbuild package.json`);
+	} else {
+		const esbuildManifest = JSON.parse(esbuildManifestText) as PackageJson;
+		if (esbuildManifest.scripts !== undefined) {
+			failures.push(`${publicManifestPath}: bundled esbuild package must not include scripts`);
 		}
 	}
 }
