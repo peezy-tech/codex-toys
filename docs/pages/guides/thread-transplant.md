@@ -18,7 +18,7 @@ same thread id from disk.
 
 ```bash
 codex-toys threads locate <thread-id> --codex-home ~/.codex
-codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./workspace/.codex
+codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./workbench/.codex
 ```
 
 `transplant` is the normal home-to-home path. It locates the rollout under the

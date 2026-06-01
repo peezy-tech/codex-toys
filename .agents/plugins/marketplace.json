@@ -29,10 +29,10 @@
       "category": "Coding"
     },
     {
-      "name": "codex-toys-local-workspace",
+      "name": "codex-toys-local-workbench",
       "source": {
         "source": "local",
-        "path": "./plugins/codex-toys-local-workspace"
+        "path": "./plugins/codex-toys-local-workbench"
       },
       "policy": {
         "installation": "AVAILABLE",

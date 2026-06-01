@@ -8,21 +8,21 @@ description: Compare direct app-server access, codex-toys toyboxes, SSH-backed o
 codex-toys has three runtime shapes:
 
 - direct app-server access for protocol inspection
-- the codex-toys toybox for local and SSH workspace operation
+- the codex-toys toybox for local and SSH workbench operation
 - the optional proxy for browser dashboards
 
 ## Direct app-server
 
 Direct app-server access is useful for local development, protocol inspection,
-and one-off debugging. It talks to Codex app-server without workspace policy.
+and one-off debugging. It talks to Codex app-server without workbench policy.
 
 Use `--via app` only when you deliberately want this direct path.
 
 ## Toybox
 
 The toybox is the normal automation surface. It owns app-server pass-through,
-functions, delegation, workspace state, and repo-local task execution. Turn
-automation uses `--via workspace` by default.
+functions, delegation, workbench state, and repo-local task execution. Turn
+automation uses `--via workbench` by default.
 
 Local commands spawn the toybox over stdio. SSH commands start the same toybox on
 the target and speak JSON-RPC over SSH stdio.

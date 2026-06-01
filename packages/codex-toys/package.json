@@ -1,0 +1,64 @@
+{
+	"name": "codex-toys",
+	"version": "0.140.5",
+	"description": "Codex CLI and umbrella runtime export for bridge, toybox, remote, workbench, actions, proxy, and kits.",
+	"type": "module",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/peezy-tech/codex-toys.git",
+		"directory": "packages/codex-toys"
+	},
+	"keywords": [
+		"codex",
+		"codex-app-server",
+		"json-rpc",
+		"automation"
+	],
+	"sideEffects": false,
+	"types": "./dist/index.d.ts",
+	"bin": {
+		"codex-toys": "dist/cli/index.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"engines": {
+		"node": ">=24.0.0 <25"
+	},
+	"scripts": {
+		"build": "vp run clean && tsc -p tsconfig.build.json && chmod 755 dist/cli/index.js",
+		"check:types": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"pack:dry-run": "tsx scripts/pack-dry-run.ts",
+		"prepack": "vp run build",
+		"release:check": "vp run test && vp run check:types && vp run build && vp run smoke:exports && vp run smoke:bins && vp run pack:dry-run",
+		"smoke:bins": "tsx scripts/smoke-bins.ts",
+		"smoke:exports": "tsx scripts/smoke-exports.ts",
+		"test": "vp test run --root ../.. packages/codex-toys/test"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"typescript": "catalog:"
+	},
+	"dependencies": {
+		"@codex-toys/actions": "workspace:*",
+		"@codex-toys/bridge": "workspace:*",
+		"@codex-toys/kits": "workspace:*",
+		"@codex-toys/proxy": "workspace:*",
+		"@codex-toys/remote": "workspace:*",
+		"@codex-toys/toybox": "workspace:*",
+		"@codex-toys/workbench": "workspace:*",
+		"tsx": "catalog:"
+	}
+}

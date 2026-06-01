@@ -79,26 +79,33 @@ vp run release:check
 
 ## Releases
 
-Canonical user-facing package:
+Public package stack:
 
+- `@codex-toys/bridge`
+- `@codex-toys/toybox`
+- `@codex-toys/workbench`
+- `@codex-toys/actions`
+- `@codex-toys/remote`
+- `@codex-toys/proxy`
+- `@codex-toys/kits`
 - `codex-toys`
 
 The GitHub publish workflow checks whether each package version already exists
-on npm. It publishes a new `codex-toys` version and skips versions
-that are already present. Published packages are packed with `pnpm pack` and
-then handed to `npm publish` so workspace and catalog dependency specifiers are
+on npm. It publishes each missing package version in dependency order and skips
+versions that are already present. Published packages are packed with `pnpm pack` and
+then handed to `npm publish` so workbench and catalog dependency specifiers are
 converted before the npm registry sees the package while GitHub provenance still
 comes from npm.
 Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
-line is `0.132.x`, a breaking codex-toys stack release should usually advance
-to `0.132.1` rather than `0.133.0`.
+line is `0.140.x`, a breaking codex-toys stack release should usually advance
+to `0.140.5` rather than `0.141.0`.
 
-New public core runtime surfaces should be exported through
-`codex-toys` first, including reusable protocol helpers and
-runnable local backend bins. Product- or channel-specific gateways, such as
-Discord text or voice packages, should publish separately and depend on
-`codex-toys` from their own repositories.
+New public core runtime surfaces should land in the scoped package that owns the
+feature boundary, with `codex-toys` re-exporting runtime APIs when an umbrella
+import is useful. Product- or channel-specific gateways, such as Discord text
+or voice packages, should publish separately and depend on the relevant
+codex-toys packages from their own repositories.
 
 Before publishing:
 
@@ -124,4 +131,5 @@ To publish through GitHub trusted publishing:
 
 ```bash
 npm dist-tag ls codex-toys
+npm dist-tag ls @codex-toys/bridge
 ```

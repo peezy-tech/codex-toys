@@ -1,0 +1,210 @@
+# codex-toys
+
+CLI and umbrella runtime export for the codex-toys package stack.
+
+```bash
+pnpm add codex-toys
+```
+
+or:
+
+```bash
+npm install codex-toys
+```
+
+Full documentation lives in the repo docs site:
+
+- overview: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/index.md>
+- CLI reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/cli.md>
+- turn automation: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/turn-automation.md>
+- package reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/packages.md>
+- workbench autonomy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/workbench-autonomy.md>
+- memory transplant: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/memory-transplant.md>
+- thread transplant: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/thread-transplant.md>
+- Codex plugin skills: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-codex-plugin.md>
+- optional kit copies: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-kit-repos.md>
+
+## Package Stack
+
+| Package | Purpose |
+|---------|---------|
+| `@codex-toys/bridge` | Native Codex app-server, auth, memory, thread, JSON-RPC, and generated protocol bridge primitives. |
+| `@codex-toys/toybox` | Stdio JSON-RPC toybox client/server protocol. |
+| `@codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, automation, and overview primitives. |
+| `@codex-toys/actions` | GitHub/Forgejo Actions auth and state helpers. |
+| `@codex-toys/remote` | SSH-backed toybox transports and remote control helpers. |
+| `@codex-toys/proxy` | Optional HTTP proxy, browser client, Vite middleware, and `codex-toys-proxy` binary. |
+| `@codex-toys/kits` | Kit inspect/add/list/doctor helpers for `codex-kit.toml` and `.codex/kit-lock.json`. |
+| `codex-toys` | CLI package and umbrella runtime export. |
+
+## App-Server Client
+
+```ts
+import { CodexAppServerClient } from "@codex-toys/bridge";
+
+const client = new CodexAppServerClient();
+await client.connect();
+
+const threads = await client.listThreads({});
+
+client.close();
+```
+
+`CodexAppServerClient` defaults to a stdio transport that starts
+`codex app-server`. Set `CODEX_APP_SERVER_CODEX_COMMAND`,
+`CODEX_APP_SERVER_CODEX_ARGS`, or pass `transportOptions.codexCommand` when a
+specific binary or launch flags should be used.
+
+Browser entry for freeform dashboards:
+
+```ts
+import { createCodexToysBrowserClient } from "@codex-toys/proxy/browser";
+
+const codexToys = createCodexToysBrowserClient();
+const schema = await codexToys.schema();
+const threads = await codexToys.app.call("thread/list", { limit: 20 });
+```
+
+The browser package only talks to the optional HTTP proxy with `fetch`; it does
+not include a WebSocket app-server or workbench client. Direct proxy API CORS is
+loopback-only (`localhost`, `127.0.0.1`, `::1`, and `*.localhost`); local
+dashboards can also avoid CORS entirely by using the Vite plugin or proxy
+`--static` same-origin serving.
+
+## Turn Automation
+
+```ts
+import { runTurnAutomationScript } from "@codex-toys/workbench";
+
+const run = await runTurnAutomationScript({
+	scriptPath: "./automations/check-release/check-release.ts",
+	event: { type: "upstream.release", payload: { tag: "v1.2.3" } },
+	cwd: "/repo",
+	timeoutMs: 90_000,
+});
+
+console.log(run.result);
+```
+
+Turn automation runs code before returning a JSON result. Scripts can start one
+native Codex turn or compose several turns through `context.turn.start`,
+`context.turn.read`, and `context.turn.wait`. When running through a codex-toys
+toybox, scripts can also start delegated Codex threads in another checkout with
+`context.delegate.start({ cwd: "@/workbenches/name", prompt })`.
+
+## Auth Helpers
+
+```ts
+import {
+	CodexAppServerClient,
+	createCodexAuthClient,
+} from "@codex-toys/bridge";
+
+const client = new CodexAppServerClient();
+await client.connect();
+
+const auth = createCodexAuthClient(client);
+const state = await auth.getState();
+
+if (state.status !== "authenticated") {
+	const login = await auth.startChatGptLogin();
+	console.log(login.authUrl);
+}
+```
+
+The high-level auth state intentionally omits email addresses and stable account
+identifiers. It exposes anonymous auth mode, plan, and usage data by default.
+
+## Workbench Boundary
+
+`@codex-toys/workbench` does not execute app-server requests. It
+derives reusable UX state from app-server notifications and completed turns, and
+returns request descriptors for actions:
+
+```ts
+import { threadGoalSetDescriptor } from "@codex-toys/workbench";
+
+const action = threadGoalSetDescriptor({
+	threadId,
+	objective: "Finish the release checks.",
+	status: "active",
+	tokenBudget: 8000,
+});
+
+await client.request(action.method, action.params);
+```
+
+The app-server protocol remains the source of truth for thread commands.
+
+## CLI
+
+The `codex-toys` package publishes the CLI. The optional `codex-toys-proxy`
+web edge is published by `@codex-toys/proxy`:
+
+```bash
+codex-toys fetch
+codex-toys toybox serve --cwd /repo
+codex-toys --ssh devbox --cwd /repo remote preflight
+codex-toys turn run "Check workbench status" --wait
+codex-toys automation list
+codex-toys automation run openai-codex-bindings --event event.json
+codex-toys --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
+codex-toys --ssh devbox --cwd /repo fetch
+codex-toys --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-toys --ssh devbox --cwd /repo functions list --json
+codex-toys --ssh devbox --cwd /repo functions call portfolioSnapshot --json
+codex-toys --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
+codex-toys app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-toys workbench app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-toys workbench delegate start --cwd @/workbenches/trading --prompt "Inspect status"
+codex-toys workbench doctor
+codex-toys workbench tick --mode local
+codex-toys workbench prompt enqueue "Review later." --queue low-priority --effort low
+codex-toys workbench prompt run-due --queue low-priority --limit 1
+codex-toys workbench prompt collect --queue low-priority --json
+codex-toys workbench handoff enqueue "Test the dashboard locally." --capability browser
+codex-toys workbench handoff drain --capability browser --materialize --prompt-queue local-followups
+codex-toys workbench deferred create --params-json '{"target":{"kind":"turn","prompt":"Review later."}}'
+codex-toys workbench deferred list --json
+codex-toys workbench deferred prune --older-than-days 30 --dry-run
+codex-toys memories transplant global-to-workbench
+codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
+
+codex-toys-proxy serve --cwd /repo --static ./dashboard
+codex-toys-proxy serve --ssh devbox --cwd /repo --static ./dashboard
+```
+
+See `docs/pages/reference/cli.md` for the full command surface.
+
+`workbench doctor` also reports whether it can see a matching local systemd
+user timer that runs `workbench tick` for the current workbench root.
+
+Local CLI, MCP, automation, functions, and delegation use a spawned
+`codex-toys toybox serve` process over stdio. With `--ssh`, the local CLI starts
+the same toybox on the target and speaks JSON-RPC over the SSH stdio stream. No
+codex-toys core command opens a WebSocket port. Browser dashboards opt into HTTP
+explicitly by starting `codex-toys-proxy`, whose schema is derived from the
+toybox's advertised methods instead of duplicated route logic. The direct proxy
+API reflects CORS only for loopback browser origins.
+
+For non-interactive SSH PATH differences, set `CODEX_TOYS_REMOTE_PATH_PREPEND`,
+`CODEX_TOYS_TOYBOX_COMMAND`, `CODEX_TOYS_REMOTE_CODEX_COMMAND`, or
+`CODEX_TOYS_REMOTE_CODEX_ARGS` JSON arrays. The remote target needs `node`,
+`codex-toys`, and `codex`.
+
+## Development Scripts
+
+```bash
+vp run --filter codex-toys build
+vp run --filter codex-toys check:types
+vp run --filter codex-toys test
+vp run --filter codex-toys pack:dry-run
+vp run --filter codex-toys release:check
+```
+
+`build` emits ESM JavaScript, source maps, and declaration files into `dist`.
+`release:check` runs tests, type checking, a clean build, export smoke tests,
+and `npm pack --dry-run`.
+
+Generated protocol files live in `src/app-server/generated`. Keep handwritten
+client and transport code outside that generated tree.

@@ -1,7 +1,7 @@
 {
   "name": "codex-toys-remote-control",
-  "version": "0.140.4",
-  "description": "Operate remote Codex workspaces from a local Codex App over SSH.",
+  "version": "0.140.5",
+  "description": "Operate remote Codex workbenches from a local Codex App over SSH.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "codex-toys remote control",
     "shortDescription": "Use local Codex App remote connections for SSH-backed codex-toys.",
-    "longDescription": "codex-toys remote control installs hookless operator skills for a local Codex App to discover managed remote connections, run SSH-backed codex-toys commands against remote workspaces through `codex-toys toybox serve`, and start turns in remote workspaces.",
+    "longDescription": "codex-toys remote control installs hookless operator skills for a local Codex App to discover managed remote connections, run SSH-backed codex-toys commands against remote workbenches through `codex-toys toybox serve`, and start turns in remote workbenches.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -35,8 +35,8 @@
     "defaultPrompt": [
       "Discover my Codex App remote connections and run codex-toys over SSH.",
       "Check whether my remote codex-toys toybox is reachable.",
-      "Start a Codex turn in the remote workspace.",
-      "Build a local proxy dashboard for a remote workspace over SSH."
+      "Start a Codex turn in the remote workbench.",
+      "Build a local proxy dashboard for a remote workbench over SSH."
     ],
     "brandColor": "#0F766E"
   }

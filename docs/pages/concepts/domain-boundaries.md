@@ -11,7 +11,7 @@ Turn automation owns prompt automation:
 - reading the script's returned JSON result
 - starting, reading, and waiting on native Codex turns through app-server or an
   codex-toys toybox
-- targeting remote workspaces through SSH stdio
+- targeting remote workbenches through SSH stdio
 
 It does not own product-specific completion:
 

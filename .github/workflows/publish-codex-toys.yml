@@ -45,17 +45,36 @@ jobs:
       - name: Release check
         run: vp run release:check
 
-      - name: Publish codex-toys
+      - name: Publish codex-toys package stack
         if: inputs.confirm_package == 'publish-codex-toys-packages' || inputs.confirm_package == 'codex-toys'
-        working-directory: packages/codex-client
         run: |
-          version=$(node -p "require('./package.json').version")
-          if npm view "codex-toys@$version" version --json >/dev/null 2>&1; then
-            echo "codex-toys@$version is already published"
-          else
+          packages=(
+            packages/bridge
+            packages/toybox
+            packages/workbench
+            packages/actions
+            packages/remote
+            packages/proxy
+            packages/kits
+            packages/codex-toys
+          )
+
+          for package_dir in "${packages[@]}"; do
+            name=$(node -p "require('./${package_dir}/package.json').name")
+            version=$(node -p "require('./${package_dir}/package.json').version")
+            spec="${name}@${version}"
+
+            if npm view "$spec" version --json >/dev/null 2>&1; then
+              echo "$spec is already published"
+              continue
+            fi
+
             tmpdir=$(mktemp -d)
-            trap 'rm -rf "$tmpdir"' EXIT
-            pnpm pack --pack-destination "$tmpdir"
+            (
+              cd "$package_dir"
+              pnpm pack --pack-destination "$tmpdir"
+            )
             tarball=$(find "$tmpdir" -maxdepth 1 -name '*.tgz' -print -quit)
             npm publish "$tarball" --access public --provenance
-          fi
+            rm -rf "$tmpdir"
+          done

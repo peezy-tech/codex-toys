@@ -13,11 +13,11 @@ export default {
 			group: "Guides",
 			pages: [
 				"guides/turn-automation",
-				"guides/workspace-autonomy",
+				"guides/workbench-autonomy",
 				"guides/memory-transplant",
 				"guides/thread-transplant",
 				"guides/install-codex-plugin",
-				"guides/install-pack-repos",
+				"guides/install-kit-repos",
 			],
 		},
 		{
@@ -34,6 +34,7 @@ export default {
 				"concepts/deferred-runs-roadmap",
 				"concepts/backends",
 				"concepts/domain-boundaries",
+				"concepts/package-stack",
 				"concepts/toyboxes",
 				"concepts/toybox-deployments",
 			],

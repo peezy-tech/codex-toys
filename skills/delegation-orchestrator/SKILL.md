@@ -1,12 +1,12 @@
 ---
 name: delegation-orchestrator
-description: Use when acting as the main Codex workspace operator and coordinating delegated Codex threads through codex-toys workspace delegation methods or local MCP tools for fan-out work, status reads, result flushing, return modes, and group wakes.
+description: Use when acting as the main Codex workbench operator and coordinating delegated Codex threads through codex-toys workbench delegation methods or local MCP tools for fan-out work, status reads, result flushing, return modes, and group wakes.
 ---
 
 # Delegation Orchestrator
 
-Use this skill only from the main workspace operator thread. Delegated threads
-must not receive or use privileged workspace delegation tools.
+Use this skill only from the main workbench operator thread. Delegated threads
+must not receive or use privileged workbench delegation tools.
 
 ## Role
 
@@ -29,11 +29,11 @@ tightly coupled, or the task requires continuous judgment from the main thread.
 
 ## Tool Use
 
-Use `codex-toys workspace delegate list`, `delegation.list`, or the
+Use `codex-toys workbench delegate list`, `delegation.list`, or the
 `delegate_list` MCP tool before starting new work if active delegations may
 already exist.
 
-Use `codex-toys workspace delegate start --cwd @/workspaces/name --prompt ...`,
+Use `codex-toys workbench delegate start --cwd @/workbenches/name --prompt ...`,
 `delegation.start`, or the `delegate_start` MCP tool for new bounded work.
 Include:
 
@@ -94,7 +94,7 @@ Return: <summary, files changed, verification>
 
 ## Guardrails
 
-- Do not expose workspace delegation tools to delegated threads.
+- Do not expose workbench delegation tools to delegated threads.
 - Do not ask delegated threads to manage delegation lifecycle.
 - Do not duplicate work across delegations.
 - Do not delegate vague ownership such as "fix everything".

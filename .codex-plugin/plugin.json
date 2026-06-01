@@ -1,7 +1,7 @@
 {
   "name": "codex-toys",
-  "version": "0.140.4",
-  "description": "Codex-native turn automation, toybox operation, SSH workspace orchestration, and dashboard proxy guidance.",
+  "version": "0.140.5",
+  "description": "Codex turn automation, toybox operation, SSH workbench orchestration, and dashboard proxy guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -22,8 +22,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-toys",
-    "shortDescription": "Run turn automation and operate Codex-native toyboxes.",
-    "longDescription": "codex-toys provides Codex guidance for plugin-native turn automation, local and SSH stdio toyboxes, optional dashboard proxy use, workspace delegation, and local MCP delegation tools. This plugin installs the Codex-facing guidance directly from the Git repository.",
+    "shortDescription": "Run turn automation and operate Codex workbench toyboxes.",
+    "longDescription": "codex-toys provides Codex guidance for plugin-native turn automation, local and SSH stdio toyboxes, optional dashboard proxy use, workbench delegation, and local MCP delegation tools. This plugin installs the Codex-facing guidance directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -36,11 +36,11 @@
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
       "Author a turn automation script that can skip or start a Codex turn.",
-      "Check the local Codex workspace toybox.",
+      "Check the local Codex workbench toybox.",
       "Discover my Codex App remote connections and run codex-toys over SSH.",
-      "Run codex-toys against a remote Codex workspace over SSH.",
-      "Coordinate delegated workspace work.",
-      "Build a local dashboard proxy for a remote workspace over SSH."
+      "Run codex-toys against a remote Codex workbench over SSH.",
+      "Coordinate delegated workbench work.",
+      "Build a local dashboard proxy for a remote workbench over SSH."
     ],
     "brandColor": "#2563EB"
   }

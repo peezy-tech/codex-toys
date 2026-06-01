@@ -66,8 +66,139 @@ importers:
         specifier: 'catalog:'
         version: 19.2.6(react@19.2.6)
 
-  packages/codex-client:
+  packages/actions:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/bridge:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/codex-toys:
     dependencies:
+      '@codex-toys/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@codex-toys/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@codex-toys/kits':
+        specifier: workspace:*
+        version: link:../kits
+      '@codex-toys/proxy':
+        specifier: workspace:*
+        version: link:../proxy
+      '@codex-toys/remote':
+        specifier: workspace:*
+        version: link:../remote
+      '@codex-toys/toybox':
+        specifier: workspace:*
+        version: link:../toybox
+      '@codex-toys/workbench':
+        specifier: workspace:*
+        version: link:../workbench
+      tsx:
+        specifier: 'catalog:'
+        version: 4.22.3
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/kits:
+    dependencies:
+      '@codex-toys/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@codex-toys/workbench':
+        specifier: workspace:*
+        version: link:../workbench
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.6.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/proxy:
+    dependencies:
+      '@codex-toys/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@codex-toys/remote':
+        specifier: workspace:*
+        version: link:../remote
+      '@codex-toys/toybox':
+        specifier: workspace:*
+        version: link:../toybox
+      '@codex-toys/workbench':
+        specifier: workspace:*
+        version: link:../workbench
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.0.13(@types/node@24.12.4)(esbuild@0.28.0)(tsx@4.22.3)(yaml@2.9.0)
+
+  packages/remote:
+    dependencies:
+      '@codex-toys/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@codex-toys/toybox':
+        specifier: workspace:*
+        version: link:../toybox
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/toybox:
+    dependencies:
+      '@codex-toys/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/workbench:
+    dependencies:
+      '@codex-toys/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@codex-toys/toybox':
+        specifier: workspace:*
+        version: link:../toybox
       smol-toml:
         specifier: 'catalog:'
         version: 1.6.1

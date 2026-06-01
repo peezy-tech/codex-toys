@@ -18,26 +18,26 @@ after installing a codex-toys plugin.
 
 ## Local Agent Flow
 
-Check the workspace:
+Check the workbench:
 
 ```bash
-codex-toys workspace doctor
+codex-toys workbench doctor
 ```
 
 Run one-shot commands through the spawned local toybox:
 
 ```bash
 codex-toys fetch
-codex-toys workspace methods
+codex-toys workbench methods
 codex-toys functions list --json
 codex-toys automation list --json
-codex-toys turn run "Check workspace status" --wait
+codex-toys turn run "Check workbench status" --wait
 ```
 
 Start the toybox directly only when another process needs stdio JSON-RPC:
 
 ```bash
-codex-toys toybox serve --cwd <workspace>
+codex-toys toybox serve --cwd <workbench>
 ```
 
 ## Proxy Flow
@@ -45,7 +45,7 @@ codex-toys toybox serve --cwd <workspace>
 Use the proxy only when a browser needs HTTP:
 
 ```bash
-codex-toys-proxy serve --cwd <workspace> --static ./dashboard
+codex-toys-proxy serve --cwd <workbench> --static ./dashboard
 ```
 
 The proxy exposes:
@@ -55,7 +55,7 @@ GET  /api/status
 GET  /api/schema
 POST /api/rpc
 POST /api/app/:method
-POST /api/workspace/:method
+POST /api/workbench/:method
 ```
 
 Build dashboards from `/api/schema` and generic RPC calls; do not add
@@ -66,19 +66,19 @@ feature-specific duplicated endpoint logic.
 Start with a probe:
 
 ```bash
-codex-toys --ssh <user@host> --cwd <remote-workspace> remote preflight
-codex-toys --ssh <user@host> --cwd <remote-workspace> fetch
-codex-toys --ssh <user@host> --cwd <remote-workspace> workspace doctor
+codex-toys --ssh <user@host> --cwd <remote-workbench> remote preflight
+codex-toys --ssh <user@host> --cwd <remote-workbench> fetch
+codex-toys --ssh <user@host> --cwd <remote-workbench> workbench doctor
 ```
 
 Examples:
 
 ```bash
-codex-toys --ssh <user@host> --cwd <remote-workspace> workspace methods
-codex-toys --ssh <user@host> --cwd <remote-workspace> functions list --json
-codex-toys --ssh <user@host> --cwd <remote-workspace> automation run check-release --event event.json --sandbox danger-full-access --approval-policy never
-codex-toys --ssh <user@host> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-toys --ssh <user@host> --cwd <remote-workspace> turn run "Check workspace status" --wait --sandbox danger-full-access --approval-policy never
+codex-toys --ssh <user@host> --cwd <remote-workbench> workbench methods
+codex-toys --ssh <user@host> --cwd <remote-workbench> functions list --json
+codex-toys --ssh <user@host> --cwd <remote-workbench> automation run check-release --event event.json --sandbox danger-full-access --approval-policy never
+codex-toys --ssh <user@host> --cwd <remote-workbench> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-toys --ssh <user@host> --cwd <remote-workbench> turn run "Check workbench status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
 Do not auto-install remote binaries. The local side needs `codex-toys`; the
@@ -88,7 +88,7 @@ Useful variables:
 
 ```bash
 CODEX_TOYS_REMOTE_SSH_TARGET=<user@host>
-CODEX_TOYS_REMOTE_CWD=<remote-workspace>
+CODEX_TOYS_REMOTE_CWD=<remote-workbench>
 CODEX_TOYS_REMOTE_PATH_PREPEND=/home/user/.local/bin:/home/user/.bun/bin:/home/user/.cargo/bin
 CODEX_TOYS_TOYBOX_COMMAND=codex-toys
 CODEX_TOYS_REMOTE_CODEX_COMMAND=codex

@@ -35,7 +35,8 @@ Use `jojo.build` as the canonical development home for `peezy-tech/codex-toys`. 
 - Do not treat GitHub as a development remote.
 - Push to GitHub only when the release workflow must publish to npm.
 - Do not add npm tokens to the repo or GitHub secrets. GitHub publishes through trusted publishing.
-- Use package name `codex-toys`, not `@peezy-tech/codex-toys`.
+- Use the `@codex-toys/*` package scope and the unscoped CLI package
+  `codex-toys`; do not use `@peezy-tech/codex-toys`.
 - Before release work, verify `origin/main` and `codeberg/main` are aligned.
 - Keep commits signed when possible, but signed commits are not currently required by branch protection.
 
@@ -72,10 +73,10 @@ Expected local key files:
 The CI workflow runs:
 
 ```bash
-bun install --frozen-lockfile
-bun run check:types
-bun run test
-bun run --filter codex-toys release:check
+vp install --frozen-lockfile
+vp run check:types
+vp run test
+vp run release:check
 ```
 
 ## Release Workflow
@@ -90,21 +91,22 @@ git push
 Before release, run:
 
 ```bash
-bun run --filter codex-toys release:check
-bun run check:types
-bun run test
+pnpm exec tsx scripts/check-publish-metadata.ts
+vp run release:check
+vp run check:types
+vp run test
 git diff --check
 ```
 
 Then:
 
-1. Bump `packages/codex-client/package.json`.
+1. Bump every public package manifest in `packages/*/package.json`.
 2. Commit.
 3. Push to jojo: `git push`.
 4. Confirm Codeberg mirror has received the commit.
 5. Push to GitHub: `git push github main`.
-6. Run GitHub workflow `.github/workflows/publish-codex-toys.yml` with `confirm_package=codex-toys`.
-7. Verify `npm dist-tag ls codex-toys`.
+6. Run GitHub workflow `.github/workflows/publish-codex-toys.yml` with `confirm_package=publish-codex-toys-packages`.
+7. Verify `npm dist-tag ls codex-toys` and the scoped `@codex-toys/*` packages.
 
 ## References
 

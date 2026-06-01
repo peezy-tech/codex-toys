@@ -1,0 +1,19 @@
+[kit]
+name = "engineering-capabilities"
+version = "0.1.0"
+description = "Reusable engineering skills, plugins, and automations."
+
+[[kit.items]]
+name = "tdd"
+kind = "skill"
+path = "skills/engineering/tdd"
+
+[[kit.items]]
+name = "repo-policy"
+kind = "plugin"
+path = "plugins/repo-policy"
+
+[[kit.items]]
+name = "release-candidate"
+kind = "automation"
+path = "automations/release-candidate"

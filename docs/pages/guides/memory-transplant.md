@@ -10,8 +10,8 @@ and a repository Codex home. It is intentionally file-based in v1 and is scoped
 to `memories/` only.
 
 ```bash
-codex-toys memories transplant global-to-workspace
-codex-toys memories transplant workspace-to-global
+codex-toys memories transplant global-to-workbench
+codex-toys memories transplant workbench-to-global
 ```
 
 The default is always a dry-run. Use `--apply` only after reviewing the planned
@@ -23,14 +23,14 @@ Defaults:
 
 | Option | Default |
 |--------|---------|
-| `--workspace-root <path>` | discovered repository root |
+| `--workbench-root <path>` | discovered repository root |
 | `--global-codex-home <path>` | current/default global `CODEX_HOME` |
-| `--workspace-codex-home <path>` | `<workspace-root>/.codex` |
+| `--workbench-codex-home <path>` | `<workbench-root>/.codex` |
 
 Direction:
 
-- `global-to-workspace`: `~/.codex/memories` to `<repo>/.codex/memories`
-- `workspace-to-global`: `<repo>/.codex/memories` to `~/.codex/memories`
+- `global-to-workbench`: `~/.codex/memories` to `<repo>/.codex/memories`
+- `workbench-to-global`: `<repo>/.codex/memories` to `~/.codex/memories`
 
 ## Copied Artifacts
 
@@ -58,7 +58,7 @@ The command never copies:
 - skills
 - generated extension machinery
 - non-memory Codex home files
-- transient files such as Phase 2 workspace diffs
+- transient files such as Phase 2 workbench diffs
 
 Memory transplant does not copy `.codex/skills` and does not migrate Codex state
 database rows.
@@ -81,7 +81,7 @@ Apply without overwrite or merge:
 Apply with overwrite:
 
 ```bash
-codex-toys memories transplant global-to-workspace --apply --overwrite
+codex-toys memories transplant global-to-workbench --apply --overwrite
 ```
 
 - writes backups before replacing destination files by default
@@ -90,7 +90,7 @@ codex-toys memories transplant global-to-workspace --apply --overwrite
 Semantic merge:
 
 ```bash
-codex-toys memories transplant global-to-workspace --apply --merge codex
+codex-toys memories transplant global-to-workbench --apply --merge codex
 ```
 
 `--merge codex` is reserved for semantic merge of `MEMORY.md` and
@@ -102,7 +102,7 @@ unless overwrite behavior is requested.
 Use `--json` when a script needs the transplant plan:
 
 ```bash
-codex-toys memories transplant global-to-workspace --json
+codex-toys memories transplant global-to-workbench --json
 ```
 
 The report includes source, destination, added files, conflicts, skipped files,
@@ -110,22 +110,22 @@ and estimated bytes.
 
 ## Typical Workflow
 
-1. Inspect the current workspace:
+1. Inspect the current workbench:
 
 ```bash
-codex-toys workspace doctor
+codex-toys workbench doctor
 ```
 
 2. Dry-run the transplant:
 
 ```bash
-codex-toys memories transplant global-to-workspace
+codex-toys memories transplant global-to-workbench
 ```
 
 3. Apply missing files only:
 
 ```bash
-codex-toys memories transplant global-to-workspace --apply
+codex-toys memories transplant global-to-workbench --apply
 ```
 
 4. Re-run `doctor` and inspect `.codex/memories`.

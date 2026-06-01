@@ -1,11 +1,11 @@
 ---
 title: CLI reference
-description: Commands for Codex-native toyboxes, turn automation, app-server calls, workspace methods, workspace autonomy, memory transplant, thread transplant, and pack repos.
+description: Commands for Codex workbench toyboxes, turn automation, app-server calls, workbench methods, workbench autonomy, memory transplant, thread transplant, and kit repos.
 ---
 
 # CLI reference
 
-`codex-toys` is Codex-native workspace porcelain. Local commands spawn
+`codex-toys` is Codex workbench porcelain. Local commands spawn
 `codex-toys toybox serve` over stdio. SSH commands start the same toybox on the
 target host and speak JSON-RPC over SSH stdio. Core commands do not host
 WebSocket or HTTP servers.
@@ -18,8 +18,8 @@ freeform HTML/JS dashboards.
 codex-toys --help
 codex-toys mcp serve
 codex-toys toybox serve [--cwd <path>]
-codex-toys-proxy serve --cwd <workspace> [--static <dir>]
-codex-toys-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
+codex-toys-proxy serve --cwd <workbench> [--static <dir>]
+codex-toys-proxy serve --ssh <target> --cwd <remote-workbench> [--static <dir>]
 ```
 
 ## Fetch
@@ -27,11 +27,11 @@ codex-toys-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
 ```bash
 codex-toys fetch [--json] [--no-color]
 codex-toys neofetch [--json] [--no-color]
-codex-toys --ssh <target> --cwd <remote-workspace> fetch
+codex-toys --ssh <target> --cwd <remote-workbench> fetch
 ```
 
 `fetch` prints local package/runtime information and probes the current
-codex-toys toybox. With `--ssh`, the probe runs against the remote workspace
+codex-toys toybox. With `--ssh`, the probe runs against the remote workbench
 toybox without opening a remote port or copying credentials.
 
 `fetch --json` uses the toybox model directly. The probe result is returned under
@@ -45,8 +45,8 @@ pass-through are not mistaken for local quick-probe failures.
 codex-toys toybox serve [--cwd <path>]
 ```
 
-The toybox is the single local/remote runtime surface. It owns workspace method
-dispatch, app-server pass-through, workspace functions, automations, and
+The toybox is the single local/remote runtime surface. It owns workbench method
+dispatch, app-server pass-through, workbench functions, automations, and
 delegation. `toybox.initialize` returns server information, method names, and
 method metadata so clients and proxies can discover capabilities dynamically.
 
@@ -56,14 +56,14 @@ start a specific Codex binary or pass explicit app-server flags.
 ## SSH
 
 ```bash
-codex-toys --ssh <target> --cwd <remote-workspace> remote preflight [--json]
+codex-toys --ssh <target> --cwd <remote-workbench> remote preflight [--json]
 codex-toys host overview --json
-codex-toys --ssh <target> --cwd <remote-workspace> remote host-overview --json
-codex-toys --ssh <target> --cwd <remote-workspace> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-toys --ssh <target> --cwd <remote-workspace> workspace delegation.list
-codex-toys --ssh <target> --cwd <remote-workspace> functions list --json
-codex-toys --ssh <target> --cwd <remote-workspace> automation run check-release --event event.json
-codex-toys --ssh <target> --cwd <remote-workspace> turn run "Scan current folder" --wait
+codex-toys --ssh <target> --cwd <remote-workbench> remote host-overview --json
+codex-toys --ssh <target> --cwd <remote-workbench> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-toys --ssh <target> --cwd <remote-workbench> workbench delegation.list
+codex-toys --ssh <target> --cwd <remote-workbench> functions list --json
+codex-toys --ssh <target> --cwd <remote-workbench> automation run check-release --event event.json
+codex-toys --ssh <target> --cwd <remote-workbench> turn run "Scan current folder" --wait
 ```
 
 `remote preflight` checks SSH reachability, remote cwd, remote Node,
@@ -96,8 +96,8 @@ CODEX_TOYS_REMOTE_CODEX_ARGS=["-s","danger-full-access"]
 ## Proxy
 
 ```bash
-codex-toys-proxy serve --cwd <workspace> [--static <dir>]
-codex-toys-proxy serve --ssh <target> --cwd <remote-workspace> [--static <dir>]
+codex-toys-proxy serve --cwd <workbench> [--static <dir>]
+codex-toys-proxy serve --ssh <target> --cwd <remote-workbench> [--static <dir>]
 ```
 
 The proxy is an optional HTTP edge for dashboards. It exposes only generic
@@ -109,13 +109,13 @@ GET  /api/schema
 POST /api/rpc
 POST /api/host/overview
 POST /api/app/:method
-POST /api/workspace/:method
-POST /api/workspace/overview
+POST /api/workbench/:method
+POST /api/workbench/overview
 ```
 
 `/api/schema` is derived from `toybox.initialize`; route behavior forwards to
 toybox methods instead of duplicating feature-specific endpoint logic.
-`/api/workspace/overview` is a convenience alias for the `workspace.overview`
+`/api/workbench/overview` is a convenience alias for the `workbench.overview`
 toybox method, and `POST /api/host/overview` is equivalent to `POST /api/rpc`
 with method `host.overview`.
 
@@ -129,29 +129,29 @@ when possible.
 
 ```bash
 codex-toys turn run <prompt> [--wait] [--thread-id <id>]
-codex-toys --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
+codex-toys --ssh <target> --cwd <remote-workbench> turn run <prompt> --wait
 ```
 
-`turn run` is the prompt primitive for local and SSH-backed workspaces. It
+`turn run` is the prompt primitive for local and SSH-backed workbenches. It
 starts or reuses a Codex thread, starts a turn, and optionally waits for the
 final assistant message.
 
 SSH-backed `turn run` requires `--wait`. The SSH toybox is tied to the command
 lifecycle, so unsupervised fire-and-forget turns are rejected instead of
 returning a thread id for work that may be killed when the SSH session closes.
-Use `workspace delegate start` for supervised background work.
+Use `workbench delegate start` for supervised background work.
 
 ## Turn Automation
 
 ```bash
 codex-toys automation list [--json]
-codex-toys automation run <name> [--event <event.json>] [--prompt <text>] [--via workspace|app]
-codex-toys --ssh <target> --cwd <remote-workspace> automation list [--json]
-codex-toys --ssh <target> --cwd <remote-workspace> automation run <name> [--event <event.json>]
+codex-toys automation run <name> [--event <event.json>] [--prompt <text>] [--via workbench|app]
+codex-toys --ssh <target> --cwd <remote-workbench> automation list [--json]
+codex-toys --ssh <target> --cwd <remote-workbench> automation run <name> [--event <event.json>]
 ```
 
 Automation scripts run code before deciding whether to start a native Codex
-turn. Scripts can use `context.turn.*`, `context.workspace.call`, and, when
+turn. Scripts can use `context.turn.*`, `context.workbench.call`, and, when
 running through the toybox, `context.delegate.*`.
 
 ## App-Server Calls
@@ -168,157 +168,157 @@ codex-toys app actions
 App calls are generic app-server pass-through via the toybox. SSH app calls start
 the remote toybox and then call `app.call { method, params }`.
 
-## Workspace Functions
+## Workbench Functions
 
 ```bash
 codex-toys functions list [--json]
 codex-toys functions describe <name> [--json]
 codex-toys functions call <name> [--params-json <json>] [--json]
-codex-toys --ssh <target> --cwd <remote-workspace> functions list [--json]
+codex-toys --ssh <target> --cwd <remote-workbench> functions list [--json]
 ```
 
 Functions are JSON-in/JSON-out helpers loaded from `.codex/functions.ts`,
-`.codex/functions.js`, or `.codex/functions.mjs` in the target workspace.
+`.codex/functions.js`, or `.codex/functions.mjs` in the target workbench.
 
-## Workspace Methods
+## Workbench Methods
 
 ```bash
-codex-toys workspace <method> [params-json]
-codex-toys workspace <method> --params-json <json>
-codex-toys workspace <method> --params-file <file>
-codex-toys workspace call <method> [params-json]
-codex-toys workspace app <method> [params-json]
-codex-toys workspace methods
-codex-toys workspace overview [--json]
+codex-toys workbench <method> [params-json]
+codex-toys workbench <method> --params-json <json>
+codex-toys workbench <method> --params-file <file>
+codex-toys workbench call <method> [params-json]
+codex-toys workbench app <method> [params-json]
+codex-toys workbench methods
+codex-toys workbench overview [--json]
 ```
 
-Workspace calls go through the toybox. `workspace app <method>` is a convenience
+Workbench calls go through the toybox. `workbench app <method>` is a convenience
 alias for generic app-server pass-through.
 
-`workspace overview --json` returns a bounded dashboard-friendly snapshot for
-the current workspace cwd: fetch and workspace doctor summary, deferred queue
+`workbench overview --json` returns a bounded dashboard-friendly snapshot for
+the current workbench cwd: fetch and workbench doctor summary, deferred queue
 counts and compact intents, latest deferred output status, automations,
 functions, recent cwd threads, git state, and health checks for Node,
-codex-toys, Codex, toybox, app-server, and workspace config. The JSON shape is
-also available through `POST /api/workspace/overview` with `{}`.
+codex-toys, Codex, toybox, app-server, and workbench config. The JSON shape is
+also available through `POST /api/workbench/overview` with `{}`.
 
-## Workspace Delegation
+## Workbench Delegation
 
 ```bash
-codex-toys workspace delegate list [--json]
-codex-toys workspace delegate start --cwd @/workspaces/name --prompt <text> [--wait]
-codex-toys --ssh devbox --cwd /home/peezy workspace delegate start --target-cwd @/repos/patch.moi --prompt "Review the branch"
+codex-toys workbench delegate list [--json]
+codex-toys workbench delegate start --cwd @/workbenches/name --prompt <text> [--wait]
+codex-toys --ssh devbox --cwd /home/peezy workbench delegate start --target-cwd @/repos/patch.moi --prompt "Review the branch"
 ```
 
 Delegation starts normal Codex threads in another cwd and records stable
-delegation metadata under `.codex/workspace/local/delegations.json`. `@/path`
-resolves relative to the toybox workspace root; absolute cwd values require an
+delegation metadata under `.codex/workbench/local/delegations.json`. `@/path`
+resolves relative to the toybox workbench root; absolute cwd values require an
 explicit opt-in.
 
-## Workspace Autonomy
+## Workbench Autonomy
 
 ```bash
-codex-toys workspace doctor [--mode auto|local|actions] [--json]
-codex-toys workspace tick [--mode auto|local|actions]
-codex-toys workspace run <task-id> [--mode auto|local|actions]
-codex-toys workspace prompt enqueue <prompt> [--run-at <iso>] [--queue <name>]
-codex-toys workspace prompt enqueue <prompt> --after <intent-id> [--after-status completed|terminal]
-codex-toys workspace prompt list [--queue <name>] [--status pending|running|completed|failed|canceled] [--json]
-codex-toys workspace prompt read <intent-id> [--include-output] [--json]
-codex-toys workspace prompt pull <intent-id> [--json]
-codex-toys workspace prompt collect [--cursor <name>] [--queue <name>] [--json]
-codex-toys workspace prompt cancel <intent-id>
-codex-toys workspace prompt retry <intent-id> [--run-at <iso>]
-codex-toys workspace prompt run-due [--queue <name>] [--limit <n>]
-codex-toys workspace handoff enqueue <prompt> [--run-at <iso>] [--queue <name>]
-codex-toys workspace handoff enqueue <prompt> [--target-host <host>] [--capability <name>]
-codex-toys workspace handoff list [--queue <name>] [--target-host <host>] [--json]
-codex-toys workspace handoff read <intent-id> [--include-output] [--json]
-codex-toys workspace handoff pull <intent-id> [--json]
-codex-toys workspace handoff collect [--cursor <name>] [--queue <name>] [--json]
-codex-toys workspace handoff cancel <intent-id>
-codex-toys workspace handoff retry <intent-id> [--run-at <iso>]
-codex-toys workspace handoff drain [--host-id <host>] [--capability <name>] [--materialize]
-codex-toys workspace deferred create --params-json <json>
-codex-toys workspace deferred list [--mode auto|local|actions] [--json]
-codex-toys workspace deferred read <intent-id> [--include-output] [--json]
-codex-toys workspace deferred pull <intent-id> [--json]
-codex-toys workspace deferred collect [--cursor <name>] [--json]
-codex-toys workspace deferred cancel <intent-id>
-codex-toys workspace deferred retry <intent-id> [--run-at <iso>]
-codex-toys workspace deferred run-due [--mode auto|local|actions]
-codex-toys workspace deferred prune --older-than-days <days> [--dry-run]
-codex-toys workspace init actions [--forgejo|--github]
+codex-toys workbench doctor [--mode auto|local|actions] [--json]
+codex-toys workbench tick [--mode auto|local|actions]
+codex-toys workbench run <task-id> [--mode auto|local|actions]
+codex-toys workbench prompt enqueue <prompt> [--run-at <iso>] [--queue <name>]
+codex-toys workbench prompt enqueue <prompt> --after <intent-id> [--after-status completed|terminal]
+codex-toys workbench prompt list [--queue <name>] [--status pending|running|completed|failed|canceled] [--json]
+codex-toys workbench prompt read <intent-id> [--include-output] [--json]
+codex-toys workbench prompt pull <intent-id> [--json]
+codex-toys workbench prompt collect [--cursor <name>] [--queue <name>] [--json]
+codex-toys workbench prompt cancel <intent-id>
+codex-toys workbench prompt retry <intent-id> [--run-at <iso>]
+codex-toys workbench prompt run-due [--queue <name>] [--limit <n>]
+codex-toys workbench handoff enqueue <prompt> [--run-at <iso>] [--queue <name>]
+codex-toys workbench handoff enqueue <prompt> [--target-host <host>] [--capability <name>]
+codex-toys workbench handoff list [--queue <name>] [--target-host <host>] [--json]
+codex-toys workbench handoff read <intent-id> [--include-output] [--json]
+codex-toys workbench handoff pull <intent-id> [--json]
+codex-toys workbench handoff collect [--cursor <name>] [--queue <name>] [--json]
+codex-toys workbench handoff cancel <intent-id>
+codex-toys workbench handoff retry <intent-id> [--run-at <iso>]
+codex-toys workbench handoff drain [--host-id <host>] [--capability <name>] [--materialize]
+codex-toys workbench deferred create --params-json <json>
+codex-toys workbench deferred list [--mode auto|local|actions] [--json]
+codex-toys workbench deferred read <intent-id> [--include-output] [--json]
+codex-toys workbench deferred pull <intent-id> [--json]
+codex-toys workbench deferred collect [--cursor <name>] [--json]
+codex-toys workbench deferred cancel <intent-id>
+codex-toys workbench deferred retry <intent-id> [--run-at <iso>]
+codex-toys workbench deferred run-due [--mode auto|local|actions]
+codex-toys workbench deferred prune --older-than-days <days> [--dry-run]
+codex-toys workbench init actions [--forgejo|--github]
 codex-toys actions prepare-auth
 codex-toys actions cleanup
 ```
 
-Workspace autonomy reads `.codex/workspace.toml`, writes local runtime state
-under `.codex/workspace/local`, and writes CI runtime state under
-`.codex/workspace/actions`. Actions-mode runners also preserve
+Workbench autonomy reads `.codex/workbench.toml`, writes local runtime state
+under `.codex/workbench/local`, and writes CI runtime state under
+`.codex/workbench/actions`. Actions-mode runners also preserve
 `.codex/sessions` rollout JSONL as durable thread handoff data.
 
 Deferred runs are durable future run intents in those same mode-specific state
 roots. A deferred target can wrap a direct Codex turn, a named turn automation,
-or a configured workspace task. `workspace tick` creates scheduled task intents
-and runs due deferred work; `workspace deferred run-due` runs only due deferred
-intents. With `--ssh`, deferred methods operate on the remote workspace's local
+or a configured workbench task. `workbench tick` creates scheduled task intents
+and runs due deferred work; `workbench deferred run-due` runs only due deferred
+intents. With `--ssh`, deferred methods operate on the remote workbench's local
 queue through the SSH toybox.
 
-`workspace prompt` is the Deferred Prompt Queue surface for one-off Codex
+`workbench prompt` is the Deferred Prompt Queue surface for one-off Codex
 prompts. It stores queued prompts as deferred turn intents marked with
 `source.kind = "prompt-queue"`, so they share deferred claiming, attempts,
 outputs, retries, SSH behavior, and result collection. `--after <intent-id>`
 adds a dependency on another deferred intent; `--after-status` defaults to
 `completed`, and `terminal` accepts completed, failed, or canceled parents.
-`workspace prompt run-due` drains only queued prompts, while `workspace tick`
+`workbench prompt run-due` drains only queued prompts, while `workbench tick`
 runs queued prompts along with all other due deferred work.
 
-`workspace handoff` is the Local Handoff Queue surface for prompts that require
+`workbench handoff` is the Local Handoff Queue surface for prompts that require
 a local controller, local browser, plugin install, dashboard smoke, or another
 host-specific capability. Handoffs are deferred turn intents marked with
-`source.kind = "local-handoff"`, but `workspace tick` and generic
-`workspace deferred run-due` skip them. `workspace handoff drain` is the local
+`source.kind = "local-handoff"`, but `workbench tick` and generic
+`workbench deferred run-due` skip them. `workbench handoff drain` is the local
 controller path: it advertises a `--host-id` and repeated `--capability` values,
 then either runs matching handoffs immediately or, with `--materialize`, creates
 a prompt-queue intent such as `--prompt-queue local-followups`.
 
-`workspace doctor` includes local systemd user runner visibility when it is run
+`workbench doctor` includes local systemd user runner visibility when it is run
 on Linux. A matching runner is a timer whose service invokes `codex-toys
-workspace tick --workspace-root <current-workspace>`. If pending deferred work
+workbench tick --workbench-root <current-workbench>`. If pending deferred work
 or scheduled tasks exist without a matching active runner, doctor reports a
 runner warning so the operator can add a timer, CI schedule, or manual tick.
 
-`workspace deferred read --include-output` embeds completed attempt output JSON
-in the response. `workspace deferred pull` is a shorthand for that form, which
+`workbench deferred read --include-output` embeds completed attempt output JSON
+in the response. `workbench deferred pull` is a shorthand for that form, which
 is useful when a local operator wants to inspect a remote deferred run result
 without separately reading remote filesystem paths.
 
-`workspace deferred collect` returns terminal deferred runs that have not been
+`workbench deferred collect` returns terminal deferred runs that have not been
 seen by the named cursor yet, including saved attempt outputs. The cursor is
 stored with the queue being collected; over SSH, that means the remote
-workspace queue advances its own cursor.
+workbench queue advances its own cursor.
 
-`workspace deferred retry` creates a new pending intent from a terminal
+`workbench deferred retry` creates a new pending intent from a terminal
 `completed`, `failed`, or `canceled` intent and leaves the original intent,
 attempt records, and outputs untouched. By default the retry is due immediately;
 use `--run-at <iso>` to requeue it for a future time.
 
-`workspace deferred prune` removes only terminal deferred history (`completed`,
+`workbench deferred prune` removes only terminal deferred history (`completed`,
 `failed`, or `canceled`) older than the requested retention window. Pending and
 running intents are never pruned.
 
-`workspace init actions` scaffolds a scheduled runner workflow. The generated
-workflow prepares auth, runs `workspace tick --mode actions`, cleans up
+`workbench init actions` scaffolds a scheduled runner workflow. The generated
+workflow prepares auth, runs `workbench tick --mode actions`, cleans up
 runtime-only files, and commits changed `.codex/memories`,
-`.codex/workspace/actions`, and `.codex/sessions`.
+`.codex/workbench/actions`, and `.codex/sessions`.
 
 ## Memories
 
 ```bash
-codex-toys memories transplant global-to-workspace [--apply]
-codex-toys memories transplant workspace-to-global [--apply]
-codex-toys memories transplant global-to-workspace --merge codex [--apply]
+codex-toys memories transplant global-to-workbench [--apply]
+codex-toys memories transplant workbench-to-global [--apply]
+codex-toys memories transplant global-to-workbench --merge codex [--apply]
 ```
 
 Memory transplant is dry-run by default and copies only durable Codex memory
@@ -336,14 +336,14 @@ codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-hom
 Thread helpers locate, inspect, install, and transplant raw Codex rollout JSONL
 files without inventing a separate bundle format.
 
-## Packs
+## Kits
 
 ```bash
-codex-toys pack inspect <source> [--json]
-codex-toys pack add <source> [--apply] [--include <name>] [--exclude <name>]
-codex-toys pack doctor [--json]
-codex-toys pack list [--json]
+codex-toys kit inspect <source> [--json]
+codex-toys kit add <source> [--apply] [--include <name>] [--exclude <name>]
+codex-toys kit doctor [--json]
+codex-toys kit list [--json]
 ```
 
-Pack commands copy selected skills, plugins, and automations into a workspace and
-record provenance in `.codex/pack-lock.json`.
+Kit commands copy selected skills, plugins, and automations into a workbench and
+record provenance in `.codex/kit-lock.json`.

@@ -1,0 +1,38 @@
+{
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"allowArbitraryExtensions": true,
+		"allowImportingTsExtensions": true,
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"target": "ES2022",
+		"lib": ["ESNext"],
+		"strict": true,
+		"skipLibCheck": true,
+		"noUncheckedIndexedAccess": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true,
+		"types": ["node"],
+		"baseUrl": ".",
+		"paths": {
+			"@codex-toys/actions": ["packages/actions/src/index.ts"],
+			"@codex-toys/bridge": ["packages/bridge/src/index.ts"],
+			"@codex-toys/bridge/generated": ["packages/bridge/src/app-server/generated/index.ts"],
+			"@codex-toys/bridge/generated/*": ["packages/bridge/src/app-server/generated/*"],
+			"@codex-toys/bridge/rpc": ["packages/bridge/src/app-server/rpc.ts"],
+			"@codex-toys/bridge/*": ["packages/bridge/src/*"],
+			"@codex-toys/kits": ["packages/kits/src/index.ts"],
+			"@codex-toys/proxy": ["packages/proxy/src/index.ts"],
+			"@codex-toys/proxy/*": ["packages/proxy/src/*"],
+			"@codex-toys/remote": ["packages/remote/src/index.ts"],
+			"@codex-toys/toybox": ["packages/toybox/src/index.ts"],
+			"@codex-toys/toybox/*": ["packages/toybox/src/*"],
+			"@codex-toys/workbench": ["packages/workbench/src/index.ts"],
+			"@codex-toys/workbench/*": ["packages/workbench/src/*"],
+			"codex-toys": ["packages/codex-toys/src/index.ts"]
+		}
+	}
+}

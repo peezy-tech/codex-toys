@@ -30,7 +30,7 @@ Named automations live under `.codex/automations/<name>/automation.json` or
 
 ```bash
 codex-toys automation list
-codex-toys automation run check-release --event event.json --via workspace
+codex-toys automation run check-release --event event.json --via workbench
 ```
 
 The manifest points to a module script and optional defaults:
@@ -47,8 +47,8 @@ The manifest points to a module script and optional defaults:
 
 Manifest `cwd` supports three path forms:
 
-- `@`: the workspace root used to discover the automation.
-- `@/path`: a path inside that workspace root, such as `@/fork`.
+- `@`: the workbench root used to discover the automation.
+- `@/path`: a path inside that workbench root, such as `@/fork`.
 - Relative paths: legacy paths relative to the automation directory.
 
 The script exports a default handler and receives a context object:
@@ -70,15 +70,15 @@ The script exports a default handler and receives a context object:
   },
   "prompt": "optional default prompt",
   "cwd": "/repo/fork",
-  "workspaceRoot": "/repo"
+  "workbenchRoot": "/repo"
 }
 ```
 
 At runtime the context also includes a small host API:
 
 - `context.app.call(method, params)`: call an app-server method.
-- `context.workspace.call(method, params)`: call a codex-toys toybox method.
-  This is only available when running `--via workspace`.
+- `context.workbench.call(method, params)`: call a codex-toys toybox method.
+  This is only available when running `--via workbench`.
 - `context.turn.start(params)`: start a native turn and return
   `{ id?, via, threadId, turnId, thread, turn }`.
 - `context.turn.read(turn)`: read the latest snapshot for a started turn.
@@ -86,7 +86,7 @@ At runtime the context also includes a small host API:
   `inProgress`, returning `status`, `outputText`, `thread`, and `turn`.
 - `context.turn.waitAll(turns, options)`: wait for multiple turns.
 - `context.delegate.start(params)`: start a delegated Codex thread through the
-  toybox. This is only available when running `--via workspace`.
+  toybox. This is only available when running `--via workbench`.
 - `context.delegate.read(delegation)` and `context.delegate.wait(delegation,
   options)`: refresh or wait on a delegated thread record.
 
@@ -145,7 +145,7 @@ Supported turn fields:
 
 - `prompt`: required text for the native turn.
 - `threadId`: continue an existing thread instead of creating a new one.
-- `cwd`: target workspace cwd for the turn.
+- `cwd`: target workbench cwd for the turn.
 - `model`, `serviceTier`, `sandbox`, `approvalPolicy`, `permissions`:
   forwarded to app-server when present.
 - `responsesapiClientMetadata`: string metadata forwarded to the turn.
@@ -157,9 +157,9 @@ Delegated work:
 ```ts
 export default async function run(context) {
   const delegation = await context.delegate.start({
-    cwd: "@/workspaces/trading",
-    title: "Trading workspace check",
-    prompt: "Inspect the trading workspace status and report risks.",
+    cwd: "@/workbenches/trading",
+    title: "Trading workbench check",
+    prompt: "Inspect the trading workbench status and report risks.",
     returnMode: "wake_on_done"
   });
 
@@ -170,7 +170,7 @@ export default async function run(context) {
 }
 ```
 
-Delegation `cwd` supports `@/path` relative to the toybox workspace root. Use
+Delegation `cwd` supports `@/path` relative to the toybox workbench root. Use
 absolute cwd values only for trusted local toyboxes that explicitly allow them.
 
 Programmatic orchestration:
@@ -212,10 +212,10 @@ Automation starts the turn through the codex-toys toybox by default.
 Use `--via app` only when deliberately targeting a direct app-server connection:
 
 ```bash
-codex-toys automation run check-release --event event.json --via workspace
+codex-toys automation run check-release --event event.json --via workbench
 ```
 
-The same command can target a remote workspace through the SSH provider:
+The same command can target a remote workbench through the SSH provider:
 
 ```bash
 codex-toys --ssh devbox --cwd /repo automation list --json
@@ -223,14 +223,14 @@ codex-toys --ssh devbox --cwd /repo automation run check-release \
   --event event.json \
   --sandbox danger-full-access \
   --approval-policy never \
-  --via workspace
+  --via workbench
 ```
 
 With `--ssh`, automation discovery, named resolution, event loading, and script
-execution happen on the remote host inside the remote workspace. `--event` is a
+execution happen on the remote host inside the remote workbench. `--event` is a
 remote path in this mode, resolved relative to `--cwd` unless it is absolute.
 The SSH toybox stays alive until the automation script returns, so scripts
 can call `context.turn.start` and then `context.turn.wait` or
-`context.turn.waitAll` for long-running turns in remote workspaces. The provider uses the
+`context.turn.waitAll` for long-running turns in remote workbenches. The provider uses the
 selected surface directly; it does not try a second turn surface if the selected
 one is unavailable.

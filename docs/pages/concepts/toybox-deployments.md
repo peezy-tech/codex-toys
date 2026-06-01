@@ -1,12 +1,12 @@
 ---
-title: Workspace toybox deployments
+title: Workbench toybox deployments
 description: Local stdio, SSH stdio, and optional proxy deployment shapes.
 ---
 
-# Workspace toybox deployments
+# Workbench toybox deployments
 
 The toybox is a capability model first. The product surface is local
-workspace operation plus SSH-backed remote operation.
+workbench operation plus SSH-backed remote operation.
 
 ## Local stdio
 
@@ -14,17 +14,17 @@ Local mode has no operator-facing HTTP surface and no public socket. The CLI,
 MCP server, Vite plugin, or proxy starts:
 
 ```bash
-codex-toys toybox serve --cwd <workspace>
+codex-toys toybox serve --cwd <workbench>
 ```
 
-The toybox starts Codex app-server over stdio, exposes workspace methods, and
+The toybox starts Codex app-server over stdio, exposes workbench methods, and
 advertises method metadata through `toybox.initialize`.
 
 ## SSH stdio
 
-SSH mode keeps the operator command local and runs Codex workspace capabilities
+SSH mode keeps the operator command local and runs Codex workbench capabilities
 on the target host. The local CLI starts `codex-toys toybox serve` over SSH and
-speaks workspace JSON-RPC over the SSH stdio stream. The remote toybox starts
+speaks workbench JSON-RPC over the SSH stdio stream. The remote toybox starts
 Codex app-server on the remote host; it does not expose a network port.
 
 The remote host owns its checkout, `CODEX_HOME`, installed tools, and

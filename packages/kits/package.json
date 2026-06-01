@@ -1,0 +1,39 @@
+{
+	"name": "@codex-toys/kits",
+	"version": "0.140.5",
+	"description": "Codex kit inspection, install, lock, backup, and doctor helpers.",
+	"type": "module",
+	"license": "Apache-2.0",
+	"sideEffects": false,
+	"types": "./dist/index.d.ts",
+	"files": ["dist", "README.md"],
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"engines": {
+		"node": ">=24.0.0 <25"
+	},
+	"scripts": {
+		"build": "vp run clean && tsc -p tsconfig.build.json",
+		"check:types": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"prepack": "vp run build",
+		"release:check": "vp run check:types && vp run build && vp run pack:dry-run",
+		"pack:dry-run": "tsx ../../scripts/package-pack-dry-run.ts"
+	},
+	"dependencies": {
+		"@codex-toys/bridge": "workspace:*",
+		"@codex-toys/workbench": "workspace:*",
+		"smol-toml": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"typescript": "catalog:"
+	}
+}

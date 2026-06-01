@@ -35,7 +35,7 @@ Use GitHub only to run npm trusted publishing:
 
 ```bash
 git push github main
-gh workflow run publish-codex-toys.yml --repo peezy-tech/codex-toys --ref main -f confirm_package='codex-toys'
+gh workflow run publish-codex-toys.yml --repo peezy-tech/codex-toys --ref main -f confirm_package='publish-codex-toys-packages'
 ```
 
 ## Accounts
@@ -105,10 +105,10 @@ The runner label used by CI is `ubuntu-latest`, backed by `node:22-bookworm`. Th
 Current CI gate:
 
 ```bash
-bun install --frozen-lockfile
-bun run check:types
-bun run test
-bun run --filter codex-toys release:check
+vp install --frozen-lockfile
+vp run check:types
+vp run test
+vp run release:check
 ```
 
 ## Jojo CLI
@@ -136,9 +136,10 @@ git ls-remote origin HEAD refs/heads/main
 ## Package Release Gate
 
 ```bash
-bun run --filter codex-toys release:check
-bun run check:types
-bun run test
+pnpm exec tsx scripts/check-publish-metadata.ts
+vp run release:check
+vp run check:types
+vp run test
 git diff --check
 ```
 
@@ -146,6 +147,7 @@ Verify npm after GitHub Actions publishing:
 
 ```bash
 npm dist-tag ls codex-toys
+npm dist-tag ls @codex-toys/bridge
 npm view codex-toys version repository --json
 ```
 

@@ -3,54 +3,42 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const codexClientSrc = path.resolve(root, "packages/codex-client/src");
+const packageSrc = (name: string) => path.resolve(root, "packages", name, "src");
 
 export default defineConfig({
 	resolve: {
 		alias: [
 			{
-				find: /^codex-toys\/browser$/,
-				replacement: path.join(codexClientSrc, "browser.ts"),
+				find: /^@codex-toys\/bridge\/generated$/,
+				replacement: path.join(packageSrc("bridge"), "app-server/generated/index.ts"),
 			},
 			{
-				find: /^codex-toys\/auth$/,
-				replacement: path.join(codexClientSrc, "auth.ts"),
+				find: /^@codex-toys\/bridge\/generated\/(.+)$/,
+				replacement: path.join(packageSrc("bridge"), "app-server/generated/$1.ts"),
 			},
 			{
-				find: /^codex-toys\/actions$/,
-				replacement: path.join(codexClientSrc, "actions.ts"),
+				find: /^@codex-toys\/bridge\/rpc$/,
+				replacement: path.join(packageSrc("bridge"), "app-server/rpc.ts"),
 			},
 			{
-				find: /^codex-toys\/memories$/,
-				replacement: path.join(codexClientSrc, "memories.ts"),
+				find: /^@codex-toys\/bridge\/app-server\/(.+)$/,
+				replacement: path.join(packageSrc("bridge"), "app-server/$1.ts"),
 			},
 			{
-				find: /^codex-toys\/workbench$/,
-				replacement: path.join(codexClientSrc, "workbench.ts"),
+				find: /^@codex-toys\/proxy\/browser$/,
+				replacement: path.join(packageSrc("proxy"), "browser.ts"),
 			},
 			{
-				find: /^codex-toys\/threads$/,
-				replacement: path.join(codexClientSrc, "threads.ts"),
+				find: /^@codex-toys\/proxy\/vite$/,
+				replacement: path.join(packageSrc("proxy"), "vite.ts"),
 			},
 			{
-				find: /^codex-toys\/generated$/,
-				replacement: path.join(codexClientSrc, "app-server/generated/index.ts"),
-			},
-			{
-				find: /^codex-toys\/generated\/(.+)$/,
-				replacement: path.join(codexClientSrc, "app-server/generated/$1.ts"),
-			},
-			{
-				find: /^codex-toys\/rpc$/,
-				replacement: path.join(codexClientSrc, "app-server/rpc.ts"),
-			},
-			{
-				find: /^codex-toys\/toybox$/,
-				replacement: path.join(codexClientSrc, "toybox/index.ts"),
+				find: /^@codex-toys\/([^/]+)$/,
+				replacement: path.resolve(root, "packages/$1/src/index.ts"),
 			},
 			{
 				find: /^codex-toys$/,
-				replacement: path.join(codexClientSrc, "index.ts"),
+				replacement: path.join(packageSrc("codex-toys"), "index.ts"),
 			},
 		],
 	},

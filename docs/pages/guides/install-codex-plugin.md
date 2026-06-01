@@ -10,13 +10,14 @@ Tech Codex plugin marketplace. Source definitions live in this repository;
 release syncs installable plugin bundles into `peezy-tech/skills`.
 
 The repository root also remains a product-local plugin marketplace for
-development, with a full plugin plus granular install options:
+development. It exposes the same granular install choices as the shared
+marketplace, plus a full plugin for compatibility and whole-product testing:
 
 ```text
 .codex-plugin/plugin.json
 .agents/plugins/marketplace.json
 plugins/codex-toys-author/
-plugins/codex-toys-local-workspace/
+plugins/codex-toys-local-workbench/
 plugins/codex-toys-remote-control/
 skills/
 ```
@@ -24,8 +25,8 @@ skills/
 | Plugin | Installs |
 |--------|----------|
 | `codex-toys-author` | Turn automation authoring guidance. |
-| `codex-toys-local-workspace` | Local toybox operation guidance. |
-| `codex-toys-remote-control` | Local Codex App guidance for SSH toybox preflight, remote automation, turns in remote workspaces, and proxy dashboards. |
+| `codex-toys-local-workbench` | Local toybox operation guidance. |
+| `codex-toys-remote-control` | Local Codex App guidance for SSH toybox preflight, remote automation, turns in remote workbenches, and proxy dashboards. |
 | `codex-toys` | Product-local full install for development and compatibility. |
 
 ## Install from GitHub
@@ -41,8 +42,7 @@ The same install can be done from a Codex CLI that shares the same `CODEX_HOME`:
 codex plugin marketplace add peezy-tech/skills --ref main
 codex plugin add codex-toys-author@peezy-tech
 codex plugin add codex-toys-remote-control@peezy-tech
-codex plugin add codex-toys-local-workspace@peezy-tech
-codex plugin add codex-toys@codex-toys
+codex plugin add codex-toys-local-workbench@peezy-tech
 ```
 
 ## Local Development
@@ -51,12 +51,19 @@ Before publishing or while iterating locally, add the checkout root instead:
 
 ```bash
 codex plugin marketplace add /home/peezy/repos/codex-toys
-codex plugin add codex-toys@codex-toys
-codex plugin add codex-toys-local-workspace@codex-toys
+codex plugin add codex-toys-local-workbench@codex-toys
 ```
 
-After changing plugin metadata or skills, reinstall the plugin and start a new
-thread to pick up the updated skill list.
+Install, upgrade, or uninstall the specific local plugin you need just as you
+would from the shared marketplace. After changing marketplace metadata, plugin
+manifests, or skills in this checkout, reinstall or upgrade the affected plugin
+and start a new thread to pick up the updated skill list. Use the full
+`codex-toys@codex-toys` plugin only when you intentionally need the compatibility
+surface or all product-local skills at once.
+
+```bash
+codex plugin add codex-toys@codex-toys
+```
 
 ## Local Agent
 
@@ -65,11 +72,11 @@ spawn the toybox as needed:
 
 ```bash
 codex-toys fetch
-codex-toys workspace doctor
-codex-toys workspace methods
+codex-toys workbench doctor
+codex-toys workbench methods
 codex-toys functions list --json
 codex-toys automation list --json
-codex-toys turn run "Check workspace status" --wait
+codex-toys turn run "Check workbench status" --wait
 ```
 
 Start the toybox explicitly only when another process needs stdio JSON-RPC:
@@ -80,12 +87,12 @@ codex-toys toybox serve --cwd /repo
 
 ## SSH Agent
 
-For remote workspaces, keep the command local and run the toybox over SSH stdio:
+For remote workbenches, keep the command local and run the toybox over SSH stdio:
 
 ```bash
 codex-toys --ssh <user@tailscale-host> --cwd /repo remote preflight
 codex-toys --ssh <user@tailscale-host> --cwd /repo fetch
-codex-toys --ssh <user@tailscale-host> --cwd /repo turn run "Check workspace status" --wait
+codex-toys --ssh <user@tailscale-host> --cwd /repo turn run "Check workbench status" --wait
 codex-toys --ssh <user@tailscale-host> --cwd /repo automation run check-release --event event.json
 ```
 
@@ -115,7 +122,7 @@ GET  /api/status
 GET  /api/schema
 POST /api/rpc
 POST /api/app/:method
-POST /api/workspace/:method
+POST /api/workbench/:method
 ```
 
-The proxy schema is derived from the toybox's available workspace methods.
+The proxy schema is derived from the toybox's available workbench methods.

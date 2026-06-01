@@ -1,0 +1,40 @@
+{
+  "name": "codex-toys-local-workbench",
+  "version": "0.140.5",
+  "description": "Local Codex workbench toybox operation guidance.",
+  "author": {
+    "name": "Peezy",
+    "email": "support@peezy.tech",
+    "url": "https://peezy.tech/"
+  },
+  "homepage": "https://github.com/peezy-tech/codex-toys",
+  "repository": "https://github.com/peezy-tech/codex-toys",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "workbench",
+    "toybox",
+    "local-workbench"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "codex-toys local workbench",
+    "shortDescription": "Operate a local workbench toybox.",
+    "longDescription": "codex-toys local workbench installs skills for local toybox operation. It does not automatically start or install a persistent service.",
+    "developerName": "Peezy",
+    "category": "Coding",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/peezy-tech/codex-toys",
+    "privacyPolicyURL": "https://peezy.tech/privacy",
+    "termsOfServiceURL": "https://peezy.tech/terms",
+    "defaultPrompt": [
+      "Check the local Codex workbench toybox.",
+      "Check workbench toybox status."
+    ],
+    "brandColor": "#7C3AED"
+  }
+}

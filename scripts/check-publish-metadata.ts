@@ -16,7 +16,14 @@ type PackageJson = {
 };
 
 const publicPackageJsonPaths = [
-	"packages/codex-client/package.json",
+	"packages/actions/package.json",
+	"packages/bridge/package.json",
+	"packages/kits/package.json",
+	"packages/proxy/package.json",
+	"packages/remote/package.json",
+	"packages/toybox/package.json",
+	"packages/workbench/package.json",
+	"packages/codex-toys/package.json",
 ];
 
 const dependencyFields = [
