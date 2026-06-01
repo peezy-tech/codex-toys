@@ -111,9 +111,10 @@ await expectIncludes("docs/pages/index.md", "Memory transplant");
 await expectIncludes("docs/pages/index.md", "Thread Transplant");
 await expectIncludes("docs/pages/index.md", "Plugin Install");
 await expectIncludes("docs/pages/index.md", "codex-toys");
-await expectIncludes("docs/pages/reference/packages.md", "@codex-toys/bridge");
-await expectIncludes("docs/pages/reference/packages.md", "@codex-toys/workbench");
-await expectIncludes("docs/pages/reference/packages.md", "@codex-toys/kits");
+await expectIncludes("docs/pages/reference/packages.md", "codex-toys/bridge");
+await expectIncludes("docs/pages/reference/packages.md", "codex-toys/workbench");
+await expectIncludes("docs/pages/reference/packages.md", "codex-toys/kits");
+await expectIncludes("docs/pages/reference/packages.md", "bundled into the public tarball");
 await expectIncludes("docs/pages/reference/packages.md", "memory transplant");
 await expectIncludes("docs/pages/reference/packages.md", "codex-kit.toml");
 
@@ -153,9 +154,9 @@ await expectIncludes("docs/pages/guides/install-kit-repos.md", "codex-kit.toml")
 await expectIncludes("docs/pages/guides/install-kit-repos.md", ".codex/kit-lock.json");
 await expectIncludes("docs/pages/guides/install-kit-repos.md", ".agents/plugins/marketplace.json");
 
-await expectIncludes("packages/codex-toys/README.md", "@codex-toys/bridge");
-await expectIncludes("packages/codex-toys/README.md", "@codex-toys/workbench");
-await expectIncludes("packages/codex-toys/README.md", "@codex-toys/proxy/browser");
+await expectIncludes("packages/codex-toys/README.md", "codex-toys/bridge");
+await expectIncludes("packages/codex-toys/README.md", "codex-toys/workbench");
+await expectIncludes("packages/codex-toys/README.md", "codex-toys/proxy/browser");
 await expectIncludes("packages/codex-toys/README.md", "codex-toys automation run");
 await expectIncludes("packages/codex-toys/README.md", "codex-toys workbench doctor");
 await expectIncludes("packages/codex-toys/README.md", "codex-toys toybox serve --cwd /repo");

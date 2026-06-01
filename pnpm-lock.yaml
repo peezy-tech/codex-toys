@@ -107,6 +107,9 @@ importers:
       '@codex-toys/workbench':
         specifier: workspace:*
         version: link:../workbench
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.6.1
       tsx:
         specifier: 'catalog:'
         version: 4.22.3

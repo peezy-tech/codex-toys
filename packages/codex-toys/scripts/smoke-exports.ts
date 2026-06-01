@@ -1,14 +1,16 @@
 const checks = [
 	["codex-toys", ["CodexAppServerClient", "CodexEventEmitter", "collectHostOverview", "collectWorkbenchOverview"]],
-	["@codex-toys/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
-	["@codex-toys/bridge", ["CodexAppServerClient", "JsonRpcError", "listCodexMemoryArtifacts", "locateThreadRollout"]],
-	["@codex-toys/kits", ["inspectKitSource", "applyKitAdd"]],
-	["@codex-toys/proxy", ["createCodexToysProxyHandler"]],
-	["@codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],
-	["@codex-toys/proxy/vite", ["codexToysRemote"]],
-	["@codex-toys/remote", ["createSshToyboxTransport", "collectRemotePreflight"]],
-	["@codex-toys/toybox", ["CodexToyboxClient", "CodexToyboxProtocolServer"]],
-	["@codex-toys/workbench", ["collectHostOverview", "collectWorkbenchOverview", "createThreadSnapshot", "defineFunctions"]],
+	["codex-toys/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
+	["codex-toys/bridge", ["CodexAppServerClient", "JsonRpcError", "listCodexMemoryArtifacts", "locateThreadRollout"]],
+	["codex-toys/bridge/generated", ["v2"]],
+	["codex-toys/bridge/json", ["parseJsonText"]],
+	["codex-toys/kits", ["inspectKitSource", "applyKitAdd"]],
+	["codex-toys/proxy", ["createCodexToysProxyHandler"]],
+	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],
+	["codex-toys/proxy/vite", ["codexToysRemote"]],
+	["codex-toys/remote", ["createSshToyboxTransport", "collectRemotePreflight"]],
+	["codex-toys/toybox", ["CodexToyboxClient", "CodexToyboxProtocolServer"]],
+	["codex-toys/workbench", ["collectHostOverview", "collectWorkbenchOverview", "createThreadSnapshot", "defineFunctions"]],
 ] as const;
 
 for (const [specifier, expectedExports] of checks) {

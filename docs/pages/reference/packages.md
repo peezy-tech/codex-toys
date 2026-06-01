@@ -1,15 +1,16 @@
 ---
-title: Packages
-description: Public packages in the codex-toys stack.
+title: Package API
+description: Public codex-toys package imports and internal workspace boundaries.
 ---
 
 # Packages
 
-The stack is split by feature surface. Use the smallest package that matches the
-job, or install `codex-toys` when you want the CLI plus the umbrella runtime
-export.
+Install `codex-toys` for both the CLI and runtime APIs. The repo keeps internal
+`@codex-toys/*` workspaces for feature boundaries, but those packages are
+bundled into the public tarball rather than published separately. Public
+consumer imports use `codex-toys/*` subpaths.
 
-## `@codex-toys/bridge`
+## `codex-toys/bridge`
 
 Native Codex bridge primitives:
 
@@ -27,12 +28,12 @@ Useful exports include `CodexAppServerClient`, `CodexStdioTransport`,
 Subpath exports are available for focused imports:
 
 ```ts
-import { CodexAppServerClient } from "@codex-toys/bridge";
-import { v2 } from "@codex-toys/bridge/generated";
-import { parseJsonText } from "@codex-toys/bridge/json";
+import { CodexAppServerClient } from "codex-toys/bridge";
+import { v2 } from "codex-toys/bridge/generated";
+import { parseJsonText } from "codex-toys/bridge/json";
 ```
 
-## `@codex-toys/toybox`
+## `codex-toys/toybox`
 
 Toybox JSON-RPC protocol, client, and server primitives. This package owns the
 stdio protocol used by local and SSH-backed toyboxes, including
@@ -41,7 +42,7 @@ metadata.
 
 Use it when another process needs to host or call a codex-toys toybox directly.
 
-## `@codex-toys/workbench`
+## `codex-toys/workbench`
 
 Workbench runtime and policy helpers:
 
@@ -56,7 +57,7 @@ Workbench autonomy reads `.codex/workbench.toml`, writes local runtime state
 under `.codex/workbench/local`, and writes CI runtime state under
 `.codex/workbench/actions`.
 
-## `@codex-toys/actions`
+## `codex-toys/actions`
 
 Actions-mode helpers for GitHub or Forgejo runners:
 
@@ -67,13 +68,13 @@ Actions-mode helpers for GitHub or Forgejo runners:
   databases without deleting durable memory markdown,
   `.codex/workbench/actions`, or `.codex/sessions`
 
-## `@codex-toys/remote`
+## `codex-toys/remote`
 
 SSH-backed transport and remote helper package. It creates a toybox transport
 over SSH stdio, resolves remote CLI options, performs remote preflight checks,
 and collects remote-control status without exposing remote HTTP ports.
 
-## `@codex-toys/proxy`
+## `codex-toys/proxy`
 
 Optional HTTP edge for dashboards. The proxy starts or connects to a toybox and
 exposes generic routes:
@@ -90,13 +91,13 @@ POST /api/workbench/overview
 
 `/api/schema` comes from `toybox.initialize`, so dashboards can discover
 available methods without duplicated route definitions. Direct browser CORS is
-loopback-only. The package also publishes:
+loopback-only. Related public entry points are:
 
-- `@codex-toys/proxy/browser`
-- `@codex-toys/proxy/vite`
+- `codex-toys/proxy/browser`
+- `codex-toys/proxy/vite`
 - the `codex-toys-proxy` binary
 
-## `@codex-toys/kits`
+## `codex-toys/kits`
 
 Kit inspection and installation helpers. Kits copy selected skills, plugins,
 and automations into a workbench, read optional `codex-kit.toml` manifests,
@@ -114,9 +115,9 @@ codex-toys kit doctor [--json]
 
 ## `codex-toys`
 
-The CLI package and umbrella runtime export. It depends on the scoped packages,
-re-exports their public APIs from the root import, and publishes the
-`codex-toys` binary.
+The CLI package and umbrella runtime export. It bundles the internal workspaces,
+re-exports their public APIs from the root import, exposes focused subpaths, and
+publishes the `codex-toys` and `codex-toys-proxy` binaries.
 
 ```bash
 codex-toys fetch

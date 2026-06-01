@@ -1,15 +1,13 @@
 {
 	"name": "@codex-toys/remote",
 	"version": "0.140.5",
+	"private": true,
 	"description": "SSH-backed Codex toybox transport and remote control helpers.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"files": ["dist", "README.md"],
-	"publishConfig": {
-		"access": "public"
-	},
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",

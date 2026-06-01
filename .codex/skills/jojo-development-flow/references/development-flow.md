@@ -35,7 +35,7 @@ Use GitHub only to run npm trusted publishing:
 
 ```bash
 git push github main
-gh workflow run publish-codex-toys.yml --repo peezy-tech/codex-toys --ref main -f confirm_package='publish-codex-toys-packages'
+gh workflow run publish-codex-toys.yml --repo peezy-tech/codex-toys --ref main -f confirm_package='codex-toys'
 ```
 
 ## Accounts
@@ -136,7 +136,6 @@ git ls-remote origin HEAD refs/heads/main
 ## Package Release Gate
 
 ```bash
-pnpm exec tsx scripts/check-publish-metadata.ts
 vp run release:check
 vp run check:types
 vp run test
@@ -147,7 +146,6 @@ Verify npm after GitHub Actions publishing:
 
 ```bash
 npm dist-tag ls codex-toys
-npm dist-tag ls @codex-toys/bridge
 npm view codex-toys version repository --json
 ```
 

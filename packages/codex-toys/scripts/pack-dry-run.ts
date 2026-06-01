@@ -1,90 +1,139 @@
-import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-type PackFile = {
-	path: string;
-	size: number;
-};
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const packageRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(packageRoot, "../..");
 
-type PackResult = {
-	name: string;
-	version: string;
-	filename: string;
-	files: PackFile[];
-	unpackedSize: number;
-	size: number;
-};
+const requiredTarEntries = [
+	"package/dist/index.js",
+	"package/dist/workbench.js",
+	"package/dist/proxy/browser.js",
+	"package/dist/bridge/json.js",
+	"package/node_modules/@codex-toys/actions/dist/index.js",
+	"package/node_modules/@codex-toys/bridge/dist/index.js",
+	"package/node_modules/@codex-toys/kits/dist/index.js",
+	"package/node_modules/@codex-toys/proxy/dist/index.js",
+	"package/node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js",
+	"package/node_modules/@codex-toys/remote/dist/index.js",
+	"package/node_modules/@codex-toys/toybox/dist/index.js",
+	"package/node_modules/@codex-toys/workbench/dist/index.js",
+] as const;
 
-const proc = spawn("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"]);
+const tempRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-pack-"));
 
-const [stdout, stderr, exitCode] = await Promise.all([
-	collectText(proc.stdout),
-	collectText(proc.stderr),
-	exitCodeFor(proc),
-]);
+try {
+	const packDir = path.join(tempRoot, "pack");
+	const installDir = path.join(tempRoot, "install");
+	await mkdir(packDir, { recursive: true });
+	await mkdir(installDir, { recursive: true });
+	await run("tsx", [
+		path.join(repoRoot, "scripts", "pack-public-package.ts"),
+		"--pack-destination",
+		packDir,
+	]);
 
-if (exitCode !== 0) {
-	process.stderr.write(stderr);
-	process.stderr.write(stdout);
-	process.exit(exitCode);
-}
-
-const results = JSON.parse(stdout) as PackResult[];
-const result = results[0];
-
-if (!result) {
-	throw new Error("npm pack did not return package metadata");
-}
-
-const byTopLevel = new Map<string, number>();
-for (const file of result.files) {
-	const [topLevel = file.path] = file.path.split("/");
-	byTopLevel.set(topLevel, (byTopLevel.get(topLevel) ?? 0) + 1);
-}
-
-const topLevelSummary = [...byTopLevel.entries()]
-	.sort(([a], [b]) => a.localeCompare(b))
-	.map(([name, count]) => `${name}: ${count}`)
-	.join(", ");
-
-console.log(`${result.name}@${result.version}`);
-console.log(`tarball: ${result.filename}`);
-console.log(`files: ${result.files.length} (${topLevelSummary})`);
-console.log(`package size: ${formatBytes(result.size)}`);
-console.log(`unpacked size: ${formatBytes(result.unpackedSize)}`);
-
-function formatBytes(bytes: number): string {
-	if (bytes < 1024) {
-		return `${bytes} B`;
+	const tarballName = (await readdir(packDir)).find((file) => file.endsWith(".tgz"));
+	if (!tarballName) {
+		throw new Error("pnpm pack did not create a tarball");
 	}
-
-	const kib = bytes / 1024;
-	if (kib < 1024) {
-		return `${kib.toFixed(1)} KiB`;
-	}
-
-	return `${(kib / 1024).toFixed(1)} MiB`;
-}
-
-function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
-	return new Promise((resolve, reject) => {
-		let output = "";
-		if (!stream) {
-			resolve(output);
-			return;
+	const tarballPath = path.join(packDir, tarballName);
+	const tarEntries = await listTarEntries(tarballPath);
+	for (const entry of requiredTarEntries) {
+		if (!tarEntries.has(entry)) {
+			throw new Error(`packed tarball is missing ${entry}`);
 		}
-		stream.setEncoding("utf8");
-		stream.on("data", (chunk: string) => {
-			output += chunk;
-		});
-		stream.once("error", reject);
-		stream.once("end", () => resolve(output));
+	}
+
+	await run("npm", [
+		"install",
+		"--ignore-scripts",
+		"--no-audit",
+		"--no-fund",
+		tarballPath,
+	], { cwd: installDir });
+
+	await run(process.execPath, [
+		"--input-type=module",
+		"--eval",
+		`
+const checks = [
+	["codex-toys", ["CodexAppServerClient", "collectWorkbenchOverview"]],
+	["codex-toys/actions", ["repoCodexHome", "prepareActionsCodexAuth"]],
+	["codex-toys/bridge", ["CodexAppServerClient", "JsonRpcError"]],
+	["codex-toys/bridge/generated", ["v2"]],
+	["codex-toys/bridge/json", ["parseJsonText"]],
+	["codex-toys/kits", ["inspectKitSource", "applyKitAdd"]],
+	["codex-toys/proxy", ["createCodexToysProxyHandler"]],
+	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],
+	["codex-toys/proxy/vite", ["codexToysRemote"]],
+	["codex-toys/remote", ["createSshToyboxTransport", "collectRemotePreflight"]],
+	["codex-toys/toybox", ["CodexToyboxClient", "CodexToyboxProtocolServer"]],
+	["codex-toys/workbench", ["collectHostOverview", "collectWorkbenchOverview", "defineFunctions"]],
+];
+for (const [specifier, expectedExports] of checks) {
+	const module = await import(specifier);
+	for (const exportName of expectedExports) {
+		if (!(exportName in module)) {
+			throw new Error(\`\${specifier} is missing export \${exportName}\`);
+		}
+	}
+}
+`,
+	], { cwd: installDir });
+
+	await run(path.join(installDir, "node_modules", ".bin", "codex-toys"), ["--help"], {
+		cwd: installDir,
 	});
+	await run(path.join(installDir, "node_modules", ".bin", "codex-toys-proxy"), ["--help"], {
+		cwd: installDir,
+	});
+
+	const byTopLevel = new Map<string, number>();
+	for (const entry of tarEntries) {
+		const relative = entry.replace(/^package\//, "");
+		const [topLevel = relative] = relative.split("/");
+		byTopLevel.set(topLevel, (byTopLevel.get(topLevel) ?? 0) + 1);
+	}
+
+	const topLevelSummary = [...byTopLevel.entries()]
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([name, count]) => `${name}: ${count}`)
+		.join(", ");
+
+	console.log(`codex-toys pack/install smoke passed`);
+	console.log(`tarball: ${tarballName}`);
+	console.log(`files: ${tarEntries.size} (${topLevelSummary})`);
+} finally {
+	await rm(tempRoot, { recursive: true, force: true });
 }
 
-function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
-	return new Promise((resolve, reject) => {
-		child.once("error", reject);
-		child.once("exit", (code) => resolve(code));
-	});
+async function listTarEntries(tarballPath: string): Promise<Set<string>> {
+	const result = await run("tar", ["-tf", tarballPath]);
+	return new Set(result.stdout.split("\n").filter(Boolean));
 }
-import { spawn } from "node:child_process";
+
+async function run(
+	command: string,
+	args: string[],
+	options: { cwd?: string } = {},
+): Promise<{ stdout: string; stderr: string }> {
+	const result = spawnSync(command, args, {
+		cwd: options.cwd,
+		encoding: "utf8",
+	});
+
+	if (result.status !== 0) {
+		process.stderr.write(result.stderr ?? "");
+		process.stderr.write(result.stdout ?? "");
+		throw new Error(`${command} ${args.join(" ")} exited with code ${result.status}`);
+	}
+
+	return {
+		stdout: result.stdout ?? "",
+		stderr: result.stderr ?? "",
+	};
+}

@@ -45,18 +45,19 @@ side effects.
 
 ## Current Package Surface
 
-The public stack is split by feature boundary:
+The public npm package is `codex-toys`. Its bundled runtime surfaces are split
+by feature boundary and exposed as subpath imports:
 
-- `@codex-toys/bridge`: native Codex app-server, auth, memory, thread, JSON,
+- `codex-toys/bridge`: native Codex app-server, auth, memory, thread, JSON,
   and generated protocol bridge primitives
-- `@codex-toys/toybox`: stdio JSON-RPC toybox protocol, client, and server
-- `@codex-toys/workbench`: workbench runtime, delegation, prompt queue,
+- `codex-toys/toybox`: stdio JSON-RPC toybox protocol, client, and server
+- `codex-toys/workbench`: workbench runtime, delegation, prompt queue,
   handoff, functions, automation, and overview primitives
-- `@codex-toys/actions`: Actions-mode auth and state helpers
-- `@codex-toys/remote`: SSH-backed toybox transports and remote control helpers
-- `@codex-toys/proxy`: optional HTTP proxy, browser client, Vite middleware,
+- `codex-toys/actions`: Actions-mode auth and state helpers
+- `codex-toys/remote`: SSH-backed toybox transports and remote control helpers
+- `codex-toys/proxy`: optional HTTP proxy, browser client, Vite middleware,
   and `codex-toys-proxy`
-- `@codex-toys/kits`: kit inspect/add/list/doctor helpers
+- `codex-toys/kits`: kit inspect/add/list/doctor helpers
 - `codex-toys`: CLI package and umbrella runtime export
 
 ## Turn Automation In One Screen

@@ -18,7 +18,8 @@
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"bin": {
-		"codex-toys": "dist/cli/index.js"
+		"codex-toys": "dist/cli/index.js",
+		"codex-toys-proxy": "node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js"
 	},
 	"files": [
 		"dist",
@@ -31,8 +32,77 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./actions": {
+			"types": "./dist/actions.d.ts",
+			"import": "./dist/actions.js"
+		},
+		"./bridge": {
+			"types": "./dist/bridge/index.d.ts",
+			"import": "./dist/bridge/index.js"
+		},
+		"./bridge/auth": {
+			"types": "./dist/bridge/auth.d.ts",
+			"import": "./dist/bridge/auth.js"
+		},
+		"./bridge/generated": {
+			"types": "./dist/bridge/generated.d.ts",
+			"import": "./dist/bridge/generated.js"
+		},
+		"./bridge/json": {
+			"types": "./dist/bridge/json.d.ts",
+			"import": "./dist/bridge/json.js"
+		},
+		"./bridge/memories": {
+			"types": "./dist/bridge/memories.d.ts",
+			"import": "./dist/bridge/memories.js"
+		},
+		"./bridge/rpc": {
+			"types": "./dist/bridge/rpc.d.ts",
+			"import": "./dist/bridge/rpc.js"
+		},
+		"./bridge/threads": {
+			"types": "./dist/bridge/threads.d.ts",
+			"import": "./dist/bridge/threads.js"
+		},
+		"./kits": {
+			"types": "./dist/kits.d.ts",
+			"import": "./dist/kits.js"
+		},
+		"./proxy": {
+			"types": "./dist/proxy/index.d.ts",
+			"import": "./dist/proxy/index.js"
+		},
+		"./proxy/browser": {
+			"types": "./dist/proxy/browser.d.ts",
+			"import": "./dist/proxy/browser.js"
+		},
+		"./proxy/vite": {
+			"types": "./dist/proxy/vite.d.ts",
+			"import": "./dist/proxy/vite.js"
+		},
+		"./remote": {
+			"types": "./dist/remote.d.ts",
+			"import": "./dist/remote.js"
+		},
+		"./toybox": {
+			"types": "./dist/toybox.d.ts",
+			"import": "./dist/toybox.js"
+		},
+		"./workbench": {
+			"types": "./dist/workbench.d.ts",
+			"import": "./dist/workbench.js"
 		}
 	},
+	"bundledDependencies": [
+		"@codex-toys/actions",
+		"@codex-toys/bridge",
+		"@codex-toys/kits",
+		"@codex-toys/proxy",
+		"@codex-toys/remote",
+		"@codex-toys/toybox",
+		"@codex-toys/workbench"
+	],
 	"engines": {
 		"node": ">=24.0.0 <25"
 	},
@@ -59,6 +129,7 @@
 		"@codex-toys/remote": "workspace:*",
 		"@codex-toys/toybox": "workspace:*",
 		"@codex-toys/workbench": "workspace:*",
+		"smol-toml": "catalog:",
 		"tsx": "catalog:"
 	}
 }

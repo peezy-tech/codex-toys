@@ -32,7 +32,16 @@
 			"@codex-toys/toybox/*": ["packages/toybox/src/*"],
 			"@codex-toys/workbench": ["packages/workbench/src/index.ts"],
 			"@codex-toys/workbench/*": ["packages/workbench/src/*"],
-			"codex-toys": ["packages/codex-toys/src/index.ts"]
+			"codex-toys": ["packages/codex-toys/src/index.ts"],
+			"codex-toys/actions": ["packages/codex-toys/src/actions.ts"],
+			"codex-toys/bridge": ["packages/codex-toys/src/bridge/index.ts"],
+			"codex-toys/bridge/*": ["packages/codex-toys/src/bridge/*"],
+			"codex-toys/kits": ["packages/codex-toys/src/kits.ts"],
+			"codex-toys/proxy": ["packages/codex-toys/src/proxy/index.ts"],
+			"codex-toys/proxy/*": ["packages/codex-toys/src/proxy/*"],
+			"codex-toys/remote": ["packages/codex-toys/src/remote.ts"],
+			"codex-toys/toybox": ["packages/codex-toys/src/toybox.ts"],
+			"codex-toys/workbench": ["packages/codex-toys/src/workbench.ts"]
 		}
 	}
 }

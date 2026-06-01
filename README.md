@@ -2,9 +2,11 @@
 
 Codex bridge, toybox, remote, workbench, Actions, proxy, kits, and CLI tools.
 
-This repository is a monorepo. The user-facing CLI package is `codex-toys`;
-reusable runtime surfaces live in scoped packages such as
-`@codex-toys/bridge`, `@codex-toys/workbench`, and `@codex-toys/proxy`.
+This repository is a monorepo. The only public npm package is `codex-toys`;
+reusable runtime surfaces are exported from subpaths such as
+`codex-toys/bridge`, `codex-toys/workbench`, and `codex-toys/proxy`.
+The scoped `@codex-toys/*` workspaces are internal package boundaries that are
+bundled into the published tarball.
 The full user documentation lives in the Tome docs site under
 [`docs/pages`](docs/pages).
 
@@ -112,21 +114,19 @@ docs site:
 Package READMEs stay npm-focused: install, exports, minimal examples, and links
 back to the docs site.
 
-## Published Packages
+## Published Package
 
-The public package stack is:
+The public npm package is:
 
-- `@codex-toys/bridge`
-- `@codex-toys/toybox`
-- `@codex-toys/workbench`
-- `@codex-toys/actions`
-- `@codex-toys/remote`
-- `@codex-toys/proxy`
-- `@codex-toys/kits`
 - `codex-toys`
 
+Its supported runtime imports are exposed through `codex-toys/*` subpaths, for
+example `codex-toys/workbench`, `codex-toys/bridge`, and
+`codex-toys/proxy/browser`.
+
 Legacy automation packages have been removed from the monorepo; new automation
-surface belongs in `@codex-toys/workbench` and plugin-native turn automation.
+surface belongs in `packages/workbench`, the public `codex-toys/workbench`
+subpath, and plugin-native turn automation.
 
 Release procedure and remote policy are in [`RELEASE.md`](RELEASE.md). In short:
 jojo.build is the canonical development remote, Codeberg is a push mirror, and

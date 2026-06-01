@@ -1,6 +1,7 @@
 {
 	"name": "@codex-toys/proxy",
 	"version": "0.140.5",
+	"private": true,
 	"description": "HTTP and Vite bridge for local or SSH-backed Codex toyboxes.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -10,9 +11,6 @@
 		"codex-toys-proxy": "dist/bin/codex-toys-proxy.js"
 	},
 	"files": ["dist", "README.md"],
-	"publishConfig": {
-		"access": "public"
-	},
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",

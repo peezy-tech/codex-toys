@@ -17,7 +17,7 @@
 		"docs:deploy": "vp run --filter codex-toys-docs deploy",
 		"docs:dev": "vp run --filter codex-toys-docs dev",
 		"test": "vp run --filter codex-toys test",
-		"release:check": "tsx scripts/check-publish-metadata.ts && vp run --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits --filter codex-toys release:check"
+		"release:check": "vp run --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits release:check && vp run --filter codex-toys release:check && tsx scripts/check-publish-metadata.ts"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

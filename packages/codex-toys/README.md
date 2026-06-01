@@ -24,23 +24,26 @@ Full documentation lives in the repo docs site:
 - Codex plugin skills: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-codex-plugin.md>
 - optional kit copies: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-kit-repos.md>
 
-## Package Stack
+## Public Imports
 
-| Package | Purpose |
-|---------|---------|
-| `@codex-toys/bridge` | Native Codex app-server, auth, memory, thread, JSON-RPC, and generated protocol bridge primitives. |
-| `@codex-toys/toybox` | Stdio JSON-RPC toybox client/server protocol. |
-| `@codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, automation, and overview primitives. |
-| `@codex-toys/actions` | GitHub/Forgejo Actions auth and state helpers. |
-| `@codex-toys/remote` | SSH-backed toybox transports and remote control helpers. |
-| `@codex-toys/proxy` | Optional HTTP proxy, browser client, Vite middleware, and `codex-toys-proxy` binary. |
-| `@codex-toys/kits` | Kit inspect/add/list/doctor helpers for `codex-kit.toml` and `.codex/kit-lock.json`. |
-| `codex-toys` | CLI package and umbrella runtime export. |
+`codex-toys` is the only public npm package. Runtime surfaces are available
+from focused subpaths:
+
+| Import | Purpose |
+|--------|---------|
+| `codex-toys/bridge` | Native Codex app-server, auth, memory, thread, JSON-RPC, and generated protocol bridge primitives. |
+| `codex-toys/toybox` | Stdio JSON-RPC toybox client/server protocol. |
+| `codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, automation, and overview primitives. |
+| `codex-toys/actions` | GitHub/Forgejo Actions auth and state helpers. |
+| `codex-toys/remote` | SSH-backed toybox transports and remote control helpers. |
+| `codex-toys/proxy` | Optional HTTP proxy, browser client, Vite middleware, and `codex-toys-proxy` binary. |
+| `codex-toys/kits` | Kit inspect/add/list/doctor helpers for `codex-kit.toml` and `.codex/kit-lock.json`. |
+| `codex-toys` | Umbrella runtime export. |
 
 ## App-Server Client
 
 ```ts
-import { CodexAppServerClient } from "@codex-toys/bridge";
+import { CodexAppServerClient } from "codex-toys/bridge";
 
 const client = new CodexAppServerClient();
 await client.connect();
@@ -58,7 +61,7 @@ specific binary or launch flags should be used.
 Browser entry for freeform dashboards:
 
 ```ts
-import { createCodexToysBrowserClient } from "@codex-toys/proxy/browser";
+import { createCodexToysBrowserClient } from "codex-toys/proxy/browser";
 
 const codexToys = createCodexToysBrowserClient();
 const schema = await codexToys.schema();
@@ -74,7 +77,7 @@ dashboards can also avoid CORS entirely by using the Vite plugin or proxy
 ## Turn Automation
 
 ```ts
-import { runTurnAutomationScript } from "@codex-toys/workbench";
+import { runTurnAutomationScript } from "codex-toys/workbench";
 
 const run = await runTurnAutomationScript({
 	scriptPath: "./automations/check-release/check-release.ts",
@@ -98,7 +101,7 @@ toybox, scripts can also start delegated Codex threads in another checkout with
 import {
 	CodexAppServerClient,
 	createCodexAuthClient,
-} from "@codex-toys/bridge";
+} from "codex-toys/bridge";
 
 const client = new CodexAppServerClient();
 await client.connect();
@@ -117,12 +120,12 @@ identifiers. It exposes anonymous auth mode, plan, and usage data by default.
 
 ## Workbench Boundary
 
-`@codex-toys/workbench` does not execute app-server requests. It
+`codex-toys/workbench` does not execute app-server requests. It
 derives reusable UX state from app-server notifications and completed turns, and
 returns request descriptors for actions:
 
 ```ts
-import { threadGoalSetDescriptor } from "@codex-toys/workbench";
+import { threadGoalSetDescriptor } from "codex-toys/workbench";
 
 const action = threadGoalSetDescriptor({
 	threadId,
@@ -138,8 +141,8 @@ The app-server protocol remains the source of truth for thread commands.
 
 ## CLI
 
-The `codex-toys` package publishes the CLI. The optional `codex-toys-proxy`
-web edge is published by `@codex-toys/proxy`:
+The `codex-toys` package publishes both the main CLI and the optional
+`codex-toys-proxy` web edge:
 
 ```bash
 codex-toys fetch
@@ -204,7 +207,7 @@ vp run --filter codex-toys release:check
 
 `build` emits ESM JavaScript, source maps, and declaration files into `dist`.
 `release:check` runs tests, type checking, a clean build, export smoke tests,
-and `npm pack --dry-run`.
+and a tarball install smoke test.
 
 Generated protocol files live in `src/app-server/generated`. Keep handwritten
 client and transport code outside that generated tree.

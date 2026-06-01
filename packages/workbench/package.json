@@ -1,15 +1,13 @@
 {
 	"name": "@codex-toys/workbench",
 	"version": "0.140.5",
+	"private": true,
 	"description": "Codex workbench runtime, delegation, prompt queue, handoff, and automation primitives.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"files": ["dist", "README.md"],
-	"publishConfig": {
-		"access": "public"
-	},
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",

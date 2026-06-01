@@ -1,15 +1,13 @@
 {
 	"name": "@codex-toys/toybox",
 	"version": "0.140.5",
+	"private": true,
 	"description": "Codex toybox JSON-RPC protocol, client, and server primitives.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"files": ["dist", "README.md"],
-	"publishConfig": {
-		"access": "public"
-	},
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
