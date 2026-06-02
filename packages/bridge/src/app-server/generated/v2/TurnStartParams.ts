@@ -13,7 +13,7 @@ import type { SandboxPolicy } from "./SandboxPolicy";
 import type { TurnEnvironmentParams } from "./TurnEnvironmentParams";
 import type { UserInput } from "./UserInput";
 
-export type TurnStartParams = { threadId: string, input: Array<UserInput>,
+export type TurnStartParams = { threadId: string, clientUserMessageId?: string | null, input: Array<UserInput>,
 /**
  * Optional turn-scoped Responses API client metadata.
  */
