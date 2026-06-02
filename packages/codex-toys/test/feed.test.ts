@@ -301,6 +301,7 @@ describe("feed primitive", () => {
 		const root = await tempFeedRoot();
 		const methods = createFeedMethods({
 			root,
+			env: {},
 			fetch: async () => response({
 				status: 200,
 				body: rss([{ guid: "toybox", title: "Toybox" }]),
