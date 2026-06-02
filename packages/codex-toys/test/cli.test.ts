@@ -566,6 +566,7 @@ describe("codex-toys CLI args", () => {
 			rolloutPath: "/rollout.jsonl",
 			codexHome: "/target",
 			replace: true,
+			preserveCwd: false,
 			json: false,
 		});
 		expect(parseArgs([
@@ -575,7 +576,10 @@ describe("codex-toys CLI args", () => {
 			"--from-codex-home",
 			"/source",
 			"--to-codex-home=/target",
+			"--cwd",
+			"/project",
 			"--replace",
+			"--preserve-cwd",
 			"--json",
 		], {})).toEqual({
 			type: "threads-transplant",
@@ -583,6 +587,8 @@ describe("codex-toys CLI args", () => {
 			fromCodexHome: "/source",
 			toCodexHome: "/target",
 			replace: true,
+			cwd: "/project",
+			preserveCwd: true,
 			json: true,
 		});
 	});

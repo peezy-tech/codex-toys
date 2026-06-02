@@ -626,6 +626,8 @@ type ParsedCliBase =
 			rolloutPath: string;
 			codexHome?: string;
 			replace: boolean;
+			cwd?: string;
+			preserveCwd: boolean;
 			json: boolean;
 	  }
 	| {
@@ -634,6 +636,8 @@ type ParsedCliBase =
 			fromCodexHome?: string;
 			toCodexHome?: string;
 			replace: boolean;
+			cwd?: string;
+			preserveCwd: boolean;
 			json: boolean;
 	  }
 	| {
@@ -695,6 +699,7 @@ export function parseArgs(
 	let apply = false;
 	let overwrite = false;
 	let replace = false;
+	let preserveCwd = false;
 	let merge: "codex" | undefined;
 	let backup = true;
 	let ref: string | undefined;
@@ -737,6 +742,7 @@ export function parseArgs(
 	let paramsJson: string | undefined;
 	let paramsFile: string | undefined;
 	let cwd: string | undefined = env.CODEX_TOYS_REMOTE_CWD;
+	let explicitCwd: string | undefined;
 	let via: "workbench" | "app" = "workbench";
 	let sshTarget: string | undefined = env.CODEX_TOYS_REMOTE_SSH_TARGET;
 	let remotePathPrepend: string | undefined = env.CODEX_TOYS_REMOTE_PATH_PREPEND;
@@ -833,10 +839,12 @@ export function parseArgs(
 		}
 		if (arg === "--cwd") {
 			cwd = required(argv, ++index, arg);
+			explicitCwd = cwd;
 			continue;
 		}
 		if (arg.startsWith("--cwd=")) {
 			cwd = arg.slice("--cwd=".length);
+			explicitCwd = cwd;
 			continue;
 		}
 		if (arg === "--target-cwd") {
@@ -897,6 +905,10 @@ export function parseArgs(
 		}
 		if (arg === "--replace") {
 			replace = true;
+			continue;
+		}
+		if (arg === "--preserve-cwd") {
+			preserveCwd = true;
 			continue;
 		}
 		if (arg === "--ref") {
@@ -2237,6 +2249,8 @@ export function parseArgs(
 				),
 				codexHome,
 				replace,
+				...(explicitCwd !== undefined ? { cwd: explicitCwd } : {}),
+				preserveCwd,
 				json,
 			};
 		}
@@ -2251,6 +2265,8 @@ export function parseArgs(
 					"threads transplant requires --to-codex-home <home>",
 				),
 				replace,
+				...(explicitCwd !== undefined ? { cwd: explicitCwd } : {}),
+				preserveCwd,
 				json,
 			};
 		}

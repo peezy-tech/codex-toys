@@ -81,8 +81,8 @@ Usage:
 
   codex-toys threads locate <thread-id> [--codex-home <home>]
   codex-toys threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
-  codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
-  codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
+  codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--cwd <path>] [--replace]
+  codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--cwd <path>] [--replace]
 
   codex-toys kit inspect <source> [--json]
   codex-toys kit add <source> [--apply] [--include <name>] [--exclude <name>]
@@ -106,6 +106,8 @@ Options:
   --codex-home <path>                        Codex home for thread transplant.
   --from-codex-home <path>                   Source Codex home for direct thread transplant.
   --to-codex-home <path>                     Target Codex home for direct thread transplant.
+  --cwd <path>                               Project cwd written into transplanted thread metadata.
+  --preserve-cwd                             Keep original thread cwd during transplant.
   --apply                                    Apply memory transplant changes.
   --overwrite                                Replace destination memory files after backup.
                                              For kit add, replace changed installed item dirs
@@ -203,8 +205,8 @@ Examples:
   codex-toys workbench init actions --forgejo
   codex-toys memories transplant global-to-workbench
   codex-toys threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex
-  codex-toys threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home ./.codex
-  codex-toys threads transplant 019e3654-1492-70d0-9b01-46b17d6444a9 --from-codex-home ~/.codex --to-codex-home ./.codex
+  codex-toys threads install-rollout ./rollout-2026-05-18T15-12-25-019e3ba5-3c2a-74c1-bece-53a8ece3dc0e.jsonl --codex-home ~/.codex --cwd "$PWD"
+  codex-toys threads transplant 019e3654-1492-70d0-9b01-46b17d6444a9 --from-codex-home ./.codex --to-codex-home ~/.codex --cwd "$PWD"
   codex-toys kit inspect owner/repo
   codex-toys kit add ./capability-kit --apply
 `;

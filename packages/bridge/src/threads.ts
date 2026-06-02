@@ -3,8 +3,10 @@ import { createReadStream } from "node:fs";
 import {
 	copyFile,
 	mkdir,
+	readFile,
 	readdir,
 	stat,
+	writeFile,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -46,11 +48,14 @@ export type InstallThreadRolloutOptions = {
 	rolloutPath: string;
 	codexHome?: string;
 	replace?: boolean;
+	cwd?: string;
+	preserveCwd?: boolean;
 };
 
 export type InstalledThreadRollout = ThreadRolloutFile & {
 	path: string;
 	backupPath?: string;
+	cwd?: string;
 };
 
 export type InstallThreadRolloutResult = {
@@ -64,11 +69,14 @@ export type TransplantThreadRolloutOptions = {
 	fromCodexHome?: string;
 	toCodexHome?: string;
 	replace?: boolean;
+	cwd?: string;
+	preserveCwd?: boolean;
 };
 
 export type TransplantedThreadRollout = ThreadRolloutFile & {
 	path: string;
 	backupPath?: string;
+	cwd?: string;
 };
 
 export type TransplantThreadRolloutResult = {
@@ -164,9 +172,8 @@ export async function installThreadRollout(
 		sourcePath: source.path,
 		targetCodexHome: codexHome,
 		relativePath: source.relativePath,
-		bytes: source.bytes,
-		sha256: source.sha256,
 		replace: options.replace,
+		cwd: transplantCwd(options),
 		verb: "Installed",
 	});
 	return {
@@ -175,9 +182,10 @@ export async function installThreadRollout(
 		installed: {
 			role: "rollout",
 			relativePath: source.relativePath,
-			bytes: source.bytes,
-			sha256: source.sha256,
+			bytes: copied.bytes,
+			sha256: copied.sha256,
 			path: copied.path,
+			...(copied.cwd ? { cwd: copied.cwd } : {}),
 			...(copied.backupPath ? { backupPath: copied.backupPath } : {}),
 		},
 	};
@@ -195,9 +203,8 @@ export async function transplantThreadRollout(
 		sourcePath: source.path,
 		targetCodexHome: toCodexHome,
 		relativePath: source.relativePath,
-		bytes: source.bytes,
-		sha256: source.sha256,
 		replace: options.replace,
+		cwd: transplantCwd(options),
 		verb: "Transplanted",
 	});
 	return {
@@ -208,9 +215,10 @@ export async function transplantThreadRollout(
 		transplanted: {
 			role: "rollout",
 			relativePath: source.relativePath,
-			bytes: source.bytes,
-			sha256: source.sha256,
+			bytes: copied.bytes,
+			sha256: copied.sha256,
 			path: copied.path,
+			...(copied.cwd ? { cwd: copied.cwd } : {}),
 			...(copied.backupPath ? { backupPath: copied.backupPath } : {}),
 		},
 	};
@@ -258,6 +266,9 @@ export function formatThreadRolloutInstallation(result: InstallThreadRolloutResu
 	if (result.installed.backupPath) {
 		lines.push(`backup             ${result.installed.backupPath}`);
 	}
+	if (result.installed.cwd) {
+		lines.push(`cwd                ${result.installed.cwd}`);
+	}
 	return `${lines.join("\n")}\n`;
 }
 
@@ -273,6 +284,9 @@ export function formatThreadRolloutTransplant(result: TransplantThreadRolloutRes
 	if (result.transplanted.backupPath) {
 		lines.push(`backup             ${result.transplanted.backupPath}`);
 	}
+	if (result.transplanted.cwd) {
+		lines.push(`cwd                ${result.transplanted.cwd}`);
+	}
 	return `${lines.join("\n")}\n`;
 }
 
@@ -280,15 +294,16 @@ async function copyVerifiedRollout(options: {
 	sourcePath: string;
 	targetCodexHome: string;
 	relativePath: string;
-	bytes: number;
-	sha256: string;
 	replace?: boolean;
+	cwd?: string;
 	verb: "Installed" | "Transplanted";
-}): Promise<{ path: string; backupPath?: string }> {
+}): Promise<{ path: string; backupPath?: string; bytes: number; sha256: string; cwd?: string }> {
 	const destinationPath = safeResolve(options.targetCodexHome, options.relativePath);
 	if (path.resolve(options.sourcePath) === destinationPath) {
 		throw new Error(`Source and target rollout are the same file: ${destinationPath}`);
 	}
+	const sourceInfo = await stat(options.sourcePath);
+	const sourceSha256 = await sha256File(options.sourcePath);
 	const destinationExists = await exists(destinationPath);
 	let backup: string | undefined;
 	if (destinationExists) {
@@ -299,19 +314,73 @@ async function copyVerifiedRollout(options: {
 		await copyFile(destinationPath, backup);
 	}
 	await mkdir(path.dirname(destinationPath), { recursive: true });
-	await copyFile(options.sourcePath, destinationPath);
-	const copiedInfo = await stat(destinationPath);
-	if (copiedInfo.size !== options.bytes) {
-		throw new Error(`${options.verb} rollout byte length mismatch: ${options.relativePath}`);
+	if (options.cwd) {
+		await writeFile(destinationPath, await rewriteRolloutCwd(options.sourcePath, options.cwd));
+	} else {
+		await copyFile(options.sourcePath, destinationPath);
 	}
+	const copiedInfo = await stat(destinationPath);
 	const copiedSha256 = await sha256File(destinationPath);
-	if (copiedSha256 !== options.sha256) {
-		throw new Error(`${options.verb} rollout checksum mismatch: ${options.relativePath}`);
+	if (!options.cwd) {
+		if (copiedInfo.size !== sourceInfo.size) {
+			throw new Error(`${options.verb} rollout byte length mismatch: ${options.relativePath}`);
+		}
+		if (copiedSha256 !== sourceSha256) {
+			throw new Error(`${options.verb} rollout checksum mismatch: ${options.relativePath}`);
+		}
+	}
+	const metadata = await readRolloutSessionMeta(destinationPath);
+	if (options.cwd && metadata.cwd !== options.cwd) {
+		throw new Error(`${options.verb} rollout cwd rewrite failed: ${options.relativePath}`);
 	}
 	return {
 		path: destinationPath,
+		bytes: copiedInfo.size,
+		sha256: copiedSha256,
+		...(metadata.cwd ? { cwd: metadata.cwd } : {}),
 		...(backup ? { backupPath: backup } : {}),
 	};
+}
+
+function transplantCwd(options: { cwd?: string; preserveCwd?: boolean }): string | undefined {
+	if (options.preserveCwd) {
+		return undefined;
+	}
+	return path.resolve(options.cwd ?? process.cwd());
+}
+
+async function rewriteRolloutCwd(filePath: string, cwd: string): Promise<string> {
+	const text = await readFile(filePath, "utf8");
+	const lines = text.split(/\n/);
+	let rewrote = false;
+	const rewritten = lines.map((line, index) => {
+		if (rewrote || !line.trim()) {
+			return line;
+		}
+		const prefix = index === 0 && line.charCodeAt(0) === 0xfeff ? "\ufeff" : "";
+		const jsonText = prefix ? line.slice(1) : line;
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(jsonText) as unknown;
+		} catch {
+			return line;
+		}
+		const record = objectValue(parsed);
+		if (record?.type !== "session_meta") {
+			return line;
+		}
+		const payload = objectValue(record.payload) ?? {};
+		record.payload = {
+			...payload,
+			cwd,
+		};
+		rewrote = true;
+		return `${prefix}${JSON.stringify(record)}`;
+	}).join("\n");
+	if (!rewrote) {
+		throw new Error(`Thread rollout does not contain a session_meta record: ${filePath}`);
+	}
+	return rewritten;
 }
 
 function resolveCodexHome(codexHome: string | undefined): string {

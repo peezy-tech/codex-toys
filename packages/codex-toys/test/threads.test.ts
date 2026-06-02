@@ -60,14 +60,14 @@ describe("thread transplant", () => {
 			.rejects.toThrow("Multiple rollouts");
 	});
 
-	test("inspects and installs a byte-exact rollout", async () => {
+	test("inspects and installs a rollout with local cwd metadata", async () => {
 		const sourceHome = await codexHome();
 		const targetHome = await codexHome();
+		const localCwd = path.join(targetHome, "project");
 		const rollout = await writeRollout(sourceHome, threadId, {
 			cwd: "/workbench/source",
-			body: "byte exact payload\n",
+			body: "local cwd payload\n",
 		});
-		const sourceBytes = await readFile(rollout);
 
 		const inspectedById = await inspectThreadRollout({
 			threadIdOrPath: threadId,
@@ -77,6 +77,7 @@ describe("thread transplant", () => {
 		const installed = await installThreadRollout({
 			rolloutPath: rollout,
 			codexHome: targetHome,
+			cwd: localCwd,
 		});
 		const targetPath = path.join(targetHome, inspectedById.relativePath);
 
@@ -86,9 +87,32 @@ describe("thread transplant", () => {
 			matchedBy: "session_meta",
 		});
 		expect(inspectedByPath.relativePath).toBe(inspectedById.relativePath);
-		expect(inspectedByPath.bytes).toBe(sourceBytes.byteLength);
 		expect(inspectedByPath.sha256).toBe(inspectedById.sha256);
 		expect(installed.installed.path).toBe(targetPath);
+		expect(installed.installed.cwd).toBe(localCwd);
+		expect(await readRolloutCwd(targetPath)).toBe(localCwd);
+		expect(await readFile(targetPath, "utf8")).toContain("local cwd payload");
+	});
+
+	test("can preserve source cwd for byte-exact rollout installation", async () => {
+		const sourceHome = await codexHome();
+		const targetHome = await codexHome();
+		const rollout = await writeRollout(sourceHome, threadId, {
+			cwd: "/workbench/source",
+			body: "byte exact payload\n",
+		});
+		const sourceBytes = await readFile(rollout);
+		const inspected = await inspectThreadRollout({ threadIdOrPath: rollout });
+
+		const installed = await installThreadRollout({
+			rolloutPath: rollout,
+			codexHome: targetHome,
+			preserveCwd: true,
+		});
+		const targetPath = path.join(targetHome, inspected.relativePath);
+
+		expect(installed.installed.path).toBe(targetPath);
+		expect(installed.installed.cwd).toBe("/workbench/source");
 		expect(await readFile(targetPath)).toEqual(sourceBytes);
 	});
 
@@ -116,26 +140,28 @@ describe("thread transplant", () => {
 			.toBe("existing rollout\n");
 	});
 
-	test("transplants directly between Codex homes with checksum validation and backups", async () => {
+	test("transplants directly between Codex homes with local cwd metadata and backups", async () => {
 		const sourceHome = await codexHome();
 		const targetHome = await codexHome();
+		const localCwd = path.join(targetHome, "project");
 		const rollout = await writeRollout(sourceHome, threadId, {
 			cwd: "/workbench/source",
 			body: "direct transplant payload\n",
 		});
-		const sourceBytes = await readFile(rollout);
 
 		const first = await transplantThreadRollout({
 			threadId,
 			fromCodexHome: sourceHome,
 			toCodexHome: targetHome,
+			cwd: localCwd,
 		});
 
 		expect(first.threadId).toBe(threadId);
 		expect(first.fromCodexHome).toBe(sourceHome);
 		expect(first.toCodexHome).toBe(targetHome);
 		expect(first.transplanted.relativePath).toBe(first.source.relativePath);
-		expect(await readFile(first.transplanted.path)).toEqual(sourceBytes);
+		expect(first.transplanted.cwd).toBe(localCwd);
+		expect(await readRolloutCwd(first.transplanted.path)).toBe(localCwd);
 
 		await expect(transplantThreadRollout({
 			threadId,
@@ -148,10 +174,11 @@ describe("thread transplant", () => {
 			threadId,
 			fromCodexHome: sourceHome,
 			toCodexHome: targetHome,
+			cwd: localCwd,
 			replace: true,
 		});
 
-		expect(await readFile(replaced.transplanted.path)).toEqual(sourceBytes);
+		expect(await readRolloutCwd(replaced.transplanted.path)).toBe(localCwd);
 		expect(replaced.transplanted.backupPath).toBeDefined();
 		expect(await readFile(replaced.transplanted.backupPath ?? "", "utf8"))
 			.toBe("existing target\n");
@@ -183,6 +210,20 @@ describe("thread transplant", () => {
 			.rejects.toThrow("filename has no thread id");
 	});
 });
+
+async function readRolloutCwd(rolloutPath: string): Promise<string | undefined> {
+	const lines = (await readFile(rolloutPath, "utf8")).split(/\n/);
+	for (const line of lines) {
+		if (!line.trim()) {
+			continue;
+		}
+		const record = JSON.parse(line) as { type?: string; payload?: { cwd?: string } };
+		if (record.type === "session_meta") {
+			return record.payload?.cwd;
+		}
+	}
+	return undefined;
+}
 
 async function codexHome(): Promise<string> {
 	const home = await mkdtemp(path.join(os.tmpdir(), "codex-thread-home-"));
