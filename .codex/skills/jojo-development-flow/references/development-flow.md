@@ -38,39 +38,15 @@ git push github main
 gh workflow run publish-codex-toys.yml --repo peezy-tech/codex-toys --ref main -f confirm_package='codex-toys'
 ```
 
-## Accounts
+## Access
 
-- `peezy`: human site admin, 2FA enabled.
-- `matamune`: active development worker account for this host, not a site admin.
-- `peezy-tech`: organization containing `codex-toys`.
-- `load-game`: organization containing both `peezy` and `matamune`.
+Use an operator account with push access to jojo, permission to update the
+GitHub publishing mirror, and permission to run the GitHub trusted-publishing
+workflow. Local SSH keys, GPG keys, personal account names, signing-key IDs, and
+long-lived tokens are machine-specific and should stay outside this repository.
 
-## Keys
-
-Host SSH public key:
-
-```text
-~/.config/forgejo-keys/matamune-jojo-build-ssh.pub
-```
-
-Host GPG public key:
-
-```text
-~/.config/forgejo-keys/matamune-jojo-build-gpg.asc
-```
-
-Codeberg SSH key still exists for direct mirror diagnostics:
-
-```text
-~/.ssh/id_ed25519_codeberg.pub
-```
-
-Git signing is expected:
-
-```bash
-git config --global commit.gpgsign true
-git config --global user.signingkey E3B0D5FB2E5CF11FAFB2EA113BB8E7D3B968A324
-```
+Git signing may be used when configured locally, but this project does not
+require checked-in signing-key details.
 
 ## Jojo CLI And API Checks
 
@@ -81,7 +57,8 @@ fj --host jojo.build auth list
 fj --host jojo.build repo view peezy-tech/codex-toys
 ```
 
-For admin automation, prefer a scoped `peezy` token. The old bootstrap `matamune` setup token should not be treated as the long-term admin credential.
+For admin automation, prefer a scoped operator token and keep token material out
+of the repository.
 
 ## Branch Protection
 
@@ -114,7 +91,7 @@ vp run release:check
 ## Jojo CLI
 
 ```bash
-fj --host jojo.build auth add-key matamune <token>
+fj --host jojo.build auth add-key <username> <token>
 fj --host jojo.build auth use-ssh true
 ```
 

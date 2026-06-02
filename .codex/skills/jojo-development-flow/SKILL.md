@@ -19,14 +19,12 @@ Use `jojo.build` as the canonical development home for `peezy-tech/codex-toys`. 
 - `jojo.build` push-mirrors `main` to Codeberg.
 - GitHub is pushed manually only when npm trusted publishing needs the release workflow.
 
-## Accounts And Access
+## Access
 
-- Human/admin account: `peezy`
-- Host development worker account: `matamune`
-- Organization: `peezy-tech`
-- Both users are in the `peezy-tech` Owners team.
-- `matamune` is active but is not a site admin.
-- `peezy` is the site admin account and has 2FA enabled.
+Use an operator account with push access to jojo, permission to update the
+GitHub publishing mirror, and permission to run the GitHub trusted-publishing
+workflow. Do not commit machine-specific SSH keys, GPG keys, personal account
+names, or long-lived tokens to this repository.
 
 ## Core Rules
 
@@ -54,13 +52,8 @@ git ls-remote codeberg refs/heads/main
 gpg --list-secret-keys --keyid-format=long
 ```
 
-Expected local key files:
-
-```text
-~/.ssh/id_ed25519_codeberg.pub
-~/.config/forgejo-keys/matamune-jojo-build-ssh.pub
-~/.config/forgejo-keys/matamune-jojo-build-gpg.asc
-```
+Local SSH and Git signing configuration is machine-specific and should be kept
+outside the repository.
 
 ## Jojo CI
 

@@ -27,30 +27,22 @@ Push to GitHub only when a release needs the trusted publishing workflow:
 git push github main
 ```
 
-## Accounts
+## Access
 
-- `peezy` is the human site admin account and has 2FA enabled.
-- `matamune` is an active development worker account for this host and is not a site admin.
-- Both accounts are Owners in `peezy-tech`.
+Release operators need:
 
-## Machine Keys
+- push access to the jojo repository;
+- permission to push the GitHub publishing mirror;
+- permission to run the GitHub trusted-publishing workflow;
+- local SSH or HTTPS credentials for the remotes they use.
 
-This host uses a dedicated jojo SSH key and GPG key:
-
-```text
-~/.config/forgejo-keys/matamune-jojo-build-ssh.pub
-~/.config/forgejo-keys/matamune-jojo-build-gpg.asc
-```
-
-The Codeberg key remains available for mirror diagnostics:
-
-```text
-~/.ssh/id_ed25519_codeberg.pub
-```
+Do not commit machine-specific SSH keys, GPG keys, personal account names, or
+long-lived tokens to this repository.
 
 ## Jojo CLI
 
-`fj` can talk to `jojo.build` after creating an application token:
+`fj` can talk to `jojo.build` after creating an application token. Configure it
+with the operator account available on the current machine:
 
 ```bash
 fj --host jojo.build auth add-key <username> <token>
