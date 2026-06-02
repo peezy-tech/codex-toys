@@ -1,0 +1,11 @@
+{
+  "id": "2026-06-02T15-18-57-121Z-6f0fd540-openai-codex-bindings",
+  "taskId": "openai-codex-bindings",
+  "kind": "automation",
+  "status": "failed",
+  "startedAt": "2026-06-02T15:18:57.121Z",
+  "finishedAt": "2026-06-02T15:19:14.786Z",
+  "mode": "actions",
+  "outputPath": "/home/runner/work/codex-toys/codex-toys/.codex/workbench/actions/outputs/2026-06-02T15-18-57-121Z-6f0fd540-openai-codex-bindings.json",
+  "error": "Turn automation script failed:\nJsonRpcError: failed to read thread: thread-store internal error: failed to read thread /home/runner/work/codex-toys/codex-toys/.codex/sessions/2026/06/02/rollout-2026-06-02T15-19-14-019e88ea-de9a-7ff1-b07c-1ff8676d431e.jsonl: rollout at /home/runner/work/codex-toys/codex-toys/.codex/sessions/2026/06/02/rollout-2026-06-02T15-19-14-019e88ea-de9a-7ff1-b07c-1ff8676d431e.jsonl is empty\n    at requireJsonRpcResult (/home/runner/work/codex-toys/codex-toys/packages/bridge/src/app-server/rpc.ts:74:9)\n    at CodexStdioTransport.request (/home/runner/work/codex-toys/codex-toys/packages/bridge/src/app-server/stdio-transport.ts:126:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async Object.callToybox (/home/runner/work/codex-toys/codex-toys/packages/codex-toys/src/cli/index.ts:1701:4)\n    at async appRequest (/home/runner/work/codex-toys/codex-toys/packages/workbench/src/workbench-runtime.ts:1331:5)\n    at async readAutomationTurnWithRequest (/home/runner/work/codex-toys/codex-toys/packages/workbench/src/turn-automation.ts:450:25)\n    at async waitAutomationTurnWithRequest (/home/runner/work/codex-toys/codex-toys/packages/workbench/src/turn-automation.ts:488:20)\n    at async <anonymous> (/home/runner/work/codex-toys/codex-toys/packages/workbench/src/turn-automation.ts:374:11)\n    at async handleHostMessage (/home/runner/work/codex-toys/codex-toys/packages/workbench/src/turn-automation.ts:1018:18)\n"
+}
