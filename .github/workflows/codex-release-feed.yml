@@ -89,6 +89,13 @@ jobs:
             --filter codex-toys \
             build
 
+      - name: Expose local codex-toys CLI
+        run: |
+          mkdir -p "${RUNNER_TEMP}/codex-toys-bin"
+          ln -sf "${GITHUB_WORKSPACE}/packages/codex-toys/dist/cli/index.js" "${RUNNER_TEMP}/codex-toys-bin/codex-toys"
+          echo "${RUNNER_TEMP}/codex-toys-bin" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/codex-toys-bin/codex-toys" --help >/dev/null
+
       - name: Install Codex
         run: |
           curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
