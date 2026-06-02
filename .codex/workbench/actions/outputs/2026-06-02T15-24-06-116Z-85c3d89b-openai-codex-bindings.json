@@ -1,0 +1,129 @@
+{
+  "status": "pr-ready",
+  "release": {
+    "itemId": "feed-openai-codex-releases-a70fd79da74eb1beb94d",
+    "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.136.0",
+    "title": "0.136.0",
+    "url": "https://github.com/openai/codex/releases/tag/rust-v0.136.0",
+    "version": "0.136.0",
+    "tag": "rust-v0.136.0",
+    "updatedAt": "2026-06-01T18:51:30.000Z"
+  },
+  "codex": {
+    "before": "codex-cli 0.136.0",
+    "after": "codex-cli 0.136.0",
+    "beforeVersion": "0.136.0",
+    "afterVersion": "0.136.0",
+    "targetVersion": "0.136.0",
+    "actions": []
+  },
+  "changedFiles": [
+    "packages/bridge/src/app-server/generated/ClientRequest.ts",
+    "packages/bridge/src/app-server/generated/McpServerInfo.ts",
+    "packages/bridge/src/app-server/generated/index.ts",
+    "packages/bridge/src/app-server/generated/v2/ConfigRequirements.ts",
+    "packages/bridge/src/app-server/generated/v2/McpServerStatus.ts",
+    "packages/bridge/src/app-server/generated/v2/NetworkUnixSocketPermission.ts",
+    "packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetParams.ts",
+    "packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetResponse.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadItem.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadResumeInitialTurnsPageParams.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadResumeParams.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadResumeResponse.ts",
+    "packages/bridge/src/app-server/generated/v2/TurnStartParams.ts",
+    "packages/bridge/src/app-server/generated/v2/TurnSteerParams.ts",
+    "packages/bridge/src/app-server/generated/v2/TurnsPage.ts",
+    "packages/bridge/src/app-server/generated/v2/index.ts"
+  ],
+  "targetBranch": "codex/openai-codex-bindings/rust-v0.136.0",
+  "threadBranch": "thread/openai-codex-bindings/rust-v0.136.0",
+  "pullRequest": {
+    "number": 3,
+    "url": "https://github.com/peezy-tech/codex-toys/pull/3",
+    "state": "open",
+    "title": "Refresh Codex app-server bindings for 0.136.0",
+    "headRefName": "codex/openai-codex-bindings/rust-v0.136.0",
+    "body": "## Generated Update\n\nSource: openai/codex 0.136.0\nRelease URL: https://github.com/openai/codex/releases/tag/rust-v0.136.0\nCodex before: codex-cli 0.136.0\nCodex after: codex-cli 0.136.0\nUpdate actions: none\nTarget repo: /tmp/codex-toys-openai-codex-0BHwBi/codex-toys\nCode branch: `codex/openai-codex-bindings/rust-v0.136.0`\nThread state branch: `thread/openai-codex-bindings/rust-v0.136.0`\nChanged files: packages/bridge/src/app-server/generated/ClientRequest.ts, packages/bridge/src/app-server/generated/McpServerInfo.ts, packages/bridge/src/app-server/generated/index.ts, packages/bridge/src/app-server/generated/v2/ConfigRequirements.ts, packages/bridge/src/app-server/generated/v2/McpServerStatus.ts, packages/bridge/src/app-server/generated/v2/NetworkUnixSocketPermission.ts, packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetParams.ts, packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetResponse.ts, packages/bridge/src/app-server/generated/v2/ThreadItem.ts, packages/bridge/src/app-server/generated/v2/ThreadResumeInitialTurnsPageParams.ts, packages/bridge/src/app-server/generated/v2/ThreadResumeParams.ts, packages/bridge/src/app-server/generated/v2/ThreadResumeResponse.ts, packages/bridge/src/app-server/generated/v2/TurnStartParams.ts, packages/bridge/src/app-server/generated/v2/TurnSteerParams.ts, packages/bridge/src/app-server/generated/v2/TurnsPage.ts, packages/bridge/src/app-server/generated/v2/index.ts\n\n## Validation\n\n- `pnpm install --frozen-lockfile`: passed\n- `pnpm --filter @codex-toys/bridge check:types`: passed\n- `pnpm --filter @codex-toys/bridge build`: passed\n- `pnpm --filter codex-toys check:types`: passed\n- `pnpm --filter codex-toys test`: passed\n- `pnpm --filter codex-toys smoke:exports`: passed\n\n## Diff Stat\n\n```text\npackages/bridge/src/app-server/generated/ClientRequest.ts          | 3 ++-\n packages/bridge/src/app-server/generated/index.ts                  | 3 ++-\n packages/bridge/src/app-server/generated/v2/ConfigRequirements.ts  | 3 ++-\n packages/bridge/src/app-server/generated/v2/McpServerStatus.ts     | 3 ++-\n .../src/app-server/generated/v2/NetworkUnixSocketPermission.ts     | 2 +-\n packages/bridge/src/app-server/generated/v2/ThreadItem.ts          | 2 +-\n packages/bridge/src/app-server/generated/v2/ThreadResumeParams.ts  | 6 ++++++\n .../bridge/src/app-server/generated/v2/ThreadResumeResponse.ts     | 7 ++++++-\n packages/bridge/src/app-server/generated/v2/TurnStartParams.ts     | 2 +-\n packages/bridge/src/app-server/generated/v2/TurnSteerParams.ts     | 2 +-\n packages/bridge/src/app-server/generated/v2/index.ts               | 4 ++++\n 11 files changed, 28 insertions(+), 9 deletions(-)\n```\n\n## Codex Analysis\n\n**Findings:** None from the supplied diff.\n\nThe changes match the Codex 0.136.0 app-server protocol surface I checked upstream: `thread/resume.initialTurnsPage`, MCP `serverInfo`, `skills/extraRoots/set`, Windows sandbox requirements, `clientUserMessageId`, and Unix socket `\"deny\"` all line up with the release notes and tagged Rust protocol definitions. The nullable/optional shapes also look intentional for ts-rs output.\n\n**Residual Risk:** I could not run local `rg` or TypeScript build checks because the managed sandbox failed before shell commands executed (`bwrap: loopback: Failed RTM_NEWADDR`). I also couldn’t directly compare the new file contents that were listed but not shown in the diff. Sources checked: Codex 0.136.0 release and upstream PR/source context for the protocol changes.\n\n<!-- codex-toys:openai-codex-bindings release=rust-v0.136.0 -->"
+  },
+  "validations": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "status": "passed",
+      "durationMs": 1624
+    },
+    {
+      "command": "pnpm --filter @codex-toys/bridge check:types",
+      "status": "passed",
+      "durationMs": 1524
+    },
+    {
+      "command": "pnpm --filter @codex-toys/bridge build",
+      "status": "passed",
+      "durationMs": 1972
+    },
+    {
+      "command": "pnpm --filter codex-toys check:types",
+      "status": "passed",
+      "durationMs": 4950
+    },
+    {
+      "command": "pnpm --filter codex-toys test",
+      "status": "passed",
+      "durationMs": 5053
+    },
+    {
+      "command": "pnpm --filter codex-toys smoke:exports",
+      "status": "passed",
+      "durationMs": 770
+    }
+  ],
+  "analysis": {
+    "status": "completed",
+    "turn": {
+      "id": "openai-codex-bindings-0.136.0",
+      "via": "workbench",
+      "threadId": "019e88ef-950e-7622-813a-48f1cbfe0c71",
+      "turnId": "019e88ef-9550-7f80-8949-03d26f5abde6",
+      "thread": {
+        "id": "019e88ef-950e-7622-813a-48f1cbfe0c71",
+        "sessionId": "019e88ef-950e-7622-813a-48f1cbfe0c71",
+        "forkedFromId": null,
+        "preview": "",
+        "ephemeral": false,
+        "modelProvider": "openai",
+        "createdAt": 1780413863,
+        "updatedAt": 1780413863,
+        "status": {
+          "type": "idle"
+        },
+        "path": "/home/runner/work/codex-toys/codex-toys/.codex/sessions/2026/06/02/rollout-2026-06-02T15-24-23-019e88ef-950e-7622-813a-48f1cbfe0c71.jsonl",
+        "cwd": "/tmp/codex-toys-openai-codex-0BHwBi/codex-toys",
+        "cliVersion": "0.136.0",
+        "source": "vscode",
+        "threadSource": null,
+        "agentNickname": null,
+        "agentRole": null,
+        "gitInfo": null,
+        "name": null,
+        "turns": []
+      },
+      "turn": {
+        "id": "019e88ef-9550-7f80-8949-03d26f5abde6",
+        "items": [],
+        "itemsView": "notLoaded",
+        "status": "inProgress",
+        "error": null,
+        "startedAt": null,
+        "completedAt": null,
+        "durationMs": null
+      }
+    },
+    "snapshot": {
+      "status": "completed",
+      "threadId": "019e88ef-950e-7622-813a-48f1cbfe0c71",
+      "turnId": "019e88ef-9550-7f80-8949-03d26f5abde6",
+      "outputText": "**Findings:** None from the supplied diff.\n\nThe changes match the Codex 0.136.0 app-server protocol surface I checked upstream: `thread/resume.initialTurnsPage`, MCP `serverInfo`, `skills/extraRoots/set`, Windows sandbox requirements, `clientUserMessageId`, and Unix socket `\"deny\"` all line up with the release notes and tagged Rust protocol definitions. The nullable/optional shapes also look intentional for ts-rs output.\n\n**Residual Risk:** I could not run local `rg` or TypeScript build checks because the managed sandbox failed before shell commands executed (`bwrap: loopback: Failed RTM_NEWADDR`). I also couldn’t directly compare the new file contents that were listed but not shown in the diff. Sources checked: Codex 0.136.0 release and upstream PR/source context for the protocol changes."
+    },
+    "summary": "**Findings:** None from the supplied diff.\n\nThe changes match the Codex 0.136.0 app-server protocol surface I checked upstream: `thread/resume.initialTurnsPage`, MCP `serverInfo`, `skills/extraRoots/set`, Windows sandbox requirements, `clientUserMessageId`, and Unix socket `\"deny\"` all line up with the release notes and tagged Rust protocol definitions. The nullable/optional shapes also look intentional for ts-rs output.\n\n**Residual Risk:** I could not run local `rg` or TypeScript build checks because the managed sandbox failed before shell commands executed (`bwrap: loopback: Failed RTM_NEWADDR`). I also couldn’t directly compare the new file contents that were listed but not shown in the diff. Sources checked: Codex 0.136.0 release and upstream PR/source context for the protocol changes."
+  }
+}
