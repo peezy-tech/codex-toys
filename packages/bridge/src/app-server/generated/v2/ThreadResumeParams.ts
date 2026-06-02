@@ -7,6 +7,7 @@ import type { JsonValue } from "../serde_json/JsonValue";
 import type { ApprovalsReviewer } from "./ApprovalsReviewer";
 import type { AskForApproval } from "./AskForApproval";
 import type { SandboxMode } from "./SandboxMode";
+import type { ThreadResumeInitialTurnsPageParams } from "./ThreadResumeInitialTurnsPageParams";
 
 /**
  * There are three ways to resume a thread:
@@ -63,6 +64,11 @@ permissions?: string | null, config?: { [key in string]?: JsonValue } | null, ba
  * `thread/turns/list` immediately after resuming.
  */
 excludeTurns?: boolean,
+/**
+ * When present, include a `thread/turns/list` page in the resume response
+ * so clients can bootstrap recent turns without a second request.
+ */
+initialTurnsPage?: ThreadResumeInitialTurnsPageParams | null,
 /**
  * Deprecated and ignored by app-server. Kept only so older clients can
  * continue sending the field while rollout persistence always uses the
