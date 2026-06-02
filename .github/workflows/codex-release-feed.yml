@@ -75,6 +75,20 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
+      - name: Build codex-toys packages
+        run: |
+          vp run \
+            --filter @codex-toys/bridge \
+            --filter @codex-toys/toybox \
+            --filter @codex-toys/feed \
+            --filter @codex-toys/workbench \
+            --filter @codex-toys/actions \
+            --filter @codex-toys/remote \
+            --filter @codex-toys/proxy \
+            --filter @codex-toys/kits \
+            --filter codex-toys \
+            build
+
       - name: Install Codex
         run: |
           curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
