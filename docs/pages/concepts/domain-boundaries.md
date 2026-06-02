@@ -16,7 +16,7 @@ Turn automation owns prompt automation:
 Feed owns external signal intake:
 
 - reading `.codex/feed.toml`
-- polling configured RSS sources
+- polling configured RSS/Atom sources
 - normalizing entries into durable feed items
 - recording source checkpoints
 - collecting items through named cursors
@@ -35,7 +35,7 @@ It does not own product-specific completion:
 - product dashboards and arbitrary app-server thread wrappers
 
 Keep domain completion in the consuming app. For example, feed can ingest an
-upstream RSS item and dispatch it to a release automation, but the product still
+upstream RSS or Atom item and dispatch it to a release automation, but the product still
 owns publishing, branch protection, credential use, prompt policy, and any
 external writes.
 

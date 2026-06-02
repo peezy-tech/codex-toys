@@ -1,12 +1,12 @@
 ---
 title: Feed
-description: Poll RSS feeds into durable codex-toys feed items and collect them by cursor.
+description: Poll RSS and Atom feeds into durable codex-toys feed items and collect them by cursor.
 ---
 
 # Feed
 
 `feed` is the codex-toys primitive for durable external signal intake. It polls
-configured RSS sources, normalizes entries into feed items, records source
+configured RSS and Atom sources, normalizes entries into feed items, records source
 checkpoints, and lets consumers collect new items with named cursors.
 
 Feed does not decide what a signal means. HQ/Radar, a turn automation, or a
@@ -29,6 +29,13 @@ latest_only = true
 # max_items = 3
 max_content_bytes = 20000
 store_raw = false
+
+[[feed.sources]]
+id = "cli-utility-releases"
+kind = "atom"
+url = "https://github.com/peezy-tech/cli-utility/releases.atom"
+latest_only = true
+store_raw = true
 ```
 
 Source ids are stable durable ids. They should use only letters, numbers, dots,
@@ -134,7 +141,7 @@ await dispatchFeedItems(context, config, {
 Feed owns generic intake:
 
 - source config
-- RSS polling
+- RSS/Atom polling
 - HTTP checkpoints
 - item dedupe
 - durable item storage

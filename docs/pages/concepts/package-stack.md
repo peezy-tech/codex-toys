@@ -15,7 +15,7 @@ remains the CLI and public runtime package for users who want everything.
   exposed publicly as `codex-toys/bridge`.
 - `packages/toybox`: stdio JSON-RPC protocol between operators and toyboxes,
   exposed publicly as `codex-toys/toybox`.
-- `packages/feed`: durable external feed polling, RSS normalization,
+- `packages/feed`: durable external feed polling, RSS/Atom normalization,
   checkpoints, items, and collection cursors, exposed publicly as
   `codex-toys/feed`.
 - `packages/workbench`: repo-local workbench policy, queues, functions,

@@ -198,7 +198,7 @@ codex-toys --ssh <target> --cwd <remote-root> feed dispatch --source releases --
 
 Feed reads `.codex/feed.toml`, writes local state under `.codex/feed/local`,
 and writes Actions-mode state under `.codex/feed/actions` only when explicitly
-run in Actions mode. The v1 adapter is RSS:
+run in Actions mode. Source adapters support RSS and Atom:
 
 ```toml
 [feed]
@@ -211,6 +211,13 @@ url = "https://example.com/rss.xml"
 latest_only = true
 max_content_bytes = 20000
 store_raw = false
+
+[[feed.sources]]
+id = "cli-utility-releases"
+kind = "atom"
+url = "https://github.com/peezy-tech/cli-utility/releases.atom"
+latest_only = true
+store_raw = true
 ```
 
 `feed poll` stores newly observed items and source checkpoints. `feed collect`

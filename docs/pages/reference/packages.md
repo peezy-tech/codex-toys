@@ -47,7 +47,7 @@ Use it when another process needs to host or call a codex-toys toybox directly.
 Durable external feed intake helpers:
 
 - `.codex/feed.toml` source config
-- RSS polling and normalization
+- RSS/Atom polling and normalization
 - source checkpoints such as ETag and Last-Modified
 - durable feed item storage under `.codex/feed/<mode>/items`
 - named collection cursors for consumers such as dashboards or automations

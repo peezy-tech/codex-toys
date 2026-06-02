@@ -7,7 +7,7 @@ import type { ToyboxMethodHandler, ToyboxMethodMetadata } from "@codex-toys/toyb
 export type FeedModeInput = "auto" | "local" | "actions";
 export type FeedMode = "local" | "actions";
 export type FeedItemStatus = "new";
-export type FeedSourceKind = "rss";
+export type FeedSourceKind = "rss" | "atom";
 
 export type FeedContext = {
 	mode: FeedMode;
@@ -252,7 +252,7 @@ export const feedMethodMetadata: ToyboxMethodMetadata[] = [
 	},
 	{
 		name: FEED_POLL_METHOD,
-		description: "Poll RSS feed sources and store newly observed items.",
+		description: "Poll RSS/Atom feed sources and store newly observed items.",
 		sideEffects: "writes-local",
 		category: "feed",
 	},
@@ -843,7 +843,7 @@ async function pollFeedSource(
 			throw new Error(`HTTP ${response.status}`);
 		}
 		const text = await response.text();
-		const parsed = limitFeedItems(parseRssFeed(text, source, startedAt), source);
+		const parsed = limitFeedItems(parseFeedText(text, source, startedAt), source);
 		const itemIds: string[] = [];
 		let duplicateItemCount = 0;
 		for (const item of parsed) {
@@ -914,7 +914,7 @@ function parseFeedSource(value: unknown): FeedSource {
 	const id = requiredString(input.id, "feed source id");
 	validateSlug(id, "feed source id");
 	const kind = requiredString(input.kind, `feed source ${id} kind`);
-	if (kind !== "rss") {
+	if (kind !== "rss" && kind !== "atom") {
 		throw new Error(`Unsupported feed source kind for ${id}: ${kind}`);
 	}
 	const maxItems = optionalPositiveInteger(input.max_items, `feed source ${id} max_items`) ??
@@ -938,6 +938,16 @@ function parseFeedSource(value: unknown): FeedSource {
 	};
 }
 
+function parseFeedText(text: string, source: FeedSource, observedAt: string): FeedItem[] {
+	if (source.kind === "rss") {
+		return parseRssFeed(text, source, observedAt);
+	}
+	if (source.kind === "atom") {
+		return parseAtomFeed(text, source, observedAt);
+	}
+	throw new Error(`Unsupported feed source kind for ${source.id}: ${source.kind}`);
+}
+
 function parseRssFeed(xml: string, source: FeedSource, observedAt: string): FeedItem[] {
 	const root = parseXmlDocument(xml);
 	const channel = findDescendant(root, "channel") ?? root;
@@ -946,6 +956,16 @@ function parseRssFeed(xml: string, source: FeedSource, observedAt: string): Feed
 		throw new Error(`RSS feed ${source.id} did not contain channel item entries`);
 	}
 	return items.map((node) => rssItemToFeedItem(node, source, observedAt));
+}
+
+function parseAtomFeed(xml: string, source: FeedSource, observedAt: string): FeedItem[] {
+	const root = parseXmlDocument(xml);
+	const feed = findDescendant(root, "feed") ?? root;
+	const entries = feed.children.filter((child) => child.name === "entry");
+	if (entries.length === 0) {
+		throw new Error(`Atom feed ${source.id} did not contain feed entry items`);
+	}
+	return entries.map((node) => atomEntryToFeedItem(node, source, observedAt));
 }
 
 function limitFeedItems(items: FeedItem[], source: FeedSource): FeedItem[] {
@@ -969,6 +989,41 @@ function feedItemTime(item: FeedItem): number {
 	}
 	const time = Date.parse(value);
 	return Number.isFinite(time) ? time : 0;
+}
+
+function atomEntryToFeedItem(node: XmlNode, source: FeedSource, observedAt: string): FeedItem {
+	const title = normalizedText(childText(node, "title")) || "(untitled)";
+	const links = atomLinks(node);
+	const url = atomEntryUrl(links);
+	const entryId = normalizedText(childText(node, "id"));
+	const publishedAt = dateString(childText(node, "published"));
+	const updatedAt = dateString(childText(node, "updated"));
+	const summary = stripHtml(childText(node, "summary"));
+	const contentText = stripHtml(childText(node, "content")) || summary;
+	const externalId = entryId || url || stableHash(`${title}\0${publishedAt ?? updatedAt ?? ""}\0${contentText || summary}`).slice(0, 32);
+	const id = feedItemId(source.id, externalId);
+	return compactUndefined({
+		id,
+		sourceId: source.id,
+		sourceKind: source.kind,
+		status: "new" as const,
+		externalId,
+		title: truncateBytes(title, 2_000),
+		url,
+		publishedAt,
+		updatedAt,
+		summary: summary ? truncateBytes(summary, source.maxContentBytes) : undefined,
+		contentText: contentText ? truncateBytes(contentText, source.maxContentBytes) : undefined,
+		observedAt,
+		raw: source.storeRaw
+			? compactUndefined({
+				id: entryId || undefined,
+				published: normalizedText(childText(node, "published")) || undefined,
+				updated: normalizedText(childText(node, "updated")) || undefined,
+				links,
+			})
+			: undefined,
+	});
 }
 
 function rssItemToFeedItem(node: XmlNode, source: FeedSource, observedAt: string): FeedItem {
@@ -1003,14 +1058,31 @@ function rssItemToFeedItem(node: XmlNode, source: FeedSource, observedAt: string
 	});
 }
 
+function atomEntryUrl(links: Array<{ rel?: string; href?: string }>): string | undefined {
+	const alternate = links.find((link) => (link.rel ?? "alternate") === "alternate" && link.href);
+	return alternate?.href ?? links.find((link) => link.href)?.href;
+}
+
+function atomLinks(node: XmlNode): Array<{ rel?: string; href?: string; type?: string; title?: string }> {
+	return node.children
+		.filter((child) => child.name === "link")
+		.map((child) => compactUndefined({
+			rel: optionalString(child.attributes.rel),
+			href: optionalString(child.attributes.href),
+			type: optionalString(child.attributes.type),
+			title: optionalString(child.attributes.title),
+		}));
+}
+
 type XmlNode = {
 	name: string;
+	attributes: Record<string, string>;
 	text: string;
 	children: XmlNode[];
 };
 
 function parseXmlDocument(xml: string): XmlNode {
-	const root: XmlNode = { name: "#document", text: "", children: [] };
+	const root: XmlNode = { name: "#document", attributes: {}, text: "", children: [] };
 	const stack = [root];
 	let index = 0;
 	while (index < xml.length) {
@@ -1048,7 +1120,7 @@ function parseXmlDocument(xml: string): XmlNode {
 			continue;
 		}
 		if (body.startsWith("/")) {
-			const name = body.slice(1).trim().toLowerCase();
+			const name = body.slice(1).trim().split(/\s+/)[0]?.toLowerCase();
 			while (stack.length > 1) {
 				const current = stack.pop();
 				if (current?.name === name) {
@@ -1059,9 +1131,15 @@ function parseXmlDocument(xml: string): XmlNode {
 			continue;
 		}
 		const selfClosing = body.endsWith("/");
-		const name = body.replace(/\/$/, "").split(/\s+/)[0]?.toLowerCase();
+		const tagText = body.replace(/\/$/, "").trim();
+		const name = tagText.split(/\s+/)[0]?.toLowerCase();
 		if (name) {
-			const node: XmlNode = { name, text: "", children: [] };
+			const node: XmlNode = {
+				name,
+				attributes: parseXmlAttributes(tagText.slice(name.length)),
+				text: "",
+				children: [],
+			};
 			stack[stack.length - 1]?.children.push(node);
 			if (!selfClosing) {
 				stack.push(node);
@@ -1070,6 +1148,18 @@ function parseXmlDocument(xml: string): XmlNode {
 		index = closeIndex + 1;
 	}
 	return root;
+}
+
+function parseXmlAttributes(text: string): Record<string, string> {
+	const attributes: Record<string, string> = {};
+	for (const match of text.matchAll(/([^\s=/>]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>/]+))/g)) {
+		const name = match[1]?.toLowerCase();
+		if (!name) {
+			continue;
+		}
+		attributes[name] = decodeEntities(match[3] ?? match[4] ?? match[5] ?? "");
+	}
+	return attributes;
 }
 
 function appendXmlText(stack: XmlNode[], text: string): void {
@@ -1435,7 +1525,7 @@ function normalizeFeedCollectCursor(value: unknown): FeedCollectCursor {
 }
 
 function feedSourceKindValue(value: unknown): FeedSourceKind {
-	if (value === "rss") {
+	if (value === "rss" || value === "atom") {
 		return value;
 	}
 	throw new Error(`Invalid feed source kind: ${String(value)}`);

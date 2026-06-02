@@ -34,7 +34,7 @@ from focused subpaths:
 |--------|---------|
 | `codex-toys/bridge` | Native Codex app-server, auth, memory, thread, JSON-RPC, and generated protocol bridge primitives. |
 | `codex-toys/toybox` | Stdio JSON-RPC toybox client/server protocol. |
-| `codex-toys/feed` | Durable RSS polling, source checkpoints, feed items, and collection cursors. |
+| `codex-toys/feed` | Durable RSS/Atom polling, source checkpoints, feed items, and collection cursors. |
 | `codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, automation, and overview primitives. |
 | `codex-toys/actions` | GitHub/Forgejo Actions auth and state helpers. |
 | `codex-toys/remote` | SSH-backed toybox transports and remote control helpers. |

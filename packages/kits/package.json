@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/kits",
-	"version": "0.140.7",
+	"version": "0.140.8",
 	"private": true,
 	"description": "Codex kit inspection, install, lock, backup, and doctor helpers.",
 	"type": "module",

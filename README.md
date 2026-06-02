@@ -30,7 +30,7 @@ The full user documentation lives in the Tome docs site under
 - `packages/bridge`: native Codex app-server, auth, memory, thread, JSON, and
   generated protocol bridge primitives.
 - `packages/toybox`: stdio JSON-RPC toybox client/server protocol.
-- `packages/feed`: durable RSS polling, source checkpoints, feed items, and
+- `packages/feed`: durable RSS/Atom polling, source checkpoints, feed items, and
   collection cursors.
 - `packages/workbench`: workbench runtime, delegation, prompt queue, handoff,
   functions, automation, and overview primitives.

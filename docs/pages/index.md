@@ -13,7 +13,7 @@ turn. It has these related surfaces:
 - app-server clients and stdio transports for direct Codex thread, auth, and
   protocol work
 - plugin-native turn automation scripts that can skip or start native turns
-- durable feed polling for RSS signals and cursor-based item collection
+- durable feed polling for RSS/Atom signals and cursor-based item collection
 - `codex-toys toybox serve` for local and SSH workbench control
 - optional `codex-toys-proxy` HTTP edge for freeform dashboards
 - first-class workbench delegation into `@/workbenches/*` and `@/repos/*`
@@ -33,7 +33,7 @@ credentials, domain state, scoring, release policy, and final side effects.
 | Call Codex app-server from TypeScript | [Packages](reference/packages) |
 | Inspect or call app-server and workbench methods from a terminal | [CLI reference](reference/cli) |
 | Build a plain HTML/JS dashboard | [CLI reference](reference/cli#proxy) |
-| Poll RSS sources into durable feed items | [Feed](guides/feed) |
+| Poll RSS/Atom sources into durable feed items | [Feed](guides/feed) |
 | Run code before deciding whether to start a Codex prompt | [Turn automation](guides/turn-automation) |
 | Delegate Codex work from an operator workbench into child workbenches or repos | [CLI reference](reference/cli#workbench-delegation) |
 | Control a remote workbench from a local Codex App | [Install the Codex plugin](guides/install-codex-plugin) and [CLI reference](reference/cli) |
@@ -53,7 +53,7 @@ by feature boundary and exposed as subpath imports:
 - `codex-toys/bridge`: native Codex app-server, auth, memory, thread, JSON,
   and generated protocol bridge primitives
 - `codex-toys/toybox`: stdio JSON-RPC toybox protocol, client, and server
-- `codex-toys/feed`: durable RSS polling, source checkpoints, feed items, and
+- `codex-toys/feed`: durable RSS/Atom polling, source checkpoints, feed items, and
   collection cursors
 - `codex-toys/workbench`: workbench runtime, delegation, prompt queue,
   handoff, functions, automation, and overview primitives

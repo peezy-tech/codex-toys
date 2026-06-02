@@ -204,6 +204,154 @@ describe("feed primitive", () => {
 			.toEqual(["cli-utility v0.1.1", "cli-utility v0.1.2"]);
 	});
 
+	test("polls GitHub-like Atom latest release and dedupes repeats", async () => {
+		const root = await tempFeedRoot({
+			kind: "atom",
+			url: "https://github.com/peezy-tech/cli-utility/releases.atom",
+			extraSourceConfig: "latest_only = true\nstore_raw = true",
+		});
+		const context = await createFeedContext({ root, mode: "local", env: {} });
+		const config = await loadFeedConfig(context);
+		const fetch: FeedFetch = async () => response({
+			status: 200,
+			body: atomReleaseFeed([
+				{
+					id: "tag:github.com,2008:Repository/123/v0.1.2",
+					title: "v0.1.2",
+					url: "https://github.com/peezy-tech/cli-utility/releases/tag/v0.1.2",
+					published: "2026-06-01T22:39:32Z",
+					updated: "2026-06-01T22:39:32Z",
+					content: "<p>Older release.</p>",
+				},
+				{
+					id: "tag:github.com,2008:Repository/123/v0.1.3",
+					title: "v0.1.3",
+					url: "https://github.com/peezy-tech/cli-utility/releases/tag/v0.1.3",
+					published: "2026-06-02T01:16:43Z",
+					updated: "2026-06-02T01:18:00Z",
+					content: "<p>Adds generated bindings.</p>",
+				},
+			]),
+		});
+
+		const first = await pollFeedSources(context, config, {
+			fetch,
+			now: new Date("2026-06-02T01:20:00.000Z"),
+		});
+		expect(first.runs[0]).toMatchObject({
+			sourceId: "example",
+			status: "completed",
+			parsedItemCount: 1,
+			newItemCount: 1,
+			duplicateItemCount: 0,
+		});
+		const items = await listFeedItems(context);
+		expect(items).toHaveLength(1);
+		expect(items[0]).toMatchObject({
+			sourceId: "example",
+			sourceKind: "atom",
+			externalId: "tag:github.com,2008:Repository/123/v0.1.3",
+			title: "v0.1.3",
+			url: "https://github.com/peezy-tech/cli-utility/releases/tag/v0.1.3",
+			publishedAt: "2026-06-02T01:16:43.000Z",
+			updatedAt: "2026-06-02T01:18:00.000Z",
+			contentText: "Adds generated bindings.",
+			observedAt: "2026-06-02T01:20:00.000Z",
+			raw: {
+				id: "tag:github.com,2008:Repository/123/v0.1.3",
+				published: "2026-06-02T01:16:43Z",
+				updated: "2026-06-02T01:18:00Z",
+				links: [
+					{
+						rel: "alternate",
+						type: "text/html",
+						href: "https://github.com/peezy-tech/cli-utility/releases/tag/v0.1.3",
+					},
+				],
+			},
+		});
+
+		const second = await pollFeedSources(context, config, {
+			fetch,
+			now: new Date("2026-06-02T01:25:00.000Z"),
+		});
+		expect(second.runs[0]).toMatchObject({
+			parsedItemCount: 1,
+			newItemCount: 0,
+			duplicateItemCount: 1,
+		});
+		expect(await listFeedItems(context)).toHaveLength(1);
+	});
+
+	test("dispatching an Atom release advances the cursor and prevents replay", async () => {
+		const root = await tempFeedRoot({
+			kind: "atom",
+			url: "https://github.com/peezy-tech/cli-utility/releases.atom",
+			extraSourceConfig: "latest_only = true",
+		});
+		const context = await createFeedContext({ root, mode: "local", env: {} });
+		const config = await loadFeedConfig(context);
+		await pollFeedSources(context, config, {
+			fetch: async () => response({
+				status: 200,
+				body: atomReleaseFeed([
+					{
+						id: "tag:github.com,2008:Repository/123/v0.1.3",
+						title: "v0.1.3",
+						url: "https://github.com/peezy-tech/cli-utility/releases/tag/v0.1.3",
+						published: "2026-06-02T01:16:43Z",
+						updated: "2026-06-02T01:18:00Z",
+						content: "<p>Adds generated bindings.</p>",
+					},
+				]),
+			}),
+			now: new Date("2026-06-02T01:20:00.000Z"),
+		});
+		const events: Array<{
+			type: string;
+			sourceKind: string;
+			url?: string;
+		}> = [];
+
+		const dispatched = await dispatchFeedItems(context, config, {
+			sourceId: "example",
+			cursor: "cli-toys-bindings-refresh",
+			poll: false,
+			target: "workbench-task:cli-toys-bindings-refresh",
+			runTarget: async (_target, event) => {
+				events.push({
+					type: event.type,
+					sourceKind: event.payload.sourceKind,
+					url: event.payload.url,
+				});
+				return { ok: true };
+			},
+		});
+		expect(dispatched.status).toBe("completed");
+		expect(dispatched.executions).toHaveLength(1);
+		expect(events).toEqual([
+			{
+				type: "feed.item",
+				sourceKind: "atom",
+				url: "https://github.com/peezy-tech/cli-utility/releases/tag/v0.1.3",
+			},
+		]);
+
+		const replay = await collectFeedItems(context, {
+			cursor: "cli-toys-bindings-refresh",
+			advance: false,
+		});
+		expect(replay.items).toEqual([]);
+		const secondDispatch = await dispatchFeedItems(context, config, {
+			sourceId: "example",
+			cursor: "cli-toys-bindings-refresh",
+			poll: false,
+			target: "workbench-task:cli-toys-bindings-refresh",
+			runTarget: async () => ({ ok: true }),
+		});
+		expect(secondDispatch.executions).toEqual([]);
+	});
+
 	test("rejects invalid latest_only and max_items combinations", async () => {
 		const root = await tempFeedRoot({
 			extraSourceConfig: "latest_only = true\nmax_items = 2",
@@ -379,6 +527,8 @@ describe("feed primitive", () => {
 
 async function tempFeedRoot(options: {
 	extraSourceConfig?: string;
+	kind?: "rss" | "atom";
+	url?: string;
 } = {}): Promise<string> {
 	const root = await mkdtemp(path.join(os.tmpdir(), "codex-feed-"));
 	await mkdir(path.join(root, ".codex"), { recursive: true });
@@ -388,8 +538,8 @@ name = "test-feed"
 
 [[feed.sources]]
 id = "example"
-kind = "rss"
-url = "https://example.test/rss.xml"
+kind = "${options.kind ?? "rss"}"
+url = "${options.url ?? "https://example.test/rss.xml"}"
 max_content_bytes = 64
 ${options.extraSourceConfig ?? ""}
 `);
@@ -438,4 +588,32 @@ function rss(items: Array<{
     `).join("")}
   </channel>
 </rss>`;
+}
+
+function atomReleaseFeed(entries: Array<{
+	id?: string;
+	title: string;
+	url?: string;
+	published?: string;
+	updated?: string;
+	summary?: string;
+	content?: string;
+}>): string {
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>tag:github.com,2008:https://github.com/peezy-tech/cli-utility/releases</id>
+  <link rel="alternate" type="text/html" href="https://github.com/peezy-tech/cli-utility/releases"/>
+  <title>Release notes from cli-utility</title>
+  ${entries.map((entry) => `
+  <entry>
+    ${entry.id ? `<id>${entry.id}</id>` : ""}
+    <title>${entry.title}</title>
+    ${entry.url ? `<link rel="alternate" type="text/html" href="${entry.url}"/>` : ""}
+    ${entry.published ? `<published>${entry.published}</published>` : ""}
+    ${entry.updated ? `<updated>${entry.updated}</updated>` : ""}
+    ${entry.summary ? `<summary type="html"><![CDATA[${entry.summary}]]></summary>` : ""}
+    ${entry.content ? `<content type="html"><![CDATA[${entry.content}]]></content>` : ""}
+  </entry>
+  `).join("")}
+</feed>`;
 }
