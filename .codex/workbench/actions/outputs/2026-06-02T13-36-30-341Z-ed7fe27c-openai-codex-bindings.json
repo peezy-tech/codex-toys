@@ -1,0 +1,84 @@
+{
+  "status": "pr-ready",
+  "release": {
+    "itemId": "feed-openai-codex-releases-a70fd79da74eb1beb94d",
+    "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.136.0",
+    "title": "0.136.0",
+    "url": "https://github.com/openai/codex/releases/tag/rust-v0.136.0",
+    "version": "0.136.0",
+    "tag": "rust-v0.136.0",
+    "updatedAt": "2026-06-01T18:51:30.000Z",
+    "publishedAt": ""
+  },
+  "codex": {
+    "before": "codex-cli 0.135.0",
+    "after": "codex-cli 0.136.0",
+    "beforeVersion": "0.135.0",
+    "afterVersion": "0.136.0",
+    "targetVersion": "0.136.0",
+    "actions": [
+      "codex update"
+    ]
+  },
+  "changedFiles": [
+    "packages/bridge/src/app-server/generated/ClientRequest.ts",
+    "packages/bridge/src/app-server/generated/McpServerInfo.ts",
+    "packages/bridge/src/app-server/generated/index.ts",
+    "packages/bridge/src/app-server/generated/v2/ConfigRequirements.ts",
+    "packages/bridge/src/app-server/generated/v2/McpServerStatus.ts",
+    "packages/bridge/src/app-server/generated/v2/NetworkUnixSocketPermission.ts",
+    "packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetParams.ts",
+    "packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetResponse.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadItem.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadResumeInitialTurnsPageParams.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadResumeParams.ts",
+    "packages/bridge/src/app-server/generated/v2/ThreadResumeResponse.ts",
+    "packages/bridge/src/app-server/generated/v2/TurnStartParams.ts",
+    "packages/bridge/src/app-server/generated/v2/TurnSteerParams.ts",
+    "packages/bridge/src/app-server/generated/v2/TurnsPage.ts",
+    "packages/bridge/src/app-server/generated/v2/index.ts"
+  ],
+  "targetBranch": "codex/openai-codex-bindings-refresh",
+  "pullRequest": {
+    "number": 2,
+    "url": "https://github.com/peezy-tech/codex-toys/pull/2",
+    "state": "open",
+    "title": "Refresh Codex app-server bindings for 0.136.0"
+  },
+  "validations": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "status": "passed",
+      "durationMs": 1870
+    },
+    {
+      "command": "pnpm --filter @codex-toys/bridge check:types",
+      "status": "passed",
+      "durationMs": 1769
+    },
+    {
+      "command": "pnpm --filter @codex-toys/bridge build",
+      "status": "passed",
+      "durationMs": 2290
+    },
+    {
+      "command": "pnpm --filter codex-toys check:types",
+      "status": "passed",
+      "durationMs": 5775
+    },
+    {
+      "command": "pnpm --filter codex-toys test",
+      "status": "passed",
+      "durationMs": 3864
+    },
+    {
+      "command": "pnpm --filter codex-toys smoke:exports",
+      "status": "passed",
+      "durationMs": 1098
+    }
+  ],
+  "analysis": {
+    "status": "fallback",
+    "summary": "Generated Codex app-server bindings for 0.136.0.\nChanged files: packages/bridge/src/app-server/generated/ClientRequest.ts, packages/bridge/src/app-server/generated/McpServerInfo.ts, packages/bridge/src/app-server/generated/index.ts, packages/bridge/src/app-server/generated/v2/ConfigRequirements.ts, packages/bridge/src/app-server/generated/v2/McpServerStatus.ts, packages/bridge/src/app-server/generated/v2/NetworkUnixSocketPermission.ts, packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetParams.ts, packages/bridge/src/app-server/generated/v2/SkillsExtraRootsSetResponse.ts, packages/bridge/src/app-server/generated/v2/ThreadItem.ts, packages/bridge/src/app-server/generated/v2/ThreadResumeInitialTurnsPageParams.ts, packages/bridge/src/app-server/generated/v2/ThreadResumeParams.ts, packages/bridge/src/app-server/generated/v2/ThreadResumeResponse.ts, packages/bridge/src/app-server/generated/v2/TurnStartParams.ts, packages/bridge/src/app-server/generated/v2/TurnSteerParams.ts, packages/bridge/src/app-server/generated/v2/TurnsPage.ts, packages/bridge/src/app-server/generated/v2/index.ts\nDiff stat: packages/bridge/src/app-server/generated/ClientRequest.ts          | 3 ++-\n packages/bridge/src/app-server/generated/index.ts                  | 3 ++-\n packages/bridge/src/app-server/generated/v2/ConfigRequirements.ts  | 3 ++-\n packages/bridge/src/app-server/generated/v2/McpServerStatus.ts     | 3 ++-\n .../src/app-server/generated/v2/NetworkUnixSocketPermission.ts     | 2 +-\n packages/bridge/src/app-server/generated/v2/ThreadItem.ts          | 2 +-\n packages/bridge/src/app-server/generated/v2/ThreadResumeParams.ts  | 6 ++++++\n .../bridge/src/app-server/generated/v2/ThreadResumeResponse.ts     | 7 ++++++-\n packages/bridge/src/app-server/generated/v2/TurnStartParams.ts     | 2 +-\n packages/bridge/src/app-server/generated/v2/TurnSteerParams.ts     | 2 +-\n packages/bridge/src/app-server/generated/v2/index.ts               | 4 ++++\n 11 files changed, 28 insertions(+), 9 deletions(-)"
+  }
+}
