@@ -485,7 +485,16 @@ export async function waitAutomationTurnWithRequest(
 	const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_TURN_WAIT_POLL_INTERVAL_MS;
 	const startedAt = Date.now();
 	while (true) {
-		const snapshot = await readAutomationTurnWithRequest(via, request, ref);
+		let snapshot: TurnAutomationTurnSnapshot;
+		try {
+			snapshot = await readAutomationTurnWithRequest(via, request, ref);
+		} catch (error) {
+			if (!isTransientThreadReadError(error) || Date.now() - startedAt >= timeoutMs) {
+				throw error;
+			}
+			await delay(Math.min(pollIntervalMs, Math.max(0, timeoutMs - (Date.now() - startedAt))));
+			continue;
+		}
 		if (snapshot.status !== "inProgress") {
 			if (
 				snapshot.status === "failed" &&
@@ -500,6 +509,13 @@ export async function waitAutomationTurnWithRequest(
 		}
 		await delay(Math.min(pollIntervalMs, Math.max(0, timeoutMs - (Date.now() - startedAt))));
 	}
+}
+
+function isTransientThreadReadError(error: unknown): boolean {
+	const message = errorMessage(error);
+	return message.includes("failed to read thread") &&
+		message.includes("rollout at ") &&
+		message.includes(" is empty");
 }
 
 export async function readAutomationDelegationWithRequest(

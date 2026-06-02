@@ -7,6 +7,7 @@ import {
 	parseTurnAutomationResult,
 	resolveTurnAutomationTarget,
 	runTurnAutomationScript,
+	waitAutomationTurnWithRequest,
 } from "@codex-toys/workbench";
 
 describe("turn automation", () => {
@@ -76,6 +77,46 @@ export default async function run(ctx) {
 		expect(run.result).toEqual({
 			status: "completed",
 			echo: { ok: true, tag: "v1.2.3" },
+		});
+	});
+
+	test("retries transient empty rollout reads while waiting for a turn", async () => {
+		let reads = 0;
+		const snapshot = await waitAutomationTurnWithRequest(
+			"app-server",
+			async (method, params) => {
+				expect(method).toBe("thread/read");
+				expect(params).toEqual({
+					threadId: "thread-1",
+					includeTurns: true,
+				});
+				reads += 1;
+				if (reads === 1) {
+					throw new Error("failed to read thread: thread-store internal error: failed to read thread /tmp/rollout.jsonl: rollout at /tmp/rollout.jsonl is empty");
+				}
+				return {
+					thread: {
+						turns: [{
+							id: "turn-1",
+							status: "completed",
+							items: [{
+								type: "agentMessage",
+								phase: "final_answer",
+								text: "analysis complete",
+							}],
+						}],
+					},
+				};
+			},
+			{ threadId: "thread-1", turnId: "turn-1" },
+			{ timeoutMs: 100, pollIntervalMs: 1 },
+		);
+		expect(reads).toBe(2);
+		expect(snapshot).toMatchObject({
+			threadId: "thread-1",
+			turnId: "turn-1",
+			status: "completed",
+			outputText: "analysis complete",
 		});
 	});
 
