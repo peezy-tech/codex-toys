@@ -1,0 +1,175 @@
+name: Codex Release Feed
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 13 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  openai-codex-bindings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.WORKSPACE_GITHUB_TOKEN || github.token }}
+
+      - name: Restore active PR thread state
+        env:
+          GH_TOKEN: ${{ secrets.WORKSPACE_GITHUB_TOKEN || github.token }}
+        run: |
+          pr_json="${RUNNER_TEMP}/openai-codex-bindings-pr.json"
+          gh pr list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --state open \
+            --search 'in:title "Refresh Codex app-server bindings for"' \
+            --json number,headRefName,body \
+            --jq 'sort_by(.number) | reverse | .[0] // {}' > "${pr_json}"
+          state_branch="$(node - "${pr_json}" <<'NODE'
+          const fs = require("node:fs");
+          const pr = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (!pr.number) {
+            process.exit(0);
+          }
+          const body = typeof pr.body === "string" ? pr.body : "";
+          const explicit = body.match(/Thread state branch:\s*`([^`]+)`/);
+          if (explicit?.[1]) {
+            process.stdout.write(explicit[1]);
+            process.exit(0);
+          }
+          const head = typeof pr.headRefName === "string" ? pr.headRefName : "";
+          const prefix = "codex/openai-codex-bindings/";
+          if (head.startsWith(prefix)) {
+            process.stdout.write(`thread/openai-codex-bindings/${head.slice(prefix.length)}`);
+          }
+          NODE
+          )"
+          if [ -z "${state_branch}" ]; then
+            echo "No active Codex bindings PR found; starting without restored thread state."
+            exit 0
+          fi
+          echo "CODEX_THREAD_STATE_BRANCH=${state_branch}" >> "${GITHUB_ENV}"
+          state_ref="refs/remotes/origin/${state_branch}"
+          if git fetch origin "${state_branch}:${state_ref}"; then
+            for path in .codex/feed/actions .codex/workbench/actions .codex/sessions .codex/memories; do
+              if git ls-tree -r --name-only "${state_ref}" -- "${path}" | grep -q .; then
+                git checkout "${state_ref}" -- "${path}"
+              fi
+            done
+          else
+            echo "No existing ${state_branch} state branch found."
+          fi
+
+      - name: Setup VitePlus
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: 24
+          cache: true
+
+      - name: Install pnpm
+        run: npm install -g pnpm@11.1.3
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Install Codex
+        run: |
+          curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/codex" --version
+
+      - name: Prepare Codex auth
+        run: pnpm exec tsx packages/codex-toys/src/cli/index.ts actions prepare-auth
+        env:
+          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Dispatch release feed
+        run: |
+          pnpm exec tsx packages/codex-toys/src/cli/index.ts feed dispatch \
+            --source openai-codex-releases \
+            --cursor openai-codex-bindings \
+            --target workbench-task:openai-codex-bindings \
+            --mode actions \
+            --json
+        env:
+          WORKSPACE_GITHUB_TOKEN: ${{ secrets.WORKSPACE_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Cleanup Codex auth
+        if: always()
+        run: pnpm exec tsx packages/codex-toys/src/cli/index.ts actions cleanup
+
+      - name: Persist PR thread state
+        if: always()
+        run: |
+          state_branch="$(node <<'NODE'
+          const fs = require("node:fs");
+          function readJson(path) {
+            try {
+              return JSON.parse(fs.readFileSync(path, "utf8"));
+            } catch {
+              return undefined;
+            }
+          }
+          const health = readJson(".codex/workbench/actions/health/summary.json");
+          const outputPath = health?.latestRun?.outputPath;
+          const output = typeof outputPath === "string" ? readJson(outputPath) : undefined;
+          const outputBranch = output?.threadBranch;
+          if (typeof outputBranch === "string" && outputBranch.length > 0) {
+            process.stdout.write(outputBranch);
+            process.exit(0);
+          }
+          const branch = process.env.CODEX_THREAD_STATE_BRANCH || "";
+          process.stdout.write(branch);
+          NODE
+          )"
+          if [ -z "${state_branch}" ]; then
+            echo "No thread state branch found; skipping thread state persistence."
+            exit 0
+          fi
+          case "${state_branch}" in
+            thread/openai-codex-bindings/*) ;;
+            *)
+              echo "Refusing to persist unexpected state branch: ${state_branch}" >&2
+              exit 1
+              ;;
+          esac
+          state_ref="refs/remotes/origin/${state_branch}"
+          if git fetch origin "${state_branch}:${state_ref}"; then
+            parent="$(git rev-parse "${state_ref}")"
+            git read-tree "${state_ref}"
+          else
+            parent=""
+            git read-tree --empty
+          fi
+
+          for path in .codex/feed/actions .codex/workbench/actions .codex/sessions .codex/memories; do
+            if [ -e "${path}" ]; then
+              git add -A -f -- "${path}"
+            else
+              git rm -r --cached --ignore-unmatch -- "${path}"
+            fi
+          done
+
+          new_tree="$(git write-tree)"
+          if [ -n "${parent}" ] && [ "${new_tree}" = "$(git rev-parse "${state_ref}^{tree}")" ]; then
+            echo "No Codex state changes to persist."
+            exit 0
+          fi
+
+          git config user.name codex-toys-actions
+          git config user.email codex-toys-actions@users.noreply.github.com
+          if [ -n "${parent}" ]; then
+            new_commit="$(printf '%s\n' "Update Codex thread state for ${state_branch}" | git commit-tree "${new_tree}" -p "${parent}")"
+          else
+            new_commit="$(printf '%s\n' "Update Codex thread state for ${state_branch}" | git commit-tree "${new_tree}")"
+          fi
+          git push origin "${new_commit}:refs/heads/${state_branch}"
+        env:
+          GIT_INDEX_FILE: ${{ runner.temp }}/codex-feed-state.index

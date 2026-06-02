@@ -1,0 +1,9 @@
+[feed]
+name = "codex-toys"
+
+[[feed.sources]]
+id = "openai-codex-releases"
+kind = "atom"
+url = "https://github.com/openai/codex/releases.atom"
+latest_only = true
+store_raw = true

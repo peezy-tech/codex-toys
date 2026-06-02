@@ -106,6 +106,7 @@ export default function run() {
 			promptFile: "prompt.md",
 			cwd: "../repo",
 			skills: ["turn-automation-author"],
+			timeoutMs: 123456,
 		}));
 		const automations = await listTurnAutomations({ cwd: root });
 		expect(automations).toHaveLength(1);
@@ -113,11 +114,13 @@ export default function run() {
 			name: "release-check",
 			prompt: "Inspect the release.\n",
 			skills: ["turn-automation-author"],
+			timeoutMs: 123456,
 		});
 		const target = await resolveTurnAutomationTarget("release-check", { cwd: root });
 		expect(target).toMatchObject({
 			prompt: "Inspect the release.\n",
 			skills: ["turn-automation-author"],
+			timeoutMs: 123456,
 		});
 		expect(target.scriptPath).toBe(path.join(automationRoot, "check.ts"));
 		await expect(resolveTurnAutomationTarget("./automations/release-check/check.ts", { cwd: root }))

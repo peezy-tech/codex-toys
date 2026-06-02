@@ -1324,7 +1324,7 @@ async function runAutomationTask(
 		event,
 		prompt,
 		cwd,
-		timeoutMs: 90_000,
+		timeoutMs: target.timeoutMs ?? 90_000,
 		host: createTurnAutomationHost({
 			via: "workbench",
 			appRequest: async (method, params) =>
@@ -1499,7 +1499,7 @@ async function runAutomationDeferredTarget(
 		event,
 		prompt,
 		cwd,
-		timeoutMs: 90_000,
+		timeoutMs: target.timeoutMs ?? 90_000,
 		host: createTurnAutomationHost({
 			via: "workbench",
 			appRequest: async (method, params) =>

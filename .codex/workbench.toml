@@ -1,0 +1,24 @@
+[workbench]
+name = "codex-toys"
+
+[[workbench.surfaces]]
+key = "default"
+kind = "local"
+
+[[workbench.tasks]]
+id = "openai-codex-bindings"
+enabled = true
+kind = "automation"
+automation = "openai-codex-bindings"
+
+[[workbench.tasks]]
+id = "package-install-smoke"
+enabled = false
+kind = "command"
+command = ["pnpm", "--filter", "codex-toys", "run", "pack:dry-run"]
+
+[[workbench.tasks]]
+id = "release-check"
+enabled = false
+kind = "command"
+command = ["pnpm", "run", "release:check"]

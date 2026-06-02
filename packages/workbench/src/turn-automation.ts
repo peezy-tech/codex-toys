@@ -265,6 +265,7 @@ export type TurnAutomationManifest = {
 	promptFile?: string;
 	cwd?: string;
 	skills?: string[];
+	timeoutMs?: number;
 	config?: Record<string, unknown>;
 };
 
@@ -278,6 +279,7 @@ export type LoadedTurnAutomation = {
 	prompt?: string;
 	cwd?: string;
 	skills?: string[];
+	timeoutMs?: number;
 };
 
 export type TurnAutomationRunTarget = {
@@ -286,6 +288,7 @@ export type TurnAutomationRunTarget = {
 	prompt?: string;
 	cwd?: string;
 	skills?: string[];
+	timeoutMs?: number;
 };
 
 export type ListTurnAutomationsOptions = {
@@ -667,6 +670,7 @@ async function loadTurnAutomationManifest(
 		promptFile: optionalString(parsed.promptFile),
 		cwd: optionalString(parsed.cwd),
 		skills: stringArray(parsed.skills),
+		timeoutMs: optionalPositiveNumber(parsed.timeoutMs, "turn automation timeoutMs"),
 		config: recordOrUndefined(parsed.config),
 	});
 	const prompt = manifest.promptFile
@@ -687,6 +691,7 @@ async function loadTurnAutomationManifest(
 			label: "cwd",
 		}) : undefined,
 		skills: manifest.skills,
+		timeoutMs: manifest.timeoutMs,
 	});
 }
 
@@ -699,6 +704,7 @@ function targetFromAutomation(
 		prompt: automation.prompt,
 		cwd: automation.cwd,
 		skills: automation.skills,
+		timeoutMs: automation.timeoutMs,
 	});
 }
 
@@ -1118,6 +1124,17 @@ function requiredString(value: unknown, label: string): string {
 
 function optionalNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalPositiveNumber(value: unknown, label: string): number | undefined {
+	const result = optionalNumber(value);
+	if (result === undefined) {
+		return undefined;
+	}
+	if (result <= 0) {
+		throw new Error(`${label} must be greater than 0`);
+	}
+	return result;
 }
 
 function optionalBoolean(value: unknown): boolean | undefined {

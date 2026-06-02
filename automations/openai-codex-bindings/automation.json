@@ -1,7 +1,23 @@
 {
   "name": "openai-codex-bindings",
-  "description": "Start a Codex turn for an openai/codex release that may require regenerated app-server bindings.",
+  "description": "Regenerate codex-toys app-server bindings after an openai/codex release and open or update a PR.",
   "script": "check-release.ts",
   "promptFile": "prompt.md",
-  "cwd": "../.."
+  "cwd": "@",
+  "timeoutMs": 2700000,
+  "config": {
+    "source_id": "openai-codex-releases",
+    "target_owner": "peezy-tech",
+    "target_repo": "codex-toys",
+    "target_base": "main",
+    "target_branch_prefix": "codex/openai-codex-bindings",
+    "thread_branch_prefix": "thread/openai-codex-bindings",
+    "github_url": "https://github.com",
+    "github_api_url": "https://api.github.com",
+    "generated_dir": "packages/bridge/src/app-server/generated",
+    "package_manager": "pnpm",
+    "start_turn": true,
+    "turn_timeout_ms": 1800000,
+    "poll_interval_ms": 1500
+  }
 }
