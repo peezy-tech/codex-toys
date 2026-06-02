@@ -86,6 +86,7 @@ Usage:
 
   codex-toys kit inspect <source> [--json]
   codex-toys kit add <source> [--apply] [--include <name>] [--exclude <name>]
+  codex-toys kit setup <source> [--wait]
   codex-toys kit doctor [--json]
   codex-toys kit list [--json]
 

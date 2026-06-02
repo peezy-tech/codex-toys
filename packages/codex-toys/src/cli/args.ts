@@ -658,6 +658,24 @@ type ParsedCliBase =
 			json: boolean;
 	  }
 	| {
+			type: "kit-setup";
+			source: string;
+			ref?: string;
+			workbenchRoot?: string;
+			overwrite: boolean;
+			prompt?: string;
+			appUrl: string;
+			workbenchUrl: string;
+			timeoutMs: number;
+			wait: boolean;
+			sandbox?: RemoteTurnSandbox;
+			approvalPolicy?: RemoteTurnApprovalPolicy;
+			permissions?: string;
+			model?: string;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
 			type: "kit-doctor";
 			workbenchRoot?: string;
 			json: boolean;
@@ -2295,6 +2313,32 @@ export function parseArgs(
 				json,
 			};
 		}
+		if (subcommand === "setup") {
+			if (sshTarget) {
+				throw new Error("kit setup currently supports local workbenches only; run kit add on the target host and open Codex there for plain setup.");
+			}
+			if (include.length > 0 || exclude.length > 0) {
+				throw new Error("kit setup installs the whole kit and does not support --include or --exclude.");
+			}
+			return {
+				type: "kit-setup",
+				source: requiredPositional(positionals, 2, "kit setup requires <source>"),
+				ref,
+				workbenchRoot,
+				overwrite,
+				prompt,
+				appUrl,
+				workbenchUrl,
+				timeoutMs: wait ? turnWaitTimeoutMs(timeoutMs) : timeoutMs,
+				wait,
+				sandbox,
+				approvalPolicy,
+				permissions,
+				model,
+				json,
+				pretty,
+			};
+		}
 		if (subcommand === "doctor") {
 			return {
 				type: "kit-doctor",
@@ -2309,7 +2353,7 @@ export function parseArgs(
 				json,
 			};
 		}
-		throw new Error("kit requires inspect, add, doctor, or list");
+		throw new Error("kit requires inspect, add, setup, doctor, or list");
 	}
 	throw new Error(`Unknown command: ${command}`);
 }

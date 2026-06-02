@@ -69,7 +69,14 @@ import {
 	formatKitList,
 	inspectKitSource,
 	listInstalledKits,
+	planKitAdd,
 } from "@codex-toys/kits";
+import {
+	buildKitSetupPrompt,
+	conflictCount,
+	formatKitSetupResult,
+	hasSetupSkillItem,
+} from "./kit-setup.ts";
 import {
 	formatRemoteTurnStartResult,
 	startRemoteTurn,
@@ -1309,6 +1316,66 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(plan, null, 2)}\n`
 			: formatKitAddPlan(plan));
+		return;
+	}
+	if (parsed.type === "kit-setup") {
+		const preflight = await planKitAdd({
+			source: parsed.source,
+			ref: parsed.ref,
+			workbenchRoot: parsed.workbenchRoot,
+			overwrite: parsed.overwrite,
+		});
+		if (!hasSetupSkillItem(preflight)) {
+			throw new Error("kit setup requires the kit to include skills/setup/SKILL.md.");
+		}
+		const conflicts = conflictCount(preflight);
+		if (conflicts > 0) {
+			throw new Error(
+				`kit setup found ${conflicts} conflict(s); rerun kit add to inspect them or use --overwrite.`,
+			);
+		}
+		const plan = await applyKitAdd({
+			source: parsed.source,
+			ref: parsed.ref,
+			workbenchRoot: parsed.workbenchRoot,
+			apply: true,
+			overwrite: parsed.overwrite,
+		});
+		const setupPrompt = buildKitSetupPrompt({
+			source: parsed.source,
+			workbenchRoot: plan.workbenchRoot,
+			operatorPrompt: parsed.prompt,
+		});
+		const turn = await startRemoteTurn({
+			prompt: setupPrompt,
+			cwd: plan.workbenchRoot,
+			via: "workbench",
+			appUrl: parsed.appUrl,
+			workbenchUrl: parsed.workbenchUrl,
+			timeoutMs: parsed.timeoutMs,
+			wait: parsed.wait,
+			sandbox: parsed.sandbox,
+			approvalPolicy: parsed.approvalPolicy,
+			permissions: parsed.permissions,
+			model: parsed.model,
+		});
+		write(parsed.json
+			? `${JSON.stringify({
+				plan,
+				prompt: setupPrompt,
+				turn: {
+					threadId: turn.threadId,
+					turnId: turn.turnId,
+					status: turn.status,
+					cwd: turn.cwd ?? plan.workbenchRoot,
+					finalMessage: turn.finalMessage,
+					error: turn.error,
+				},
+			}, null, parsed.pretty ? 2 : 0)}\n`
+			: formatKitSetupResult({ plan, turn }));
+		if (parsed.wait && (turn.status === "failed" || turn.status === "timed_out")) {
+			process.exitCode = 1;
+		}
 		return;
 	}
 	if (parsed.type === "kit-doctor") {

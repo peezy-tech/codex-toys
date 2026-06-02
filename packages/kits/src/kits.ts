@@ -221,7 +221,10 @@ export async function collectKitDoctor(options: {
 		}
 		try {
 			const actual = await hashDirectory(destinationPath);
-			if (actual.hash !== item.contentHash) {
+			if (
+				actual.hash !== item.contentHash &&
+				!await retiredSetupSkillMatches(item, destinationPath)
+			) {
 				changedDestinations.push({
 					...item,
 					actualHash: actual.hash,
@@ -422,7 +425,10 @@ async function buildKitAddPlan(
 			continue;
 		}
 		const destinationHash = await hashDirectory(destinationPath);
-		if (destinationHash.hash === item.contentHash) {
+		if (
+			destinationHash.hash === item.contentHash ||
+			await retiredSetupSkillMatches(item, destinationPath)
+		) {
 			items.push({
 				...planBase(item, destinationPath, destinationRelativePath),
 				action: "unchanged",
@@ -980,12 +986,34 @@ function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
 	});
 }
 
-async function hashDirectory(root: string): Promise<{ hash: string; bytes: number }> {
+async function retiredSetupSkillMatches(
+	item: Pick<KitLockItem, "kind" | "name" | "contentHash">,
+	destinationPath: string,
+): Promise<boolean> {
+	if (item.kind !== "skill" || item.name !== "setup") {
+		return false;
+	}
+	try {
+		return (await hashDirectory(destinationPath, {
+			retiredSetupSkill: true,
+		})).hash === item.contentHash;
+	} catch {
+		return false;
+	}
+}
+
+async function hashDirectory(
+	root: string,
+	options: { retiredSetupSkill?: boolean } = {},
+): Promise<{ hash: string; bytes: number }> {
 	const files = await walkFiles(root);
 	const hash = createHash("sha256");
 	let bytes = 0;
 	for (const file of files) {
-		const relative = toPosix(path.relative(root, file));
+		const originalRelative = toPosix(path.relative(root, file));
+		const relative = options.retiredSetupSkill && originalRelative === "SKILL.retired.md"
+			? "SKILL.md"
+			: originalRelative;
 		const contents = await readFile(file);
 		bytes += contents.byteLength;
 		hash.update(relative);

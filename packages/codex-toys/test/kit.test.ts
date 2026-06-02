@@ -14,6 +14,7 @@ import {
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const fixtureRoot = path.join(testDir, "fixtures", "example-kit");
+const setupFixtureRoot = path.join(testDir, "fixtures", "workspace-ops-baseline");
 
 describe("kit installer", () => {
 	test("inspects a manifest-backed kit and honors item names", async () => {
@@ -271,6 +272,58 @@ describe("kit installer", () => {
 			"skill:demo",
 		]);
 	});
+
+	test("installs the reserved setup skill as a normal skill", async () => {
+		const inspection = await inspectKitSource({ source: setupFixtureRoot });
+		expect(inspection.items.map((item) => `${item.kind}:${item.name}`)).toEqual([
+			"skill:setup",
+		]);
+
+		const workbenchRoot = await tempWorkbench();
+		await applyKitAdd({
+			source: setupFixtureRoot,
+			workbenchRoot,
+			apply: true,
+		});
+
+		expect(await readFile(path.join(workbenchRoot, ".agents/skills/setup/SKILL.md"), "utf8"))
+			.toContain("When this skill exists");
+		expect(await exists(path.join(workbenchRoot, ".agents/skills/setup/scripts/setup.mjs"))).toBe(true);
+	});
+
+	test("workspace ops setup script validates, retires, and tears down managed files", async () => {
+		const workbenchRoot = await tempWorkbench();
+		await applyKitAdd({
+			source: setupFixtureRoot,
+			workbenchRoot,
+			apply: true,
+		});
+		const scriptPath = path.join(workbenchRoot, ".agents/skills/setup/scripts/setup.mjs");
+
+		await runNodeScript(scriptPath, ["setup"], workbenchRoot);
+		const validate = await runNodeScript(scriptPath, ["validate", "--json"], workbenchRoot);
+		const validation = JSON.parse(validate.stdout) as { ok: boolean; setupId: string };
+		expect(validation).toMatchObject({
+			ok: true,
+			setupId: "workspace-ops-baseline",
+		});
+		expect(await exists(path.join(workbenchRoot, ".codex/setup-doctor"))).toBe(false);
+
+		await runNodeScript(scriptPath, ["retire"], workbenchRoot);
+		expect(await exists(path.join(workbenchRoot, ".agents/skills/setup/SKILL.md"))).toBe(false);
+		expect(await exists(path.join(workbenchRoot, ".agents/skills/setup/SKILL.retired.md"))).toBe(true);
+
+		const doctor = await collectKitDoctor({ workbenchRoot });
+		expect(doctor.changedDestinations).toEqual([]);
+		expect(doctor.missingDestinations).toEqual([]);
+		const reinstallPlan = await planKitAdd({ source: setupFixtureRoot, workbenchRoot });
+		expect(reinstallPlan.items.find((item) => item.name === "setup")?.action).toBe("unchanged");
+
+		await runNodeScript(scriptPath, ["teardown"], workbenchRoot);
+		expect(await exists(path.join(workbenchRoot, "notes"))).toBe(false);
+		expect(await exists(path.join(workbenchRoot, "runbooks/README.md"))).toBe(false);
+		expect(await exists(path.join(workbenchRoot, ".codex/setup-receipts/workspace-ops-baseline.json"))).toBe(false);
+	});
 });
 
 async function tempWorkbench(): Promise<string> {
@@ -311,6 +364,28 @@ async function runGit(args: string[], cwd: string): Promise<string> {
 		throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`);
 	}
 	return stdout;
+}
+
+async function runNodeScript(
+	scriptPath: string,
+	args: string[],
+	cwd: string,
+): Promise<{ stdout: string; stderr: string }> {
+	const proc = spawn(process.execPath, [scriptPath, ...args], {
+		cwd,
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	const [stdout, stderr, exitCode] = await Promise.all([
+		collectText(proc.stdout),
+		collectText(proc.stderr),
+		exitCodeFor(proc),
+	]);
+	if (exitCode !== 0) {
+		throw new Error(
+			`node ${path.basename(scriptPath)} ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`,
+		);
+	}
+	return { stdout, stderr };
 }
 
 async function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {

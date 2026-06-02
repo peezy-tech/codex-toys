@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "../src/cli/args.ts";
+import { buildKitSetupPrompt } from "../src/cli/kit-setup.ts";
 import { formatFetchInfo, type FetchInfo } from "@codex-toys/workbench";
 import { parseJsonParamsText, parseJsonText } from "@codex-toys/bridge/json";
 
@@ -605,6 +606,37 @@ describe("codex-toys CLI args", () => {
 			"--workbench-root",
 			"/workbench",
 			"kit",
+			"setup",
+			"./kit",
+			"--wait",
+			"--prompt",
+			"use the local baseline",
+		], {})).toMatchObject({
+			type: "kit-setup",
+			source: "./kit",
+			workbenchRoot: "/workbench",
+			wait: true,
+			prompt: "use the local baseline",
+			timeoutMs: 30 * 60 * 1000,
+		});
+		expect(() => parseArgs([
+			"--ssh",
+			"devbox",
+			"kit",
+			"setup",
+			"./kit",
+		], {})).toThrow("kit setup currently supports local workbenches only");
+		expect(() => parseArgs([
+			"kit",
+			"setup",
+			"./kit",
+			"--include",
+			"setup",
+		], {})).toThrow("does not support --include or --exclude");
+		expect(parseArgs([
+			"--workbench-root",
+			"/workbench",
+			"kit",
 			"add",
 			"./kit",
 			"--apply",
@@ -623,6 +655,11 @@ describe("codex-toys CLI args", () => {
 			exclude: ["repo-policy"],
 			json: false,
 		});
+		expect(buildKitSetupPrompt({
+			source: "./kit",
+			workbenchRoot: "/workbench",
+			operatorPrompt: "use the local baseline",
+		})).toContain("Do not create, generate, or substitute validation scripts.");
 		expect(parseArgs(["kit", "doctor", "--json"], {})).toEqual({
 			type: "kit-doctor",
 			workbenchRoot: undefined,

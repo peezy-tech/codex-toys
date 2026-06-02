@@ -83,6 +83,36 @@ codex-toys kit add ./engineering-capabilities --apply --overwrite
 
 Overwrite backs up replaced item directories under `.codex/kit-backups/<timestamp>/`.
 
+## Setup Skill Convention
+
+A kit may include one reserved setup skill at `skills/setup/SKILL.md`. It is
+installed as a normal workspace skill at `.agents/skills/setup`, and its
+presence means the workbench is not fully initialized yet.
+
+This convention is intentionally portable. A user can clone or copy a workbench,
+open plain Codex in that directory, and Codex should see the setup skill and run
+it before ordinary repository work. The setup skill should invoke shipped
+scripts from its own bundle for setup, validation, retirement, and teardown. It
+should not ask Codex to generate validators on the fly.
+
+The usual lifecycle is:
+
+```bash
+node .agents/skills/setup/scripts/setup.mjs setup
+node .agents/skills/setup/scripts/setup.mjs validate --json
+node .agents/skills/setup/scripts/setup.mjs retire
+```
+
+After validation passes, retirement removes or renames `SKILL.md` so future
+Codex turns no longer treat the workspace as pending setup. The shipped runtime
+files may remain in the setup skill directory when the setup script needs them
+for teardown or later validation.
+
+`codex-toys kit setup <source>` is a convenience wrapper. It installs the full
+kit, then starts a Codex turn in the target workbench with an explicit prompt to
+use `.agents/skills/setup`. `codex-toys` does not own the setup protocol; the
+workspace skill and its shipped scripts do.
+
 ## Destinations
 
 | Kind | Source | Workbench destination |
