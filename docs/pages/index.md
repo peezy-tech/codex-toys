@@ -1,6 +1,6 @@
 ---
 title: codex-toys
-description: App-server clients, turn automation, workbench autonomy, and memory tooling for Codex.
+description: App-server clients, feed polling, turn automation, workbench autonomy, and memory tooling for Codex.
 ---
 
 # codex-toys
@@ -13,6 +13,7 @@ turn. It has these related surfaces:
 - app-server clients and stdio transports for direct Codex thread, auth, and
   protocol work
 - plugin-native turn automation scripts that can skip or start native turns
+- durable feed polling for RSS signals and cursor-based item collection
 - `codex-toys toybox serve` for local and SSH workbench control
 - optional `codex-toys-proxy` HTTP edge for freeform dashboards
 - first-class workbench delegation into `@/workbenches/*` and `@/repos/*`
@@ -21,9 +22,9 @@ turn. It has these related surfaces:
 - Git-backed Codex plugin install for turn automation and toybox guidance
 
 The project keeps product-specific completion outside the automation layer.
-Workbench tools can schedule tasks and start Codex turns, but each installing
-product still owns its own credentials, domain state, release policy, and final
-side effects.
+Feed tools can ingest external signals and workbench tools can schedule tasks
+and start Codex turns, but each installing product still owns its own
+credentials, domain state, scoring, release policy, and final side effects.
 
 ## Choose Your Path
 
@@ -32,6 +33,7 @@ side effects.
 | Call Codex app-server from TypeScript | [Packages](reference/packages) |
 | Inspect or call app-server and workbench methods from a terminal | [CLI reference](reference/cli) |
 | Build a plain HTML/JS dashboard | [CLI reference](reference/cli#proxy) |
+| Poll RSS sources into durable feed items | [Feed](guides/feed) |
 | Run code before deciding whether to start a Codex prompt | [Turn automation](guides/turn-automation) |
 | Delegate Codex work from an operator workbench into child workbenches or repos | [CLI reference](reference/cli#workbench-delegation) |
 | Control a remote workbench from a local Codex App | [Install the Codex plugin](guides/install-codex-plugin) and [CLI reference](reference/cli) |
@@ -51,6 +53,8 @@ by feature boundary and exposed as subpath imports:
 - `codex-toys/bridge`: native Codex app-server, auth, memory, thread, JSON,
   and generated protocol bridge primitives
 - `codex-toys/toybox`: stdio JSON-RPC toybox protocol, client, and server
+- `codex-toys/feed`: durable RSS polling, source checkpoints, feed items, and
+  collection cursors
 - `codex-toys/workbench`: workbench runtime, delegation, prompt queue,
   handoff, functions, automation, and overview primitives
 - `codex-toys/actions`: Actions-mode auth and state helpers

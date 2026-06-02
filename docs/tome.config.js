@@ -13,6 +13,7 @@ export default {
 			group: "Guides",
 			pages: [
 				"guides/turn-automation",
+				"guides/feed",
 				"guides/workbench-autonomy",
 				"guides/memory-transplant",
 				"guides/thread-transplant",

@@ -42,6 +42,37 @@ metadata.
 
 Use it when another process needs to host or call a codex-toys toybox directly.
 
+## `codex-toys/feed`
+
+Durable external feed intake helpers:
+
+- `.codex/feed.toml` source config
+- RSS polling and normalization
+- source checkpoints such as ETag and Last-Modified
+- durable feed item storage under `.codex/feed/<mode>/items`
+- named collection cursors for consumers such as dashboards or automations
+- pruning and doctor helpers
+- `feed.*` toybox method factories and metadata
+
+Feed reads `.codex/feed.toml`, writes local runtime state under
+`.codex/feed/local`, and writes Actions-mode state under `.codex/feed/actions`
+only when explicitly run in Actions mode. It does not create Codex turns,
+deferred prompts, or product-specific actions by itself.
+
+```ts
+import {
+  collectFeedItems,
+  createFeedContext,
+  loadFeedConfig,
+  pollFeedSources,
+} from "codex-toys/feed";
+
+const context = await createFeedContext({ root: "/repo", mode: "local" });
+const config = await loadFeedConfig(context);
+await pollFeedSources(context, config);
+const batch = await collectFeedItems(context, { cursor: "radar" });
+```
+
 ## `codex-toys/workbench`
 
 Workbench runtime and policy helpers:
@@ -90,8 +121,9 @@ POST /api/workbench/overview
 ```
 
 `/api/schema` comes from `toybox.initialize`, so dashboards can discover
-available methods without duplicated route definitions. Direct browser CORS is
-loopback-only. Related public entry points are:
+available methods, including `feed.*` methods, without duplicated route
+definitions. Direct browser CORS is loopback-only. Related public entry points
+are:
 
 - `codex-toys/proxy/browser`
 - `codex-toys/proxy/vite`

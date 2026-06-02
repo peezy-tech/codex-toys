@@ -95,6 +95,9 @@ importers:
       '@codex-toys/bridge':
         specifier: workspace:*
         version: link:../bridge
+      '@codex-toys/feed':
+        specifier: workspace:*
+        version: link:../feed
       '@codex-toys/kits':
         specifier: workspace:*
         version: link:../kits
@@ -130,6 +133,22 @@ importers:
       '@esbuild/linux-x64':
         specifier: 0.28.0
         version: 0.28.0
+
+  packages/feed:
+    dependencies:
+      '@codex-toys/toybox':
+        specifier: workspace:*
+        version: link:../toybox
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.6.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
 
   packages/kits:
     dependencies:

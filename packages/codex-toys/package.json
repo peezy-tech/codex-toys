@@ -1,7 +1,7 @@
 {
 	"name": "codex-toys",
-	"version": "0.140.6",
-	"description": "Codex CLI and umbrella runtime export for bridge, toybox, remote, workbench, actions, proxy, and kits.",
+	"version": "0.140.7",
+	"description": "Codex CLI and umbrella runtime export for bridge, toybox, feed, remote, workbench, actions, proxy, and kits.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"repository": {
@@ -65,6 +65,10 @@
 			"types": "./dist/bridge/threads.d.ts",
 			"import": "./dist/bridge/threads.js"
 		},
+		"./feed": {
+			"types": "./dist/feed.d.ts",
+			"import": "./dist/feed.js"
+		},
 		"./kits": {
 			"types": "./dist/kits.d.ts",
 			"import": "./dist/kits.js"
@@ -97,6 +101,7 @@
 	"bundledDependencies": [
 		"@codex-toys/actions",
 		"@codex-toys/bridge",
+		"@codex-toys/feed",
 		"@codex-toys/kits",
 		"@codex-toys/proxy",
 		"@codex-toys/remote",
@@ -128,6 +133,7 @@
 	"dependencies": {
 		"@codex-toys/actions": "workspace:*",
 		"@codex-toys/bridge": "workspace:*",
+		"@codex-toys/feed": "workspace:*",
 		"@codex-toys/kits": "workspace:*",
 		"@codex-toys/proxy": "workspace:*",
 		"@codex-toys/remote": "workspace:*",

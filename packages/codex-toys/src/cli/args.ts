@@ -1,4 +1,5 @@
 import { validateMethodName } from "./actions.ts";
+import { parseFeedMode, type FeedItemStatus, type FeedModeInput } from "@codex-toys/feed";
 import { parseMode, type DeferredRunIntentStatus, type DeferredReasoningEffort, type WorkbenchModeInput } from "@codex-toys/workbench";
 import type { MemoryTransplantDirection } from "./memories.ts";
 
@@ -136,6 +137,105 @@ type ParsedCliBase =
 			url: string;
 			timeoutMs: number;
 			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-doctor";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-source-list";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-poll";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			sourceId?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-item-list";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			sourceId?: string;
+			status?: FeedItemStatus;
+			limit?: number;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-item-read";
+			itemId: string;
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-collect";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			cursor?: string;
+			sourceId?: string;
+			status?: FeedItemStatus;
+			limit?: number;
+			advance: boolean;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-cursor-advance";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			cursor?: string;
+			itemId: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-dispatch";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			cursor?: string;
+			sourceId: string;
+			target: string;
+			limit?: number;
+			poll: boolean;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
+			type: "feed-prune";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			olderThanDays: number;
+			dryRun: boolean;
+			url: string;
+			timeoutMs: number;
 			pretty: boolean;
 	  }
 	| { type: "workbench-methods"; url: string; timeoutMs: number; pretty: boolean }
@@ -584,7 +684,9 @@ export function parseArgs(
 	let json = false;
 	let eventPath: string | undefined;
 	let mode: WorkbenchModeInput | undefined;
+	let feedMode: FeedModeInput | undefined;
 	let workbenchRoot: string | undefined;
+	let feedRoot: string | undefined;
 	let globalCodexHome: string | undefined;
 	let workbenchCodexHome: string | undefined;
 	let codexHome: string | undefined;
@@ -619,12 +721,19 @@ export function parseArgs(
 	let afterIntentId: string | undefined;
 	let afterStatus: "completed" | "failed" | "canceled" | "terminal" | undefined;
 	let status: DeferredRunIntentStatus | undefined;
+	let feedStatus: FeedItemStatus | undefined;
+	let sourceId: string | undefined;
 	let limit: number | undefined;
+	let itemId: string | undefined;
 	let targetHost: string | undefined;
 	let hostId: string | undefined;
 	let requesterHost: string | undefined;
 	let requesterThreadId: string | undefined;
 	let materialize = false;
+	let all = false;
+	let advance = true;
+	let poll = true;
+	let dispatchTarget: string | undefined;
 	let paramsJson: string | undefined;
 	let paramsFile: string | undefined;
 	let cwd: string | undefined = env.CODEX_TOYS_REMOTE_CWD;
@@ -695,11 +804,15 @@ export function parseArgs(
 				continue;
 			}
 			if (arg === "--mode") {
-				mode = parseMode(required(argv, ++index, arg));
+				const value = required(argv, ++index, arg);
+				mode = parseMode(value);
+				feedMode = parseFeedMode(value);
 				continue;
 			}
 		if (arg.startsWith("--mode=")) {
-			mode = parseMode(arg.slice("--mode=".length));
+			const value = arg.slice("--mode=".length);
+			mode = parseMode(value);
+			feedMode = parseFeedMode(value);
 			continue;
 		}
 		if (arg === "--workbench-root") {
@@ -708,6 +821,14 @@ export function parseArgs(
 		}
 		if (arg.startsWith("--workbench-root=")) {
 			workbenchRoot = arg.slice("--workbench-root=".length);
+			continue;
+		}
+		if (arg === "--feed-root") {
+			feedRoot = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--feed-root=")) {
+			feedRoot = arg.slice("--feed-root=".length);
 			continue;
 		}
 		if (arg === "--cwd") {
@@ -1007,11 +1128,51 @@ export function parseArgs(
 				continue;
 			}
 			if (arg === "--status") {
-				status = parseDeferredRunStatus(required(argv, ++index, arg));
+				const value = required(argv, ++index, arg);
+				status = parseDeferredRunStatusMaybe(value);
+				feedStatus = parseFeedItemStatusMaybe(value);
 				continue;
 			}
 			if (arg.startsWith("--status=")) {
-				status = parseDeferredRunStatus(arg.slice("--status=".length));
+				const value = arg.slice("--status=".length);
+				status = parseDeferredRunStatusMaybe(value);
+				feedStatus = parseFeedItemStatusMaybe(value);
+				continue;
+			}
+			if (arg === "--source") {
+				sourceId = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--source=")) {
+				sourceId = arg.slice("--source=".length);
+				continue;
+			}
+			if (arg === "--item") {
+				itemId = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--item=")) {
+				itemId = arg.slice("--item=".length);
+				continue;
+			}
+			if (arg === "--target") {
+				dispatchTarget = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--target=")) {
+				dispatchTarget = arg.slice("--target=".length);
+				continue;
+			}
+			if (arg === "--all") {
+				all = true;
+				continue;
+			}
+			if (arg === "--no-advance") {
+				advance = false;
+				continue;
+			}
+			if (arg === "--no-poll") {
+				poll = false;
 				continue;
 			}
 			if (arg === "--limit") {
@@ -1366,6 +1527,151 @@ export function parseArgs(
 			};
 		}
 		throw new Error("functions requires list, describe, or call");
+	}
+	if (command === "feed") {
+		const subcommand = positionals[1] ?? "doctor";
+		if (subcommand === "doctor") {
+			return {
+				type: "feed-doctor",
+				mode: feedMode,
+				feedRoot,
+				url: workbenchUrl,
+				timeoutMs: timeoutMs === defaultTimeoutMs ? 1_500 : timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "source" || subcommand === "sources") {
+			const action = positionals[2] ?? "list";
+			if (action !== "list" && action !== "ls") {
+				throw new Error("feed source requires list");
+			}
+			return {
+				type: "feed-source-list",
+				mode: feedMode,
+				feedRoot,
+				url: workbenchUrl,
+				timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "poll") {
+			return {
+				type: "feed-poll",
+				mode: feedMode,
+				feedRoot,
+				sourceId: sourceId ?? (all ? undefined : positionals[2]),
+				url: workbenchUrl,
+				timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "item" || subcommand === "items") {
+			const action = positionals[2] ?? "list";
+			if (action === "list" || action === "ls") {
+				return {
+					type: "feed-item-list",
+					mode: feedMode,
+					feedRoot,
+					sourceId,
+					status: feedStatus,
+					limit,
+					url: workbenchUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			if (action === "read" || action === "show") {
+				return {
+					type: "feed-item-read",
+					itemId: requiredPositional(positionals, 3, `feed item ${action} requires <item-id>`),
+					mode: feedMode,
+					feedRoot,
+					url: workbenchUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			throw new Error("feed item requires list or read");
+		}
+		if (subcommand === "collect") {
+			return {
+				type: "feed-collect",
+				mode: feedMode,
+				feedRoot,
+				cursor,
+				sourceId,
+				status: feedStatus,
+				limit,
+				advance,
+				url: workbenchUrl,
+				timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "cursor") {
+			const action = positionals[2];
+			if (action === "advance") {
+				return {
+					type: "feed-cursor-advance",
+					mode: feedMode,
+					feedRoot,
+					cursor,
+					itemId: itemId ?? requiredPositional(positionals, 3, "feed cursor advance requires --item <item-id>"),
+					url: workbenchUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			throw new Error("feed cursor requires advance");
+		}
+		if (subcommand === "dispatch") {
+			return {
+				type: "feed-dispatch",
+				mode: feedMode,
+				feedRoot,
+				cursor,
+				sourceId: sourceId ?? requiredPositional(positionals, 2, "feed dispatch requires --source <source-id>"),
+				target: dispatchTarget ?? requiredPositional(positionals, 3, "feed dispatch requires --target <target>"),
+				limit,
+				poll,
+				url: workbenchUrl,
+				timeoutMs,
+				json,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		if (subcommand === "prune") {
+			if (olderThanDays === undefined) {
+				throw new Error("feed prune requires --older-than-days");
+			}
+			return {
+				type: "feed-prune",
+				mode: feedMode,
+				feedRoot,
+				olderThanDays,
+				dryRun,
+				url: workbenchUrl,
+				timeoutMs,
+				pretty,
+				...remoteFields(),
+			};
+		}
+		throw new Error("feed requires doctor, source list, poll, item list, item read, collect, cursor advance, dispatch, or prune");
 	}
 	if (command === "workbench") {
 		const subcommand = positionals[1];
@@ -2084,6 +2390,38 @@ function parseDeferredRunStatus(value: string): DeferredRunIntentStatus {
 		return value;
 	}
 	throw new Error("--status must be pending, running, completed, failed, or canceled");
+}
+
+function parseDeferredRunStatusMaybe(value: string): DeferredRunIntentStatus | undefined {
+	if (
+		value === "pending" ||
+		value === "running" ||
+		value === "completed" ||
+		value === "failed" ||
+		value === "canceled"
+	) {
+		return value;
+	}
+	if (value === "new") {
+		return undefined;
+	}
+	throw new Error("--status must be pending, running, completed, failed, canceled, or new");
+}
+
+function parseFeedItemStatusMaybe(value: string): FeedItemStatus | undefined {
+	if (value === "new") {
+		return value;
+	}
+	if (
+		value === "pending" ||
+		value === "running" ||
+		value === "completed" ||
+		value === "failed" ||
+		value === "canceled"
+	) {
+		return undefined;
+	}
+	throw new Error("--status must be pending, running, completed, failed, canceled, or new");
 }
 
 function parseDelegationReturnMode(value: string): DelegationReturnMode {

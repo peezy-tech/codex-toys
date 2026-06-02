@@ -10,11 +10,13 @@ const repoRoot = path.resolve(packageRoot, "../..");
 
 const requiredTarEntries = [
 	"package/dist/index.js",
+	"package/dist/feed.js",
 	"package/dist/workbench.js",
 	"package/dist/proxy/browser.js",
 	"package/dist/bridge/json.js",
 	"package/node_modules/@codex-toys/actions/dist/index.js",
 	"package/node_modules/@codex-toys/bridge/dist/index.js",
+	"package/node_modules/@codex-toys/feed/dist/index.js",
 	"package/node_modules/@codex-toys/kits/dist/index.js",
 	"package/node_modules/@codex-toys/proxy/dist/index.js",
 	"package/node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js",
@@ -72,6 +74,7 @@ const checks = [
 	["codex-toys/bridge", ["CodexAppServerClient", "JsonRpcError"]],
 	["codex-toys/bridge/generated", ["v2"]],
 	["codex-toys/bridge/json", ["parseJsonText"]],
+	["codex-toys/feed", ["createFeedContext", "pollFeedSources", "collectFeedItems"]],
 	["codex-toys/kits", ["inspectKitSource", "applyKitAdd"]],
 	["codex-toys/proxy", ["createCodexToysProxyHandler"]],
 	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],

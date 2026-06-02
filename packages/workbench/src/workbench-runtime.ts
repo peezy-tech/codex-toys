@@ -465,6 +465,7 @@ export async function createWorkbenchContext(options: {
 		globalCodexHome,
 		actionsCommitPaths: [
 			path.join(workbenchCodexHome, "memories"),
+			path.join(workbenchCodexHome, "feed", "actions"),
 			path.join(workbenchCodexHome, "workbench", "actions"),
 			path.join(workbenchCodexHome, "sessions"),
 		],
@@ -667,6 +668,7 @@ export async function runWorkbenchTaskById(
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
+		event?: Record<string, unknown>;
 	},
 ): Promise<WorkbenchRunRecord> {
 	await ensureStateDirs(context);
@@ -692,7 +694,15 @@ export async function commitActionsWorkbenchState(
 	const relativePaths = context.actionsCommitPaths.map((item) => path.relative(context.repoRoot, item));
 	const sessionsPath = path.relative(context.repoRoot, path.join(context.workbenchCodexHome, "sessions"));
 	const normalPaths = relativePaths.filter((item) => item !== sessionsPath);
-	await runGit(context.repoRoot, ["add", "--", ...normalPaths]);
+	const existingNormalPaths: string[] = [];
+	for (const item of normalPaths) {
+		if (await exists(path.join(context.repoRoot, item))) {
+			existingNormalPaths.push(item);
+		}
+	}
+	if (existingNormalPaths.length > 0) {
+		await runGit(context.repoRoot, ["add", "--", ...existingNormalPaths]);
+	}
 	if (await exists(path.join(context.repoRoot, sessionsPath))) {
 		await runGit(context.repoRoot, ["add", "-A", "-f", "--", sessionsPath]);
 	}
@@ -1248,6 +1258,7 @@ async function runWorkbenchTask(
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
+		event?: Record<string, unknown>;
 	},
 ): Promise<WorkbenchRunRecord> {
 	const startedAt = new Date().toISOString();
@@ -1298,12 +1309,13 @@ async function runAutomationTask(
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		automationCwd?: string;
+		event?: Record<string, unknown>;
 	},
 ): Promise<unknown> {
 	const target = await resolveTurnAutomationTarget(task.automation, {
 		cwd: context.repoRoot,
 	});
-	const event = workbenchAutomationEvent(config, task, runId, startedAt);
+	const event = options.event ?? workbenchAutomationEvent(config, task, runId, startedAt);
 	const prompt = task.prompt ?? target.prompt;
 	const cwd = task.cwd ?? options.automationCwd ?? target.cwd ?? context.repoRoot;
 	const scriptRun = await runTurnAutomationScript({
@@ -2822,6 +2834,9 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 		"      - if: always()",
 		"        run: |",
 		"          git add -- .codex/memories .codex/workbench/actions",
+		"          if [ -d .codex/feed/actions ]; then",
+		"            git add -- .codex/feed/actions",
+		"          fi",
 		"          if [ -d .codex/sessions ]; then",
 		"            git add -A -f -- .codex/sessions",
 		"          fi",

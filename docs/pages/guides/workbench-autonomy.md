@@ -131,7 +131,8 @@ with `--ssh`.
 The generated workflow runs on `workflow_dispatch` and an hourly cron. It
 prepares auth, runs `workbench tick --mode actions`, always cleans up
 runtime-only files, and commits changed `.codex/memories`,
-`.codex/workbench/actions`, and `.codex/sessions` rollout data.
+`.codex/feed/actions`, `.codex/workbench/actions`, and `.codex/sessions`
+rollout data.
 
 Existing JSON-RPC passthrough commands stay intact:
 
@@ -353,6 +354,7 @@ Actions commits should be limited to:
 
 ```text
 .codex/memories/
+.codex/feed/actions/
 .codex/workbench/actions/
 .codex/sessions/
 ```
@@ -373,5 +375,6 @@ codex-toys workbench tick --mode actions
 codex-toys actions cleanup
 ```
 
-`workbench tick --mode actions` runs due workbench tasks and records their
-state under `.codex/workbench/actions`.
+`workbench tick --mode actions` runs due workbench tasks and records workbench
+state under `.codex/workbench/actions`; feed dispatch and polling state lives
+under `.codex/feed/actions`.

@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/toybox",
-	"version": "0.140.6",
+	"version": "0.140.7",
 	"private": true,
 	"description": "Codex toybox JSON-RPC protocol, client, and server primitives.",
 	"type": "module",

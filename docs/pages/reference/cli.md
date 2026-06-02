@@ -1,6 +1,6 @@
 ---
 title: CLI reference
-description: Commands for Codex workbench toyboxes, turn automation, app-server calls, workbench methods, workbench autonomy, memory transplant, thread transplant, and kit repos.
+description: Commands for Codex workbench toyboxes, turn automation, feed polling, app-server calls, workbench methods, workbench autonomy, memory transplant, thread transplant, and kit repos.
 ---
 
 # CLI reference
@@ -180,6 +180,45 @@ codex-toys --ssh <target> --cwd <remote-workbench> functions list [--json]
 Functions are JSON-in/JSON-out helpers loaded from `.codex/functions.ts`,
 `.codex/functions.js`, or `.codex/functions.mjs` in the target workbench.
 
+## Feed
+
+```bash
+codex-toys feed doctor [--mode auto|local|actions] [--json]
+codex-toys feed source list [--json]
+codex-toys feed poll [--source <source-id>] [--json]
+codex-toys feed item list [--source <source-id>] [--status new] [--limit <n>] [--json]
+codex-toys feed item read <item-id> [--json]
+codex-toys feed collect [--cursor <name>] [--source <source-id>] [--limit <n>] [--no-advance] [--json]
+codex-toys feed cursor advance --cursor <name> --item <item-id> [--json]
+codex-toys feed dispatch --source <source-id> --cursor <name> --target workbench-task:<task-id> [--limit <n>] [--no-poll] [--json]
+codex-toys feed prune --older-than-days <days> [--dry-run]
+codex-toys --ssh <target> --cwd <remote-root> feed poll --json
+codex-toys --ssh <target> --cwd <remote-root> feed dispatch --source releases --cursor radar --target workbench-task:refresh --json
+```
+
+Feed reads `.codex/feed.toml`, writes local state under `.codex/feed/local`,
+and writes Actions-mode state under `.codex/feed/actions` only when explicitly
+run in Actions mode. The v1 adapter is RSS:
+
+```toml
+[feed]
+name = "example"
+
+[[feed.sources]]
+id = "openai-blog"
+kind = "rss"
+url = "https://example.com/rss.xml"
+latest_only = true
+max_content_bytes = 20000
+store_raw = false
+```
+
+`feed poll` stores newly observed items and source checkpoints. `feed collect`
+advances a named cursor unless `--no-advance` is set. `feed dispatch` polls by
+default, collects without advancing, runs a `workbench-task:<task-id>` target,
+and advances only after the target succeeds. Feed does not apply product-specific
+scoring; consuming tasks still decide whether an item matters.
+
 ## Workbench Methods
 
 ```bash
@@ -341,9 +380,16 @@ files without inventing a separate bundle format.
 ```bash
 codex-toys kit inspect <source> [--json]
 codex-toys kit add <source> [--apply] [--include <name>] [--exclude <name>]
+codex-toys kit setup <source> [--wait]
 codex-toys kit doctor [--json]
 codex-toys kit list [--json]
 ```
 
 Kit commands copy selected skills, plugins, and automations into a workbench and
 record provenance in `.codex/kit-lock.json`.
+
+`kit setup` is a convenience path for kits that ship the reserved
+`skills/setup/SKILL.md` skill. It applies the full kit, then starts a Codex turn
+in the workbench with instructions to run the installed `.agents/skills/setup`
+skill. The setup skill and its shipped scripts remain the portable setup
+contract; plain Codex can use them without codex-toys.

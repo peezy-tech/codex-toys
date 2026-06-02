@@ -4,6 +4,7 @@ const checks = [
 	["codex-toys/bridge", ["CodexAppServerClient", "JsonRpcError", "listCodexMemoryArtifacts", "locateThreadRollout"]],
 	["codex-toys/bridge/generated", ["v2"]],
 	["codex-toys/bridge/json", ["parseJsonText"]],
+	["codex-toys/feed", ["createFeedContext", "pollFeedSources", "collectFeedItems"]],
 	["codex-toys/kits", ["inspectKitSource", "applyKitAdd"]],
 	["codex-toys/proxy", ["createCodexToysProxyHandler"]],
 	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],

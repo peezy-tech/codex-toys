@@ -31,6 +31,7 @@ const publicManifestPath = "packages/codex-toys/package.json";
 const internalPackageJsonPaths = [
 	"packages/actions/package.json",
 	"packages/bridge/package.json",
+	"packages/feed/package.json",
 	"packages/kits/package.json",
 	"packages/proxy/package.json",
 	"packages/remote/package.json",
@@ -41,6 +42,7 @@ const internalPackageJsonPaths = [
 const bundledInternalPackages = [
 	"@codex-toys/actions",
 	"@codex-toys/bridge",
+	"@codex-toys/feed",
 	"@codex-toys/kits",
 	"@codex-toys/proxy",
 	"@codex-toys/remote",
@@ -65,6 +67,7 @@ const publicSubpathExports = [
 	"./bridge/memories",
 	"./bridge/rpc",
 	"./bridge/threads",
+	"./feed",
 	"./kits",
 	"./proxy",
 	"./proxy/browser",
@@ -211,6 +214,7 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 	const tarEntries = listTarEntries(tarballPath);
 	for (const entry of [
 		"package/dist/index.js",
+		"package/dist/feed.js",
 		"package/dist/workbench.js",
 		"package/dist/proxy/browser.js",
 		"package/dist/bridge/json.js",

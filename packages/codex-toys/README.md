@@ -16,6 +16,7 @@ Full documentation lives in the repo docs site:
 
 - overview: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/index.md>
 - CLI reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/cli.md>
+- feed: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/feed.md>
 - turn automation: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/turn-automation.md>
 - package reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/packages.md>
 - workbench autonomy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/workbench-autonomy.md>
@@ -33,6 +34,7 @@ from focused subpaths:
 |--------|---------|
 | `codex-toys/bridge` | Native Codex app-server, auth, memory, thread, JSON-RPC, and generated protocol bridge primitives. |
 | `codex-toys/toybox` | Stdio JSON-RPC toybox client/server protocol. |
+| `codex-toys/feed` | Durable RSS polling, source checkpoints, feed items, and collection cursors. |
 | `codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, automation, and overview primitives. |
 | `codex-toys/actions` | GitHub/Forgejo Actions auth and state helpers. |
 | `codex-toys/remote` | SSH-backed toybox transports and remote control helpers. |
@@ -73,6 +75,26 @@ not include a WebSocket app-server or workbench client. Direct proxy API CORS is
 loopback-only (`localhost`, `127.0.0.1`, `::1`, and `*.localhost`); local
 dashboards can also avoid CORS entirely by using the Vite plugin or proxy
 `--static` same-origin serving.
+
+## Feed
+
+```ts
+import {
+	createFeedContext,
+	loadFeedConfig,
+	pollFeedSources,
+	collectFeedItems,
+} from "codex-toys/feed";
+
+const context = await createFeedContext({ root: "/repo", mode: "local" });
+const config = await loadFeedConfig(context);
+
+await pollFeedSources(context, config, { sourceId: "openai-blog" });
+const batch = await collectFeedItems(context, { cursor: "radar" });
+```
+
+Feed reads `.codex/feed.toml`, writes mode-scoped state under `.codex/feed/*`,
+and leaves product-specific scoring, prompt policy, and dispatch to consumers.
 
 ## Turn Automation
 
@@ -150,6 +172,8 @@ codex-toys toybox serve --cwd /repo
 codex-toys --ssh devbox --cwd /repo remote preflight
 codex-toys turn run "Check workbench status" --wait
 codex-toys automation list
+codex-toys feed poll --json
+codex-toys feed collect --cursor radar --json
 codex-toys automation run openai-codex-bindings --event event.json
 codex-toys --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
 codex-toys --ssh devbox --cwd /repo fetch

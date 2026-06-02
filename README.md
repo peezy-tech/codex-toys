@@ -1,10 +1,11 @@
 # codex-toys
 
-Codex bridge, toybox, remote, workbench, Actions, proxy, kits, and CLI tools.
+Codex bridge, toybox, feed, remote, workbench, Actions, proxy, kits, and CLI tools.
 
 This repository is a monorepo. The only public npm package is `codex-toys`;
 reusable runtime surfaces are exported from subpaths such as
-`codex-toys/bridge`, `codex-toys/workbench`, and `codex-toys/proxy`.
+`codex-toys/bridge`, `codex-toys/feed`, `codex-toys/workbench`, and
+`codex-toys/proxy`.
 The scoped `@codex-toys/*` workspaces are internal package boundaries that are
 bundled into the published tarball.
 The full user documentation lives in the Tome docs site under
@@ -14,6 +15,7 @@ The full user documentation lives in the Tome docs site under
 
 - New users: read [`docs/pages/index.md`](docs/pages/index.md).
 - CLI reference: [`docs/pages/reference/cli.md`](docs/pages/reference/cli.md).
+- Feed: [`docs/pages/guides/feed.md`](docs/pages/guides/feed.md).
 - Turn automation: [`docs/pages/guides/turn-automation.md`](docs/pages/guides/turn-automation.md).
 - Workbench autonomy: [`docs/pages/guides/workbench-autonomy.md`](docs/pages/guides/workbench-autonomy.md).
 - Memory transplant: [`docs/pages/guides/memory-transplant.md`](docs/pages/guides/memory-transplant.md).
@@ -28,6 +30,8 @@ The full user documentation lives in the Tome docs site under
 - `packages/bridge`: native Codex app-server, auth, memory, thread, JSON, and
   generated protocol bridge primitives.
 - `packages/toybox`: stdio JSON-RPC toybox client/server protocol.
+- `packages/feed`: durable RSS polling, source checkpoints, feed items, and
+  collection cursors.
 - `packages/workbench`: workbench runtime, delegation, prompt queue, handoff,
   functions, automation, and overview primitives.
 - `packages/actions`: Actions-mode auth and state helpers.
@@ -73,6 +77,8 @@ Inspect the CLI:
 tsx packages/codex-toys/src/cli/index.ts --help
 codex-toys fetch
 codex-toys remote preflight
+codex-toys feed poll --json
+codex-toys feed collect --cursor radar --json
 codex-toys automation list
 codex-toys automation run openai-codex-bindings --event event.json
 codex-toys --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
@@ -121,7 +127,7 @@ The public npm package is:
 - `codex-toys`
 
 Its supported runtime imports are exposed through `codex-toys/*` subpaths, for
-example `codex-toys/workbench`, `codex-toys/bridge`, and
+example `codex-toys/feed`, `codex-toys/workbench`, `codex-toys/bridge`, and
 `codex-toys/proxy/browser`.
 
 Legacy automation packages have been removed from the monorepo; new automation

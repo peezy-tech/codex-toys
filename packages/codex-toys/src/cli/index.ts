@@ -18,6 +18,37 @@ import {
 	type ParsedCli,
 } from "./args.ts";
 import {
+	collectFeedDoctorInfo,
+	collectFeedItems,
+	createFeedContext,
+	dispatchFeedItems,
+	advanceFeedCursor,
+	FEED_COLLECT_METHOD,
+	FEED_CURSOR_ADVANCE_METHOD,
+	FEED_DISPATCH_METHOD,
+	FEED_DOCTOR_METHOD,
+	FEED_ITEM_LIST_METHOD,
+	FEED_ITEM_READ_METHOD,
+	FEED_POLL_METHOD,
+	FEED_PRUNE_METHOD,
+	FEED_SOURCE_LIST_METHOD,
+	formatFeedDoctorInfo,
+	listFeedItems,
+	loadFeedConfig,
+	pollFeedSources,
+	pruneFeedItems,
+	readFeedItem,
+	toFeedEvent,
+	type FeedAdvanceCursorResult,
+	type FeedCollectResult,
+	type FeedDispatchResult,
+	type FeedDoctorInfo,
+	type FeedItem,
+	type FeedPollResult,
+	type FeedPruneResult,
+	type FeedSource,
+} from "@codex-toys/feed";
+import {
 	collectFetchInfo,
 	formatFetchInfo,
 	type FetchToyboxInfo,
@@ -279,6 +310,215 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(response, null, parsed.pretty ? 2 : 0)}\n`
 			: `${JSON.stringify(response.result, null, 2)}\n`);
+		return;
+	}
+	if (parsed.type === "feed-doctor") {
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_DOCTOR_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+			}), parsed) as FeedDoctorInfo
+			: await collectFeedDoctorInfo(await createFeedContext({
+				root: parsed.feedRoot,
+				mode: parsed.mode,
+			}));
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFeedDoctorInfo(result));
+		return;
+	}
+	if (parsed.type === "feed-source-list") {
+		const sources = hasSshRemote(parsed)
+			? (record(await callToybox(FEED_SOURCE_LIST_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+			}), parsed)).sources ?? []) as FeedSource[]
+			: (await loadFeedConfig(await createFeedContext({
+				root: parsed.feedRoot,
+				mode: parsed.mode,
+			}))).sources;
+		write(parsed.json
+			? `${JSON.stringify({ sources }, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFeedSourceList(sources));
+		return;
+	}
+	if (parsed.type === "feed-poll") {
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_POLL_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+				sourceId: parsed.sourceId,
+			}), parsed) as FeedPollResult
+			: await pollFeedSources(
+				await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				}),
+				await loadFeedConfig(await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				})),
+				{ sourceId: parsed.sourceId },
+			);
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFeedPollResult(result));
+		return;
+	}
+	if (parsed.type === "feed-item-list") {
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_ITEM_LIST_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+				sourceId: parsed.sourceId,
+				status: parsed.status,
+				limit: parsed.limit,
+			}), parsed)
+			: {
+				items: await listFeedItems(
+					await createFeedContext({
+						root: parsed.feedRoot,
+						mode: parsed.mode,
+					}),
+					{
+						sourceId: parsed.sourceId,
+						status: parsed.status,
+						limit: parsed.limit,
+					},
+				),
+			};
+		const items = (record(result).items ?? []) as FeedItem[];
+		write(parsed.json
+			? `${JSON.stringify({ items }, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFeedItemList(items));
+		return;
+	}
+	if (parsed.type === "feed-item-read") {
+		const item = hasSshRemote(parsed)
+			? record(await callToybox(FEED_ITEM_READ_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+				id: parsed.itemId,
+			}), parsed)).item as FeedItem
+			: await readFeedItem(
+				await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				}),
+				parsed.itemId,
+			);
+		write(parsed.json
+			? `${JSON.stringify({ item }, null, parsed.pretty ? 2 : 0)}\n`
+			: `${JSON.stringify(item, null, 2)}\n`);
+		return;
+	}
+	if (parsed.type === "feed-collect") {
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_COLLECT_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+				cursor: parsed.cursor,
+				sourceId: parsed.sourceId,
+				status: parsed.status,
+				limit: parsed.limit,
+				advance: parsed.advance,
+			}), parsed) as FeedCollectResult
+			: await collectFeedItems(
+				await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				}),
+				{
+					cursor: parsed.cursor,
+					sourceId: parsed.sourceId,
+					status: parsed.status,
+					limit: parsed.limit,
+					advance: parsed.advance,
+				},
+			);
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFeedCollectResult(result));
+		return;
+	}
+	if (parsed.type === "feed-cursor-advance") {
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_CURSOR_ADVANCE_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+				cursor: parsed.cursor,
+				itemId: parsed.itemId,
+			}), parsed) as FeedAdvanceCursorResult
+			: await advanceFeedCursor(
+				await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				}),
+				{
+					cursor: parsed.cursor,
+					itemId: parsed.itemId,
+				},
+			);
+		writeJson(result, parsed.pretty);
+		return;
+	}
+	if (parsed.type === "feed-dispatch") {
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_DISPATCH_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+				cursor: parsed.cursor,
+				sourceId: parsed.sourceId,
+				target: parsed.target,
+				limit: parsed.limit,
+				poll: parsed.poll,
+			}), parsed) as FeedDispatchResult
+			: await dispatchFeedItems(
+				await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				}),
+				await loadFeedConfig(await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				})),
+				{
+					cursor: parsed.cursor,
+					sourceId: parsed.sourceId,
+					target: parsed.target,
+					limit: parsed.limit,
+					poll: parsed.poll,
+					runTarget: async (target, event) =>
+						await runFeedDispatchTarget(target, event, parsed),
+				},
+			);
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFeedDispatchResult(result));
+		if (result.status === "failed") {
+			process.exitCode = 1;
+		}
+		return;
+	}
+	if (parsed.type === "feed-prune") {
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_PRUNE_METHOD, compactUndefined({
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+				olderThanDays: parsed.olderThanDays,
+				dryRun: parsed.dryRun,
+			}), parsed) as FeedPruneResult
+			: await pruneFeedItems(
+				await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				}),
+				{
+					olderThanDays: parsed.olderThanDays,
+					dryRun: parsed.dryRun,
+				},
+			);
+		writeJson(result, parsed.pretty);
 		return;
 	}
 	if (parsed.type === "host-overview") {
@@ -1092,6 +1332,92 @@ function toyboxLabelForDoctor(toybox: FetchToyboxInfo): string {
 		return toybox.url ? `${toybox.transport} connected (${toybox.url})` : `${toybox.transport} connected`;
 	}
 	return toybox.error ? `unavailable (${toybox.error})` : "unavailable";
+}
+
+function formatFeedSourceList(sources: FeedSource[]): string {
+	if (sources.length === 0) {
+		return "No feed sources configured.\n";
+	}
+	return `${sources.map((source) => {
+		const enabled = source.enabled ? "enabled" : "disabled";
+		return `${source.id} [${source.kind}, ${enabled}] ${source.url}`;
+	}).join("\n")}\n`;
+}
+
+function formatFeedPollResult(result: FeedPollResult): string {
+	if (result.runs.length === 0) {
+		return "No feed sources polled.\n";
+	}
+	return `${result.runs.map((run) =>
+		`${run.sourceId} ${run.status}: ${run.newItemCount} new, ${run.duplicateItemCount} duplicate, ${run.parsedItemCount} parsed`
+	).join("\n")}\n`;
+}
+
+function formatFeedItemList(items: FeedItem[]): string {
+	if (items.length === 0) {
+		return "No feed items found.\n";
+	}
+	return `${items.map((item) => {
+		const when = item.publishedAt ?? item.updatedAt ?? item.observedAt;
+		const link = item.url ? ` ${item.url}` : "";
+		return `${item.id} [${item.sourceId}] ${when} ${item.title}${link}`;
+	}).join("\n")}\n`;
+}
+
+function formatFeedCollectResult(result: FeedCollectResult): string {
+	return [
+		`cursor             ${result.cursor}`,
+		`advanced           ${result.advanced ? "yes" : "no"}`,
+		`items              ${result.items.length}`,
+		...result.items.map((item) => {
+			const when = item.publishedAt ?? item.updatedAt ?? item.observedAt;
+			return `${item.id} [${item.sourceId}] ${when} ${item.title}`;
+		}),
+	].join("\n") + "\n";
+}
+
+function formatFeedDispatchResult(result: FeedDispatchResult): string {
+	return [
+		`status             ${result.status}`,
+		`cursor             ${result.cursor}`,
+		`source             ${result.sourceId}`,
+		`target             ${result.target}`,
+		`items              ${result.collect.items.length}`,
+		`executions         ${result.executions.length}`,
+		...result.executions.map((execution) =>
+			`${execution.itemId} ${execution.status}${execution.error ? `: ${execution.error}` : ""}`
+		),
+	].join("\n") + "\n";
+}
+
+async function runFeedDispatchTarget(
+	target: string,
+	event: ReturnType<typeof toFeedEvent>,
+	parsed: Extract<ParsedCli, { type: "feed-dispatch" }>,
+): Promise<unknown> {
+	const prefix = "workbench-task:";
+	if (!target.startsWith(prefix)) {
+		throw new Error(`Unsupported feed dispatch target: ${target}`);
+	}
+	const taskId = target.slice(prefix.length);
+	if (!taskId) {
+		throw new Error("feed dispatch workbench-task target requires a task id");
+	}
+	const context = await createWorkbenchContext({
+		workbenchRoot: parsed.feedRoot,
+		mode: parsed.mode,
+	});
+	const run = await withToyboxRequest(parsed, async (request) =>
+		await runWorkbenchTaskById(context, taskId, {
+			callToybox: request,
+			automationCwd: parsed.cwd,
+			event,
+		})
+	);
+	if (run.status === "failed") {
+		throw new Error(run.error ?? `Workbench task ${taskId} failed`);
+	}
+	return { workbenchRun: run };
 }
 
 function formatWorkbenchOverview(overview: WorkbenchOverview): string {

@@ -1,6 +1,7 @@
 import { stdin, stdout } from "node:process";
 import { CodexAppServerClient } from "@codex-toys/bridge/app-server/client";
 import { CodexStdioTransport } from "@codex-toys/bridge/app-server/stdio-transport";
+import { createFeedMethods, feedMethodMetadata } from "@codex-toys/feed";
 import { workbenchFunctionMethodMetadata, createWorkbenchFunctionMethods } from "@codex-toys/workbench";
 import {
 	CodexToyboxProtocolServer,
@@ -25,6 +26,10 @@ import {
 import {
 	createWorkbenchOverviewMethods,
 	workbenchOverviewMethodMetadata,
+} from "@codex-toys/workbench";
+import {
+	createWorkbenchContext,
+	runWorkbenchTaskById,
 } from "@codex-toys/workbench";
 
 export const TOYBOX_STATUS_METHOD = "toybox.status";
@@ -101,6 +106,31 @@ export async function serveToybox(
 	Object.assign(methods, createWorkbenchFunctionMethods({
 		cwd: workbenchRoot,
 	}));
+	Object.assign(methods, createFeedMethods({
+		root: workbenchRoot,
+		dispatchTarget: async (target, event, _item, feedContext) => {
+			const prefix = "workbench-task:";
+			if (!target.startsWith(prefix)) {
+				throw new Error(`Unsupported feed dispatch target: ${target}`);
+			}
+			const taskId = target.slice(prefix.length);
+			if (!taskId) {
+				throw new Error("feed dispatch workbench-task target requires a task id");
+			}
+			const context = await createWorkbenchContext({
+				workbenchRoot,
+				mode: feedContext.mode,
+			});
+			const run = await runWorkbenchTaskById(context, taskId, {
+				callToybox: workbenchRequest,
+				event,
+			});
+			if (run.status === "failed") {
+				throw new Error(run.error ?? `Workbench task ${taskId} failed`);
+			}
+			return { workbenchRun: run };
+		},
+	}));
 	Object.assign(methods, createWorkbenchDelegationMethods({
 		appServer: client,
 		workbenchRoot,
@@ -138,6 +168,7 @@ export async function serveToybox(
 		toyboxMethodMetadata: [
 				...toyboxStatusMethodMetadata,
 				...hostOverviewMethodMetadata,
+				...feedMethodMetadata,
 				...workbenchFunctionMethodMetadata,
 				...workbenchDelegationMethodMetadata,
 				...workbenchDeferredRunMethodMetadata,

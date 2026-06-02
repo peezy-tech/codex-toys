@@ -32,6 +32,16 @@ Usage:
   codex-toys functions call <name> [--params-json <json>] [--json]
   codex-toys --ssh <target> --cwd <remote-workbench> functions list [--json]
 
+  codex-toys feed doctor [--mode auto|local|actions] [--json]
+  codex-toys feed source list [--json]
+  codex-toys feed poll [--source <source-id>] [--json]
+  codex-toys feed item list [--source <source-id>] [--status new] [--json]
+  codex-toys feed item read <item-id> [--json]
+  codex-toys feed collect [--cursor <name>] [--source <source-id>] [--limit <n>] [--no-advance] [--json]
+  codex-toys feed cursor advance --cursor <name> --item <item-id> [--json]
+  codex-toys feed dispatch --source <source-id> --cursor <name> --target workbench-task:<task-id> [--limit <n>] [--no-poll] [--json]
+  codex-toys feed prune --older-than-days <days> [--dry-run]
+
   codex-toys workbench <method> [params-json]
   codex-toys workbench <method> --params-json <json>
   codex-toys workbench <method> --params-file <file>
@@ -90,6 +100,7 @@ Options:
   --no-color                                 Disable ANSI colors for fetch.
   --mode <auto|local|actions>                Workbench execution mode.
   --workbench-root <path>                    Workbench root. Defaults to discovery.
+  --feed-root <path>                         Feed root. Defaults to discovery.
   --global-codex-home <path>                 Global Codex home for memories transplant.
   --workbench-codex-home <path>              Workbench Codex home for memories transplant.
   --codex-home <path>                        Codex home for thread transplant.
@@ -117,6 +128,7 @@ Options:
 	  --after-status <status>                    Dependency status: completed, failed,
 	                                             canceled, or terminal.
 	  --status <status>                          Deferred/prompt status filter.
+                                             Feed item list/collect supports new.
 	  --limit <n>                                Limit listed or due queued work.
 	  --run-at <iso>                             Future run time for deferred or queued work.
 	  --service-tier <tier>                      Turn service tier for queued prompts.
@@ -134,6 +146,12 @@ Options:
   --dry-run                                  Preview supported write operations.
   --older-than-days <days>                   Retention window for deferred prune.
   --cursor <name>                            Deferred collect cursor name.
+                                             Feed collect also uses this cursor.
+  --source <source-id>                       Feed source filter.
+  --target <target>                          Feed dispatch target.
+  --item <item-id>                           Feed item id for cursor advance.
+  --no-advance                               Collect feed items without advancing cursor.
+  --no-poll                                  Dispatch existing feed items without polling first.
   --via <workbench|app>                      Turn surface. Defaults to workbench.
   --sandbox <mode>                           Turn sandbox: danger-full-access,
                                              workspace-write, or read-only.
@@ -170,6 +188,9 @@ Examples:
   codex-toys --ssh devbox --cwd /repo automation run check-release --event event.json
   codex-toys --ssh devbox --cwd /repo functions list --json
   codex-toys --ssh devbox --cwd /repo functions call portfolioSnapshot --json
+  codex-toys feed poll --source openai-blog --json
+  codex-toys feed collect --cursor radar --json
+  codex-toys feed dispatch --source cli-utility-releases --cursor cli-toys-bindings-refresh --target workbench-task:cli-toys-bindings-refresh --json
   codex-toys --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-toys --ssh devbox --cwd /repo workbench delegation.list
   codex-toys app thread/list '{"limit":20,"sourceKinds":[]}'

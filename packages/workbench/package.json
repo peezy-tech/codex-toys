@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/workbench",
-	"version": "0.140.6",
+	"version": "0.140.7",
 	"private": true,
 	"description": "Codex workbench runtime, delegation, prompt queue, handoff, and automation primitives.",
 	"type": "module",

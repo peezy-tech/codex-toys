@@ -1,36 +1,24 @@
 {
-	"name": "@codex-toys/proxy",
+	"name": "@codex-toys/feed",
 	"version": "0.140.7",
 	"private": true,
-	"description": "HTTP and Vite bridge for local or SSH-backed Codex toyboxes.",
+	"description": "Durable external feed polling, RSS normalization, checkpoints, and collection cursors.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
-	"bin": {
-		"codex-toys-proxy": "dist/bin/codex-toys-proxy.js"
-	},
 	"files": ["dist", "README.md"],
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
-		},
-		"./browser": {
-			"types": "./dist/browser.d.ts",
-			"import": "./dist/browser.js"
-		},
-		"./vite": {
-			"types": "./dist/vite.d.ts",
-			"import": "./dist/vite.js"
 		}
 	},
 	"engines": {
 		"node": ">=24.0.0 <25"
 	},
 	"scripts": {
-		"build": "vp run clean && tsc -p tsconfig.build.json && vp run build:bins",
-		"build:bins": "tsx scripts/build-bins.ts",
+		"build": "vp run clean && tsc -p tsconfig.build.json",
 		"check:types": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"prepack": "vp run build",
@@ -38,14 +26,11 @@
 		"pack:dry-run": "tsx ../../scripts/package-pack-dry-run.ts"
 	},
 	"dependencies": {
-		"@codex-toys/bridge": "workspace:*",
-		"@codex-toys/remote": "workspace:*",
 		"@codex-toys/toybox": "workspace:*",
-		"@codex-toys/workbench": "workspace:*"
+		"smol-toml": "catalog:"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
-		"typescript": "catalog:",
-		"vite": "catalog:"
+		"typescript": "catalog:"
 	}
 }

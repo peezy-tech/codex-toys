@@ -1,6 +1,6 @@
 ---
 title: Package stack
-description: How codex-toys separates native Codex bridge, toybox, remote, workbench, Actions, proxy, kits, and CLI surfaces.
+description: How codex-toys separates native Codex bridge, toybox, feed, remote, workbench, Actions, proxy, kits, and CLI surfaces.
 ---
 
 # Package stack
@@ -15,6 +15,9 @@ remains the CLI and public runtime package for users who want everything.
   exposed publicly as `codex-toys/bridge`.
 - `packages/toybox`: stdio JSON-RPC protocol between operators and toyboxes,
   exposed publicly as `codex-toys/toybox`.
+- `packages/feed`: durable external feed polling, RSS normalization,
+  checkpoints, items, and collection cursors, exposed publicly as
+  `codex-toys/feed`.
 - `packages/workbench`: repo-local workbench policy, queues, functions,
   delegation, automation, and overview.
 - `packages/actions`: CI auth and state preparation for workbench runs,
@@ -36,10 +39,12 @@ install `codex-toys` and import from `codex-toys/*` subpaths.
 available methods and metadata; the CLI, proxy, browser client, and custom tools
 can discover the same surface without duplicating route definitions.
 
-The workbench package builds on that surface. It owns durable queue state under
-`.codex/workbench/*`, but product-specific completion remains outside the stack:
-credentials, deployments, trading actions, release side effects, and domain
-state belong to the installing product.
+The feed and workbench packages both build on that surface. Feed owns durable
+external signal intake, collection cursors, and acknowledged dispatch state under
+`.codex/feed/*`; workbench owns durable queue state under `.codex/workbench/*`.
+Product-specific completion remains outside the stack: credentials,
+deployments, trading actions, release side effects, scoring, prompt policy, and
+domain state belong to the installing product.
 
 ## Naming Contract
 
@@ -47,11 +52,13 @@ The clean-cut user surface uses:
 
 ```text
 codex-toys workbench ...
+codex-toys feed ...
 codex-toys kit inspect
 codex-toys kit add
 codex-toys kit list
 codex-toys kit doctor
 codex-kit.toml
+.codex/feed.toml
 .codex/kit-lock.json
 .codex/kit-backups/
 ```

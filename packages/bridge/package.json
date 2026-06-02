@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/bridge",
-	"version": "0.140.6",
+	"version": "0.140.7",
 	"private": true,
 	"description": "Native Codex app-server, auth, thread, memory, and state bridge primitives.",
 	"type": "module",

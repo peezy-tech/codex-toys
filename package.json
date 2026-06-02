@@ -1,6 +1,6 @@
 {
 	"name": "codex-toys-monorepo",
-	"version": "0.140.6",
+	"version": "0.140.7",
 	"description": "Codex bridge, toybox, remote, workbench, actions, proxy, kits, and CLI tools.",
 	"private": true,
 	"license": "Apache-2.0",
@@ -9,15 +9,15 @@
 		"node": ">=24.0.0 <25"
 	},
 	"scripts": {
-		"build": "vp run --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits --filter codex-toys build && vp run --filter codex-toys-docs build",
-		"check:types": "vp run --concurrency-limit 1 --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits --filter codex-toys --filter codex-toys-docs check:types && vp run -w docs:check",
+		"build": "vp run --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/feed --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits --filter codex-toys build && vp run --filter codex-toys-docs build",
+		"check:types": "vp run --concurrency-limit 1 --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/feed --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits --filter codex-toys --filter codex-toys-docs check:types && vp run -w docs:check",
 		"dev": "vp run docs:dev",
 		"docs:build": "vp run --filter codex-toys-docs build",
 		"docs:check": "tsx scripts/check-docs.ts",
 		"docs:deploy": "vp run --filter codex-toys-docs deploy",
 		"docs:dev": "vp run --filter codex-toys-docs dev",
 		"test": "vp run --filter codex-toys test",
-		"release:check": "vp run --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits release:check && vp run --filter codex-toys release:check && tsx scripts/check-publish-metadata.ts"
+		"release:check": "vp run --filter @codex-toys/bridge --filter @codex-toys/toybox --filter @codex-toys/feed --filter @codex-toys/workbench --filter @codex-toys/actions --filter @codex-toys/remote --filter @codex-toys/proxy --filter @codex-toys/kits release:check && vp run --filter codex-toys release:check && tsx scripts/check-publish-metadata.ts"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

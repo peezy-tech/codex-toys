@@ -54,6 +54,7 @@ const publicPackageDir = path.join(repoRoot, "packages", "codex-toys");
 const internalPackages: InternalPackage[] = [
 	{ name: "@codex-toys/actions", dir: "packages/actions" },
 	{ name: "@codex-toys/bridge", dir: "packages/bridge" },
+	{ name: "@codex-toys/feed", dir: "packages/feed" },
 	{ name: "@codex-toys/kits", dir: "packages/kits" },
 	{ name: "@codex-toys/proxy", dir: "packages/proxy" },
 	{ name: "@codex-toys/remote", dir: "packages/remote" },

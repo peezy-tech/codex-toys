@@ -222,6 +222,7 @@ skill = "skill-repair"
 		expect(context.stateRoot).toBe(path.join(root, ".codex", "workbench", "actions"));
 		expect(context.actionsCommitPaths).toEqual([
 			path.join(root, ".codex", "memories"),
+			path.join(root, ".codex", "feed", "actions"),
 			path.join(root, ".codex", "workbench", "actions"),
 			path.join(root, ".codex", "sessions"),
 		]);
@@ -1091,6 +1092,61 @@ tag = "v1.2.3"
 		});
 	});
 
+	test("automation tasks can receive an explicit feed item event", async () => {
+		const root = await tempWorkbench();
+		const automationRoot = path.join(root, "automations", "feed-target");
+		await mkdir(automationRoot, { recursive: true });
+		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+			script: "target.ts",
+		}));
+		await writeFile(path.join(automationRoot, "target.ts"), `
+export default async function run(context) {
+  return {
+    eventType: context.event.type,
+    source: context.event.source,
+    title: context.event.payload.title
+  };
+}
+`);
+		await writeWorkbenchToml(root, `
+[workbench]
+name = "demo"
+
+[[workbench.tasks]]
+id = "feed-target"
+enabled = true
+kind = "automation"
+automation = "feed-target"
+
+[workbench.tasks.event]
+type = "static.event"
+`);
+		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
+		const run = await runWorkbenchTaskById(context, "feed-target", {
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+			event: {
+				id: "feed:item-1",
+				type: "feed.item",
+				source: "cli-utility-releases",
+				occurredAt: "2026-06-01T22:39:32.000Z",
+				receivedAt: "2026-06-01T22:40:00.000Z",
+				payload: {
+					id: "item-1",
+					title: "cli-utility v0.1.2",
+				},
+			},
+		});
+		expect(run.status).toBe("completed");
+		const output = JSON.parse(await readFile(run.outputPath!, "utf8")) as Record<string, unknown>;
+		expect(output).toEqual({
+			eventType: "feed.item",
+			source: "cli-utility-releases",
+			title: "cli-utility v0.1.2",
+		});
+	});
+
 	test("run records disabled tasks as skipped", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
@@ -1203,6 +1259,7 @@ schedule = "not-cron"
 			committed: false,
 			paths: [
 				path.join(root, ".codex", "memories"),
+				path.join(root, ".codex", "feed", "actions"),
 				path.join(root, ".codex", "workbench", "actions"),
 				path.join(root, ".codex", "sessions"),
 			],
@@ -1227,6 +1284,7 @@ schedule = "not-cron"
 			.toContain("codex-toys actions cleanup");
 		const workflow = await readFile(path.join(root, ".forgejo", "workflows", "codex-toys-actions.yml"), "utf8");
 		expect(workflow).toContain("git add -- .codex/memories .codex/workbench/actions");
+		expect(workflow).toContain("git add -- .codex/feed/actions");
 		expect(workflow).toContain("git add -A -f -- .codex/sessions");
 		const gitignore = await readFile(path.join(root, ".gitignore"), "utf8");
 		expect(gitignore).toContain(".codex/auth.json");
