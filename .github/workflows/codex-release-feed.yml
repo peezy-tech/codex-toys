@@ -121,6 +121,7 @@ jobs:
           WORKSPACE_GITHUB_TOKEN: ${{ secrets.WORKSPACE_GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
+          CODEX_HOME: ${{ github.workspace }}/.codex
 
       - name: Cleanup Codex auth
         if: always()
