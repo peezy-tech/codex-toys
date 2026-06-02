@@ -375,12 +375,15 @@ markdown artifacts.
 ```bash
 codex-toys threads locate <thread-id> [--codex-home <home>]
 codex-toys threads inspect <thread-id-or-rollout.jsonl> [--codex-home <home>]
-codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--replace]
-codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--replace]
+codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--cwd <path>] [--replace]
+codex-toys threads transplant <thread-id> --from-codex-home <src> --to-codex-home <dst> [--cwd <path>] [--replace]
 ```
 
 Thread helpers locate, inspect, install, and transplant raw Codex rollout JSONL
-files without inventing a separate bundle format.
+files without inventing a separate bundle format. Install and transplant rewrite
+`session_meta.payload.cwd` to the destination project cwd by default so imported
+threads appear in Codex App for that project. Use `--preserve-cwd` for a
+byte-exact archival copy.
 
 ## Kits
 

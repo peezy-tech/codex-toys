@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/proxy",
-	"version": "0.140.8",
+	"version": "0.140.9",
 	"private": true,
 	"description": "HTTP and Vite bridge for local or SSH-backed Codex toyboxes.",
 	"type": "module",

@@ -195,7 +195,7 @@ codex-toys workbench deferred create --params-json '{"target":{"kind":"turn","pr
 codex-toys workbench deferred list --json
 codex-toys workbench deferred prune --older-than-days 30 --dry-run
 codex-toys memories transplant global-to-workbench
-codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./.codex
+codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ~/.codex --cwd "$PWD"
 
 codex-toys-proxy serve --cwd /repo --static ./dashboard
 codex-toys-proxy serve --ssh devbox --cwd /repo --static ./dashboard

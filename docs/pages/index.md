@@ -190,13 +190,13 @@ Thread transplant moves one Codex thread rollout between Codex homes:
 
 ```bash
 codex-toys threads locate <thread-id> --codex-home ~/.codex
-codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ./workbench/.codex
+codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ~/.codex --cwd "$PWD"
 ```
 
-Transplant preserves the thread id, rollout bytes, checksum, and original
-`sessions/.../rollout-*.jsonl` path. It fails on conflicts unless `--replace`
-is provided. Native rollout inspect and install commands cover validation and
-loose-file import without introducing a separate bundle format.
+Transplant preserves the thread id and original `sessions/.../rollout-*.jsonl`
+path, and rewrites the thread metadata cwd to the destination project so Codex
+App can show the imported thread there. It fails on conflicts unless `--replace`
+is provided. Pass `--preserve-cwd` for byte-exact archival copies.
 
 ## Plugin Install In One Screen
 
