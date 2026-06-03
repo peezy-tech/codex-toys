@@ -107,6 +107,7 @@ async function main(): Promise<void> {
 	await expectIncludes("docs/tome.config.js", "\"primitives/workflow\"");
 	await expectIncludes("docs/tome.config.js", "\"primitives/deferred-queues\"");
 	await expectIncludes("docs/tome.config.js", "\"operations/codex-state\"");
+	await expectIncludes("docs/tome.config.js", "\"/codex-toys\"");
 	await expectIncludes("README.md", "docs/pages/primitives/workflow.md");
 	await expectIncludes("README.md", "docs/pages/operations/codex-state.md");
 	await expectIncludes("packages/codex-toys/README.md", "docs/pages/primitives/workflow.md");

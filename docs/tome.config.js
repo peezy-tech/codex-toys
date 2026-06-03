@@ -1,7 +1,7 @@
 /** @type {import('@tomehq/core').TomeConfig} */
 export default {
 	name: "codex-toys",
-	basePath: "/docs",
+	basePath: process.env.CODEX_TOYS_DOCS_BASE_PATH ?? "/codex-toys",
 	theme: {
 		preset: "editorial",
 		mode: "auto",
