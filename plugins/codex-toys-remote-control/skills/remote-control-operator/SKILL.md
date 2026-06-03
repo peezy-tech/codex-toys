@@ -41,8 +41,8 @@ codex-toys --ssh <host-or-alias> --cwd <remote-project-path> remote preflight
 codex-toys --ssh <host-or-alias> --cwd <remote-project-path> fetch
 codex-toys --ssh <host-or-alias> --cwd <remote-project-path> workbench doctor
 codex-toys --ssh <host-or-alias> --cwd <remote-project-path> functions list --json
-codex-toys --ssh <host-or-alias> --cwd <remote-project-path> automation list --json
-codex-toys --ssh <host-or-alias> --cwd <remote-project-path> automation run <name> --event event.json
+codex-toys --ssh <host-or-alias> --cwd <remote-project-path> workflow list --json
+codex-toys --ssh <host-or-alias> --cwd <remote-project-path> workflow run <name> --event event.json
 codex-toys --ssh <host-or-alias> --cwd <remote-project-path> turn run "Check workbench status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
@@ -66,12 +66,12 @@ codex-toys --ssh <user@host> --cwd <remote-workbench> remote preflight
 codex-toys --ssh <user@host> --cwd <remote-workbench> fetch
 codex-toys --ssh <user@host> --cwd <remote-workbench> workbench doctor
 codex-toys --ssh <user@host> --cwd <remote-workbench> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-toys --ssh <user@host> --cwd <remote-workbench> automation list --json
-codex-toys --ssh <user@host> --cwd <remote-workbench> automation run check-release --event event.json --sandbox danger-full-access --approval-policy never
+codex-toys --ssh <user@host> --cwd <remote-workbench> workflow list --json
+codex-toys --ssh <user@host> --cwd <remote-workbench> workflow run check-release --event event.json --sandbox danger-full-access --approval-policy never
 codex-toys --ssh <user@host> --cwd <remote-workbench> turn run "Check workbench status" --wait --sandbox danger-full-access --approval-policy never
 ```
 
-With `--ssh`, automation listing, named resolution, `--event` loading, and
+With `--ssh`, workflow listing, named resolution, `--event` loading, and
 script execution happen on the remote target. Event paths are remote paths
 resolved relative to `--cwd` unless absolute.
 

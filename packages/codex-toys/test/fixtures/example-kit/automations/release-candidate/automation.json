@@ -1,5 +1,0 @@
-{
-  "name": "release-candidate",
-  "description": "Fixture automation copied by the kit installer.",
-  "script": "exec/run.mts"
-}

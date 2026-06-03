@@ -16,7 +16,7 @@ import { parse as parseToml } from "smol-toml";
 import { parseJsonText } from "@codex-toys/bridge/json";
 import { discoverWorkbenchRoot } from "@codex-toys/workbench";
 
-export type KitKind = "skill" | "plugin" | "automation";
+export type KitKind = "skill" | "plugin" | "workflow";
 
 export type KitSourceDescriptor = {
 	input: string;
@@ -650,7 +650,7 @@ async function discoverKitByConvention(
 	const items = [
 		...await discoverSkills(root, warnings),
 		...await discoverPlugins(root, warnings),
-		...await discoverAutomations(root, warnings),
+		...await discoverWorkflows(root, warnings),
 	];
 	return {
 		kit: { name: path.basename(root) },
@@ -706,21 +706,21 @@ async function discoverPlugins(root: string, warnings: string[]): Promise<KitCap
 	return capabilities;
 }
 
-async function discoverAutomations(root: string, warnings: string[]): Promise<KitCapability[]> {
+async function discoverWorkflows(root: string, warnings: string[]): Promise<KitCapability[]> {
 	const capabilities: KitCapability[] = [];
-	const automationsRoot = path.join(root, "automations");
-	for (const file of await walkFiles(automationsRoot)) {
-		if (path.basename(file) !== "automation.json") {
+	const workflowsRoot = path.join(root, "workflows");
+	for (const file of await walkFiles(workflowsRoot)) {
+		if (path.basename(file) !== "workflow.json") {
 			continue;
 		}
 		const sourcePath = path.dirname(file);
-		if (path.resolve(sourcePath) === path.resolve(automationsRoot)) {
+		if (path.resolve(sourcePath) === path.resolve(workflowsRoot)) {
 			continue;
 		}
 		const capability = await capabilityFromPath({
 			root,
 			name: path.basename(sourcePath),
-			kind: "automation",
+			kind: "workflow",
 			sourcePath,
 			warnings,
 		});
@@ -765,8 +765,8 @@ function expectedFile(sourcePath: string, kind: KitKind): string {
 	if (kind === "plugin") {
 		return path.join(sourcePath, ".codex-plugin", "plugin.json");
 	}
-	if (kind === "automation") {
-		return path.join(sourcePath, "automation.json");
+	if (kind === "workflow") {
+		return path.join(sourcePath, "workflow.json");
 	}
 	throw new Error(`Unsupported kit kind: ${kind}`);
 }
@@ -801,8 +801,8 @@ function destinationForItem(workbenchRoot: string, item: Pick<KitCapability, "ki
 	if (item.kind === "plugin") {
 		return path.join(workbenchRoot, "plugins", item.name);
 	}
-	if (item.kind === "automation") {
-		return path.join(workbenchRoot, ".codex", "automations", item.name);
+	if (item.kind === "workflow") {
+		return path.join(workbenchRoot, ".codex", "workflows", item.name);
 	}
 	throw new Error(`Unsupported kit kind: ${item.kind}`);
 }
@@ -1161,7 +1161,7 @@ function isSubpath(root: string, candidate: string): boolean {
 }
 
 function kitKind(value: unknown): KitKind | undefined {
-	if (value === "skill" || value === "plugin" || value === "automation") {
+	if (value === "skill" || value === "plugin" || value === "workflow") {
 		return value;
 	}
 	return undefined;

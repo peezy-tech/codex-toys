@@ -8,8 +8,8 @@ kind = "local"
 [[workbench.tasks]]
 id = "openai-codex-bindings"
 enabled = true
-kind = "automation"
-automation = "openai-codex-bindings"
+kind = "workflow"
+workflow = "openai-codex-bindings"
 
 [[workbench.tasks]]
 id = "package-install-smoke"

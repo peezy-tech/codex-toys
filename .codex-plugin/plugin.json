@@ -1,7 +1,7 @@
 {
   "name": "codex-toys",
-  "version": "0.140.6",
-  "description": "Codex turn automation, toybox operation, SSH workbench orchestration, and dashboard proxy guidance.",
+  "version": "0.140.10",
+  "description": "Codex workflow authoring, toybox operation, SSH workbench orchestration, and dashboard proxy guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -16,14 +16,14 @@
     "mcp",
     "proxy",
     "remote-control",
-    "automation",
+    "workflow",
     "skills"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-toys",
-    "shortDescription": "Run turn automation and operate Codex workbench toyboxes.",
-    "longDescription": "codex-toys provides Codex guidance for plugin-native turn automation, local and SSH stdio toyboxes, optional dashboard proxy use, workbench delegation, and local MCP delegation tools. This plugin installs the Codex-facing guidance directly from the Git repository.",
+    "shortDescription": "Author workflows and operate Codex workbench toyboxes.",
+    "longDescription": "codex-toys provides Codex guidance for workflow scripts, local and SSH stdio toyboxes, optional dashboard proxy use, workbench delegation, and local MCP delegation tools. This plugin installs the Codex-facing guidance directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -35,7 +35,7 @@
     "privacyPolicyURL": "https://peezy.tech/privacy",
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
-      "Author a turn automation script that can skip or start a Codex turn.",
+      "Author a workflow script that can skip or start a Codex turn.",
       "Check the local Codex workbench toybox.",
       "Discover my Codex App remote connections and run codex-toys over SSH.",
       "Run codex-toys against a remote Codex workbench over SSH.",

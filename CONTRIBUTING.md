@@ -22,7 +22,7 @@ and reapply that label to approve another run for the new head. PRs that change
 `.forgejo/workflows` need the maintainer-applied `ci:reviewed-workflow` label
 before the policy check passes.
 
-This is a Node 24 + pnpm + VitePlus monorepo. Keep changes scoped to the smallest package, automation,
+This is a Node 24 + pnpm + VitePlus monorepo. Keep changes scoped to the smallest package, workflow,
 or docs surface that solves the problem:
 
 - `packages/codex-client` owns the public `codex-toys` package,

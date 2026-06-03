@@ -1,31 +1,24 @@
 ---
-title: Package API
-description: Public codex-toys package imports and internal workspace boundaries.
+title: Package Reference
+description: Public codex-toys imports and internal package boundaries.
 ---
 
-# Packages
+# Package Reference
 
-Install `codex-toys` for both the CLI and runtime APIs. The repo keeps internal
-`@codex-toys/*` workspaces for feature boundaries, but those packages are
-embedded into the public tarball under `dist/internal` rather than published or
-resolved separately. Public consumer imports use `codex-toys/*` subpaths.
+Install `codex-toys` for the CLI and runtime APIs. The repo keeps internal
+`@codex-toys/*` workspaces for feature boundaries, but the public package embeds
+those workspaces into its tarball. Consumers import from `codex-toys/*`.
 
 ## `codex-toys/bridge`
 
 Native Codex bridge primitives:
 
 - app-server client and stdio transport
-- JSON-RPC parsing and error helpers
 - generated app-server protocol types
-- auth status, login, and usage helpers
-- durable memory artifact and memory transplant helpers
+- JSON-RPC parsing and error helpers
+- auth, login, and usage helpers
+- memory transplant helpers
 - thread rollout locate, inspect, install, and transplant helpers
-
-Useful exports include `CodexAppServerClient`, `CodexStdioTransport`,
-`createCodexAuthClient`, `locateThreadRollout`,
-`sanitizeWorkbenchMemoryArtifacts`, `JsonRpcError`, and `v2`.
-
-Subpath exports are available for focused imports:
 
 ```ts
 import { CodexAppServerClient } from "codex-toys/bridge";
@@ -35,127 +28,91 @@ import { parseJsonText } from "codex-toys/bridge/json";
 
 ## `codex-toys/toybox`
 
-Toybox JSON-RPC protocol, client, and server primitives. This package owns the
-stdio protocol used by local and SSH-backed toyboxes, including
-`toybox.initialize`, app-server pass-through, event forwarding, and method
-metadata.
-
-Use it when another process needs to host or call a codex-toys toybox directly.
+Stdio JSON-RPC protocol, client, and server primitives for local and SSH-backed
+toyboxes. Use it when another process needs to host or call a toybox directly.
 
 ## `codex-toys/feed`
 
-Durable external feed intake helpers:
+Feed intake helpers:
 
-- `.codex/feed.toml` source config
+- `.codex/feed.toml` config
 - RSS/Atom polling and normalization
-- source checkpoints such as ETag and Last-Modified
-- durable feed item storage under `.codex/feed/<mode>/items`
-- named collection cursors for consumers such as dashboards or automations
-- pruning and doctor helpers
-- `feed.*` toybox method factories and metadata
-
-Feed reads `.codex/feed.toml`, writes local runtime state under
-`.codex/feed/local`, and writes Actions-mode state under `.codex/feed/actions`
-only when explicitly run in Actions mode. It does not create Codex turns,
-deferred prompts, or product-specific actions by itself.
+- source checkpoints
+- durable feed item storage
+- collection cursors
+- dispatch and pruning
+- toybox method factories and metadata
 
 ```ts
 import {
-  collectFeedItems,
   createFeedContext,
   loadFeedConfig,
   pollFeedSources,
+  collectFeedItems
 } from "codex-toys/feed";
-
-const context = await createFeedContext({ root: "/repo", mode: "local" });
-const config = await loadFeedConfig(context);
-await pollFeedSources(context, config);
-const batch = await collectFeedItems(context, { cursor: "radar" });
 ```
 
 ## `codex-toys/workbench`
 
 Workbench runtime and policy helpers:
 
-- workbench doctor, tick, and task execution
-- prompt queue, handoff queue, deferred run queue, and delegation methods
-- workbench functions loaded from `.codex/functions.ts`, `.js`, or `.mjs`
-- turn automation script execution and remote automation methods
-- workbench and host overview methods
-- transport-neutral thread UX reducers and app-server request descriptors
+- workflow script execution and workflow host helpers
+- remote workflow toybox methods
+- workbench doctor, tick, task execution, and Actions scaffolding
+- deferred runs, prompt queue, and local handoff queue
+- delegation methods and state
+- workbench functions
+- workbench and host overview
+- thread presentation helpers and request descriptors
 
-Workbench autonomy reads `.codex/workbench.toml`, writes local runtime state
-under `.codex/workbench/local`, and writes CI runtime state under
-`.codex/workbench/actions`.
+This package can construct app-server requests through supplied host functions.
+The app-server protocol remains the source of truth for native thread and turn
+methods.
+
+```ts
+import {
+  createWorkflowHost,
+  runWorkflowScript,
+  createWorkbenchContext
+} from "codex-toys/workbench";
+```
 
 ## `codex-toys/actions`
 
-Actions-mode helpers for GitHub or Forgejo runners:
+Actions-mode helpers:
 
-- `repoCodexHome(workbenchRoot)` returns `<repo>/.codex`
-- `prepareActionsCodexAuth` writes `.codex/auth.json` from
-  `CODEX_AUTH_JSON_B64`, `CODEX_AUTH_JSON`, or `OPENAI_API_KEY`
-- `cleanupActionsCodexHome` removes runtime-only auth, temp dirs, and SQLite
-  databases without deleting durable memory markdown,
-  `.codex/workbench/actions`, or `.codex/sessions`
+- `repoCodexHome(workbenchRoot)`
+- `prepareActionsCodexAuth`
+- `cleanupActionsCodexHome`
+
+These helpers prepare repo-local auth for Actions mode and clean runtime-only
+files without deleting durable workbench state.
 
 ## `codex-toys/remote`
 
-SSH-backed transport and remote helper package. It creates a toybox transport
-over SSH stdio, resolves remote CLI options, performs remote preflight checks,
-and collects remote-control status without exposing remote HTTP ports.
+SSH-backed transport and preflight helpers. This package creates toybox
+transports over SSH stdio, resolves remote options, performs remote preflight,
+and supports remote-control status helpers without exposing remote HTTP ports.
 
 ## `codex-toys/proxy`
 
-Optional HTTP edge for dashboards. The proxy starts or connects to a toybox and
-exposes generic routes:
+Optional HTTP edge for dashboards. Public entry points include:
 
-```text
-GET  /api/status
-GET  /api/schema
-POST /api/rpc
-POST /api/host/overview
-POST /api/app/:method
-POST /api/workbench/:method
-POST /api/workbench/overview
-```
-
-`/api/schema` comes from `toybox.initialize`, so dashboards can discover
-available methods, including `feed.*` methods, without duplicated route
-definitions. Direct browser CORS is loopback-only. Related public entry points
-are:
-
+- `codex-toys/proxy`
 - `codex-toys/proxy/browser`
 - `codex-toys/proxy/vite`
-- the `codex-toys-proxy` binary
+- `codex-toys-proxy`
+
+The proxy forwards generic app and workbench methods to a toybox.
 
 ## `codex-toys/kits`
 
-Kit inspection and installation helpers. Kits copy selected skills, plugins,
-and automations into a workbench, read optional `codex-kit.toml` manifests,
-record `.codex/kit-lock.json`, and back up replaced item directories under
+Kit helpers for inspecting and installing repo-local skills, plugins, and
+workflow templates. Kits read optional `codex-kit.toml` manifests, write
+`.codex/kit-lock.json`, and back up overwritten item directories under
 `.codex/kit-backups/`.
-
-The CLI surface is:
-
-```bash
-codex-toys kit inspect <source> [--json]
-codex-toys kit add <source> [--apply] [--include <name>] [--exclude <name>]
-codex-toys kit setup <source> [--wait]
-codex-toys kit list [--json]
-codex-toys kit doctor [--json]
-```
 
 ## `codex-toys`
 
-The CLI package and umbrella runtime export. It embeds the internal workspaces
-inside its own `dist`, re-exports their public APIs from the root import,
-exposes focused subpaths, and publishes the `codex-toys` and `codex-toys-proxy`
-binaries.
-
-```bash
-codex-toys fetch
-codex-toys toybox serve --cwd /repo
-codex-toys workbench doctor
-codex-toys kit list
-```
+The CLI package and umbrella runtime export. It publishes the `codex-toys` and
+`codex-toys-proxy` binaries and re-exports the focused runtime surfaces.

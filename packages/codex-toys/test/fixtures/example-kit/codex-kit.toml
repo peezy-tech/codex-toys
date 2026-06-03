@@ -1,7 +1,7 @@
 [kit]
 name = "engineering-capabilities"
 version = "0.1.0"
-description = "Reusable engineering skills, plugins, and automations."
+description = "Reusable engineering skills, plugins, and workflows."
 
 [[kit.items]]
 name = "tdd"
@@ -15,5 +15,5 @@ path = "plugins/repo-policy"
 
 [[kit.items]]
 name = "release-candidate"
-kind = "automation"
-path = "automations/release-candidate"
+kind = "workflow"
+path = "workflows/release-candidate"

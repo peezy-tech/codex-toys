@@ -1,7 +1,7 @@
 {
   "name": "codex-toys-author",
-  "version": "0.140.6",
-  "description": "Codex turn automation authoring guidance.",
+  "version": "0.140.10",
+  "description": "Codex workflow authoring guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -18,8 +18,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-toys author",
-    "shortDescription": "Author turn automations.",
-    "longDescription": "codex-toys author installs Codex-facing guidance for plugin-native turn automation scripts. It does not install local hooks or start a toybox process.",
+    "shortDescription": "Author workflow scripts.",
+    "longDescription": "codex-toys author installs Codex-facing guidance for workflow scripts. It does not install local hooks or start a toybox process.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -30,7 +30,7 @@
     "privacyPolicyURL": "https://peezy.tech/privacy",
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
-      "Author a turn automation script that can skip or start a Codex turn."
+      "Author a workflow script that can skip or start a Codex turn."
     ],
     "brandColor": "#2563EB"
   }

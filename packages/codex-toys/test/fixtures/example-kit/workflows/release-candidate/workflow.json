@@ -1,0 +1,5 @@
+{
+  "name": "release-candidate",
+  "description": "Fixture workflow copied by the kit installer.",
+  "script": "exec/run.mts"
+}

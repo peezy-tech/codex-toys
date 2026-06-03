@@ -13,7 +13,7 @@
 		"codex",
 		"codex-app-server",
 		"json-rpc",
-		"automation"
+		"workflow"
 	],
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",

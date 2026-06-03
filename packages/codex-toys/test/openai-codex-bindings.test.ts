@@ -9,9 +9,9 @@ import {
 	runOpenAiCodexBindings,
 	targetBranchForRelease,
 	threadBranchForRelease,
-} from "../../../automations/openai-codex-bindings/check-release.ts";
+} from "../../../workflows/openai-codex-bindings/check-release.ts";
 
-describe("openai codex bindings automation", () => {
+describe("openai codex bindings workflow", () => {
 	test("parses openai/codex release versions", () => {
 		expect(codexVersionFromReleaseText("0.136.0")).toBe("0.136.0");
 		expect(codexVersionFromReleaseText("rust-v0.136.0")).toBe("0.136.0");
@@ -142,7 +142,7 @@ describe("openai codex bindings automation", () => {
 			durationMs: 1,
 		});
 		const output = await runOpenAiCodexBindings({
-			automation: { config: { source_id: "openai-codex-releases" } },
+			workflow: { config: { source_id: "openai-codex-releases" } },
 			event: {
 				type: "feed.item",
 				source: "openai-codex-releases",
@@ -214,7 +214,7 @@ describe("openai codex bindings automation", () => {
 			throw new Error(`Unexpected fetch ${method} ${requestUrl}`);
 		};
 		const output = await runOpenAiCodexBindings({
-			automation: { config: { source_id: "openai-codex-releases", start_turn: true } },
+			workflow: { config: { source_id: "openai-codex-releases", start_turn: true } },
 			event: {
 				type: "feed.item",
 				source: "openai-codex-releases",
@@ -285,7 +285,7 @@ describe("openai codex bindings automation", () => {
 			durationMs: 1,
 		});
 		await expect(runOpenAiCodexBindings({
-			automation: { config: { source_id: "openai-codex-releases", start_turn: true } },
+			workflow: { config: { source_id: "openai-codex-releases", start_turn: true } },
 			event: {
 				type: "feed.item",
 				source: "openai-codex-releases",

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Turn Automation Author"
-  short_description: "Write pre-turn scripts that skip, start, or compose native Codex turns."
-  default_prompt: "Author a named codex-toys turn automation that inspects external state and either returns a skip/turn decision or uses the turn host helpers from a default module handler."

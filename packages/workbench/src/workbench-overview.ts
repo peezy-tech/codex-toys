@@ -23,9 +23,9 @@ import {
 	type WorkbenchModeInput,
 } from "./workbench-runtime.ts";
 import {
-	listTurnAutomations,
-	type LoadedTurnAutomation,
-} from "./turn-automation.ts";
+	listWorkflows,
+	type LoadedWorkflow,
+} from "./workflow.ts";
 import {
 	WorkbenchFunctionRuntime,
 	type WorkbenchFunctionMetadata,
@@ -94,10 +94,10 @@ export type WorkbenchOverview = {
 		latest?: LatestDeferredRunSummary;
 		error?: string;
 	};
-	automations: {
+	workflows: {
 		ok: boolean;
 		total: number;
-		automations: WorkbenchAutomationSummary[];
+		workflows: WorkbenchWorkflowSummary[];
 		error?: string;
 	};
 	functions: {
@@ -170,7 +170,7 @@ export type LatestDeferredRunSummary = DeferredRunIntentSummary & {
 	};
 };
 
-export type WorkbenchAutomationSummary = {
+export type WorkbenchWorkflowSummary = {
 	name: string;
 	description?: string;
 	manifestPath: string;
@@ -249,7 +249,7 @@ export async function collectWorkbenchOverview(
 	const [
 		fetch,
 		deferred,
-		automations,
+		workflows,
 		functions,
 		threads,
 		git,
@@ -257,7 +257,7 @@ export async function collectWorkbenchOverview(
 	] = await Promise.all([
 		collectOverviewFetch(cwd, toybox, options),
 		collectDeferred(context, now, limits.intents, limits.outputChars),
-		collectAutomations(cwd),
+		collectWorkflows(cwd),
 		collectFunctions(cwd),
 		collectThreads(cwd, limits.threads, options.appRequest),
 		collectGit(cwd),
@@ -320,7 +320,7 @@ export async function collectWorkbenchOverview(
 
 	const ok = checks.every((check) => check.ok || check.status === "warning") &&
 		deferred.ok &&
-		automations.ok &&
+		workflows.ok &&
 		functions.ok &&
 		git.ok;
 
@@ -348,7 +348,7 @@ export async function collectWorkbenchOverview(
 			checks,
 		},
 		deferred,
-		automations,
+		workflows,
 		functions,
 		threads,
 		git,
@@ -534,32 +534,32 @@ function summarizeOutput(
 	};
 }
 
-async function collectAutomations(cwd: string): Promise<WorkbenchOverview["automations"]> {
+async function collectWorkflows(cwd: string): Promise<WorkbenchOverview["workflows"]> {
 	try {
-		const automations = await listTurnAutomations({ cwd });
+		const workflows = await listWorkflows({ cwd });
 		return {
 			ok: true,
-			total: automations.length,
-			automations: automations.map(summarizeAutomation),
+			total: workflows.length,
+			workflows: workflows.map(summarizeWorkflow),
 		};
 	} catch (error) {
 		return {
 			ok: false,
 			total: 0,
-			automations: [],
+			workflows: [],
 			error: errorMessage(error),
 		};
 	}
 }
 
-function summarizeAutomation(automation: LoadedTurnAutomation): WorkbenchAutomationSummary {
+function summarizeWorkflow(workflow: LoadedWorkflow): WorkbenchWorkflowSummary {
 	return {
-		name: automation.name,
-		...(automation.manifest.description ? { description: automation.manifest.description } : {}),
-		manifestPath: automation.manifestPath,
-		scriptPath: automation.scriptPath,
-		...(automation.cwd ? { cwd: automation.cwd } : {}),
-		...(automation.skills?.length ? { skills: automation.skills } : {}),
+		name: workflow.name,
+		...(workflow.manifest.description ? { description: workflow.manifest.description } : {}),
+		manifestPath: workflow.manifestPath,
+		scriptPath: workflow.scriptPath,
+		...(workflow.cwd ? { cwd: workflow.cwd } : {}),
+		...(workflow.skills?.length ? { skills: workflow.skills } : {}),
 	};
 }
 
@@ -807,8 +807,8 @@ function targetLabel(target: DeferredRunIntent["target"]): string {
 	if (target.kind === "workbench-task") {
 		return `workbench-task:${target.taskId}`;
 	}
-	if (target.kind === "automation") {
-		return `automation:${target.automation}`;
+	if (target.kind === "workflow") {
+		return `workflow:${target.workflow}`;
 	}
 	return "turn";
 }

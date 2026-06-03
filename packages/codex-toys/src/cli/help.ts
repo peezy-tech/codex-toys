@@ -15,10 +15,12 @@ Usage:
   codex-toys turn run <prompt> [--wait] [--thread-id <id>]
   codex-toys --ssh <target> --cwd <remote-workbench> turn run <prompt> --wait
 
-  codex-toys automation list [--json]
-  codex-toys automation run <name> [--event <event.json>] [--prompt <text>] [--via workbench|app]
-  codex-toys --ssh <target> --cwd <remote-workbench> automation list [--json]
-  codex-toys --ssh <target> --cwd <remote-workbench> automation run <name> [--event <event.json>]
+  codex-toys workflow list [--json]
+  codex-toys workflow run <name> [--event <event.json>] [--prompt <text>] [--via workbench|app]
+  codex-toys workflow run --script <path> [--event <event.json>] [--prompt <text>] [--via workbench|app]
+  codex-toys workflow run --script-stdin [--event <event.json>] [--prompt <text>] [--via workbench|app]
+  codex-toys --ssh <target> --cwd <remote-workbench> workflow list [--json]
+  codex-toys --ssh <target> --cwd <remote-workbench> workflow run <name> [--event <event.json>]
 
   codex-toys app <method> [params-json]
   codex-toys app <method> --params-json <json>
@@ -93,7 +95,7 @@ Usage:
 Options:
   --timeout-ms <ms>                          Request timeout. Defaults to 90000,
                                              1500 for local fetch probes, or
-                                             1800000 for automation run and
+                                             1800000 for workflow run and
                                              waited turns.
   --compact                                  Print compact JSON.
   --pretty                                   Print pretty JSON.
@@ -119,11 +121,13 @@ Options:
   --exclude <name>                           Exclude a kit item by name or kind:name.
   --merge codex                              Merge MEMORY.md and memory_summary.md with Codex.
   --no-backup                                Disable overwrite/merge backups.
-  --event <path>                             Event JSON for automation, Actions,
+  --event <path>                             Event JSON for workflow, Actions,
                                              or workbench tasks.
+  --script <path>                            Run a workflow module from a path.
+  --script-stdin                             Read an inline workflow module from stdin.
   --forgejo                                  Generate a Forgejo Actions workflow.
   --github                                   Generate a GitHub Actions workflow.
-	  --prompt <text>                            Prompt text for automation script context.
+	  --prompt <text>                            Prompt text for workflow script context.
 	  --title <text>                             Delegation thread title or queued prompt title.
 	  --queue <name>                             Prompt queue name.
 	  --label <label>                            Prompt queue label. Repeatable.
@@ -185,10 +189,12 @@ Examples:
   codex-toys host overview --json
   codex-toys --ssh devbox --cwd /repo remote host-overview --json
   codex-toys --ssh devbox --cwd /repo turn run "Scan current folder" --wait
-  codex-toys automation list
-  codex-toys automation run check-release --event event.json
-  codex-toys --ssh devbox --cwd /repo automation list --json
-  codex-toys --ssh devbox --cwd /repo automation run check-release --event event.json
+  codex-toys workflow list
+  codex-toys workflow run check-release --event event.json
+  codex-toys workflow run --script ./workflow.mjs --event event.json
+  printf '%s\n' 'export default () => ({ status: "ok" })' | codex-toys workflow run --script-stdin
+  codex-toys --ssh devbox --cwd /repo workflow list --json
+  codex-toys --ssh devbox --cwd /repo workflow run check-release --event event.json
   codex-toys --ssh devbox --cwd /repo functions list --json
   codex-toys --ssh devbox --cwd /repo functions call portfolioSnapshot --json
   codex-toys feed poll --source openai-blog --json

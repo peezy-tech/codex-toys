@@ -105,7 +105,7 @@ export type ToyboxEventParams = {
 };
 
 export const toyboxOwnedMethodPrefixes = [
-	"automation.",
+	"workflow.",
 	"delegation.",
 	"feed.",
 	"functions.",

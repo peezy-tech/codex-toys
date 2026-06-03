@@ -15,15 +15,17 @@ npm install codex-toys
 Full documentation lives in the repo docs site:
 
 - overview: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/index.md>
+- workflow: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/workflow.md>
+- toybox: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/toybox.md>
+- workbench: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/workbench.md>
+- deferred queues: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/deferred-queues.md>
+- feed: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/feed.md>
+- proxy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/proxy.md>
+- kits: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/kits.md>
+- Codex state moves: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/operations/codex-state.md>
+- plugin install: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/operations/plugins.md>
 - CLI reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/cli.md>
-- feed: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/feed.md>
-- turn automation: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/turn-automation.md>
 - package reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/packages.md>
-- workbench autonomy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/workbench-autonomy.md>
-- memory transplant: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/memory-transplant.md>
-- thread transplant: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/thread-transplant.md>
-- Codex plugin skills: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-codex-plugin.md>
-- optional kit copies: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/install-kit-repos.md>
 
 ## Public Imports
 
@@ -35,7 +37,7 @@ from focused subpaths:
 | `codex-toys/bridge` | Native Codex app-server, auth, memory, thread, JSON-RPC, and generated protocol bridge primitives. |
 | `codex-toys/toybox` | Stdio JSON-RPC toybox client/server protocol. |
 | `codex-toys/feed` | Durable RSS/Atom polling, source checkpoints, feed items, and collection cursors. |
-| `codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, automation, and overview primitives. |
+| `codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, workflow, and overview primitives. |
 | `codex-toys/actions` | GitHub/Forgejo Actions auth and state helpers. |
 | `codex-toys/remote` | SSH-backed toybox transports and remote control helpers. |
 | `codex-toys/proxy` | Optional HTTP proxy, browser client, Vite middleware, and `codex-toys-proxy` binary. |
@@ -96,13 +98,13 @@ const batch = await collectFeedItems(context, { cursor: "radar" });
 Feed reads `.codex/feed.toml`, writes mode-scoped state under `.codex/feed/*`,
 and leaves product-specific scoring, prompt policy, and dispatch to consumers.
 
-## Turn Automation
+## Workflow
 
 ```ts
-import { runTurnAutomationScript } from "codex-toys/workbench";
+import { runWorkflowScript } from "codex-toys/workbench";
 
-const run = await runTurnAutomationScript({
-	scriptPath: "./automations/check-release/check-release.ts",
+const run = await runWorkflowScript({
+	scriptPath: "./workflows/release-check/check.ts",
 	event: { type: "upstream.release", payload: { tag: "v1.2.3" } },
 	cwd: "/repo",
 	timeoutMs: 90_000,
@@ -111,7 +113,7 @@ const run = await runTurnAutomationScript({
 console.log(run.result);
 ```
 
-Turn automation runs code before returning a JSON result. Scripts can start one
+Workflow runs code before returning a JSON result. Scripts can start one
 native Codex turn or compose several turns through `context.turn.start`,
 `context.turn.read`, and `context.turn.wait`. When running through a codex-toys
 toybox, scripts can also start delegated Codex threads in another checkout with
@@ -142,9 +144,10 @@ identifiers. It exposes anonymous auth mode, plan, and usage data by default.
 
 ## Workbench Boundary
 
-`codex-toys/workbench` does not execute app-server requests. It
-derives reusable UX state from app-server notifications and completed turns, and
-returns request descriptors for actions:
+`codex-toys/workbench` owns workbench policy, queues, workflow execution,
+delegation methods, functions, overview, and thread presentation helpers. When a
+workflow or delegation needs Codex work, it constructs native app-server calls
+through a supplied host request function:
 
 ```ts
 import { threadGoalSetDescriptor } from "codex-toys/workbench";
@@ -159,7 +162,8 @@ const action = threadGoalSetDescriptor({
 await client.request(action.method, action.params);
 ```
 
-The app-server protocol remains the source of truth for thread commands.
+The app-server protocol remains the source of truth for native thread and turn
+commands.
 
 ## CLI
 
@@ -169,21 +173,20 @@ The `codex-toys` package publishes both the main CLI and the optional
 ```bash
 codex-toys fetch
 codex-toys toybox serve --cwd /repo
-codex-toys --ssh devbox --cwd /repo remote preflight
+codex-toys --ssh <target> --cwd <remote-workbench> remote preflight
 codex-toys turn run "Check workbench status" --wait
-codex-toys automation list
+codex-toys workflow list
 codex-toys feed poll --json
 codex-toys feed collect --cursor radar --json
-codex-toys automation run openai-codex-bindings --event event.json
-codex-toys --ssh devbox --cwd /repo automation run openai-codex-bindings --event event.json
-codex-toys --ssh devbox --cwd /repo fetch
-codex-toys --ssh devbox --cwd /repo app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-toys --ssh devbox --cwd /repo functions list --json
-codex-toys --ssh devbox --cwd /repo functions call portfolioSnapshot --json
-codex-toys --ssh devbox --cwd /repo turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
+codex-toys workflow run <name> --event event.json
+codex-toys --ssh <target> --cwd <remote-workbench> workflow run <name> --event event.json
+codex-toys --ssh <target> --cwd <remote-workbench> fetch
+codex-toys --ssh <target> --cwd <remote-workbench> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
+codex-toys --ssh <target> --cwd <remote-workbench> functions list --json
+codex-toys --ssh <target> --cwd <remote-workbench> turn run "Scan current folder" --wait --sandbox danger-full-access --approval-policy never
 codex-toys app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-toys workbench app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
-codex-toys workbench delegate start --cwd @/workbenches/trading --prompt "Inspect status"
+codex-toys workbench delegate start --cwd @/repos/example --prompt "Inspect status"
 codex-toys workbench doctor
 codex-toys workbench tick --mode local
 codex-toys workbench prompt enqueue "Review later." --queue low-priority --effort low
@@ -198,7 +201,7 @@ codex-toys memories transplant global-to-workbench
 codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ~/.codex --cwd "$PWD"
 
 codex-toys-proxy serve --cwd /repo --static ./dashboard
-codex-toys-proxy serve --ssh devbox --cwd /repo --static ./dashboard
+codex-toys-proxy serve --ssh <target> --cwd <remote-workbench> --static ./dashboard
 ```
 
 See `docs/pages/reference/cli.md` for the full command surface.
@@ -206,7 +209,7 @@ See `docs/pages/reference/cli.md` for the full command surface.
 `workbench doctor` also reports whether it can see a matching local systemd
 user timer that runs `workbench tick` for the current workbench root.
 
-Local CLI, MCP, automation, functions, and delegation use a spawned
+Local CLI, MCP, workflow, functions, and delegation use a spawned
 `codex-toys toybox serve` process over stdio. With `--ssh`, the local CLI starts
 the same toybox on the target and speaks JSON-RPC over the SSH stdio stream. No
 codex-toys core command opens a WebSocket port. Browser dashboards opt into HTTP

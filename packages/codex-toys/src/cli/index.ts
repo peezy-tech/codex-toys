@@ -86,16 +86,16 @@ import {
 	formatRemotePreflight,
 } from "@codex-toys/remote";
 import {
-	createTurnAutomationHost,
-	formatTurnAutomationList,
-	formatTurnAutomationRun,
-	listTurnAutomations,
-	resolveTurnAutomationTarget,
-	runTurnAutomationScript,
-	type TurnAutomationBackendRequest,
-	type TurnAutomationHostHandler,
-	type TurnAutomationRun,
-	type TurnAutomationRunTarget,
+	createWorkflowHost,
+	formatWorkflowList,
+	formatWorkflowRun,
+	listWorkflows,
+	resolveWorkflowTarget,
+	runWorkflowScript,
+	type WorkflowBackendRequest,
+	type WorkflowHostHandler,
+	type WorkflowRun,
+	type WorkflowRunTarget,
 } from "@codex-toys/workbench";
 import {
 	createLocalToyboxTransport,
@@ -105,10 +105,10 @@ import {
 	type SshRemoteProviderOptions,
 } from "@codex-toys/remote";
 import {
-	REMOTE_AUTOMATION_LIST_METHOD,
-	REMOTE_AUTOMATION_RUN_METHOD,
-	type RemoteAutomationListResponse,
-	type RemoteAutomationRunParams,
+	REMOTE_WORKFLOW_LIST_METHOD,
+	REMOTE_WORKFLOW_RUN_METHOD,
+	type RemoteWorkflowListResponse,
+	type RemoteWorkflowRunParams,
 } from "@codex-toys/workbench";
 import { HOST_OVERVIEW_METHOD } from "@codex-toys/workbench";
 import {
@@ -219,24 +219,29 @@ async function main(): Promise<void> {
 		});
 		return;
 	}
-	if (parsed.type === "automation-run") {
-		validateAutomationTurnOptions(parsed);
+	if (parsed.type === "workflow-run") {
+		validateWorkflowTurnOptions(parsed);
 		if (hasSshRemote(parsed)) {
-			const run = await runRemoteTurnAutomationForCli(parsed);
+			const run = await runRemoteWorkflowForCli(parsed);
 			write(parsed.json
 				? `${JSON.stringify(run, null, parsed.pretty ? 2 : 0)}\n`
-				: formatTurnAutomationRun(run));
+				: formatWorkflowRun(run));
 			return;
 		}
 		const event = parsed.eventPath
 			? await readJsonFile(parsed.eventPath)
 			: undefined;
-		const target = await resolveTurnAutomationTarget(parsed.target, {
-			cwd: parsed.workbenchRoot,
-		});
+		const target = parsed.target
+			? await resolveWorkflowTarget(parsed.target, {
+					cwd: parsed.workbenchRoot,
+				})
+			: {
+					scriptPath: parsed.scriptPath,
+					script: parsed.scriptStdin ? await readStdin() : undefined,
+				} satisfies WorkflowRunTarget;
 		const prompt = parsed.prompt ?? target.prompt;
 		const cwd = parsed.cwd ?? target.cwd;
-		const run = await runTurnAutomationForCli(target, {
+		const run = await runWorkflowForCli(target, {
 			event,
 			prompt,
 			cwd,
@@ -256,16 +261,16 @@ async function main(): Promise<void> {
 		});
 		write(parsed.json
 			? `${JSON.stringify(run, null, parsed.pretty ? 2 : 0)}\n`
-			: formatTurnAutomationRun(run));
+			: formatWorkflowRun(run));
 		return;
 	}
-	if (parsed.type === "automation-list") {
-		const automations = hasSshRemote(parsed)
-			? await listRemoteTurnAutomationsForCli(parsed)
-			: await listTurnAutomations({ cwd: parsed.workbenchRoot });
+	if (parsed.type === "workflow-list") {
+		const workflows = hasSshRemote(parsed)
+			? await listRemoteWorkflowsForCli(parsed)
+			: await listWorkflows({ cwd: parsed.workbenchRoot });
 		write(parsed.json
-			? `${JSON.stringify({ automations }, null, parsed.pretty ? 2 : 0)}\n`
-			: formatTurnAutomationList(automations));
+			? `${JSON.stringify({ workflows }, null, parsed.pretty ? 2 : 0)}\n`
+			: formatWorkflowList(workflows));
 		return;
 	}
 	if (parsed.type === "app-actions") {
@@ -587,7 +592,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	if (parsed.type === "workbench-delegate-start") {
-		validateAutomationTurnOptions(parsed);
+		validateWorkflowTurnOptions(parsed);
 		const result = await withWorkbenchTransport(parsed, async (transport) => {
 			await initialize(transport);
 			return await startWorkbenchDelegationWithRequest(
@@ -661,7 +666,7 @@ async function main(): Promise<void> {
 		const result = await withToyboxRequest(parsed, async (request) =>
 			await tickWorkbench(context, {
 				callToybox: request,
-				automationCwd: parsed.cwd,
+				workflowCwd: parsed.cwd,
 			})
 		);
 		writeJson({
@@ -678,7 +683,7 @@ async function main(): Promise<void> {
 		const run = await withToyboxRequest(parsed, async (request) =>
 			await runWorkbenchTaskById(context, parsed.taskId, {
 				callToybox: request,
-				automationCwd: parsed.cwd,
+				workflowCwd: parsed.cwd,
 			})
 		);
 		writeJson({
@@ -690,7 +695,7 @@ async function main(): Promise<void> {
 			return;
 		}
 		if (parsed.type === "workbench-prompt-enqueue") {
-			validateAutomationTurnOptions(parsed);
+			validateWorkflowTurnOptions(parsed);
 			const params = compactUndefined({
 				prompt: parsed.prompt,
 				title: parsed.title,
@@ -853,7 +858,7 @@ async function main(): Promise<void> {
 							queue: parsed.queue,
 							limit: parsed.limit,
 							callToybox: request,
-							automationCwd: parsed.cwd,
+							workflowCwd: parsed.cwd,
 						},
 					)
 				);
@@ -861,7 +866,7 @@ async function main(): Promise<void> {
 			return;
 		}
 		if (parsed.type === "workbench-handoff-enqueue") {
-			validateAutomationTurnOptions(parsed);
+			validateWorkflowTurnOptions(parsed);
 			const params = compactUndefined({
 				prompt: parsed.prompt,
 				title: parsed.title,
@@ -1044,7 +1049,7 @@ async function main(): Promise<void> {
 						{
 							...drainParams,
 							callToybox: request,
-							automationCwd: parsed.cwd,
+							workflowCwd: parsed.cwd,
 						},
 					)
 				);
@@ -1186,7 +1191,7 @@ async function main(): Promise<void> {
 					}),
 					{
 						callToybox: request,
-						automationCwd: parsed.cwd,
+						workflowCwd: parsed.cwd,
 					},
 				)
 			);
@@ -1477,7 +1482,7 @@ async function runFeedDispatchTarget(
 	const run = await withToyboxRequest(parsed, async (request) =>
 		await runWorkbenchTaskById(context, taskId, {
 			callToybox: request,
-			automationCwd: parsed.cwd,
+			workflowCwd: parsed.cwd,
 			event,
 		})
 	);
@@ -1494,7 +1499,7 @@ function formatWorkbenchOverview(overview: WorkbenchOverview): string {
 		`config             ${overview.workbench.config.exists ? "found" : "missing"} ${overview.workbench.config.path}`,
 		`health             ${overview.health.ok ? "ok" : "attention"}`,
 		`deferred           ${overview.deferred.summary.total} total, ${overview.deferred.summary.due} due, ${overview.deferred.summary.running} running, ${overview.deferred.summary.failed} failed`,
-		`automations        ${overview.automations.ok ? overview.automations.total : `error: ${overview.automations.error}`}`,
+		`workflows        ${overview.workflows.ok ? overview.workflows.total : `error: ${overview.workflows.error}`}`,
 		`functions          ${overview.functions.ok ? overview.functions.total : `error: ${overview.functions.error}`}`,
 		`threads            ${overview.threads.ok ? `${overview.threads.total} recent for cwd` : `error: ${overview.threads.error}`}`,
 		`git                ${overview.git.ok && overview.git.isRepo ? `${overview.git.branch ?? "unknown"} ${overview.git.commit ?? ""}${overview.git.dirty ? " dirty" : ""}` : overview.git.error ?? "not a git repo"}`,
@@ -1516,47 +1521,52 @@ async function callAppServer(
 	return await callToybox(APP_CALL_METHOD, { method, params }, options);
 }
 
-async function listRemoteTurnAutomationsForCli(
+async function listRemoteWorkflowsForCli(
 	options: {
 		workbenchRoot?: string;
 		cwd?: string;
 		timeoutMs: number;
 	} & SshRemoteProviderOptions,
-): Promise<RemoteAutomationListResponse["automations"]> {
+): Promise<RemoteWorkflowListResponse["workflows"]> {
 	return await withSshRemoteToyboxTransport(options, async (transport) => {
 		await initialize(transport);
-		const response = await transport.request<RemoteAutomationListResponse>(
-			REMOTE_AUTOMATION_LIST_METHOD,
+		const response = await transport.request<RemoteWorkflowListResponse>(
+			REMOTE_WORKFLOW_LIST_METHOD,
 			{
 				workbenchRoot: options.workbenchRoot,
 				cwd: options.cwd,
 			},
 		);
-		return response.automations;
+		return response.workflows;
 	});
 }
 
-async function runRemoteTurnAutomationForCli(
+async function runRemoteWorkflowForCli(
 	options: {
-		target: string;
+		target?: string;
+		scriptPath?: string;
+		scriptStdin?: boolean;
 		eventPath?: string;
 		prompt?: string;
 		workbenchRoot?: string;
 		cwd?: string;
 		via: "workbench" | "app";
 		timeoutMs: number;
-		sandbox?: RemoteAutomationRunParams["sandbox"];
-		approvalPolicy?: RemoteAutomationRunParams["approvalPolicy"];
+		sandbox?: RemoteWorkflowRunParams["sandbox"];
+		approvalPolicy?: RemoteWorkflowRunParams["approvalPolicy"];
 		permissions?: string;
 		model?: string;
 	} & SshRemoteProviderOptions,
-): Promise<TurnAutomationRun> {
+): Promise<WorkflowRun> {
+	const script = options.scriptStdin ? await readStdin() : undefined;
 	return await withSshRemoteToyboxTransport(options, async (transport) => {
 		await initialize(transport);
-		return await transport.request<TurnAutomationRun>(
-			REMOTE_AUTOMATION_RUN_METHOD,
+		return await transport.request<WorkflowRun>(
+			REMOTE_WORKFLOW_RUN_METHOD,
 			{
 				target: options.target,
+				scriptPath: options.scriptPath,
+				script,
 				eventPath: options.eventPath,
 				prompt: options.prompt,
 				workbenchRoot: options.workbenchRoot,
@@ -1567,12 +1577,12 @@ async function runRemoteTurnAutomationForCli(
 				approvalPolicy: options.approvalPolicy,
 				permissions: options.permissions,
 				model: options.model,
-			} satisfies RemoteAutomationRunParams,
+			} satisfies RemoteWorkflowRunParams,
 		);
 	});
 }
 
-function validateAutomationTurnOptions(options: {
+function validateWorkflowTurnOptions(options: {
 	sandbox?: string;
 	permissions?: string;
 }): void {
@@ -1595,8 +1605,8 @@ function formatFunctionDescription(fn: WorkbenchFunctionMetadata): string {
 	return `${JSON.stringify(fn, null, 2)}\n`;
 }
 
-async function runTurnAutomationForCli(
-	target: TurnAutomationRunTarget,
+async function runWorkflowForCli(
+	target: WorkflowRunTarget,
 	options: {
 		event?: unknown;
 		prompt?: string;
@@ -1605,13 +1615,13 @@ async function runTurnAutomationForCli(
 		appUrl: string;
 		workbenchUrl: string;
 		timeoutMs: number;
-		sandbox?: RemoteAutomationRunParams["sandbox"];
-		approvalPolicy?: RemoteAutomationRunParams["approvalPolicy"];
+		sandbox?: RemoteWorkflowRunParams["sandbox"];
+		approvalPolicy?: RemoteWorkflowRunParams["approvalPolicy"];
 		permissions?: string;
 		model?: string;
 	} & SshRemoteProviderOptions,
-): Promise<TurnAutomationRun> {
-	const host = createCliTurnAutomationHost({
+): Promise<WorkflowRun> {
+	const host = createCliWorkflowHost({
 		...options,
 		defaults: {
 			prompt: options.prompt,
@@ -1624,9 +1634,10 @@ async function runTurnAutomationForCli(
 		},
 	});
 	try {
-		return await runTurnAutomationScript({
+		return await runWorkflowScript({
 			scriptPath: target.scriptPath,
-			automation: target.automation,
+			script: target.script,
+			workflow: target.workflow,
 			event: options.event,
 			prompt: options.prompt,
 			cwd: options.cwd,
@@ -1638,7 +1649,7 @@ async function runTurnAutomationForCli(
 	}
 }
 
-function createCliTurnAutomationHost(
+function createCliWorkflowHost(
 	options: {
 		via: "workbench" | "app";
 		appUrl: string;
@@ -1648,20 +1659,20 @@ function createCliTurnAutomationHost(
 			prompt?: string;
 			cwd?: string;
 			skills?: string[];
-			sandbox?: RemoteAutomationRunParams["sandbox"];
-			approvalPolicy?: RemoteAutomationRunParams["approvalPolicy"];
+			sandbox?: RemoteWorkflowRunParams["sandbox"];
+			approvalPolicy?: RemoteWorkflowRunParams["approvalPolicy"];
 			permissions?: string;
 			model?: string;
 		};
 	} & SshRemoteProviderOptions,
-): { handler: TurnAutomationHostHandler; close(): void } {
+): { handler: WorkflowHostHandler; close(): void } {
 	if (options.via === "workbench") {
 		const requester = createLazyWorkbenchRequester({
 			...options,
 			url: options.workbenchUrl,
 		});
 		return {
-			handler: createTurnAutomationHost({
+			handler: createWorkflowHost({
 				via: "workbench",
 				appRequest: requester.appRequest,
 				workbenchRequest: requester.workbenchRequest,
@@ -1675,7 +1686,7 @@ function createCliTurnAutomationHost(
 		url: options.appUrl,
 	});
 	return {
-		handler: createTurnAutomationHost({
+		handler: createWorkflowHost({
 			via: "app-server",
 			appRequest: requester.request,
 			defaults: options.defaults,
@@ -1686,7 +1697,7 @@ function createCliTurnAutomationHost(
 
 function createLazyAppServerRequester(
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
-): { request: TurnAutomationBackendRequest; close(): void } {
+): { request: WorkflowBackendRequest; close(): void } {
 	const requester = createLazyWorkbenchRequester(options);
 	return {
 		request: requester.appRequest,
@@ -1697,8 +1708,8 @@ function createLazyAppServerRequester(
 function createLazyWorkbenchRequester(
 	options: { url: string; timeoutMs: number } & SshRemoteProviderOptions,
 ): {
-	appRequest: TurnAutomationBackendRequest;
-	workbenchRequest: TurnAutomationBackendRequest;
+	appRequest: WorkflowBackendRequest;
+	workbenchRequest: WorkflowBackendRequest;
 	close(): void;
 } {
 	let transport: CodexToyboxTransport | undefined;
@@ -2060,8 +2071,8 @@ function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
 	if (target.kind === "workbench-task") {
 		return `workbench-task:${target.taskId}`;
 	}
-	if (target.kind === "automation") {
-		return `automation:${target.automation}`;
+	if (target.kind === "workflow") {
+		return `workflow:${target.workflow}`;
 	}
 		return "turn";
 	}

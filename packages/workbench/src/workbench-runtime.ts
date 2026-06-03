@@ -5,12 +5,12 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { parse as parseToml } from "smol-toml";
 import {
-	createTurnAutomationHost,
-	resolveTurnAutomationTarget,
-	runTurnAutomationScript,
-	startAutomationTurnWithRequest,
-	waitAutomationTurnWithRequest,
-} from "./turn-automation.ts";
+	createWorkflowHost,
+	resolveWorkflowTarget,
+	runWorkflowScript,
+	startWorkflowTurnWithRequest,
+	waitWorkflowTurnWithRequest,
+} from "./workflow.ts";
 import { parseJsonText } from "@codex-toys/bridge/json";
 
 export type WorkbenchModeInput = "auto" | "local" | "actions";
@@ -36,8 +36,8 @@ export type WorkbenchTask =
 	| {
 			id: string;
 			enabled: boolean;
-			kind: "automation";
-			automation: string;
+			kind: "workflow";
+			workflow: string;
 			event?: Record<string, unknown>;
 			prompt?: string;
 			cwd?: string;
@@ -124,8 +124,8 @@ export type DeferredRunTarget =
 			outputSchema?: unknown;
 	  }
 	| {
-			kind: "automation";
-			automation: string;
+			kind: "workflow";
+			workflow: string;
 			event?: Record<string, unknown>;
 			prompt?: string;
 			cwd?: string;
@@ -630,7 +630,7 @@ export async function tickWorkbench(
 	context: WorkbenchContext,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 	},
 ): Promise<{ mode: WorkbenchMode; due: string[]; runs: WorkbenchRunRecord[] }> {
 	await ensureStateDirs(context);
@@ -667,7 +667,7 @@ export async function runWorkbenchTaskById(
 	taskId: string,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 		event?: Record<string, unknown>;
 	},
 ): Promise<WorkbenchRunRecord> {
@@ -891,7 +891,7 @@ export async function runDuePromptQueueIntents(
 	context: WorkbenchContext,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 		now?: Date;
 		limit?: number;
 		leaseMs?: number;
@@ -980,7 +980,7 @@ export async function drainLocalHandoffQueue(
 	context: WorkbenchContext,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 		now?: Date;
 		limit?: number;
 		leaseMs?: number;
@@ -1126,7 +1126,7 @@ export async function runDueDeferredRuns(
 	context: WorkbenchContext,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 		now?: Date;
 		limit?: number;
 		leaseMs?: number;
@@ -1166,7 +1166,7 @@ export async function runDueDeferredRuns(
 			await writeJsonFileAtomic(deferredAttemptPath(context, claim.attempt.id), claim.attempt);
 			const result = await executeDeferredRunTarget(context, claim.intent, {
 				callToybox: options.callToybox,
-				automationCwd: options.automationCwd,
+				workflowCwd: options.workflowCwd,
 				localHandoffMaterialize: options.localHandoffMaterialize,
 			});
 			await writeJsonFileAtomic(outputPath, result.output);
@@ -1257,7 +1257,7 @@ async function runWorkbenchTask(
 	task: WorkbenchTask,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 		event?: Record<string, unknown>;
 	},
 ): Promise<WorkbenchRunRecord> {
@@ -1272,8 +1272,8 @@ async function runWorkbenchTask(
 			await persistRun(context, run, result);
 			return run;
 		}
-		if (task.kind === "automation") {
-			result = await runAutomationTask(
+		if (task.kind === "workflow") {
+			result = await runWorkflowTask(
 				context,
 				config,
 				task,
@@ -1300,32 +1300,32 @@ function workbenchRunId(taskId: string, startedAt: string): string {
 	return `${startedAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}-${taskId}`;
 }
 
-async function runAutomationTask(
+async function runWorkflowTask(
 	context: WorkbenchContext,
 	config: WorkbenchConfig,
-	task: Extract<WorkbenchTask, { kind: "automation" }>,
+	task: Extract<WorkbenchTask, { kind: "workflow" }>,
 	runId: string,
 	startedAt: string,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 		event?: Record<string, unknown>;
 	},
 ): Promise<unknown> {
-	const target = await resolveTurnAutomationTarget(task.automation, {
+	const target = await resolveWorkflowTarget(task.workflow, {
 		cwd: context.repoRoot,
 	});
-	const event = options.event ?? workbenchAutomationEvent(config, task, runId, startedAt);
+	const event = options.event ?? workbenchWorkflowEvent(config, task, runId, startedAt);
 	const prompt = task.prompt ?? target.prompt;
-	const cwd = task.cwd ?? options.automationCwd ?? target.cwd ?? context.repoRoot;
-	const scriptRun = await runTurnAutomationScript({
+	const cwd = task.cwd ?? options.workflowCwd ?? target.cwd ?? context.repoRoot;
+	const scriptRun = await runWorkflowScript({
 		scriptPath: target.scriptPath,
-		automation: target.automation,
+		workflow: target.workflow,
 		event,
 		prompt,
 		cwd,
 		timeoutMs: target.timeoutMs ?? 90_000,
-		host: createTurnAutomationHost({
+		host: createWorkflowHost({
 			via: "workbench",
 			appRequest: async (method, params) =>
 				await options.callToybox("app.call", {
@@ -1348,7 +1348,7 @@ async function executeDeferredRunTarget(
 	intent: DeferredRunIntent,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 		localHandoffMaterialize?: {
 			queue?: string;
 		};
@@ -1380,7 +1380,7 @@ async function executeDeferredRunTarget(
 				error: workbenchRun.error,
 			};
 		}
-		if (target.kind === "automation") {
+		if (target.kind === "workflow") {
 			const config = await loadWorkbenchConfig(context).catch(() => ({
 				name: path.basename(context.repoRoot),
 				surfaces: [],
@@ -1388,7 +1388,7 @@ async function executeDeferredRunTarget(
 				reactive: [],
 				path: context.configPath,
 			} satisfies WorkbenchConfig));
-			const result = await runAutomationDeferredTarget(
+			const result = await runWorkflowDeferredTarget(
 				context,
 				config,
 				{ ...intent, target },
@@ -1397,7 +1397,7 @@ async function executeDeferredRunTarget(
 			return { status: "completed", output: result };
 		}
 		if (target.kind === "turn") {
-			const started = await startAutomationTurnWithRequest(
+			const started = await startWorkflowTurnWithRequest(
 				"workbench",
 				target,
 				async (method, params) =>
@@ -1406,7 +1406,7 @@ async function executeDeferredRunTarget(
 						params,
 					}),
 			);
-			const snapshot = await waitAutomationTurnWithRequest(
+			const snapshot = await waitWorkflowTurnWithRequest(
 				"workbench",
 				async (method, params) =>
 					await options.callToybox("app.call", {
@@ -1475,32 +1475,32 @@ async function materializeLocalHandoffIntent(
 	};
 }
 
-async function runAutomationDeferredTarget(
+async function runWorkflowDeferredTarget(
 	context: WorkbenchContext,
 	config: WorkbenchConfig,
 	intent: DeferredRunIntent & {
-		target: Extract<DeferredRunTarget, { kind: "automation" }>;
+		target: Extract<DeferredRunTarget, { kind: "workflow" }>;
 	},
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		automationCwd?: string;
+		workflowCwd?: string;
 	},
 ): Promise<unknown> {
-	const target = await resolveTurnAutomationTarget(intent.target.automation, {
+	const target = await resolveWorkflowTarget(intent.target.workflow, {
 		cwd: context.repoRoot,
 	});
 	const startedAt = new Date().toISOString();
-	const event = deferredAutomationEvent(config, intent, startedAt);
+	const event = deferredWorkflowEvent(config, intent, startedAt);
 	const prompt = intent.target.prompt ?? target.prompt;
-	const cwd = intent.target.cwd ?? options.automationCwd ?? target.cwd ?? context.repoRoot;
-	const scriptRun = await runTurnAutomationScript({
+	const cwd = intent.target.cwd ?? options.workflowCwd ?? target.cwd ?? context.repoRoot;
+	const scriptRun = await runWorkflowScript({
 		scriptPath: target.scriptPath,
-		automation: target.automation,
+		workflow: target.workflow,
 		event,
 		prompt,
 		cwd,
 		timeoutMs: target.timeoutMs ?? 90_000,
-		host: createTurnAutomationHost({
+		host: createWorkflowHost({
 			via: "workbench",
 			appRequest: async (method, params) =>
 				await options.callToybox("app.call", {
@@ -1522,9 +1522,9 @@ async function runAutomationDeferredTarget(
 	return scriptRun.result;
 }
 
-function workbenchAutomationEvent(
+function workbenchWorkflowEvent(
 	config: WorkbenchConfig,
-	task: Extract<WorkbenchTask, { kind: "automation" }>,
+	task: Extract<WorkbenchTask, { kind: "workflow" }>,
 	runId: string,
 	startedAt: string,
 ): Record<string, unknown> {
@@ -1533,7 +1533,7 @@ function workbenchAutomationEvent(
 	return {
 		...event,
 		id: `workbench:${config.name}:${task.id}:${runId}`,
-		type: stringValue(event.type, task.automation),
+		type: stringValue(event.type, task.workflow),
 		source: stringValue(event.source, config.name),
 		occurredAt: startedAt,
 		receivedAt: startedAt,
@@ -1544,10 +1544,10 @@ function workbenchAutomationEvent(
 	};
 }
 
-function deferredAutomationEvent(
+function deferredWorkflowEvent(
 	config: WorkbenchConfig,
 	intent: DeferredRunIntent & {
-		target: Extract<DeferredRunTarget, { kind: "automation" }>;
+		target: Extract<DeferredRunTarget, { kind: "workflow" }>;
 	},
 	startedAt: string,
 ): Record<string, unknown> {
@@ -1556,7 +1556,7 @@ function deferredAutomationEvent(
 	return {
 		...event,
 		id: stringValue(event.id, `deferred:${config.name}:${intent.id}`),
-		type: stringValue(event.type, intent.target.automation),
+		type: stringValue(event.type, intent.target.workflow),
 		source: stringValue(event.source, config.name),
 		occurredAt: stringValue(event.occurredAt, intent.runAt),
 		receivedAt: stringValue(event.receivedAt, startedAt),
@@ -2151,16 +2151,16 @@ function parseDeferredRunTarget(value: unknown): DeferredRunTarget {
 			taskId: requiredString(target.taskId, "deferred run workbench-task taskId"),
 		};
 	}
-	if (kind === "automation") {
+	if (kind === "workflow") {
 		return compactUndefined({
 			kind,
-			automation: requiredString(target.automation, "deferred run automation target automation"),
+			workflow: requiredString(target.workflow, "deferred run workflow target workflow"),
 			event: recordOrUndefined(target.event),
 			prompt: optionalString(target.prompt),
 			cwd: optionalString(target.cwd),
 			model: optionalString(target.model),
-			sandbox: sandboxValue(target.sandbox, "deferred run automation target sandbox"),
-			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "deferred run automation target approvalPolicy"),
+			sandbox: sandboxValue(target.sandbox, "deferred run workflow target sandbox"),
+			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "deferred run workflow target approvalPolicy"),
 			permissions: optionalString(target.permissions),
 		});
 	}
@@ -2899,12 +2899,12 @@ function parseTask(input: unknown): WorkbenchTask {
 	if (kind === "skill") {
 		return { id, enabled, kind, skill: requiredString(input.skill, `workbench task ${id} skill`), schedule, var: optionalString(input.var) };
 	}
-	if (kind === "automation") {
+	if (kind === "workflow") {
 		return {
 			id,
 			enabled,
 			kind,
-			automation: requiredString(input.automation, `workbench task ${id} automation`),
+			workflow: requiredString(input.workflow, `workbench task ${id} workflow`),
 			schedule,
 			event: isRecord(input.event) ? input.event : undefined,
 			prompt: optionalString(input.prompt),

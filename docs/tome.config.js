@@ -10,15 +10,23 @@ export default {
 	navigation: [
 		{ group: "Overview", pages: ["index"] },
 		{
-			group: "Guides",
+			group: "Primitives",
 			pages: [
-				"guides/turn-automation",
-				"guides/feed",
-				"guides/workbench-autonomy",
-				"guides/memory-transplant",
-				"guides/thread-transplant",
-				"guides/install-codex-plugin",
-				"guides/install-kit-repos",
+				"primitives/workflow",
+				"primitives/toybox",
+				"primitives/workbench",
+				"primitives/delegation",
+				"primitives/deferred-queues",
+				"primitives/feed",
+				"primitives/proxy",
+				"primitives/kits",
+			],
+		},
+		{
+			group: "Operations",
+			pages: [
+				"operations/codex-state",
+				"operations/plugins",
 			],
 		},
 		{
@@ -26,18 +34,6 @@ export default {
 			pages: [
 				"reference/cli",
 				"reference/packages",
-			],
-		},
-		{
-			group: "Concepts",
-			pages: [
-				"concepts/architecture",
-				"concepts/deferred-runs-roadmap",
-				"concepts/backends",
-				"concepts/domain-boundaries",
-				"concepts/package-stack",
-				"concepts/toyboxes",
-				"concepts/toybox-deployments",
 			],
 		},
 	],

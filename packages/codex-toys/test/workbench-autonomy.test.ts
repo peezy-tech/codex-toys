@@ -892,15 +892,28 @@ command = ["node", "-e", "console.log('prune me')"]
 		]);
 	});
 
-	test("runs direct automation deferred intents through the turn automation host", async () => {
+	test("rejects retired deferred target kind", async () => {
 		const root = await tempWorkbench();
-		const automationRoot = path.join(root, "automations", "release-check");
-		await mkdir(automationRoot, { recursive: true });
-		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
+		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
+		const retired = ["auto", "mation"].join("");
+		await expect(createDeferredRunIntent(context, {
+			target: {
+				kind: retired,
+				[retired]: "release-check",
+			},
+		} as never)).rejects.toThrow("Invalid deferred run target kind");
+	});
+
+	test("runs direct workflow deferred intents through the workflow host", async () => {
+		const root = await tempWorkbench();
+		const workflowRoot = path.join(root, "workflows", "release-check");
+		await mkdir(workflowRoot, { recursive: true });
+		await writeFile(path.join(workflowRoot, "workflow.json"), JSON.stringify({
 			script: "check.ts",
 			prompt: "inspect",
 		}));
-		await writeFile(path.join(automationRoot, "check.ts"), `
+		await writeFile(path.join(workflowRoot, "check.ts"), `
 export default async function run(context) {
   return {
     status: "skipped",
@@ -913,8 +926,8 @@ export default async function run(context) {
 		await createDeferredRunIntent(context, {
 			runAt: "2026-01-01T00:00:00.000Z",
 			target: {
-				kind: "automation",
-				automation: "release-check",
+				kind: "workflow",
+				workflow: "release-check",
 				event: {
 					type: "manual.review",
 					payload: {
@@ -1007,17 +1020,17 @@ command = ["node", "-e", "setTimeout(() => console.log('done'), 100)"]
 		expect(left.executions.length + right.executions.length).toBe(1);
 	});
 
-	test("automation tasks run scripts and start turns through toybox", async () => {
+	test("workflow tasks run scripts and start turns through toybox", async () => {
 		const root = await tempWorkbench();
-		const automationRoot = path.join(root, "automations", "release-check");
-		await mkdir(automationRoot, { recursive: true });
-		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+		const workflowRoot = path.join(root, "workflows", "release-check");
+		await mkdir(workflowRoot, { recursive: true });
+		await writeFile(path.join(workflowRoot, "workflow.json"), JSON.stringify({
 			script: "check.ts",
 			prompt: "inspect",
 			cwd: "/manifest-cwd",
 			skills: ["release-skill"],
 		}));
-		await writeFile(path.join(automationRoot, "check.ts"), `
+		await writeFile(path.join(workflowRoot, "check.ts"), `
 export default async function run(context) {
   const turn = await context.turn.start({
     prompt: context.prompt + " " + context.event.payload.tag
@@ -1033,10 +1046,10 @@ export default async function run(context) {
 name = "demo"
 
 [[workbench.tasks]]
-id = "automation-task"
+id = "workflow-task"
 enabled = true
-kind = "automation"
-automation = "release-check"
+kind = "workflow"
+workflow = "release-check"
 cwd = "/remote-cwd"
 
 [workbench.tasks.event]
@@ -1047,7 +1060,7 @@ tag = "v1.2.3"
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
 		const calls: Array<{ method: string; params: unknown }> = [];
-		const run = await runWorkbenchTaskById(context, "automation-task", {
+		const run = await runWorkbenchTaskById(context, "workflow-task", {
 			callToybox: async (method, params) => {
 				calls.push({ method, params });
 				const appMethod = String((params as { method?: unknown }).method);
@@ -1092,14 +1105,14 @@ tag = "v1.2.3"
 		});
 	});
 
-	test("automation tasks can receive an explicit feed item event", async () => {
+	test("workflow tasks can receive an explicit feed item event", async () => {
 		const root = await tempWorkbench();
-		const automationRoot = path.join(root, "automations", "feed-target");
-		await mkdir(automationRoot, { recursive: true });
-		await writeFile(path.join(automationRoot, "automation.json"), JSON.stringify({
+		const workflowRoot = path.join(root, "workflows", "feed-target");
+		await mkdir(workflowRoot, { recursive: true });
+		await writeFile(path.join(workflowRoot, "workflow.json"), JSON.stringify({
 			script: "target.ts",
 		}));
-		await writeFile(path.join(automationRoot, "target.ts"), `
+		await writeFile(path.join(workflowRoot, "target.ts"), `
 export default async function run(context) {
   return {
     eventType: context.event.type,
@@ -1115,8 +1128,8 @@ name = "demo"
 [[workbench.tasks]]
 id = "feed-target"
 enabled = true
-kind = "automation"
-automation = "feed-target"
+kind = "workflow"
+workflow = "feed-target"
 
 [workbench.tasks.event]
 type = "static.event"
@@ -1234,6 +1247,19 @@ id = "bad-kind"
 kind = "unknown"
 `);
 		await expect(loadWorkbenchConfig(await createWorkbenchContext({ workbenchRoot: badKind, mode: "local", env: {} })))
+			.rejects.toThrow("Invalid workbench task kind");
+		const retiredKind = await tempWorkbench();
+		const retired = ["auto", "mation"].join("");
+		await writeWorkbenchToml(retiredKind, `
+[workbench]
+name = "demo"
+
+[[workbench.tasks]]
+id = "retired-kind"
+kind = "${retired}"
+${retired} = "release-check"
+`);
+		await expect(loadWorkbenchConfig(await createWorkbenchContext({ workbenchRoot: retiredKind, mode: "local", env: {} })))
 			.rejects.toThrow("Invalid workbench task kind");
 		const badSchedule = await tempWorkbench();
 		await writeWorkbenchToml(badSchedule, `

@@ -16,8 +16,8 @@ import {
 	workbenchDelegationMethodMetadata,
 } from "@codex-toys/workbench";
 import {
-	createRemoteAutomationMethods,
-	remoteAutomationMethodMetadata,
+	createRemoteWorkflowMethods,
+	remoteWorkflowMethodMetadata,
 } from "@codex-toys/workbench";
 import {
 	createHostOverviewMethods,
@@ -153,7 +153,7 @@ export async function serveToybox(
 			},
 		},
 	}));
-	Object.assign(methods, createRemoteAutomationMethods({
+	Object.assign(methods, createRemoteWorkflowMethods({
 		cwd: workbenchRoot,
 		timeoutMs: options.timeoutMs,
 		appRequest: async (method, params) => await client.request(method, params),
@@ -173,7 +173,7 @@ export async function serveToybox(
 				...workbenchDelegationMethodMetadata,
 				...workbenchDeferredRunMethodMetadata,
 				...workbenchOverviewMethodMetadata,
-				...remoteAutomationMethodMetadata,
+				...remoteWorkflowMethodMetadata,
 			],
 	});
 	const peer: CodexToyboxPeer = {

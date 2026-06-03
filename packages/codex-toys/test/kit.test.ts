@@ -25,9 +25,9 @@ describe("kit installer", () => {
 			version: "0.1.0",
 		});
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
-			"automation:release-candidate",
 			"plugin:repo-policy",
 			"skill:tdd",
+			"workflow:release-candidate",
 		]);
 	});
 
@@ -62,7 +62,7 @@ describe("kit installer", () => {
 		expect(await readFile(path.join(workbenchRoot, "plugins", "repo-policy", ".codex-plugin", "plugin.json"), "utf8"))
 			.toContain('"name": "repo-policy"');
 		expect(await readFile(
-			path.join(workbenchRoot, ".codex", "automations", "release-candidate", "automation.json"),
+			path.join(workbenchRoot, ".codex", "workflows", "release-candidate", "workflow.json"),
 			"utf8",
 		)).toContain('"name": "release-candidate"');
 
@@ -76,9 +76,9 @@ describe("kit installer", () => {
 
 		const list = await listInstalledKits({ workbenchRoot });
 		expect(list.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
-			"automation:release-candidate",
 			"plugin:repo-policy",
 			"skill:tdd",
+			"workflow:release-candidate",
 		]);
 
 		const doctor = await collectKitDoctor({ workbenchRoot });
@@ -262,14 +262,14 @@ describe("kit installer", () => {
 		const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "codex-kit-source-"));
 		await writeFixtureFile(sourceRoot, "skills/demo/SKILL.md", "# Demo\n");
 		await writeFixtureFile(sourceRoot, "plugins/demo-plugin/.codex-plugin/plugin.json", '{"name":"demo-plugin"}');
-		await writeFixtureFile(sourceRoot, "automations/demo-automation/automation.json", '{"name":"demo-automation"}');
+		await writeFixtureFile(sourceRoot, "workflows/demo-workflow/workflow.json", '{"name":"demo-workflow"}');
 
 		const inspection = await inspectKitSource({ source: sourceRoot });
 
 		expect(inspection.items.map((item) => `${item.kind}:${item.name}`).sort()).toEqual([
-			"automation:demo-automation",
 			"plugin:demo-plugin",
 			"skill:demo",
+			"workflow:demo-workflow",
 		]);
 	});
 

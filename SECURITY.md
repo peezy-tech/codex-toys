@@ -1,7 +1,7 @@
 # Security
 
 `codex-toys` provides clients, local/SSH stdio toybox surfaces, an optional
-loopback HTTP proxy, and sidecar automation around Codex app-server. It does
+loopback HTTP proxy, and sidecar workflow around Codex app-server. It does
 not add a general authentication, authorization, persistence, or
 request-filtering boundary in front of Codex app-server.
 

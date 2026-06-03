@@ -64,8 +64,10 @@ type ParsedCliBase =
 			timeoutMs: number;
 	  }
 	| {
-			type: "automation-run";
-			target: string;
+			type: "workflow-run";
+			target?: string;
+			scriptPath?: string;
+			scriptStdin: boolean;
 			eventPath?: string;
 			prompt?: string;
 			workbenchRoot?: string;
@@ -82,7 +84,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "automation-list";
+			type: "workflow-list";
 			workbenchRoot?: string;
 			timeoutMs: number;
 			json: boolean;
@@ -705,6 +707,8 @@ export function parseArgs(
 	let color = true;
 	let json = false;
 	let eventPath: string | undefined;
+	let scriptPath: string | undefined;
+	let scriptStdin = false;
 	let mode: WorkbenchModeInput | undefined;
 	let feedMode: FeedModeInput | undefined;
 	let workbenchRoot: string | undefined;
@@ -983,6 +987,18 @@ export function parseArgs(
 		}
 		if (arg.startsWith("--event=")) {
 			eventPath = arg.slice("--event=".length);
+			continue;
+		}
+		if (arg === "--script") {
+			scriptPath = required(argv, ++index, arg);
+			continue;
+		}
+		if (arg.startsWith("--script=")) {
+			scriptPath = arg.slice("--script=".length);
+			continue;
+		}
+		if (arg === "--script-stdin") {
+			scriptStdin = true;
 			continue;
 		}
 		if (arg === "--forgejo") {
@@ -1419,7 +1435,7 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			throw new Error("remote supports only preflight or host-overview; use --ssh with fetch, app, workbench, automation, functions, or turn run");
+			throw new Error("remote supports only preflight or host-overview; use --ssh with fetch, app, workbench, workflow, functions, or turn run");
 		}
 	if (command === "host") {
 		const subcommand = positionals[1];
@@ -1467,11 +1483,11 @@ export function parseArgs(
 				...remoteFields(),
 			};
 		}
-	if (command === "automation" || command === "automations") {
+	if (command === "workflow") {
 		const subcommand = positionals[1];
 		if (subcommand === "list" || subcommand === "ls") {
 			return {
-				type: "automation-list",
+				type: "workflow-list",
 				workbenchRoot,
 				timeoutMs,
 				json,
@@ -1480,11 +1496,22 @@ export function parseArgs(
 			};
 		}
 		if (subcommand !== "run") {
-			throw new Error("automation requires run or list");
+			throw new Error("workflow requires run or list");
+		}
+		const workflowTarget = positionals[2];
+		const sources = [
+			workflowTarget ? "target" : undefined,
+			scriptPath ? "script" : undefined,
+			scriptStdin ? "script-stdin" : undefined,
+		].filter(Boolean);
+		if (sources.length !== 1) {
+			throw new Error("workflow run requires exactly one of <name>, --script <path>, or --script-stdin");
 		}
 		return {
-			type: "automation-run",
-			target: requiredPositional(positionals, 2, "automation run requires <name>"),
+			type: "workflow-run",
+			target: workflowTarget,
+			scriptPath,
+			scriptStdin,
 			eventPath,
 			prompt,
 			workbenchRoot,
@@ -1492,7 +1519,7 @@ export function parseArgs(
 			via,
 			appUrl,
 			workbenchUrl,
-			timeoutMs: automationRunTimeoutMs(timeoutMs),
+			timeoutMs: workflowRunTimeoutMs(timeoutMs),
 			sandbox,
 			approvalPolicy,
 			permissions,
@@ -2501,7 +2528,7 @@ function turnWaitTimeoutMs(timeoutMs: number): number {
 	return timeoutMs === defaultTimeoutMs ? defaultLongRunningTurnTimeoutMs : timeoutMs;
 }
 
-function automationRunTimeoutMs(timeoutMs: number): number {
+function workflowRunTimeoutMs(timeoutMs: number): number {
 	return timeoutMs === defaultTimeoutMs ? defaultLongRunningTurnTimeoutMs : timeoutMs;
 }
 

@@ -239,13 +239,13 @@ describe("codex-toys CLI args", () => {
 			});
 		});
 
-	test("parses turn automation commands", () => {
+	test("parses workflow commands", () => {
 		expect(parseArgs([
 			"--ssh",
 			"devbox",
 			"--cwd",
 			"/repo",
-			"automation",
+			"workflow",
 			"run",
 			"check-release",
 			"--event",
@@ -260,7 +260,7 @@ describe("codex-toys CLI args", () => {
 			"never",
 			"--json",
 		], {})).toMatchObject({
-			type: "automation-run",
+			type: "workflow-run",
 			target: "check-release",
 			eventPath: "event.json",
 			prompt: "default prompt",
@@ -277,17 +277,48 @@ describe("codex-toys CLI args", () => {
 			"devbox",
 			"--cwd",
 			"/repo",
-			"automation",
+			"workflow",
 			"list",
 			"--workbench-root",
 			"/work",
 		], {}))
 			.toMatchObject({
-				type: "automation-list",
+				type: "workflow-list",
 				workbenchRoot: "/work",
 				sshTarget: "devbox",
 				cwd: "/repo",
 			});
+		expect(parseArgs([
+			"workflow",
+			"run",
+			"--script",
+			"./workflow.mjs",
+			"--prompt",
+			"inline prompt",
+		], {})).toMatchObject({
+			type: "workflow-run",
+			scriptPath: "./workflow.mjs",
+			scriptStdin: false,
+			prompt: "inline prompt",
+		});
+		expect(parseArgs([
+			"workflow",
+			"run",
+			"--script-stdin",
+		], {})).toMatchObject({
+			type: "workflow-run",
+			scriptStdin: true,
+		});
+		expect(() => parseArgs([
+			"workflow",
+			"run",
+			"check-release",
+			"--script",
+			"./workflow.mjs",
+		], {})).toThrow("exactly one");
+		const retiredCommand = ["auto", "mation"].join("");
+		expect(() => parseArgs([retiredCommand, "list"], {}))
+			.toThrow("Unknown command");
 		expect(parseArgs(["turn", "run", "scan", "--wait"], {}))
 			.toMatchObject({
 				type: "turn-run",

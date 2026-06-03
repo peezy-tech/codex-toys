@@ -30,7 +30,7 @@ Run one-shot commands through the spawned local toybox:
 codex-toys fetch
 codex-toys workbench methods
 codex-toys functions list --json
-codex-toys automation list --json
+codex-toys workflow list --json
 codex-toys turn run "Check workbench status" --wait
 ```
 
@@ -76,7 +76,7 @@ Examples:
 ```bash
 codex-toys --ssh <user@host> --cwd <remote-workbench> workbench methods
 codex-toys --ssh <user@host> --cwd <remote-workbench> functions list --json
-codex-toys --ssh <user@host> --cwd <remote-workbench> automation run check-release --event event.json --sandbox danger-full-access --approval-policy never
+codex-toys --ssh <user@host> --cwd <remote-workbench> workflow run check-release --event event.json --sandbox danger-full-access --approval-policy never
 codex-toys --ssh <user@host> --cwd <remote-workbench> app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-toys --ssh <user@host> --cwd <remote-workbench> turn run "Check workbench status" --wait --sandbox danger-full-access --approval-policy never
 ```

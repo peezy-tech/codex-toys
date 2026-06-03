@@ -64,7 +64,7 @@ Dashboard code calls the local bridge:
 import { codexToys } from "@codex-toys/proxy/browser";
 
 const functions = await codexToys.functions.list();
-const snapshot = await codexToys.functions.call("portfolioSnapshot");
+const snapshot = await codexToys.functions.call("statusSnapshot");
 ```
 
 The browser talks only to the local Vite server under `/__codex_toys/api`.
@@ -96,11 +96,11 @@ with no imports:
 
 ```ts
 export default {
-  portfolioSnapshot: {
-    description: "Read the latest portfolio snapshot.",
+  statusSnapshot: {
+    description: "Read the latest workbench status snapshot.",
     sideEffects: "read-only",
     handler: async () => {
-      return { positions: [], cash: 0 };
+      return { status: "ok", updatedAt: new Date().toISOString() };
     },
   },
 };
