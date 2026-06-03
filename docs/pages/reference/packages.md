@@ -115,4 +115,5 @@ workflow templates. Kits read optional `codex-kit.toml` manifests, write
 ## `codex-toys`
 
 The CLI package and umbrella runtime export. It publishes the `codex-toys` and
-`codex-toys-proxy` binaries and re-exports the focused runtime surfaces.
+`codex-toys-proxy` binaries, re-exports the focused runtime surfaces, and
+ships a version-matched Markdown docs snapshot under `docs/pages`.

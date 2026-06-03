@@ -23,6 +23,19 @@ const requiredTarEntries = [
 	"package/dist/internal/remote/index.js",
 	"package/dist/internal/toybox/index.js",
 	"package/dist/internal/workbench/index.js",
+	"package/docs/pages/index.md",
+	"package/docs/pages/operations/codex-state.md",
+	"package/docs/pages/operations/plugins.md",
+	"package/docs/pages/primitives/deferred-queues.md",
+	"package/docs/pages/primitives/delegation.md",
+	"package/docs/pages/primitives/feed.md",
+	"package/docs/pages/primitives/kits.md",
+	"package/docs/pages/primitives/proxy.md",
+	"package/docs/pages/primitives/toybox.md",
+	"package/docs/pages/primitives/workbench.md",
+	"package/docs/pages/primitives/workflow.md",
+	"package/docs/pages/reference/cli.md",
+	"package/docs/pages/reference/packages.md",
 	"package/node_modules/smol-toml/dist/index.js",
 	"package/node_modules/tsx/dist/loader.mjs",
 	"package/node_modules/esbuild/lib/main.js",
@@ -60,6 +73,9 @@ try {
 	for (const entry of tarEntries) {
 		if (entry.startsWith("package/node_modules/@codex-toys/")) {
 			throw new Error(`packed tarball must not include private package ${entry}`);
+		}
+		if (entry.startsWith("package/docs/dist/")) {
+			throw new Error(`packed tarball must not include built docs asset ${entry}`);
 		}
 	}
 	const packedManifest = JSON.parse(await extractTarText(tarballPath, "package/package.json")) as {

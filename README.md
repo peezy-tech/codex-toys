@@ -9,7 +9,8 @@ reusable runtime surfaces are exported from subpaths such as
 The scoped `@codex-toys/*` workspaces are internal package boundaries that are
 bundled into the published tarball.
 The full user documentation lives in the Tome docs site under
-[`docs/pages`](docs/pages).
+[`docs/pages`](docs/pages). The public npm tarball also carries a Markdown
+snapshot at `docs/pages` so installed versions keep matching docs.
 
 ## Start Here
 
@@ -128,6 +129,8 @@ The public npm package is:
 Its supported runtime imports are exposed through `codex-toys/*` subpaths, for
 example `codex-toys/feed`, `codex-toys/workbench`, `codex-toys/bridge`, and
 `codex-toys/proxy/browser`.
+The package also includes the Markdown documentation snapshot under
+`docs/pages`; built Tome assets are not published.
 
 Legacy workflow packages have been removed from the monorepo; new workflow
 surface belongs in `packages/workbench`, the public `codex-toys/workbench`

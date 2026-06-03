@@ -95,6 +95,9 @@ async function main(): Promise<void> {
 		await cp(path.join(publicPackageDir, "dist"), path.join(stagingDir, "dist"), {
 			recursive: true,
 		});
+		await cp(path.join(repoRoot, "docs", "pages"), path.join(stagingDir, "docs", "pages"), {
+			recursive: true,
+		});
 		await cp(path.join(publicPackageDir, "README.md"), path.join(stagingDir, "README.md"));
 		normalizeDependencies(publicManifest, catalog, publicVersion);
 		removeInternalPackageDependencies(publicManifest);

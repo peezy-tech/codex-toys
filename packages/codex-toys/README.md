@@ -12,7 +12,8 @@ or:
 npm install codex-toys
 ```
 
-Full documentation lives in the repo docs site:
+Full documentation lives in the repo docs site and is also published as a
+version-matched Markdown snapshot under `docs/pages` in the npm tarball:
 
 - overview: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/index.md>
 - workflow: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/workflow.md>
@@ -234,7 +235,8 @@ vp run --filter codex-toys release:check
 
 `build` emits ESM JavaScript, source maps, and declaration files into `dist`.
 `release:check` runs tests, type checking, a clean build, export smoke tests,
-and a tarball install smoke test.
+and a tarball install smoke test. The public pack script also copies
+`docs/pages` into the tarball and rejects built docs assets.
 
 Generated protocol files live in `src/app-server/generated`. Keep handwritten
 client and transport code outside that generated tree.
