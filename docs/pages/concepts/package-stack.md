@@ -28,7 +28,7 @@ remains the CLI and public runtime package for users who want everything.
   exposed publicly as `codex-toys/proxy`.
 - `packages/kits`: optional file-copy kits for skills, plugins, and
   automation templates.
-- `packages/codex-toys`: CLI, bundled public tarball, and umbrella export.
+- `packages/codex-toys`: CLI, self-contained public tarball, and umbrella export.
 
 The `@codex-toys/*` package names are internal workspace names. Consumers should
 install `codex-toys` and import from `codex-toys/*` subpaths.

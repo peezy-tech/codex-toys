@@ -47,8 +47,8 @@ credentials, domain state, scoring, release policy, and final side effects.
 
 ## Current Package Surface
 
-The public npm package is `codex-toys`. Its bundled runtime surfaces are split
-by feature boundary and exposed as subpath imports:
+The public npm package is `codex-toys`. Its self-contained runtime surfaces are
+split by feature boundary and exposed as subpath imports:
 
 - `codex-toys/bridge`: native Codex app-server, auth, memory, thread, JSON,
   and generated protocol bridge primitives

@@ -39,7 +39,7 @@ const internalPackageJsonPaths = [
 	"packages/workbench/package.json",
 ];
 
-const bundledInternalPackages = [
+const privateInternalPackages = [
 	"@codex-toys/actions",
 	"@codex-toys/bridge",
 	"@codex-toys/feed",
@@ -56,6 +56,8 @@ const bundledRuntimePackages = [
 	"esbuild",
 	"@esbuild/linux-x64",
 ] as const;
+
+const publicProxyBinPath = "dist/internal/proxy/bin/codex-toys-proxy.js";
 
 const publicSubpathExports = [
 	".",
@@ -129,7 +131,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log(
-		`publish metadata ok: codex-toys bundles ${[...bundledInternalPackages, ...bundledRuntimePackages].join(", ")}`,
+		`publish metadata ok: codex-toys embeds private workspaces in dist/internal and bundles ${bundledRuntimePackages.join(", ")}`,
 	);
 }
 
@@ -146,7 +148,12 @@ async function checkSourceManifests(): Promise<void> {
 		...(publicManifest.bundledDependencies ?? []),
 		...(publicManifest.bundleDependencies ?? []),
 	]);
-	for (const packageName of [...bundledInternalPackages, ...bundledRuntimePackages]) {
+	for (const packageName of privateInternalPackages) {
+		if (bundled.has(packageName)) {
+			failures.push(`${publicManifestPath}: private package ${packageName} must not be bundled as a dependency`);
+		}
+	}
+	for (const packageName of bundledRuntimePackages) {
 		if (!bundled.has(packageName)) {
 			failures.push(`${publicManifestPath}: missing bundled dependency ${packageName}`);
 		}
@@ -167,10 +174,7 @@ async function checkSourceManifests(): Promise<void> {
 	if (publicManifest.bin?.["codex-toys"] !== "dist/cli/index.js") {
 		failures.push(`${publicManifestPath}: missing codex-toys bin`);
 	}
-	if (
-		publicManifest.bin?.["codex-toys-proxy"] !==
-		"node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js"
-	) {
+	if (publicManifest.bin?.["codex-toys-proxy"] !== publicProxyBinPath) {
 		failures.push(`${publicManifestPath}: missing codex-toys-proxy bin`);
 	}
 
@@ -203,6 +207,9 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 	for (const field of dependencyFields) {
 		const dependencies = manifest[field] ?? {};
 		for (const [dependencyName, range] of Object.entries(dependencies)) {
+			if (dependencyName.startsWith("@codex-toys/")) {
+				failures.push(`${publicManifestPath}: packed ${field}.${dependencyName} must not resolve from npm`);
+			}
 			if (invalidProtocols.some((protocol) => range.startsWith(protocol))) {
 				failures.push(
 					`${publicManifestPath}: packed ${field}.${dependencyName} uses non-publishable range ${range}`,
@@ -218,7 +225,15 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 		"package/dist/workbench.js",
 		"package/dist/proxy/browser.js",
 		"package/dist/bridge/json.js",
-		"package/node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js",
+		"package/dist/internal/actions/index.js",
+		"package/dist/internal/bridge/index.js",
+		"package/dist/internal/feed/index.js",
+		"package/dist/internal/kits/index.js",
+		"package/dist/internal/proxy/index.js",
+		"package/dist/internal/proxy/bin/codex-toys-proxy.js",
+		"package/dist/internal/remote/index.js",
+		"package/dist/internal/toybox/index.js",
+		"package/dist/internal/workbench/index.js",
 		"package/node_modules/smol-toml/dist/index.js",
 		"package/node_modules/tsx/dist/loader.mjs",
 		"package/node_modules/esbuild/lib/main.js",
@@ -228,30 +243,9 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 			failures.push(`${publicManifestPath}: packed tarball is missing ${entry}`);
 		}
 	}
-
-	for (const packageName of bundledInternalPackages) {
-		const packagePath = packageName.replace("@codex-toys/", "@codex-toys/");
-		const packageJsonPath = `package/node_modules/${packagePath}/package.json`;
-		const distPath = `package/node_modules/${packagePath}/dist/index.js`;
-		if (!tarEntries.has(packageJsonPath)) {
-			failures.push(`${publicManifestPath}: packed tarball is missing ${packageJsonPath}`);
-			continue;
-		}
-		if (!tarEntries.has(distPath)) {
-			failures.push(`${publicManifestPath}: packed tarball is missing ${distPath}`);
-		}
-
-		const internalManifestText = extractTarText(tarballPath, packageJsonPath);
-		if (internalManifestText === null) {
-			failures.push(`${publicManifestPath}: failed to inspect ${packageJsonPath}`);
-			continue;
-		}
-		const internalManifest = JSON.parse(internalManifestText) as PackageJson;
-		if (internalManifest.private !== true) {
-			failures.push(`${packageJsonPath}: bundled internal package must stay private`);
-		}
-		if (internalManifest.publishConfig !== undefined) {
-			failures.push(`${packageJsonPath}: bundled internal package must not declare publishConfig`);
+	for (const entry of tarEntries) {
+		if (entry.startsWith("package/node_modules/@codex-toys/")) {
+			failures.push(`${publicManifestPath}: packed tarball must not include private package ${entry}`);
 		}
 	}
 

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,15 +14,15 @@ const requiredTarEntries = [
 	"package/dist/workbench.js",
 	"package/dist/proxy/browser.js",
 	"package/dist/bridge/json.js",
-	"package/node_modules/@codex-toys/actions/dist/index.js",
-	"package/node_modules/@codex-toys/bridge/dist/index.js",
-	"package/node_modules/@codex-toys/feed/dist/index.js",
-	"package/node_modules/@codex-toys/kits/dist/index.js",
-	"package/node_modules/@codex-toys/proxy/dist/index.js",
-	"package/node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js",
-	"package/node_modules/@codex-toys/remote/dist/index.js",
-	"package/node_modules/@codex-toys/toybox/dist/index.js",
-	"package/node_modules/@codex-toys/workbench/dist/index.js",
+	"package/dist/internal/actions/index.js",
+	"package/dist/internal/bridge/index.js",
+	"package/dist/internal/feed/index.js",
+	"package/dist/internal/kits/index.js",
+	"package/dist/internal/proxy/index.js",
+	"package/dist/internal/proxy/bin/codex-toys-proxy.js",
+	"package/dist/internal/remote/index.js",
+	"package/dist/internal/toybox/index.js",
+	"package/dist/internal/workbench/index.js",
 	"package/node_modules/smol-toml/dist/index.js",
 	"package/node_modules/tsx/dist/loader.mjs",
 	"package/node_modules/esbuild/lib/main.js",
@@ -34,10 +34,12 @@ const tempRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-pack-"));
 try {
 	const packDir = path.join(tempRoot, "pack");
 	const installDir = path.join(tempRoot, "install");
+	const bunInstallDir = path.join(tempRoot, "bun-install");
 	const globalInstallDir = path.join(tempRoot, "global-install");
 	const globalIgnoreScriptsInstallDir = path.join(tempRoot, "global-ignore-scripts-install");
 	await mkdir(packDir, { recursive: true });
 	await mkdir(installDir, { recursive: true });
+	await mkdir(bunInstallDir, { recursive: true });
 	await run("tsx", [
 		path.join(repoRoot, "scripts", "pack-public-package.ts"),
 		"--pack-destination",
@@ -53,6 +55,33 @@ try {
 	for (const entry of requiredTarEntries) {
 		if (!tarEntries.has(entry)) {
 			throw new Error(`packed tarball is missing ${entry}`);
+		}
+	}
+	for (const entry of tarEntries) {
+		if (entry.startsWith("package/node_modules/@codex-toys/")) {
+			throw new Error(`packed tarball must not include private package ${entry}`);
+		}
+	}
+	const packedManifest = JSON.parse(await extractTarText(tarballPath, "package/package.json")) as {
+		bin?: Record<string, string>;
+		dependencies?: Record<string, string>;
+		devDependencies?: Record<string, string>;
+		peerDependencies?: Record<string, string>;
+		optionalDependencies?: Record<string, string>;
+	};
+	if (packedManifest.bin?.["codex-toys-proxy"] !== "dist/internal/proxy/bin/codex-toys-proxy.js") {
+		throw new Error("packed codex-toys-proxy bin must point at dist/internal/proxy/bin");
+	}
+	for (const dependencies of [
+		packedManifest.dependencies,
+		packedManifest.devDependencies,
+		packedManifest.peerDependencies,
+		packedManifest.optionalDependencies,
+	]) {
+		for (const dependencyName of Object.keys(dependencies ?? {})) {
+			if (dependencyName.startsWith("@codex-toys/")) {
+				throw new Error(`packed package must not depend on private package ${dependencyName}`);
+			}
 		}
 	}
 
@@ -101,6 +130,41 @@ for (const [specifier, expectedExports] of checks) {
 		cwd: installDir,
 	});
 
+	await writeFile(
+		path.join(bunInstallDir, "package.json"),
+		`${JSON.stringify(
+			{
+				dependencies: {
+					"codex-toys": `file:${tarballPath}`,
+				},
+			},
+			null,
+			"\t",
+		)}\n`,
+	);
+	await run("bun", ["install"], { cwd: bunInstallDir });
+	await run("bun", [
+		"--bun",
+		"-e",
+		`
+const checks = [
+	["codex-toys", ["CodexAppServerClient", "collectWorkbenchOverview"]],
+	["codex-toys/bridge", ["CodexAppServerClient", "JsonRpcError"]],
+	["codex-toys/workbench", ["collectHostOverview", "collectWorkbenchOverview", "defineFunctions"]],
+	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],
+	["codex-toys/toybox", ["CodexToyboxClient", "CodexToyboxProtocolServer"]],
+];
+for (const [specifier, expectedExports] of checks) {
+	const module = await import(specifier);
+	for (const exportName of expectedExports) {
+		if (!(exportName in module)) {
+			throw new Error(\`\${specifier} is missing export \${exportName}\`);
+		}
+	}
+}
+`,
+	], { cwd: bunInstallDir });
+
 	await run("npm", [
 		"install",
 		"-g",
@@ -148,6 +212,11 @@ for (const [specifier, expectedExports] of checks) {
 async function listTarEntries(tarballPath: string): Promise<Set<string>> {
 	const result = await run("tar", ["-tf", tarballPath]);
 	return new Set(result.stdout.split("\n").filter(Boolean));
+}
+
+async function extractTarText(tarballPath: string, memberPath: string): Promise<string> {
+	const result = await run("tar", ["-xOf", tarballPath, memberPath]);
+	return result.stdout;
 }
 
 async function run(

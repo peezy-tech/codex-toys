@@ -7,8 +7,8 @@ description: Public codex-toys package imports and internal workspace boundaries
 
 Install `codex-toys` for both the CLI and runtime APIs. The repo keeps internal
 `@codex-toys/*` workspaces for feature boundaries, but those packages are
-bundled into the public tarball rather than published separately. Public
-consumer imports use `codex-toys/*` subpaths.
+embedded into the public tarball under `dist/internal` rather than published or
+resolved separately. Public consumer imports use `codex-toys/*` subpaths.
 
 ## `codex-toys/bridge`
 
@@ -148,9 +148,10 @@ codex-toys kit doctor [--json]
 
 ## `codex-toys`
 
-The CLI package and umbrella runtime export. It bundles the internal workspaces,
-re-exports their public APIs from the root import, exposes focused subpaths, and
-publishes the `codex-toys` and `codex-toys-proxy` binaries.
+The CLI package and umbrella runtime export. It embeds the internal workspaces
+inside its own `dist`, re-exports their public APIs from the root import,
+exposes focused subpaths, and publishes the `codex-toys` and `codex-toys-proxy`
+binaries.
 
 ```bash
 codex-toys fetch

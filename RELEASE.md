@@ -76,17 +76,19 @@ Public npm package:
 - `codex-toys`
 
 The scoped `@codex-toys/*` packages are private workspace boundaries. They are
-built, checked, and bundled into the public `codex-toys` tarball, but they are
-not published as standalone npm packages. Consumers import feature surfaces from
-`codex-toys/*` subpaths such as `codex-toys/workbench`,
-`codex-toys/bridge`, and `codex-toys/proxy/browser`.
+built and checked in the monorepo, then embedded into the public `codex-toys`
+tarball under `dist/internal`. They are not published or declared as standalone
+npm packages. Consumers import feature surfaces from `codex-toys/*` subpaths
+such as `codex-toys/workbench`, `codex-toys/bridge`, and
+`codex-toys/proxy/browser`.
 
 The GitHub publish workflow checks whether the `codex-toys` version already
 exists on npm. It publishes the missing version and skips versions that are
 already present. The package is staged by `scripts/pack-public-package.ts`,
 packed with `npm pack`, and then handed to `npm publish` so internal workspaces
-are bundled and workspace/catalog dependency specifiers are converted before the
-npm registry sees the package while GitHub provenance still comes from npm.
+are already embedded and private workspace dependency specifiers are removed
+before the npm registry sees the package while GitHub provenance still comes
+from npm.
 Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
 line is `0.140.x`, a breaking codex-toys stack release should usually advance

@@ -114,7 +114,7 @@ await expectIncludes("docs/pages/index.md", "codex-toys");
 await expectIncludes("docs/pages/reference/packages.md", "codex-toys/bridge");
 await expectIncludes("docs/pages/reference/packages.md", "codex-toys/workbench");
 await expectIncludes("docs/pages/reference/packages.md", "codex-toys/kits");
-await expectIncludes("docs/pages/reference/packages.md", "bundled into the public tarball");
+await expectIncludes("docs/pages/reference/packages.md", "embedded into the public tarball");
 await expectIncludes("docs/pages/reference/packages.md", "memory transplant");
 await expectIncludes("docs/pages/reference/packages.md", "codex-kit.toml");
 

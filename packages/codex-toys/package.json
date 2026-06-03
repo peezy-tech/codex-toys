@@ -1,6 +1,6 @@
 {
 	"name": "codex-toys",
-	"version": "0.140.9",
+	"version": "0.140.10",
 	"description": "Codex CLI and umbrella runtime export for bridge, toybox, feed, remote, workbench, actions, proxy, and kits.",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -19,7 +19,7 @@
 	"types": "./dist/index.d.ts",
 	"bin": {
 		"codex-toys": "dist/cli/index.js",
-		"codex-toys-proxy": "node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js"
+		"codex-toys-proxy": "dist/internal/proxy/bin/codex-toys-proxy.js"
 	},
 	"files": [
 		"dist",
@@ -99,14 +99,6 @@
 		}
 	},
 	"bundledDependencies": [
-		"@codex-toys/actions",
-		"@codex-toys/bridge",
-		"@codex-toys/feed",
-		"@codex-toys/kits",
-		"@codex-toys/proxy",
-		"@codex-toys/remote",
-		"@codex-toys/toybox",
-		"@codex-toys/workbench",
 		"smol-toml",
 		"tsx",
 		"esbuild",
@@ -116,7 +108,7 @@
 		"node": ">=24.0.0 <25"
 	},
 	"scripts": {
-		"build": "vp run clean && tsc -p tsconfig.build.json && chmod 755 dist/cli/index.js",
+		"build": "vp run clean && tsc -p tsconfig.build.json && tsx scripts/assemble-public-dist.ts && chmod 755 dist/cli/index.js",
 		"check:types": "tsc --noEmit",
 		"clean": "rm -rf dist",
 		"pack:dry-run": "tsx scripts/pack-dry-run.ts",

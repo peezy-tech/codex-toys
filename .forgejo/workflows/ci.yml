@@ -18,6 +18,11 @@ jobs:
         with:
           node-version: 24
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Install VitePlus
         run: npm install -g vite-plus@0.1.22
 

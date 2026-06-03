@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/actions",
-	"version": "0.140.9",
+	"version": "0.140.10",
 	"private": true,
 	"description": "GitHub Actions auth and state helpers for Codex workbench runs.",
 	"type": "module",

@@ -11,7 +11,7 @@ const checks = [
 	{ name: "codex-toys", path: "dist/cli/index.js" },
 	{
 		name: "codex-toys-proxy",
-		path: "node_modules/@codex-toys/proxy/dist/bin/codex-toys-proxy.js",
+		path: "dist/internal/proxy/bin/codex-toys-proxy.js",
 	},
 ] as const;
 

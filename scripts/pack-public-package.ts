@@ -25,6 +25,7 @@ type PackageJson = {
 	name?: string;
 	version?: string;
 	private?: boolean;
+	bin?: Record<string, string>;
 	scripts?: Record<string, string>;
 	publishConfig?: {
 		access?: string;
@@ -37,11 +38,6 @@ type PackageJson = {
 	optionalDependencies?: Record<string, string>;
 };
 
-type InternalPackage = {
-	name: string;
-	dir: string;
-};
-
 type RuntimePackage = {
 	name: string;
 	executablePaths?: string[];
@@ -50,17 +46,18 @@ type RuntimePackage = {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const publicPackageDir = path.join(repoRoot, "packages", "codex-toys");
+const publicProxyBinPath = "dist/internal/proxy/bin/codex-toys-proxy.js";
 
-const internalPackages: InternalPackage[] = [
-	{ name: "@codex-toys/actions", dir: "packages/actions" },
-	{ name: "@codex-toys/bridge", dir: "packages/bridge" },
-	{ name: "@codex-toys/feed", dir: "packages/feed" },
-	{ name: "@codex-toys/kits", dir: "packages/kits" },
-	{ name: "@codex-toys/proxy", dir: "packages/proxy" },
-	{ name: "@codex-toys/remote", dir: "packages/remote" },
-	{ name: "@codex-toys/toybox", dir: "packages/toybox" },
-	{ name: "@codex-toys/workbench", dir: "packages/workbench" },
-];
+const internalPackageNames = new Set([
+	"@codex-toys/actions",
+	"@codex-toys/bridge",
+	"@codex-toys/feed",
+	"@codex-toys/kits",
+	"@codex-toys/proxy",
+	"@codex-toys/remote",
+	"@codex-toys/toybox",
+	"@codex-toys/workbench",
+]);
 
 const runtimePackages: RuntimePackage[] = [
 	{ name: "smol-toml" },
@@ -100,51 +97,19 @@ async function main(): Promise<void> {
 		});
 		await cp(path.join(publicPackageDir, "README.md"), path.join(stagingDir, "README.md"));
 		normalizeDependencies(publicManifest, catalog, publicVersion);
-		publicManifest.bundledDependencies = [
-			...internalPackages.map((internalPackage) => internalPackage.name),
-			...runtimePackages.map((runtimePackage) => runtimePackage.name),
-		];
+		removeInternalPackageDependencies(publicManifest);
+		publicManifest.bin ??= {};
+		publicManifest.bin["codex-toys-proxy"] = publicProxyBinPath;
+		publicManifest.bundledDependencies = runtimePackages.map((runtimePackage) => runtimePackage.name);
 		delete publicManifest.bundleDependencies;
 		await writeManifest(path.join(stagingDir, "package.json"), publicManifest);
 		await chmod(path.join(stagingDir, "dist", "cli", "index.js"), 0o755);
-
-		for (const internalPackage of internalPackages) {
-			const sourceDir = path.join(repoRoot, internalPackage.dir);
-			const targetDir = path.join(
-				stagingDir,
-				"node_modules",
-				"@codex-toys",
-				internalPackage.name.replace("@codex-toys/", ""),
-			);
-			await mkdir(targetDir, { recursive: true });
-			await cp(path.join(sourceDir, "dist"), path.join(targetDir, "dist"), {
-				recursive: true,
-			});
-
-			const manifest = await readManifest(path.join(sourceDir, "package.json"));
-			manifest.private = true;
-			delete manifest.publishConfig;
-			delete manifest.scripts;
-			normalizeDependencies(manifest, catalog, publicVersion);
-			await writeManifest(path.join(targetDir, "package.json"), manifest);
-		}
 
 		for (const runtimePackage of runtimePackages) {
 			await copyRuntimePackage(stagingDir, runtimePackage);
 		}
 
-		await chmod(
-			path.join(
-				stagingDir,
-				"node_modules",
-				"@codex-toys",
-				"proxy",
-				"dist",
-				"bin",
-				"codex-toys-proxy.js",
-			),
-			0o755,
-		);
+		await chmod(path.join(stagingDir, publicProxyBinPath), 0o755);
 
 		const pack = spawnSync(
 			"npm",
@@ -256,6 +221,23 @@ function sanitizeRuntimeManifest(packageName: string, manifest: PackageJson): vo
 
 	if (packageName === "tsx") {
 		delete manifest.optionalDependencies;
+	}
+}
+
+function removeInternalPackageDependencies(manifest: PackageJson): void {
+	for (const field of dependencyFields) {
+		const dependencies = manifest[field];
+		if (!dependencies) {
+			continue;
+		}
+		for (const dependencyName of Object.keys(dependencies)) {
+			if (internalPackageNames.has(dependencyName)) {
+				delete dependencies[dependencyName];
+			}
+		}
+		if (Object.keys(dependencies).length === 0) {
+			delete manifest[field];
+		}
 	}
 }
 
