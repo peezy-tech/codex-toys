@@ -100,6 +100,9 @@ codex-toys workbench init actions --forgejo
 codex-toys workbench init actions --github
 ```
 
+For the full GitHub Actions schedule setup, see
+[Repository autonomy](../guides/repository-autonomy).
+
 The generated runner prepares auth, runs `workbench tick --mode actions`,
 cleans up runtime-only files, and preserves durable workbench state. Durable
 state may include:

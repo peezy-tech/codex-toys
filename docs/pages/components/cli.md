@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: Command surface for codex-toys primitives.
+description: Command porcelain over codex-toys primitives and components.
 ---
 
 # CLI Reference

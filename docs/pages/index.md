@@ -1,6 +1,6 @@
 ---
 title: codex-toys
-description: Primitive-first documentation for codex-toys workflow, toybox, workbench, feed, proxy, kits, and Codex state helpers.
+description: Primitive-first documentation for codex-toys workflow, workbench, feed, components, guides, and Codex state helpers.
 ---
 
 # codex-toys
@@ -19,14 +19,38 @@ feature boundaries that are embedded into the public tarball and exposed through
 | Primitive | Owns | Start here |
 |-----------|------|------------|
 | Workflow | A script that inspects state and can start, read, wait on, or delegate Codex turns. | [Workflow](primitives/workflow) |
-| Toybox | The stdio JSON-RPC workbench control surface used locally and over SSH. | [Toybox](primitives/toybox) |
 | Workbench | Repo-local config, modes, scheduled tasks, functions, health, and overview. | [Workbench](primitives/workbench) |
 | Delegation | Starting and tracking Codex work in another workbench-relative cwd. | [Delegation](primitives/delegation) |
 | Deferred Queues | Durable future intents, prompt queues, handoff queues, attempts, and collection. | [Deferred queues](primitives/deferred-queues) |
 | Feed | RSS/Atom intake, item storage, cursors, and ack-aware dispatch. | [Feed](primitives/feed) |
-| Proxy | Optional HTTP edge for browser dashboards. | [Proxy](primitives/proxy) |
-| Kits | Repo-local copies of skills, plugins, and workflow templates. | [Kits](primitives/kits) |
+
+## Components
+
+| Component | Owns | Start here |
+|-----------|------|------------|
+| Toybox | The stdio JSON-RPC workbench control surface used locally and over SSH. | [Toybox](components/toybox) |
+| Proxy | Optional HTTP edge for browser dashboards. | [Proxy](components/proxy) |
+| Kits | Repo-local copies of skills, plugins, and workflow templates. | [Kits](components/kits) |
+| CLI | Command porcelain over primitives and components. | [CLI](components/cli) |
+
+## Guides
+
+| Guide | Use it when |
+|-------|-------------|
+| [Repository autonomy](guides/repository-autonomy) | A repo should run its workbench on a GitHub Actions schedule and commit durable Codex state back to itself. |
+| [Remote Codex workbench](guides/remote-codex-workbench) | A VPS or SSH host should run a separate Codex workbench controlled from local commands. |
+| [Local scheduled workbench](guides/local-scheduled-workbench) | A trusted local machine should run `workbench tick --mode local` on a systemd user timer. |
+| [Dashboard over toybox](guides/dashboard-over-toybox) | A browser UI should inspect or operate a local or SSH-backed workbench through the proxy. |
+| [Feed to workflow](guides/feed-to-workflow) | RSS or Atom items should dispatch into workflow-backed workbench tasks. |
+| [Capability kit setup](guides/capability-kit-setup) | A workbench should install checked-in local skills, plugins, or workflows from a kit. |
+| [Delegated repo work](guides/delegated-repo-work) | A controlling workbench should start and track Codex work in another checkout. |
+
+## Operations
+
+| Operation | Owns | Start here |
+|-----------|------|------------|
 | Codex State | Memory and thread rollout moves between Codex homes. | [Codex state](operations/codex-state) |
+| Plugins | Codex plugin install surfaces for codex-toys guidance. | [Plugins](operations/plugins) |
 
 ## First Commands
 

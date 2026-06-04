@@ -17,15 +17,22 @@ version-matched Markdown snapshot under `docs/pages` in the npm tarball:
 
 - overview: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/index.md>
 - workflow: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/workflow.md>
-- toybox: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/toybox.md>
 - workbench: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/workbench.md>
 - deferred queues: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/deferred-queues.md>
 - feed: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/feed.md>
-- proxy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/proxy.md>
-- kits: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/kits.md>
+- toybox: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/components/toybox.md>
+- proxy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/components/proxy.md>
+- kits: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/components/kits.md>
+- CLI reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/components/cli.md>
+- repository autonomy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/repository-autonomy.md>
+- remote Codex workbench: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/remote-codex-workbench.md>
+- local scheduled workbench: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/local-scheduled-workbench.md>
+- dashboard over toybox: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/dashboard-over-toybox.md>
+- feed to workflow: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/feed-to-workflow.md>
+- capability kit setup: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/capability-kit-setup.md>
+- delegated repo work: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/guides/delegated-repo-work.md>
 - Codex state moves: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/operations/codex-state.md>
 - plugin install: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/operations/plugins.md>
-- CLI reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/cli.md>
 - package reference: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/reference/packages.md>
 
 ## Public Imports
@@ -205,7 +212,7 @@ codex-toys-proxy serve --cwd /repo --static ./dashboard
 codex-toys-proxy serve --ssh <target> --cwd <remote-workbench> --static ./dashboard
 ```
 
-See `docs/pages/reference/cli.md` for the full command surface.
+See `docs/pages/components/cli.md` for the full command surface.
 
 `workbench doctor` also reports whether it can see a matching local systemd
 user timer that runs `workbench tick` for the current workbench root.

@@ -16,16 +16,23 @@ snapshot at `docs/pages` so installed versions keep matching docs.
 
 - New users: read [`docs/pages/index.md`](docs/pages/index.md).
 - Workflow: [`docs/pages/primitives/workflow.md`](docs/pages/primitives/workflow.md).
-- Toybox: [`docs/pages/primitives/toybox.md`](docs/pages/primitives/toybox.md).
 - Workbench: [`docs/pages/primitives/workbench.md`](docs/pages/primitives/workbench.md).
 - Delegation: [`docs/pages/primitives/delegation.md`](docs/pages/primitives/delegation.md).
 - Deferred queues: [`docs/pages/primitives/deferred-queues.md`](docs/pages/primitives/deferred-queues.md).
 - Feed: [`docs/pages/primitives/feed.md`](docs/pages/primitives/feed.md).
-- Proxy: [`docs/pages/primitives/proxy.md`](docs/pages/primitives/proxy.md).
-- Kits: [`docs/pages/primitives/kits.md`](docs/pages/primitives/kits.md).
+- Toybox: [`docs/pages/components/toybox.md`](docs/pages/components/toybox.md).
+- Proxy: [`docs/pages/components/proxy.md`](docs/pages/components/proxy.md).
+- Kits: [`docs/pages/components/kits.md`](docs/pages/components/kits.md).
+- CLI reference: [`docs/pages/components/cli.md`](docs/pages/components/cli.md).
+- Repository autonomy: [`docs/pages/guides/repository-autonomy.md`](docs/pages/guides/repository-autonomy.md).
+- Remote Codex workbench: [`docs/pages/guides/remote-codex-workbench.md`](docs/pages/guides/remote-codex-workbench.md).
+- Local scheduled workbench: [`docs/pages/guides/local-scheduled-workbench.md`](docs/pages/guides/local-scheduled-workbench.md).
+- Dashboard over toybox: [`docs/pages/guides/dashboard-over-toybox.md`](docs/pages/guides/dashboard-over-toybox.md).
+- Feed to workflow: [`docs/pages/guides/feed-to-workflow.md`](docs/pages/guides/feed-to-workflow.md).
+- Capability kit setup: [`docs/pages/guides/capability-kit-setup.md`](docs/pages/guides/capability-kit-setup.md).
+- Delegated repo work: [`docs/pages/guides/delegated-repo-work.md`](docs/pages/guides/delegated-repo-work.md).
 - Codex state moves: [`docs/pages/operations/codex-state.md`](docs/pages/operations/codex-state.md).
 - Plugins: [`docs/pages/operations/plugins.md`](docs/pages/operations/plugins.md).
-- CLI reference: [`docs/pages/reference/cli.md`](docs/pages/reference/cli.md).
 - Package reference: [`docs/pages/reference/packages.md`](docs/pages/reference/packages.md).
 - Maintainers and release operators: [`RELEASE.md`](RELEASE.md).
 
@@ -112,10 +119,13 @@ codex plugin add codex-toys-local-workbench@peezy-tech
 The root README is intentionally short. Canonical documentation belongs in the
 docs site:
 
-- Primitive pages define the product surface: workflow, toybox, workbench,
-  delegation, deferred queues, feed, proxy, and kits.
+- Primitive pages define the product surface: workflow, workbench, delegation,
+  deferred queues, and feed.
+- Component pages define supporting surfaces: toybox, proxy, kits, and CLI.
+- Guides show end-to-end setup paths for scheduled workbenches, remotes,
+  dashboards, feeds, kits, and delegation.
 - Operations pages cover Codex state moves and plugin install.
-- Reference pages define CLI commands, package exports, and proxy APIs.
+- Reference pages define package exports.
 
 Package READMEs stay npm-focused: install, exports, minimal examples, and links
 back to the docs site.
