@@ -1348,6 +1348,7 @@ schedule = "not-cron"
 		expect(workflow).toContain("git add -- .codex/memories .codex/workbench/actions");
 		expect(workflow).toContain("git add -- .codex/feed/actions");
 		expect(workflow).toContain("git add -A -f -- .codex/sessions");
+		expect(workflow).toContain("git rev-list --count \"${upstream}..HEAD\"");
 		const gitignore = await readFile(path.join(root, ".gitignore"), "utf8");
 		expect(gitignore).toContain(".codex/auth.json");
 		expect(gitignore).not.toContain(".codex/sessions/");

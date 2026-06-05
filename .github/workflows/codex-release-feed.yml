@@ -10,6 +10,9 @@ permissions:
   packages: write
   pull-requests: write
 
+env:
+  CODEX_RELEASE_FEED_STATE_BRANCH: thread/openai-codex-bindings/release-feed
+
 jobs:
   resolve-release:
     runs-on: ubuntu-latest
@@ -24,6 +27,18 @@ jobs:
       - uses: actions/checkout@v5
         with:
           token: ${{ secrets.WORKSPACE_GITHUB_TOKEN || github.token }}
+
+      - name: Restore release feed state
+        run: |
+          state_branch="${CODEX_RELEASE_FEED_STATE_BRANCH}"
+          state_ref="refs/remotes/origin/${state_branch}"
+          if git fetch origin "${state_branch}:${state_ref}"; then
+            if git ls-tree -r --name-only "${state_ref}" -- .codex/feed/actions | grep -q .; then
+              git checkout "${state_ref}" -- .codex/feed/actions
+            fi
+          else
+            echo "No existing ${state_branch} state branch found."
+          fi
 
       - name: Restore active PR thread state
         env:
@@ -76,7 +91,7 @@ jobs:
           echo "CODEX_THREAD_STATE_BRANCH=${state_branch}" >> "${GITHUB_ENV}"
           state_ref="refs/remotes/origin/${state_branch}"
           if git fetch origin "${state_branch}:${state_ref}"; then
-            for path in .codex/feed/actions .codex/workbench/actions .codex/sessions .codex/memories; do
+            for path in .codex/workbench/actions .codex/sessions .codex/memories; do
               if git ls-tree -r --name-only "${state_ref}" -- "${path}" | grep -q .; then
                 git checkout "${state_ref}" -- "${path}"
               fi
@@ -218,6 +233,18 @@ jobs:
       - name: Trust workspace
         run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
+      - name: Restore release feed state
+        run: |
+          state_branch="${CODEX_RELEASE_FEED_STATE_BRANCH}"
+          state_ref="refs/remotes/origin/${state_branch}"
+          if git fetch origin "${state_branch}:${state_ref}"; then
+            if git ls-tree -r --name-only "${state_ref}" -- .codex/feed/actions | grep -q .; then
+              git checkout "${state_ref}" -- .codex/feed/actions
+            fi
+          else
+            echo "No existing ${state_branch} state branch found."
+          fi
+
       - name: Restore active PR thread state
         env:
           GH_TOKEN: ${{ secrets.WORKSPACE_GITHUB_TOKEN || github.token }}
@@ -269,7 +296,7 @@ jobs:
           echo "CODEX_THREAD_STATE_BRANCH=${state_branch}" >> "${GITHUB_ENV}"
           state_ref="refs/remotes/origin/${state_branch}"
           if git fetch origin "${state_branch}:${state_ref}"; then
-            for path in .codex/feed/actions .codex/workbench/actions .codex/sessions .codex/memories; do
+            for path in .codex/workbench/actions .codex/sessions .codex/memories; do
               if git ls-tree -r --name-only "${state_ref}" -- "${path}" | grep -q .; then
                 git checkout "${state_ref}" -- "${path}"
               fi
@@ -349,6 +376,55 @@ jobs:
         if: always()
         run: pnpm exec tsx packages/codex-toys/src/cli/index.ts actions cleanup
 
+      - name: Persist release feed state
+        if: always()
+        run: |
+          state_branch="${CODEX_RELEASE_FEED_STATE_BRANCH}"
+          case "${state_branch}" in
+            thread/openai-codex-bindings/*) ;;
+            *)
+              echo "Refusing to persist unexpected feed state branch: ${state_branch}" >&2
+              exit 1
+              ;;
+          esac
+
+          state_ref="refs/remotes/origin/${state_branch}"
+          if git fetch origin "${state_branch}:${state_ref}"; then
+            parent="$(git rev-parse "${state_ref}")"
+            git read-tree "${state_ref}"
+          else
+            parent=""
+            git read-tree --empty
+          fi
+
+          if [ -e .codex/feed/actions ]; then
+            git add -A -- .codex/feed/actions
+          else
+            git rm -r --cached --ignore-unmatch -- .codex/feed/actions
+          fi
+
+          new_tree="$(git write-tree)"
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          if [ -z "${parent}" ] && [ "${new_tree}" = "${empty_tree}" ]; then
+            echo "No release feed state to persist."
+            exit 0
+          fi
+          if [ -n "${parent}" ] && [ "${new_tree}" = "$(git rev-parse "${state_ref}^{tree}")" ]; then
+            echo "No release feed state changes to persist."
+            exit 0
+          fi
+
+          git config user.name codex-toys-actions
+          git config user.email codex-toys-actions@users.noreply.github.com
+          if [ -n "${parent}" ]; then
+            new_commit="$(printf '%s\n' "Update Codex release feed state" | git commit-tree "${new_tree}" -p "${parent}")"
+          else
+            new_commit="$(printf '%s\n' "Update Codex release feed state" | git commit-tree "${new_tree}")"
+          fi
+          git push origin "${new_commit}:refs/heads/${state_branch}"
+        env:
+          GIT_INDEX_FILE: ${{ runner.temp }}/codex-release-feed-state.index
+
       - name: Persist PR thread state
         if: always()
         run: |
@@ -393,7 +469,7 @@ jobs:
             git read-tree --empty
           fi
 
-          for path in .codex/feed/actions .codex/workbench/actions .codex/sessions .codex/memories; do
+          for path in .codex/workbench/actions .codex/sessions .codex/memories; do
             if [ -e "${path}" ]; then
               git add -A -f -- "${path}"
             else
@@ -416,4 +492,4 @@ jobs:
           fi
           git push origin "${new_commit}:refs/heads/${state_branch}"
         env:
-          GIT_INDEX_FILE: ${{ runner.temp }}/codex-feed-state.index
+          GIT_INDEX_FILE: ${{ runner.temp }}/codex-thread-state.index
