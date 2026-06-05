@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
+import { execFile as execFileCallback } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { parseArgs } from "../src/cli/args.ts";
 import {
 	cancelDeferredRunIntent,
@@ -30,6 +32,8 @@ import {
 	tickWorkbench,
 	commitActionsWorkbenchState,
 } from "@codex-toys/workbench";
+
+const execFile = promisify(execFileCallback);
 
 describe("workbench autonomy", () => {
 	test("resolves auto mode from GitHub Actions", () => {
@@ -1293,6 +1297,33 @@ schedule = "not-cron"
 		});
 	});
 
+	test("actions commit helper commits staged optional state paths only", async () => {
+		const root = await tempWorkbench();
+		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
+		await runGit(["init"], root);
+		await runGit(["config", "user.email", "test@example.com"], root);
+		await runGit(["config", "user.name", "Workbench Test"], root);
+		await mkdir(path.join(root, ".codex", "workbench", "actions"), { recursive: true });
+		await writeFile(path.join(root, ".codex", "workbench", "actions", "summary.json"), "{}\n");
+
+		const context = await createWorkbenchContext({
+			workbenchRoot: root,
+			mode: "actions",
+			env: { GITHUB_ACTIONS: "true" },
+		});
+		const result = await commitActionsWorkbenchState(context, {
+			env: { GITHUB_ACTIONS: "true" },
+			message: "Update test workbench state",
+		});
+
+		expect(result.committed).toBe(true);
+		expect(await runGit(["log", "-1", "--pretty=%s"], root)).toBe("Update test workbench state");
+		const committedFiles = await runGit(["show", "--name-only", "--pretty=", "HEAD"], root);
+		expect(committedFiles).toContain(".codex/workbench/actions/summary.json");
+		expect(committedFiles).not.toContain(".codex/memories");
+		expect(committedFiles).not.toContain(".codex/sessions");
+	});
+
 	test("scaffoldActionsWorkbench creates Actions config, workflows, and gitignore entries", async () => {
 		const root = await tempWorkbench();
 		await writeFile(path.join(root, ".gitignore"), ".codex/sessions/\n");
@@ -1361,6 +1392,11 @@ async function tempWorkbench(): Promise<string> {
 async function writeWorkbenchToml(root: string, text: string): Promise<void> {
 	await mkdir(path.join(root, ".codex"), { recursive: true });
 	await writeFile(path.join(root, ".codex", "workbench.toml"), text.trimStart());
+}
+
+async function runGit(args: string[], cwd: string): Promise<string> {
+	const result = await execFile("git", args, { cwd });
+	return result.stdout.trim();
 }
 
 function fakeCompletedTurnToybox(): (method: string, params: unknown) => Promise<unknown> {

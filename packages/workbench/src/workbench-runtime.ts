@@ -711,7 +711,8 @@ export async function commitActionsWorkbenchState(
 		await runGit(context.repoRoot, ["add", "-A", "-f", "--", sessionsPath]);
 	}
 	const staged = await runGit(context.repoRoot, ["diff", "--cached", "--name-only", "--", ...relativePaths]);
-	if (!staged.stdout.trim()) {
+	const stagedPaths = staged.stdout.trim().split(/\r?\n/).filter(Boolean);
+	if (stagedPaths.length === 0) {
 		return { attempted: true, committed: false, paths: context.actionsCommitPaths };
 	}
 	const commit = await runGit(context.repoRoot, [
@@ -719,7 +720,7 @@ export async function commitActionsWorkbenchState(
 		"-m",
 		options.message ?? "Update Codex workbench state",
 		"--",
-		...relativePaths,
+		...stagedPaths,
 	]);
 	return {
 		attempted: true,
