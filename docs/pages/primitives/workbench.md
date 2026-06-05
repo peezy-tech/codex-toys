@@ -106,7 +106,7 @@ For the full GitHub Actions schedule setup, see
 The generated runner prepares auth, runs `workbench tick --mode actions`,
 cleans up runtime-only files, and preserves durable workbench state. By default
 it runs inside `ghcr.io/peezy-tech/codex-toys-actions:latest`, which supplies
-Node, VitePlus, Codex CLI, codex-toys, Git, and common shell tools. Pass
+Node, VitePlus, native Codex CLI, codex-toys, Git, and common shell tools. Pass
 `--image <ref>` to use a custom image built from that base image, or `--no-image`
 to generate a workflow that installs the runtime during every run. Durable state
 may include:

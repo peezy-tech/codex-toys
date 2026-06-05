@@ -7,11 +7,19 @@ on:
 
 permissions:
   contents: write
+  packages: write
   pull-requests: write
 
 jobs:
-  openai-codex-bindings:
+  resolve-release:
     runs-on: ubuntu-latest
+    outputs:
+      has_release: ${{ steps.release.outputs.has_release }}
+      version: ${{ steps.release.outputs.version }}
+      item_id: ${{ steps.release.outputs.item_id }}
+      image: ${{ steps.release.outputs.image }}
+      image_tag: ${{ steps.release.outputs.image_tag }}
+      event_b64: ${{ steps.release.outputs.event_b64 }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -21,30 +29,44 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.WORKSPACE_GITHUB_TOKEN || github.token }}
         run: |
-          pr_json="${RUNNER_TEMP}/openai-codex-bindings-pr.json"
-          gh pr list \
-            --repo "${GITHUB_REPOSITORY}" \
-            --state open \
-            --search 'in:title "Refresh Codex app-server bindings for"' \
-            --json number,headRefName,body \
-            --jq 'sort_by(.number) | reverse | .[0] // {}' > "${pr_json}"
-          state_branch="$(node - "${pr_json}" <<'NODE'
-          const fs = require("node:fs");
-          const pr = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-          if (!pr.number) {
-            process.exit(0);
+          state_branch="$(node <<'NODE'
+          const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
+          const token = process.env.GH_TOKEN;
+          const api = process.env.GITHUB_API_URL || "https://api.github.com";
+          async function main() {
+            const response = await fetch(`${api}/repos/${owner}/${repo}/pulls?state=open&base=main&per_page=100`, {
+              headers: {
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            if (!response.ok) {
+              throw new Error(`GitHub API returned ${response.status}: ${await response.text()}`);
+            }
+            const pulls = await response.json();
+            const pr = pulls
+              .filter((item) => typeof item.title === "string" && item.title.includes("Refresh Codex app-server bindings for"))
+              .sort((a, b) => b.number - a.number)[0];
+            if (!pr) {
+              return;
+            }
+            const body = typeof pr.body === "string" ? pr.body : "";
+            const explicit = body.match(/Thread state branch:\s*`([^`]+)`/);
+            if (explicit?.[1]) {
+              process.stdout.write(explicit[1]);
+              return;
+            }
+            const head = typeof pr.head?.ref === "string" ? pr.head.ref : "";
+            const prefix = "codex/openai-codex-bindings/";
+            if (head.startsWith(prefix)) {
+              process.stdout.write(`thread/openai-codex-bindings/${head.slice(prefix.length)}`);
+            }
           }
-          const body = typeof pr.body === "string" ? pr.body : "";
-          const explicit = body.match(/Thread state branch:\s*`([^`]+)`/);
-          if (explicit?.[1]) {
-            process.stdout.write(explicit[1]);
-            process.exit(0);
-          }
-          const head = typeof pr.headRefName === "string" ? pr.headRefName : "";
-          const prefix = "codex/openai-codex-bindings/";
-          if (head.startsWith(prefix)) {
-            process.stdout.write(`thread/openai-codex-bindings/${head.slice(prefix.length)}`);
-          }
+          main().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
           NODE
           )"
           if [ -z "${state_branch}" ]; then
@@ -89,18 +111,200 @@ jobs:
             --filter codex-toys \
             build
 
-      - name: Expose local codex-toys CLI
+      - name: Resolve stable Codex release
+        id: release
         run: |
-          mkdir -p "${RUNNER_TEMP}/codex-toys-bin"
-          ln -sf "${GITHUB_WORKSPACE}/packages/codex-toys/dist/cli/index.js" "${RUNNER_TEMP}/codex-toys-bin/codex-toys"
-          echo "${RUNNER_TEMP}/codex-toys-bin" >> "${GITHUB_PATH}"
-          "${RUNNER_TEMP}/codex-toys-bin/codex-toys" --help >/dev/null
+          poll_json="${RUNNER_TEMP}/openai-codex-feed-poll.json"
+          collect_json="${RUNNER_TEMP}/openai-codex-feed-collect.json"
+          pnpm exec tsx packages/codex-toys/src/cli/index.ts feed poll \
+            --source openai-codex-releases \
+            --mode actions \
+            --json > "${poll_json}"
+          pnpm exec tsx packages/codex-toys/src/cli/index.ts feed collect \
+            --source openai-codex-releases \
+            --cursor openai-codex-bindings \
+            --mode actions \
+            --limit 20 \
+            --no-advance \
+            --json > "${collect_json}"
+          node - "${collect_json}" <<'NODE'
+          const fs = require("node:fs");
+          const collect = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const items = Array.isArray(collect.items) ? collect.items : [];
+          const versionFromText = (value) => {
+            const match = String(value ?? "").match(/(?:^|[^\d])(?:rust-v|v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
+            return match?.[1];
+          };
+          const stableVersion = (item) =>
+            versionFromText(item.title) ??
+            versionFromText(item.url) ??
+            versionFromText(item.externalId);
+          const stable = items
+            .map((item) => ({ item, version: stableVersion(item) }))
+            .filter(({ version }) => version && /^\d+\.\d+\.\d+$/.test(version))
+            .sort((left, right) =>
+              String(right.item.updatedAt ?? right.item.observedAt ?? "").localeCompare(String(left.item.updatedAt ?? left.item.observedAt ?? ""))
+            )[0];
+          const write = (key, value) => fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
+          if (!stable) {
+            write("has_release", "false");
+            return;
+          }
+          const image = `ghcr.io/${process.env.GITHUB_REPOSITORY_OWNER}/codex-toys-actions`;
+          const imageTag = `codex-${stable.version}`;
+          const event = {
+            id: `feed:${stable.item.id}`,
+            type: "feed.item",
+            source: stable.item.sourceId,
+            occurredAt: stable.item.updatedAt ?? stable.item.observedAt,
+            receivedAt: stable.item.observedAt,
+            payload: stable.item,
+          };
+          write("has_release", "true");
+          write("version", stable.version);
+          write("item_id", stable.item.id);
+          write("image", image);
+          write("image_tag", imageTag);
+          write("event_b64", Buffer.from(JSON.stringify(event), "utf8").toString("base64"));
+          NODE
 
-      - name: Install Codex
+  build-codex-runner:
+    needs: resolve-release
+    if: needs.resolve-release.outputs.has_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and publish Codex runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: containers/codex-toys-actions
+          push: true
+          build-args: |
+            CODEX_TOYS_VERSION=latest
+            CODEX_RELEASE=${{ needs.resolve-release.outputs.version }}
+          tags: |
+            ${{ needs.resolve-release.outputs.image }}:${{ needs.resolve-release.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.version=${{ needs.resolve-release.outputs.version }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  openai-codex-bindings:
+    needs:
+      - resolve-release
+      - build-codex-runner
+    if: needs.resolve-release.outputs.has_release == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.resolve-release.outputs.image }}:${{ needs.resolve-release.outputs.image_tag }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.WORKSPACE_GITHUB_TOKEN || github.token }}
+
+      - name: Trust workspace
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+      - name: Restore active PR thread state
+        env:
+          GH_TOKEN: ${{ secrets.WORKSPACE_GITHUB_TOKEN || github.token }}
         run: |
-          curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/codex" --version
+          state_branch="$(node <<'NODE'
+          const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
+          const token = process.env.GH_TOKEN;
+          const api = process.env.GITHUB_API_URL || "https://api.github.com";
+          async function main() {
+            const response = await fetch(`${api}/repos/${owner}/${repo}/pulls?state=open&base=main&per_page=100`, {
+              headers: {
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            if (!response.ok) {
+              throw new Error(`GitHub API returned ${response.status}: ${await response.text()}`);
+            }
+            const pulls = await response.json();
+            const pr = pulls
+              .filter((item) => typeof item.title === "string" && item.title.includes("Refresh Codex app-server bindings for"))
+              .sort((a, b) => b.number - a.number)[0];
+            if (!pr) {
+              return;
+            }
+            const body = typeof pr.body === "string" ? pr.body : "";
+            const explicit = body.match(/Thread state branch:\s*`([^`]+)`/);
+            if (explicit?.[1]) {
+              process.stdout.write(explicit[1]);
+              return;
+            }
+            const head = typeof pr.head?.ref === "string" ? pr.head.ref : "";
+            const prefix = "codex/openai-codex-bindings/";
+            if (head.startsWith(prefix)) {
+              process.stdout.write(`thread/openai-codex-bindings/${head.slice(prefix.length)}`);
+            }
+          }
+          main().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          )"
+          if [ -z "${state_branch}" ]; then
+            echo "No active Codex bindings PR found; starting without restored thread state."
+            exit 0
+          fi
+          echo "CODEX_THREAD_STATE_BRANCH=${state_branch}" >> "${GITHUB_ENV}"
+          state_ref="refs/remotes/origin/${state_branch}"
+          if git fetch origin "${state_branch}:${state_ref}"; then
+            for path in .codex/feed/actions .codex/workbench/actions .codex/sessions .codex/memories; do
+              if git ls-tree -r --name-only "${state_ref}" -- "${path}" | grep -q .; then
+                git checkout "${state_ref}" -- "${path}"
+              fi
+            done
+          else
+            echo "No existing ${state_branch} state branch found."
+          fi
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Build codex-toys packages
+        run: |
+          vp run \
+            --filter @codex-toys/bridge \
+            --filter @codex-toys/toybox \
+            --filter @codex-toys/feed \
+            --filter @codex-toys/workbench \
+            --filter @codex-toys/actions \
+            --filter @codex-toys/remote \
+            --filter @codex-toys/proxy \
+            --filter @codex-toys/kits \
+            --filter codex-toys \
+            build
+
+      - name: Verify baked Codex
+        run: |
+          installed="$(codex --version | awk '{print $NF}')"
+          if [ "${installed}" != "${CODEX_RELEASE}" ]; then
+            echo "Baked Codex ${installed} did not match ${CODEX_RELEASE}" >&2
+            exit 1
+          fi
+          codex --version
+        env:
+          CODEX_RELEASE: ${{ needs.resolve-release.outputs.version }}
 
       - name: Prepare Codex auth
         run: pnpm exec tsx packages/codex-toys/src/cli/index.ts actions prepare-auth
@@ -109,19 +313,37 @@ jobs:
           CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Dispatch release feed
+      - name: Refresh selected feed item
         run: |
-          pnpm exec tsx packages/codex-toys/src/cli/index.ts feed dispatch \
+          pnpm exec tsx packages/codex-toys/src/cli/index.ts feed poll \
             --source openai-codex-releases \
-            --cursor openai-codex-bindings \
-            --target workbench-task:openai-codex-bindings \
             --mode actions \
+            --json
+
+      - name: Run binding refresh
+        run: |
+          event_path="${RUNNER_TEMP}/openai-codex-bindings-event.json"
+          node -e 'require("node:fs").writeFileSync(process.argv[1], Buffer.from(process.env.EVENT_B64, "base64").toString("utf8"))' "${event_path}"
+          pnpm exec tsx packages/codex-toys/src/cli/index.ts workbench run openai-codex-bindings \
+            --mode actions \
+            --event "${event_path}" \
             --json
         env:
           WORKSPACE_GITHUB_TOKEN: ${{ secrets.WORKSPACE_GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           CODEX_HOME: ${{ github.workspace }}/.codex
+          EVENT_B64: ${{ needs.resolve-release.outputs.event_b64 }}
+
+      - name: Advance release feed cursor
+        run: |
+          pnpm exec tsx packages/codex-toys/src/cli/index.ts feed cursor advance \
+            --cursor openai-codex-bindings \
+            --mode actions \
+            --item "${ITEM_ID}" \
+            --json
+        env:
+          ITEM_ID: ${{ needs.resolve-release.outputs.item_id }}
 
       - name: Cleanup Codex auth
         if: always()

@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim
 
 ARG CODEX_TOYS_VERSION=latest
-ARG CODEX_VERSION=latest
+ARG CODEX_RELEASE=latest
 ARG DEBIAN_FRONTEND=noninteractive
 
 LABEL org.opencontainers.image.title="codex-toys Actions runner"
@@ -16,6 +16,7 @@ RUN apt-get update \
 		bash \
 		ca-certificates \
 		curl \
+		gawk \
 		git \
 		jq \
 		openssh-client \
@@ -33,7 +34,18 @@ RUN npm install -g npm@^11.10.0 pnpm@11.1.3 vite-plus \
 	done \
 	&& codex-toys --help >/dev/null
 
-RUN npm install -g "@openai/codex@${CODEX_VERSION}" \
+RUN curl -fsSL https://chatgpt.com/codex/install.sh \
+		| CODEX_RELEASE="${CODEX_RELEASE}" \
+			CODEX_NON_INTERACTIVE=1 \
+			CODEX_INSTALL_DIR=/usr/local/bin \
+			sh \
+	&& installed="$(codex --version | awk '{print $NF}')" \
+	&& expected="${CODEX_RELEASE#rust-v}" \
+	&& expected="${expected#v}" \
+	&& if [ "${expected}" != "latest" ] && [ "${installed}" != "${expected}" ]; then \
+		echo "Installed Codex ${installed} did not match requested ${expected}" >&2; \
+		exit 1; \
+	fi \
 	&& codex --version
 
 ENV CODEX_NON_INTERACTIVE=1

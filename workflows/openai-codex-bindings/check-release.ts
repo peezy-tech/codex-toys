@@ -57,12 +57,10 @@ type CommandRunner = (
 ) => Promise<CommandResult>;
 
 type CodexVersionCheck = {
-	before: string;
-	after: string;
-	beforeVersion: string;
-	afterVersion: string;
-	targetVersion: string;
-	actions: string[];
+	installed: string;
+	installedVersion: string;
+	expectedVersion: string;
+	status: "verified";
 };
 
 type ReleaseInfo = {
@@ -129,9 +127,9 @@ export async function runOpenAiCodexBindings(
 	const workbenchRoot = context.workbenchRoot || context.cwd || process.cwd();
 	const codexCommand = stringValue(config.codex_command, "codex");
 	const commandEnv = codexEnv(env);
-	const codex = await ensureCodexAtLeast({
+	const codex = await verifyCodexVersion({
 		codexCommand,
-		targetVersion: release.version,
+		expectedVersion: release.version,
 		run,
 		env: commandEnv,
 	});
@@ -315,42 +313,23 @@ export async function runOpenAiCodexBindings(
 	}
 }
 
-export async function ensureCodexAtLeast(input: {
+export async function verifyCodexVersion(input: {
 	codexCommand: string;
-	targetVersion: string;
+	expectedVersion: string;
 	run: CommandRunner;
 	env?: NodeJS.ProcessEnv;
 }): Promise<CodexVersionCheck> {
-	const actions: string[] = [];
-	const before = await input.run(input.codexCommand, ["--version"], { env: input.env });
-	const beforeVersion = installedCodexVersion(before.stdout || before.stderr);
-	let after = before;
-	let afterVersion = beforeVersion;
-	if (compareVersions(afterVersion, input.targetVersion) < 0) {
-		actions.push("codex update");
-		await input.run(input.codexCommand, ["update"], { env: input.env });
-		after = await input.run(input.codexCommand, ["--version"], { env: input.env });
-		afterVersion = installedCodexVersion(after.stdout || after.stderr);
-	}
-	if (compareVersions(afterVersion, input.targetVersion) < 0) {
-		actions.push("standalone installer");
-		await input.run("sh", [
-			"-c",
-			"curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
-		], { env: input.env });
-		after = await input.run(input.codexCommand, ["--version"], { env: input.env });
-		afterVersion = installedCodexVersion(after.stdout || after.stderr);
-	}
-	if (compareVersions(afterVersion, input.targetVersion) < 0) {
-		throw new Error(`Installed Codex ${afterVersion} is still older than release ${input.targetVersion}`);
+	const installed = await input.run(input.codexCommand, ["--version"], { env: input.env });
+	const installedText = installed.stdout.trim() || installed.stderr.trim();
+	const installedVersion = installedCodexVersion(installed.stdout || installed.stderr);
+	if (installedVersion !== input.expectedVersion) {
+		throw new Error(`Baked Codex ${installedVersion} does not match release ${input.expectedVersion}; rebuild the actions runner image for Codex ${input.expectedVersion}`);
 	}
 	return {
-		before: before.stdout.trim() || before.stderr.trim(),
-		after: after.stdout.trim() || after.stderr.trim(),
-		beforeVersion,
-		afterVersion,
-		targetVersion: input.targetVersion,
-		actions,
+		installed: installedText,
+		installedVersion,
+		expectedVersion: input.expectedVersion,
+		status: "verified",
 	};
 }
 
@@ -440,7 +419,7 @@ export function codexVersionFromReleaseText(value: string): string | undefined {
 }
 
 export function isStableCodexReleaseVersion(value: string): boolean {
-	return /^\d+\.\d+\.\d+(?:\+[0-9A-Za-z.-]+)?$/.test(value);
+	return /^\d+\.\d+\.\d+$/.test(value);
 }
 
 export function installedCodexVersion(output: string): string {
@@ -596,9 +575,8 @@ function renderPrBody(input: {
 		"",
 		`Source: openai/codex ${input.release.version}`,
 		input.release.url ? `Release URL: ${input.release.url}` : undefined,
-		`Codex before: ${input.codex.before}`,
-		`Codex after: ${input.codex.after}`,
-		`Update actions: ${input.codex.actions.length > 0 ? input.codex.actions.join(", ") : "none"}`,
+		`Codex: ${input.codex.installed}`,
+		`Codex verification: ${input.codex.status}`,
 		`Target repo: ${input.targetRepo}`,
 		`Code branch: \`${input.branchPlan.targetBranch}\``,
 		`Thread state branch: \`${input.branchPlan.threadBranch}\``,

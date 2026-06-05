@@ -5,5 +5,5 @@ name = "codex-toys"
 id = "openai-codex-releases"
 kind = "atom"
 url = "https://github.com/openai/codex/releases.atom"
-latest_only = true
+max_items = 20
 store_raw = true

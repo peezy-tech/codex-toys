@@ -94,7 +94,9 @@ Actions-mode runner image. Use
 `ghcr.io/peezy-tech/codex-toys-actions:<version>` to pin the runtime to a
 codex-toys release, or build a custom image from it when a workbench needs extra
 system packages. The generated Actions-mode workflow uses
-`ghcr.io/peezy-tech/codex-toys-actions:latest` by default.
+`ghcr.io/peezy-tech/codex-toys-actions:latest` by default. The OpenAI Codex
+release feed publishes `codex-<codex-version>` tags that bake native Codex into
+the image before the bindings workflow runs.
 
 ## `codex-toys/remote`
 

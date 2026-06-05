@@ -3,13 +3,13 @@ import {
 	branchSlugForRelease,
 	codexVersionFromReleaseText,
 	compareVersions,
-	ensureCodexAtLeast,
 	installedCodexVersion,
 	isStableCodexReleaseVersion,
 	releaseInfoFromFeedItem,
 	runOpenAiCodexBindings,
 	targetBranchForRelease,
 	threadBranchForRelease,
+	verifyCodexVersion,
 } from "../../../workflows/openai-codex-bindings/check-release.ts";
 
 describe("openai codex bindings workflow", () => {
@@ -20,7 +20,7 @@ describe("openai codex bindings workflow", () => {
 			.toBe("0.136.0");
 		expect(codexVersionFromReleaseText("rust-v0.138.0-alpha.4")).toBe("0.138.0-alpha.4");
 		expect(isStableCodexReleaseVersion("0.136.0")).toBe(true);
-		expect(isStableCodexReleaseVersion("0.136.0+build.1")).toBe(true);
+		expect(isStableCodexReleaseVersion("0.136.0+build.1")).toBe(false);
 		expect(isStableCodexReleaseVersion("0.138.0-alpha.4")).toBe(false);
 		expect(installedCodexVersion("codex-cli 0.135.0\n")).toBe("0.135.0");
 		expect(compareVersions("0.136.0", "0.135.9")).toBe(1);
@@ -86,9 +86,8 @@ describe("openai codex bindings workflow", () => {
 		expect(calls).toEqual([]);
 	});
 
-	test("updates stale codex through the native update path", async () => {
+	test("verifies the baked Codex version without updating", async () => {
 		const calls: string[] = [];
-		let version = "codex-cli 0.135.0\n";
 		const result = (command: string, args: string[], stdout = "") => ({
 			command,
 			args,
@@ -97,66 +96,29 @@ describe("openai codex bindings workflow", () => {
 			exitCode: 0,
 			durationMs: 1,
 		});
-		const check = await ensureCodexAtLeast({
+		const check = await verifyCodexVersion({
 			codexCommand: "codex",
-			targetVersion: "0.136.0",
+			expectedVersion: "0.136.0",
 			run: async (command, args) => {
 				calls.push([command, ...args].join(" "));
 				if (args[0] === "--version") {
-					return result(command, args, version);
-				}
-				if (args[0] === "update") {
-					version = "codex-cli 0.136.0\n";
+					return result(command, args, "codex-cli 0.136.0\n");
 				}
 				return result(command, args);
 			},
 		});
-		expect(calls).toEqual(["codex --version", "codex update", "codex --version"]);
+		expect(calls).toEqual(["codex --version"]);
 		expect(check).toMatchObject({
-			beforeVersion: "0.135.0",
-			afterVersion: "0.136.0",
-			actions: ["codex update"],
+			installedVersion: "0.136.0",
+			expectedVersion: "0.136.0",
+			status: "verified",
 		});
 	});
 
-	test("falls back to the standalone installer when native update is still stale", async () => {
-		const calls: string[] = [];
-		let version = "codex-cli 0.135.0\n";
-		const check = await ensureCodexAtLeast({
+	test("fails when baked Codex does not match the release", async () => {
+		await expect(verifyCodexVersion({
 			codexCommand: "codex",
-			targetVersion: "0.136.0",
-			run: async (command, args) => {
-				calls.push([command, ...args].join(" "));
-				if (args[0] === "--version") {
-					return {
-						command,
-						args,
-						stdout: version,
-						stderr: "",
-						exitCode: 0,
-						durationMs: 1,
-					};
-				}
-				if (command === "sh") {
-					version = "codex-cli 0.136.0\n";
-				}
-				return { command, args, stdout: "", stderr: "", exitCode: 0, durationMs: 1 };
-			},
-		});
-		expect(calls).toEqual([
-			"codex --version",
-			"codex update",
-			"codex --version",
-			"sh -c curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh",
-			"codex --version",
-		]);
-		expect(check.actions).toEqual(["codex update", "standalone installer"]);
-	});
-
-	test("fails when codex remains older than the release", async () => {
-		await expect(ensureCodexAtLeast({
-			codexCommand: "codex",
-			targetVersion: "0.136.0",
+			expectedVersion: "0.136.0",
 			run: async (command, args) => ({
 				command,
 				args,
@@ -165,7 +127,7 @@ describe("openai codex bindings workflow", () => {
 				exitCode: 0,
 				durationMs: 1,
 			}),
-		})).rejects.toThrow("still older than release 0.136.0");
+		})).rejects.toThrow("Baked Codex 0.135.0 does not match release 0.136.0");
 	});
 
 	test("skips successfully when feed item matches and generated bindings have no diff", async () => {
@@ -208,6 +170,7 @@ describe("openai codex bindings workflow", () => {
 			reason: "generated app-server bindings are already current",
 			release: { version: "0.136.0" },
 		});
+		expect(calls).not.toContain("codex update");
 		expect(calls).toContain("codex app-server generate-ts --experimental --out packages/bridge/src/app-server/generated");
 	});
 
@@ -306,6 +269,7 @@ describe("openai codex bindings workflow", () => {
 			},
 		});
 		expect(calls).toContain("git switch -c codex/openai-codex-bindings/rust-v0.136.0");
+		expect(calls).not.toContain("codex update");
 		expect(calls.some((call) => call.includes("HEAD:codex/openai-codex-bindings/rust-v0.136.0"))).toBe(true);
 		const createBody = fetchCalls.find((call) => call.method === "POST")?.body ?? "";
 		expect(createBody).toContain("Thread state branch: `thread/openai-codex-bindings/rust-v0.136.0`");

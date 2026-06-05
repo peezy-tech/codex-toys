@@ -34,7 +34,8 @@ The scaffold writes:
 The generated GitHub Actions workflow runs hourly by default and can also be
 started manually with `workflow_dispatch`. It uses the published
 `ghcr.io/peezy-tech/codex-toys-actions:latest` runner image by default so each
-scheduled tick does not reinstall Node, VitePlus, Codex CLI, and codex-toys.
+scheduled tick does not reinstall Node, VitePlus, native Codex CLI, and
+codex-toys.
 
 Use a custom image when a repository needs extra system packages or tools:
 

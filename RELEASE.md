@@ -79,6 +79,7 @@ Public OCI image:
 
 - `ghcr.io/peezy-tech/codex-toys-actions:<version>`
 - `ghcr.io/peezy-tech/codex-toys-actions:latest`
+- `ghcr.io/peezy-tech/codex-toys-actions:codex-<codex-version>`
 
 The scoped `@codex-toys/*` packages are private workspace boundaries. They are
 built and checked in the monorepo, then embedded into the public `codex-toys`
@@ -95,10 +96,12 @@ are already embedded and private workspace dependency specifiers are removed
 before the npm registry sees the package while GitHub provenance still comes
 from npm.
 The same workflow builds and publishes the Actions-mode runner image to GHCR.
-The image installs the released `codex-toys` npm package, Codex CLI, Node 24,
-VitePlus, pnpm, Git, and common shell tools. Repositories can use the image
-directly in generated Actions-mode workflows or build custom runner images from
-it when they need extra system packages.
+The image installs the released `codex-toys` npm package, native Codex CLI,
+Node 24, VitePlus, pnpm, Git, and common shell tools. Repositories can use the
+image directly in generated Actions-mode workflows or build custom runner images
+from it when they need extra system packages. The OpenAI Codex release feed also
+builds `codex-<codex-version>` tags with `CODEX_RELEASE` pinned to the stable
+upstream release before running the bindings refresh workflow.
 Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
 line is `0.140.x`, a breaking codex-toys stack release should usually advance
