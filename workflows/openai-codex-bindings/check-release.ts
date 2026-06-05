@@ -117,6 +117,13 @@ export async function runOpenAiCodexBindings(
 	}
 
 	const release = releaseInfoFromFeedItem(payload);
+	if (!isStableCodexReleaseVersion(release.version)) {
+		return {
+			status: "skipped",
+			reason: "openai/codex prerelease releases are ignored",
+			release,
+		};
+	}
 	const run = options.run ?? runCommand;
 	const fetchImpl = options.fetch ?? fetch;
 	const workbenchRoot = context.workbenchRoot || context.cwd || process.cwd();
@@ -430,6 +437,10 @@ function shortStableHash(value: string): string {
 export function codexVersionFromReleaseText(value: string): string | undefined {
 	const match = value.match(/(?:^|[^\d])(?:rust-v|v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
 	return match?.[1];
+}
+
+export function isStableCodexReleaseVersion(value: string): boolean {
+	return /^\d+\.\d+\.\d+(?:\+[0-9A-Za-z.-]+)?$/.test(value);
 }
 
 export function installedCodexVersion(output: string): string {

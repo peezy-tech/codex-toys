@@ -5,6 +5,7 @@ import {
 	compareVersions,
 	ensureCodexAtLeast,
 	installedCodexVersion,
+	isStableCodexReleaseVersion,
 	releaseInfoFromFeedItem,
 	runOpenAiCodexBindings,
 	targetBranchForRelease,
@@ -17,6 +18,10 @@ describe("openai codex bindings workflow", () => {
 		expect(codexVersionFromReleaseText("rust-v0.136.0")).toBe("0.136.0");
 		expect(codexVersionFromReleaseText("https://github.com/openai/codex/releases/tag/rust-v0.136.0"))
 			.toBe("0.136.0");
+		expect(codexVersionFromReleaseText("rust-v0.138.0-alpha.4")).toBe("0.138.0-alpha.4");
+		expect(isStableCodexReleaseVersion("0.136.0")).toBe(true);
+		expect(isStableCodexReleaseVersion("0.136.0+build.1")).toBe(true);
+		expect(isStableCodexReleaseVersion("0.138.0-alpha.4")).toBe(false);
 		expect(installedCodexVersion("codex-cli 0.135.0\n")).toBe("0.135.0");
 		expect(compareVersions("0.136.0", "0.135.9")).toBe(1);
 		expect(compareVersions("0.136.0", "0.136.0")).toBe(0);
@@ -47,6 +52,38 @@ describe("openai codex bindings workflow", () => {
 		expect(branchSlugForRelease(release)).toBe("rust-v0.136.0");
 		expect(targetBranchForRelease(release)).toBe("codex/openai-codex-bindings/rust-v0.136.0");
 		expect(threadBranchForRelease(release)).toBe("thread/openai-codex-bindings/rust-v0.136.0");
+	});
+
+	test("skips prerelease feed items before checking Codex", async () => {
+		const calls: string[] = [];
+		const output = await runOpenAiCodexBindings({
+			workflow: { config: { source_id: "openai-codex-releases" } },
+			event: {
+				type: "feed.item",
+				source: "openai-codex-releases",
+				payload: {
+					id: "feed-openai-codex-alpha",
+					sourceId: "openai-codex-releases",
+					title: "0.138.0-alpha.4",
+					url: "https://github.com/openai/codex/releases/tag/rust-v0.138.0-alpha.4",
+				},
+			},
+			workbenchRoot: "/repo",
+		}, {
+			run: async (command, args) => {
+				calls.push([command, ...args].join(" "));
+				throw new Error("prerelease item should not run commands");
+			},
+		});
+		expect(output).toMatchObject({
+			status: "skipped",
+			reason: "openai/codex prerelease releases are ignored",
+			release: {
+				version: "0.138.0-alpha.4",
+				tag: "rust-v0.138.0-alpha.4",
+			},
+		});
+		expect(calls).toEqual([]);
 	});
 
 	test("updates stale codex through the native update path", async () => {
