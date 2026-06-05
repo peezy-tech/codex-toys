@@ -59,7 +59,7 @@ Workbench runtime and policy helpers:
 - workflow script execution and workflow host helpers
 - remote workflow toybox methods
 - workbench doctor, tick, task execution, and Actions scaffolding
-- deferred runs, prompt queue, and local handoff queue
+- dispatch runs, prompt queue, and local handoff queue
 - delegation methods and state
 - workbench functions
 - workbench and host overview

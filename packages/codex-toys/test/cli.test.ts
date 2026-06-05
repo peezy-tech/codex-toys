@@ -100,6 +100,23 @@ describe("codex-toys CLI args", () => {
 				type: "workbench-delegate-list",
 				json: true,
 			});
+		expect(parseArgs([
+			"workbench",
+			"dispatch",
+			"read",
+			"dispatch-1",
+			"--include-output",
+			"--json",
+		], {})).toMatchObject({
+			type: "workbench-dispatch-read",
+			intentId: "dispatch-1",
+			includeOutput: true,
+			json: true,
+		});
+		expect(() => parseArgs(["workbench", "deferred", "list"], {}))
+			.toThrow("workbench deferred commands have been removed");
+		expect(() => parseArgs(["workbench", "defer", "list"], {}))
+			.toThrow("workbench deferred commands have been removed");
 		expect(parseArgs(["workbench", "overview", "--json"], {}))
 			.toMatchObject({
 				type: "workbench-overview",

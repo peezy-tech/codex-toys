@@ -24,7 +24,7 @@ families include:
 - workbench functions from `.codex/functions.ts`, `.js`, or `.mjs`
 - feed methods
 - delegation methods
-- deferred, prompt queue, and local handoff methods
+- dispatch, prompt queue, and local handoff methods
 - workbench doctor, task, and overview methods
 - host overview methods
 
@@ -49,11 +49,11 @@ Use workbench calls for toybox-owned behavior:
 codex-toys workbench methods
 codex-toys workbench overview --json
 codex-toys workbench delegation.list
-codex-toys workbench deferred.list --params-json '{"limit":5}'
+codex-toys workbench dispatch.list --params-json '{"limit":5}'
 ```
 
 The shorter command groups, such as `workbench delegate` and `workbench
-deferred`, are CLI porcelain over these JSON-RPC methods.
+dispatch`, are CLI porcelain over these JSON-RPC methods.
 
 ## SSH
 
@@ -89,7 +89,7 @@ CODEX_TOYS_REMOTE_CODEX_ARGS=["-s","danger-full-access"]
 ```
 
 SSH-backed `turn run` requires `--wait`, because the remote toybox exits when the
-command exits. Use delegation or deferred queues for supervised background work.
+command exits. Use delegation or dispatch queues for supervised background work.
 
 ## Functions
 

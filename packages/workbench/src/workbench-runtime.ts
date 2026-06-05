@@ -82,7 +82,7 @@ export type WorkbenchContext = {
 	actionsCommitPaths: string[];
 };
 
-export type DeferredReasoningEffort =
+export type DispatchReasoningEffort =
 	| "none"
 	| "minimal"
 	| "low"
@@ -90,8 +90,8 @@ export type DeferredReasoningEffort =
 	| "high"
 	| "xhigh";
 
-export type DeferredRunDependency = {
-	kind: "deferred-run";
+export type DispatchRunDependency = {
+	kind: "dispatch-run";
 	intentId: string;
 	status?: "completed" | "failed" | "canceled" | "terminal";
 };
@@ -108,7 +108,7 @@ export type WorkbenchRunRecord = {
 	error?: string;
 };
 
-export type DeferredRunTarget =
+export type DispatchRunTarget =
 	| {
 			kind: "turn";
 			prompt: string;
@@ -116,7 +116,7 @@ export type DeferredRunTarget =
 			cwd?: string;
 			model?: string;
 			serviceTier?: string;
-			effort?: DeferredReasoningEffort;
+			effort?: DispatchReasoningEffort;
 			sandbox?: "danger-full-access" | "read-only" | "workspace-write";
 			approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
 			permissions?: string;
@@ -139,25 +139,25 @@ export type DeferredRunTarget =
 			taskId: string;
 	  };
 
-export type DeferredRunIntentStatus =
+export type DispatchRunIntentStatus =
 	| "pending"
 	| "running"
 	| "completed"
 	| "failed"
 	| "canceled";
 
-export type DeferredRunIntent = {
+export type DispatchRunIntent = {
 	id: string;
-	status: DeferredRunIntentStatus;
+	status: DispatchRunIntentStatus;
 	mode: WorkbenchMode;
 	runAt: string;
-	target: DeferredRunTarget;
+	target: DispatchRunTarget;
 	createdAt: string;
 	updatedAt: string;
 	createdBy?: string;
 	reason?: string;
 	source?: Record<string, unknown>;
-	dependsOn?: DeferredRunDependency[];
+	dependsOn?: DispatchRunDependency[];
 	attemptIds: string[];
 	lease?: {
 		attemptId: string;
@@ -170,7 +170,7 @@ export type DeferredRunIntent = {
 	error?: string;
 };
 
-export type DeferredRunAttempt = {
+export type DispatchRunAttempt = {
 	id: string;
 	intentId: string;
 	status: "running" | "completed" | "failed";
@@ -183,17 +183,17 @@ export type DeferredRunAttempt = {
 	error?: string;
 };
 
-export type DeferredRunCreateParams = {
+export type DispatchRunCreateParams = {
 	id?: string;
 	runAt?: string;
-	target: DeferredRunTarget;
+	target: DispatchRunTarget;
 	createdBy?: string;
 	reason?: string;
 	source?: Record<string, unknown>;
-	dependsOn?: DeferredRunDependency[];
+	dependsOn?: DispatchRunDependency[];
 };
 
-export type DeferredRunRetryParams = {
+export type DispatchRunRetryParams = {
 	id?: string;
 	runAt?: string;
 	createdBy?: string;
@@ -212,7 +212,7 @@ export type PromptQueueEnqueueParams = {
 	cwd?: string;
 	model?: string;
 	serviceTier?: string;
-	effort?: DeferredReasoningEffort;
+	effort?: DispatchReasoningEffort;
 	sandbox?: "danger-full-access" | "read-only" | "workspace-write";
 	approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
 	permissions?: string;
@@ -240,7 +240,7 @@ export type LocalHandoffEnqueueParams = {
 	cwd?: string;
 	model?: string;
 	serviceTier?: string;
-	effort?: DeferredReasoningEffort;
+	effort?: DispatchReasoningEffort;
 	sandbox?: "danger-full-access" | "read-only" | "workspace-write";
 	approvalPolicy?: "never" | "on-failure" | "on-request" | "untrusted";
 	permissions?: string;
@@ -255,53 +255,53 @@ export type LocalHandoffEnqueueParams = {
 
 export type LocalHandoffDrainAction = "run" | "materialize";
 
-export type DeferredRunAttemptOutput = {
+export type DispatchRunAttemptOutput = {
 	attemptId: string;
 	outputPath: string;
 	output?: unknown;
 	error?: string;
 };
 
-export type DeferredRunReadResult = {
-	intent: DeferredRunIntent;
-	attempts: DeferredRunAttempt[];
-	outputs?: DeferredRunAttemptOutput[];
+export type DispatchRunReadResult = {
+	intent: DispatchRunIntent;
+	attempts: DispatchRunAttempt[];
+	outputs?: DispatchRunAttemptOutput[];
 };
 
-export type DeferredRunRetryResult = {
-	intent: DeferredRunIntent;
-	originalIntent: DeferredRunIntent;
+export type DispatchRunRetryResult = {
+	intent: DispatchRunIntent;
+	originalIntent: DispatchRunIntent;
 };
 
-export type DeferredRunCollectCursor = {
+export type DispatchRunCollectCursor = {
 	cursor: string;
 	updatedAt: string;
 	lastUpdatedAt?: string;
 	lastIntentId?: string;
 };
 
-export type DeferredRunCollectResult = {
+export type DispatchRunCollectResult = {
 	mode: WorkbenchMode;
 	cursor: string;
 	collectedAt: string;
-	previousCursor?: DeferredRunCollectCursor;
-	cursorState: DeferredRunCollectCursor;
-	intents: DeferredRunReadResult[];
+	previousCursor?: DispatchRunCollectCursor;
+	cursorState: DispatchRunCollectCursor;
+	intents: DispatchRunReadResult[];
 };
 
-export type DeferredRunExecution = {
-	intent: DeferredRunIntent;
-	attempt: DeferredRunAttempt;
+export type DispatchRunExecution = {
+	intent: DispatchRunIntent;
+	attempt: DispatchRunAttempt;
 	output: unknown;
 };
 
 export type LocalHandoffDrainResult = {
 	mode: WorkbenchMode;
 	action: LocalHandoffDrainAction;
-	executions: DeferredRunExecution[];
+	executions: DispatchRunExecution[];
 };
 
-export type DeferredRunPruneResult = {
+export type DispatchRunPruneResult = {
 	mode: WorkbenchMode;
 	cutoff: string;
 	dryRun: boolean;
@@ -309,7 +309,7 @@ export type DeferredRunPruneResult = {
 	pruned: number;
 	intents: Array<{
 		id: string;
-		status: Extract<DeferredRunIntentStatus, "completed" | "failed" | "canceled">;
+		status: Extract<DispatchRunIntentStatus, "completed" | "failed" | "canceled">;
 		updatedAt: string;
 		attemptIds: string[];
 		outputPaths: string[];
@@ -329,7 +329,7 @@ export type WorkbenchRunnerCandidate = {
 	lastTrigger?: string;
 	workbenchRoot?: string;
 	runsWorkbenchTick: boolean;
-	runsDeferredOnly: boolean;
+	runsDispatchOnly: boolean;
 	matchesWorkbench: boolean;
 };
 
@@ -366,12 +366,12 @@ export type WorkbenchDoctorInfo = {
 	taskCount: number;
 	dueCount: number;
 	failingCount: number;
-	deferredCount: number;
-	deferredDueCount: number;
-	deferredRunningCount: number;
-	deferredFailedCount: number;
+	dispatchCount: number;
+	dispatchDueCount: number;
+	dispatchRunningCount: number;
+	dispatchFailedCount: number;
 	latestRun?: WorkbenchRunRecord;
-	latestDeferredRun?: DeferredRunIntent;
+	latestDispatchRun?: DispatchRunIntent;
 	runner?: WorkbenchRunnerInfo;
 	surfaces: WorkbenchSurface[];
 	errors: string[];
@@ -522,12 +522,12 @@ export async function collectWorkbenchDoctorInfo(
 	}
 	const runs = await readRuns(context);
 	const latestRun = runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
-	const deferredRuns = await listDeferredRunIntents(context);
+	const dispatchRuns = await listDispatchRunIntents(context);
 	const now = new Date();
-	const latestDeferredRun = deferredRuns
+	const latestDispatchRun = dispatchRuns
 		.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-	const deferredDueFlags = await Promise.all(
-		deferredRuns.map(async (intent) => await isDeferredIntentDue(context, intent, now)),
+	const dispatchDueFlags = await Promise.all(
+		dispatchRuns.map(async (intent) => await isDispatchIntentDue(context, intent, now)),
 	);
 	const failingCount = countFailingTasks(config?.tasks ?? [], runs);
 	const includeRunner = options.includeRunner === true || options.runnerProbe !== undefined;
@@ -535,7 +535,7 @@ export async function collectWorkbenchDoctorInfo(
 		? await collectWorkbenchRunnerInfo(
 			context,
 			config?.tasks ?? [],
-			deferredRuns,
+			dispatchRuns,
 			options.runnerProbe ?? runSystemctlUser,
 		)
 		: undefined;
@@ -557,12 +557,12 @@ export async function collectWorkbenchDoctorInfo(
 		taskCount: config?.tasks.length ?? 0,
 		dueCount: dueTasks(config?.tasks ?? [], runs, new Date()).length,
 		failingCount,
-		deferredCount: deferredRuns.length,
-		deferredDueCount: deferredDueFlags.filter(Boolean).length,
-		deferredRunningCount: deferredRuns.filter((intent) => intent.status === "running").length,
-		deferredFailedCount: deferredRuns.filter((intent) => intent.status === "failed").length,
+		dispatchCount: dispatchRuns.length,
+		dispatchDueCount: dispatchDueFlags.filter(Boolean).length,
+		dispatchRunningCount: dispatchRuns.filter((intent) => intent.status === "running").length,
+		dispatchFailedCount: dispatchRuns.filter((intent) => intent.status === "failed").length,
 		latestRun,
-		latestDeferredRun,
+		latestDispatchRun,
 		runner,
 		surfaces: config?.surfaces ?? [],
 		errors: workbenchDoctorErrors(context),
@@ -584,13 +584,13 @@ export function formatWorkbenchDoctorInfo(info: WorkbenchDoctorInfo): string {
 		["tasks", `${info.taskCount} configured, ${info.dueCount} due, ${info.failingCount} failing`],
 		["latest run", info.latestRun ? `${info.latestRun.status} ${info.latestRun.taskId} ${info.latestRun.finishedAt}` : "none"],
 		[
-			"deferred runs",
-			`${info.deferredCount} total, ${info.deferredDueCount} due, ${info.deferredRunningCount} running, ${info.deferredFailedCount} failed`,
+			"dispatch runs",
+			`${info.dispatchCount} total, ${info.dispatchDueCount} due, ${info.dispatchRunningCount} running, ${info.dispatchFailedCount} failed`,
 		],
 		[
-			"latest deferred",
-			info.latestDeferredRun
-				? `${info.latestDeferredRun.status} ${info.latestDeferredRun.id} ${info.latestDeferredRun.updatedAt}`
+			"latest dispatch",
+			info.latestDispatchRun
+				? `${info.latestDispatchRun.status} ${info.latestDispatchRun.id} ${info.latestDispatchRun.updatedAt}`
 				: "none",
 		],
 		["runner", formatWorkbenchRunnerInfo(info.runner)],
@@ -640,14 +640,14 @@ export async function tickWorkbench(
 	await ensureStateDirs(context);
 	const config = await loadWorkbenchConfig(context);
 	const previousRuns = await readRuns(context);
-	const previousIntents = await listDeferredRunIntents(context);
+	const previousIntents = await listDispatchRunIntents(context);
 	const now = new Date();
 	const due = dueTasks(config.tasks, previousRuns, now, previousIntents);
 	const runs: WorkbenchRunRecord[] = [];
 	for (const task of due) {
 		await createScheduledWorkbenchTaskIntent(context, task, now);
 	}
-	const executions = await runDueDeferredRuns(context, options);
+	const executions = await runDueDispatchRuns(context, options);
 	for (const execution of executions.executions) {
 		const workbenchRun = record(execution.output).workbenchRun;
 		if (isWorkbenchRunRecord(workbenchRun)) {
@@ -732,16 +732,16 @@ export async function commitActionsWorkbenchState(
 	};
 }
 
-export async function createDeferredRunIntent(
+export async function createDispatchRunIntent(
 	context: WorkbenchContext,
 	params: unknown,
-): Promise<DeferredRunIntent> {
-	await ensureDeferredRunDirs(context);
-	const input = parseDeferredRunCreateParams(params);
+): Promise<DispatchRunIntent> {
+	await ensureDispatchRunDirs(context);
+	const input = parseDispatchRunCreateParams(params);
 	const now = new Date().toISOString();
 	const runAt = input.runAt ?? now;
-	const intent: DeferredRunIntent = compactUndefined({
-		id: input.id ?? deferredRunId(now),
+	const intent: DispatchRunIntent = compactUndefined({
+		id: input.id ?? dispatchRunId(now),
 		status: "pending",
 		mode: context.mode,
 		runAt,
@@ -754,27 +754,27 @@ export async function createDeferredRunIntent(
 		dependsOn: input.dependsOn,
 		attemptIds: [],
 	});
-	await writeNewJsonFile(deferredIntentPath(context, intent.id), intent);
+	await writeNewJsonFile(dispatchIntentPath(context, intent.id), intent);
 	return intent;
 }
 
-export async function listDeferredRunIntents(
+export async function listDispatchRunIntents(
 	context: WorkbenchContext,
 	options: {
-		status?: DeferredRunIntentStatus;
+		status?: DispatchRunIntentStatus;
 		limit?: number;
 	} = {},
-): Promise<DeferredRunIntent[]> {
-	const dir = deferredIntentDir(context);
+): Promise<DispatchRunIntent[]> {
+	const dir = dispatchIntentDir(context);
 	try {
 		const entries = await readdir(dir);
-		const intents: DeferredRunIntent[] = [];
+		const intents: DispatchRunIntent[] = [];
 		for (const entry of entries) {
 			if (!entry.endsWith(".json")) {
 				continue;
 			}
 			try {
-				const intent = normalizeDeferredRunIntent(
+				const intent = normalizeDispatchRunIntent(
 					parseJsonText(
 						await readFile(path.join(dir, entry), "utf8"),
 						path.join(dir, entry),
@@ -794,15 +794,15 @@ export async function listDeferredRunIntents(
 	}
 }
 
-export async function readDeferredRun(
+export async function readDispatchRun(
 	context: WorkbenchContext,
 	intentId: string,
 	options: { includeOutput?: boolean } = {},
-): Promise<DeferredRunReadResult> {
-	const intent = await readDeferredRunIntent(context, intentId);
-	const attempts = await readDeferredRunAttempts(context, intent.attemptIds);
+): Promise<DispatchRunReadResult> {
+	const intent = await readDispatchRunIntent(context, intentId);
+	const attempts = await readDispatchRunAttempts(context, intent.attemptIds);
 	const outputs = options.includeOutput
-		? await readDeferredRunAttemptOutputs(attempts)
+		? await readDispatchRunAttemptOutputs(attempts)
 		: undefined;
 	return compactUndefined({ intent, attempts, outputs });
 }
@@ -810,16 +810,16 @@ export async function readDeferredRun(
 export async function enqueuePromptQueueIntent(
 	context: WorkbenchContext,
 	params: unknown,
-): Promise<DeferredRunIntent> {
+): Promise<DispatchRunIntent> {
 	const input = parsePromptQueueEnqueueParams(params);
 	const after = input.afterIntentId
 		? {
-			kind: "deferred-run" as const,
+			kind: "dispatch-run" as const,
 			intentId: input.afterIntentId,
 			status: input.afterStatus,
 		}
 		: undefined;
-	return await createDeferredRunIntent(context, {
+	return await createDispatchRunIntent(context, {
 		id: input.id,
 		runAt: input.runAt,
 		target: compactUndefined({
@@ -846,12 +846,12 @@ export async function enqueuePromptQueueIntent(
 export async function listPromptQueueIntents(
 	context: WorkbenchContext,
 	options: {
-		status?: DeferredRunIntentStatus;
+		status?: DispatchRunIntentStatus;
 		queue?: string;
 		limit?: number;
 	} = {},
-): Promise<DeferredRunIntent[]> {
-	const intents = await listDeferredRunIntents(context, {
+): Promise<DispatchRunIntent[]> {
+	const intents = await listDispatchRunIntents(context, {
 		status: options.status,
 	});
 	return intents
@@ -860,7 +860,7 @@ export async function listPromptQueueIntents(
 		.slice(0, clampLimit(options.limit, 500));
 }
 
-function comparePromptQueueIntents(left: DeferredRunIntent, right: DeferredRunIntent): number {
+function comparePromptQueueIntents(left: DispatchRunIntent, right: DispatchRunIntent): number {
 	if (dependsOnIntent(left, right.id)) {
 		return 1;
 	}
@@ -872,9 +872,9 @@ function comparePromptQueueIntents(left: DeferredRunIntent, right: DeferredRunIn
 		left.id.localeCompare(right.id);
 }
 
-function dependsOnIntent(intent: DeferredRunIntent, dependencyId: string): boolean {
+function dependsOnIntent(intent: DispatchRunIntent, dependencyId: string): boolean {
 	return (intent.dependsOn ?? []).some((dependency) =>
-		dependency.kind === "deferred-run" && dependency.intentId === dependencyId
+		dependency.kind === "dispatch-run" && dependency.intentId === dependencyId
 	);
 }
 
@@ -885,8 +885,8 @@ export async function collectPromptQueueRuns(
 		queue?: string;
 		now?: Date;
 	} = {},
-): Promise<DeferredRunCollectResult> {
-	return await collectDeferredRuns(context, {
+): Promise<DispatchRunCollectResult> {
+	return await collectDispatchRuns(context, {
 		cursor: options.cursor,
 		defaultCursor: "prompt-queue",
 		now: options.now,
@@ -904,8 +904,8 @@ export async function runDuePromptQueueIntents(
 		leaseMs?: number;
 		queue?: string;
 	},
-): Promise<{ mode: WorkbenchMode; executions: DeferredRunExecution[] }> {
-	return await runDueDeferredRuns(context, {
+): Promise<{ mode: WorkbenchMode; executions: DispatchRunExecution[] }> {
+	return await runDueDispatchRuns(context, {
 		...options,
 		filter: (intent) => isPromptQueueIntent(intent, options.queue),
 	});
@@ -914,16 +914,16 @@ export async function runDuePromptQueueIntents(
 export async function enqueueLocalHandoffIntent(
 	context: WorkbenchContext,
 	params: unknown,
-): Promise<DeferredRunIntent> {
+): Promise<DispatchRunIntent> {
 	const input = parseLocalHandoffEnqueueParams(params);
 	const after = input.afterIntentId
 		? {
-			kind: "deferred-run" as const,
+			kind: "dispatch-run" as const,
 			intentId: input.afterIntentId,
 			status: input.afterStatus,
 		}
 		: undefined;
-	return await createDeferredRunIntent(context, {
+	return await createDispatchRunIntent(context, {
 		id: input.id,
 		runAt: input.runAt,
 		target: compactUndefined({
@@ -950,14 +950,14 @@ export async function enqueueLocalHandoffIntent(
 export async function listLocalHandoffIntents(
 	context: WorkbenchContext,
 	options: {
-		status?: DeferredRunIntentStatus;
+		status?: DispatchRunIntentStatus;
 		queue?: string;
 		targetHost?: string;
 		capabilities?: string[];
 		limit?: number;
 	} = {},
-): Promise<DeferredRunIntent[]> {
-	const intents = await listDeferredRunIntents(context, {
+): Promise<DispatchRunIntent[]> {
+	const intents = await listDispatchRunIntents(context, {
 		status: options.status,
 	});
 	return intents
@@ -974,8 +974,8 @@ export async function collectLocalHandoffRuns(
 		capabilities?: string[];
 		now?: Date;
 	} = {},
-): Promise<DeferredRunCollectResult> {
-	return await collectDeferredRuns(context, {
+): Promise<DispatchRunCollectResult> {
+	return await collectDispatchRuns(context, {
 		cursor: options.cursor,
 		defaultCursor: "local-handoff",
 		now: options.now,
@@ -999,7 +999,7 @@ export async function drainLocalHandoffQueue(
 	},
 ): Promise<LocalHandoffDrainResult> {
 	const action = options.action ?? "run";
-	const result = await runDueDeferredRuns(context, {
+	const result = await runDueDispatchRuns(context, {
 		...options,
 		includeLocalHandoffs: true,
 		localHandoffMaterialize: action === "materialize"
@@ -1019,44 +1019,44 @@ export async function drainLocalHandoffQueue(
 	};
 }
 
-export async function collectDeferredRuns(
+export async function collectDispatchRuns(
 	context: WorkbenchContext,
 	options: {
 		cursor?: string;
 		now?: Date;
 		defaultCursor?: string;
-		filter?: (intent: DeferredRunIntent) => boolean | Promise<boolean>;
+		filter?: (intent: DispatchRunIntent) => boolean | Promise<boolean>;
 	} = {},
-): Promise<DeferredRunCollectResult> {
-	await ensureDeferredRunDirs(context);
-	const cursor = deferredCollectCursorName(options.cursor, options.defaultCursor);
-	const previousCursor = await readDeferredRunCollectCursor(context, cursor);
+): Promise<DispatchRunCollectResult> {
+	await ensureDispatchRunDirs(context);
+	const cursor = dispatchCollectCursorName(options.cursor, options.defaultCursor);
+	const previousCursor = await readDispatchRunCollectCursor(context, cursor);
 	const collectedAt = (options.now ?? new Date()).toISOString();
-	const filteredIntents: DeferredRunIntent[] = [];
-	for (const intent of await listDeferredRunIntents(context)) {
+	const filteredIntents: DispatchRunIntent[] = [];
+	for (const intent of await listDispatchRunIntents(context)) {
 		if (!options.filter || await options.filter(intent)) {
 			filteredIntents.push(intent);
 		}
 	}
 	const terminalIntents = filteredIntents
-		.filter((intent) => isTerminalDeferredRunStatus(intent.status))
+		.filter((intent) => isTerminalDispatchRunStatus(intent.status))
 		.toSorted((left, right) =>
 			left.updatedAt.localeCompare(right.updatedAt) || left.id.localeCompare(right.id)
 		)
-		.filter((intent) => isAfterDeferredRunCollectCursor(intent, previousCursor));
+		.filter((intent) => isAfterDispatchRunCollectCursor(intent, previousCursor));
 	const intents = await Promise.all(
 		terminalIntents.map(async (intent) =>
-			await readDeferredRun(context, intent.id, { includeOutput: true })
+			await readDispatchRun(context, intent.id, { includeOutput: true })
 		),
 	);
 	const last = terminalIntents.at(-1);
-	const cursorState: DeferredRunCollectCursor = compactUndefined({
+	const cursorState: DispatchRunCollectCursor = compactUndefined({
 		cursor,
 		updatedAt: collectedAt,
 		lastUpdatedAt: last?.updatedAt ?? previousCursor?.lastUpdatedAt,
 		lastIntentId: last?.id ?? previousCursor?.lastIntentId,
 	});
-	await writeJsonFileAtomic(deferredCollectCursorPath(context, cursor), cursorState);
+	await writeJsonFileAtomic(dispatchCollectCursorPath(context, cursor), cursorState);
 	return compactUndefined({
 		mode: context.mode,
 		cursor,
@@ -1067,42 +1067,42 @@ export async function collectDeferredRuns(
 	});
 }
 
-export async function cancelDeferredRunIntent(
+export async function cancelDispatchRunIntent(
 	context: WorkbenchContext,
 	intentId: string,
-): Promise<DeferredRunIntent> {
-	const intent = await readDeferredRunIntent(context, intentId);
+): Promise<DispatchRunIntent> {
+	const intent = await readDispatchRunIntent(context, intentId);
 	if (intent.status !== "pending") {
-		throw new Error(`Only pending deferred runs can be canceled: ${intentId}`);
+		throw new Error(`Only pending dispatch runs can be canceled: ${intentId}`);
 	}
 	const now = new Date().toISOString();
-	const canceled: DeferredRunIntent = {
+	const canceled: DispatchRunIntent = {
 		...intent,
 		status: "canceled",
 		updatedAt: now,
 		canceledAt: now,
 	};
-	await writeJsonFileAtomic(deferredIntentPath(context, intentId), canceled);
+	await writeJsonFileAtomic(dispatchIntentPath(context, intentId), canceled);
 	return canceled;
 }
 
-export async function retryDeferredRunIntent(
+export async function retryDispatchRunIntent(
 	context: WorkbenchContext,
 	intentId: string,
 	params: unknown = {},
 	options: { now?: Date } = {},
-): Promise<DeferredRunRetryResult> {
-	await ensureDeferredRunDirs(context);
-	const originalIntent = await readDeferredRunIntent(context, intentId);
-	if (!isTerminalDeferredRunStatus(originalIntent.status)) {
-		throw new Error(`Only terminal deferred runs can be retried: ${intentId} is ${originalIntent.status}`);
+): Promise<DispatchRunRetryResult> {
+	await ensureDispatchRunDirs(context);
+	const originalIntent = await readDispatchRunIntent(context, intentId);
+	if (!isTerminalDispatchRunStatus(originalIntent.status)) {
+		throw new Error(`Only terminal dispatch runs can be retried: ${intentId} is ${originalIntent.status}`);
 	}
-	const input = parseDeferredRunRetryParams(params);
+	const input = parseDispatchRunRetryParams(params);
 	const now = (options.now ?? new Date()).toISOString();
-	const retrySource = retryDeferredRunSource(originalIntent, input.source);
-	let id = input.id ?? deferredRetryRunId(originalIntent.id, now);
+	const retrySource = retryDispatchRunSource(originalIntent, input.source);
+	let id = input.id ?? dispatchRetryRunId(originalIntent.id, now);
 	for (let attempt = 0; attempt < 10; attempt += 1) {
-		const intent: DeferredRunIntent = compactUndefined({
+		const intent: DispatchRunIntent = compactUndefined({
 			id,
 			status: "pending",
 			mode: context.mode,
@@ -1110,26 +1110,26 @@ export async function retryDeferredRunIntent(
 			target: originalIntent.target,
 			createdAt: now,
 			updatedAt: now,
-			createdBy: input.createdBy ?? "workbench-deferred-retry",
-			reason: input.reason ?? `Retry deferred run ${originalIntent.id}`,
+			createdBy: input.createdBy ?? "workbench-dispatch-retry",
+			reason: input.reason ?? `Retry dispatch run ${originalIntent.id}`,
 			source: retrySource,
 			dependsOn: originalIntent.dependsOn,
 			attemptIds: [],
 		});
 		try {
-			await writeNewJsonFile(deferredIntentPath(context, intent.id), intent);
+			await writeNewJsonFile(dispatchIntentPath(context, intent.id), intent);
 			return { intent, originalIntent };
 		} catch (error) {
 			if (!isAlreadyExistsError(error)) {
 				throw error;
 			}
-			id = deferredRetryRunId(originalIntent.id, now);
+			id = dispatchRetryRunId(originalIntent.id, now);
 		}
 	}
-	throw new Error(`Could not allocate retry deferred run id for ${intentId}`);
+	throw new Error(`Could not allocate retry dispatch run id for ${intentId}`);
 }
 
-export async function runDueDeferredRuns(
+export async function runDueDispatchRuns(
 	context: WorkbenchContext,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
@@ -1137,19 +1137,19 @@ export async function runDueDeferredRuns(
 		now?: Date;
 		limit?: number;
 		leaseMs?: number;
-		filter?: (intent: DeferredRunIntent) => boolean | Promise<boolean>;
+		filter?: (intent: DispatchRunIntent) => boolean | Promise<boolean>;
 		includeLocalHandoffs?: boolean;
 		localHandoffMaterialize?: {
 			queue?: string;
 		};
-	}): Promise<{ mode: WorkbenchMode; executions: DeferredRunExecution[] }> {
+	}): Promise<{ mode: WorkbenchMode; executions: DispatchRunExecution[] }> {
 	await ensureStateDirs(context);
-	await ensureDeferredRunDirs(context);
+	await ensureDispatchRunDirs(context);
 	const now = options.now ?? new Date();
-	const due: DeferredRunIntent[] = [];
-	for (const intent of await listDeferredRunIntents(context)) {
+	const due: DispatchRunIntent[] = [];
+	for (const intent of await listDispatchRunIntents(context)) {
 		if (
-			await isDeferredIntentDue(context, intent, now) &&
+			await isDispatchIntentDue(context, intent, now) &&
 			(options.includeLocalHandoffs === true || !isLocalHandoffIntent(intent)) &&
 			(!options.filter || await options.filter(intent))
 		) {
@@ -1159,9 +1159,9 @@ export async function runDueDeferredRuns(
 			break;
 		}
 	}
-	const executions: DeferredRunExecution[] = [];
+	const executions: DispatchRunExecution[] = [];
 	for (const intent of due) {
-		const claim = await claimDeferredRunIntent(context, intent, {
+		const claim = await claimDispatchRunIntent(context, intent, {
 			now,
 			leaseMs: options.leaseMs ?? 30 * 60 * 1000,
 		});
@@ -1169,23 +1169,23 @@ export async function runDueDeferredRuns(
 			continue;
 		}
 		try {
-			const outputPath = path.join(deferredOutputDir(context), `${claim.attempt.id}.json`);
-			await writeJsonFileAtomic(deferredAttemptPath(context, claim.attempt.id), claim.attempt);
-			const result = await executeDeferredRunTarget(context, claim.intent, {
+			const outputPath = path.join(dispatchOutputDir(context), `${claim.attempt.id}.json`);
+			await writeJsonFileAtomic(dispatchAttemptPath(context, claim.attempt.id), claim.attempt);
+			const result = await executeDispatchRunTarget(context, claim.intent, {
 				callToybox: options.callToybox,
 				workflowCwd: options.workflowCwd,
 				localHandoffMaterialize: options.localHandoffMaterialize,
 			});
 			await writeJsonFileAtomic(outputPath, result.output);
 			const finishedAt = new Date().toISOString();
-			const attempt: DeferredRunAttempt = compactUndefined({
+			const attempt: DispatchRunAttempt = compactUndefined({
 				...claim.attempt,
 				status: result.status,
 				finishedAt,
 				outputPath,
 				error: result.error,
 			});
-			const completedIntent: DeferredRunIntent = compactUndefined({
+			const completedIntent: DispatchRunIntent = compactUndefined({
 				...claim.intent,
 				status: result.status,
 				updatedAt: finishedAt,
@@ -1194,40 +1194,40 @@ export async function runDueDeferredRuns(
 				completedAt: result.status === "completed" ? finishedAt : undefined,
 				error: result.error,
 			});
-			await writeJsonFileAtomic(deferredAttemptPath(context, attempt.id), attempt);
-			await writeJsonFileAtomic(deferredIntentPath(context, completedIntent.id), completedIntent);
+			await writeJsonFileAtomic(dispatchAttemptPath(context, attempt.id), attempt);
+			await writeJsonFileAtomic(dispatchIntentPath(context, completedIntent.id), completedIntent);
 			executions.push({
 				intent: completedIntent,
 				attempt,
 				output: result.output,
 			});
 		} finally {
-			await releaseDeferredRunClaim(context, claim.intent.id);
+			await releaseDispatchRunClaim(context, claim.intent.id);
 		}
 	}
 	return { mode: context.mode, executions };
 }
 
-export async function pruneDeferredRunHistory(
+export async function pruneDispatchRunHistory(
 	context: WorkbenchContext,
 	options: {
 		olderThanDays: number;
 		dryRun?: boolean;
 		now?: Date;
 	},
-): Promise<DeferredRunPruneResult> {
+): Promise<DispatchRunPruneResult> {
 	if (!Number.isInteger(options.olderThanDays) || options.olderThanDays <= 0) {
 		throw new Error("olderThanDays must be a positive integer");
 	}
 	const now = options.now ?? new Date();
 	const cutoff = new Date(now.getTime() - options.olderThanDays * 24 * 60 * 60 * 1000).toISOString();
-	const intents = await listDeferredRunIntents(context);
-	const pruned: DeferredRunPruneResult["intents"] = [];
+	const intents = await listDispatchRunIntents(context);
+	const pruned: DispatchRunPruneResult["intents"] = [];
 	for (const intent of intents) {
-		if (!isTerminalDeferredRunStatus(intent.status) || intent.updatedAt >= cutoff) {
+		if (!isTerminalDispatchRunStatus(intent.status) || intent.updatedAt >= cutoff) {
 			continue;
 		}
-		const attempts = await readDeferredRunAttempts(context, intent.attemptIds);
+		const attempts = await readDispatchRunAttempts(context, intent.attemptIds);
 		const outputPaths = attempts.flatMap((attempt) => attempt.outputPath ? [attempt.outputPath] : []);
 		pruned.push({
 			id: intent.id,
@@ -1239,14 +1239,14 @@ export async function pruneDeferredRunHistory(
 		if (options.dryRun === true) {
 			continue;
 		}
-		await releaseDeferredRunClaim(context, intent.id);
+		await releaseDispatchRunClaim(context, intent.id);
 		for (const outputPath of outputPaths) {
 			await rm(outputPath, { force: true });
 		}
 		for (const attempt of attempts) {
-			await rm(deferredAttemptPath(context, attempt.id), { force: true });
+			await rm(dispatchAttemptPath(context, attempt.id), { force: true });
 		}
-		await rm(deferredIntentPath(context, intent.id), { force: true });
+		await rm(dispatchIntentPath(context, intent.id), { force: true });
 	}
 	return {
 		mode: context.mode,
@@ -1350,9 +1350,9 @@ async function runWorkflowTask(
 	return scriptRun.result;
 }
 
-async function executeDeferredRunTarget(
+async function executeDispatchRunTarget(
 	context: WorkbenchContext,
-	intent: DeferredRunIntent,
+	intent: DispatchRunIntent,
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
 		workflowCwd?: string;
@@ -1395,7 +1395,7 @@ async function executeDeferredRunTarget(
 				reactive: [],
 				path: context.configPath,
 			} satisfies WorkbenchConfig));
-			const result = await runWorkflowDeferredTarget(
+			const result = await runWorkflowDispatchTarget(
 				context,
 				config,
 				{ ...intent, target },
@@ -1436,7 +1436,7 @@ async function executeDeferredRunTarget(
 
 async function materializeLocalHandoffIntent(
 	context: WorkbenchContext,
-	intent: DeferredRunIntent,
+	intent: DispatchRunIntent,
 	options: {
 		queue?: string;
 	},
@@ -1482,11 +1482,11 @@ async function materializeLocalHandoffIntent(
 	};
 }
 
-async function runWorkflowDeferredTarget(
+async function runWorkflowDispatchTarget(
 	context: WorkbenchContext,
 	config: WorkbenchConfig,
-	intent: DeferredRunIntent & {
-		target: Extract<DeferredRunTarget, { kind: "workflow" }>;
+	intent: DispatchRunIntent & {
+		target: Extract<DispatchRunTarget, { kind: "workflow" }>;
 	},
 	options: {
 		callToybox: (method: string, params: unknown) => Promise<unknown>;
@@ -1497,7 +1497,7 @@ async function runWorkflowDeferredTarget(
 		cwd: context.repoRoot,
 	});
 	const startedAt = new Date().toISOString();
-	const event = deferredWorkflowEvent(config, intent, startedAt);
+	const event = dispatchWorkflowEvent(config, intent, startedAt);
 	const prompt = intent.target.prompt ?? target.prompt;
 	const cwd = intent.target.cwd ?? options.workflowCwd ?? target.cwd ?? context.repoRoot;
 	const scriptRun = await runWorkflowScript({
@@ -1551,10 +1551,10 @@ function workbenchWorkflowEvent(
 	};
 }
 
-function deferredWorkflowEvent(
+function dispatchWorkflowEvent(
 	config: WorkbenchConfig,
-	intent: DeferredRunIntent & {
-		target: Extract<DeferredRunTarget, { kind: "workflow" }>;
+	intent: DispatchRunIntent & {
+		target: Extract<DispatchRunTarget, { kind: "workflow" }>;
 	},
 	startedAt: string,
 ): Record<string, unknown> {
@@ -1562,20 +1562,20 @@ function deferredWorkflowEvent(
 	const payload = isRecord(event.payload) ? event.payload : {};
 	return {
 		...event,
-		id: stringValue(event.id, `deferred:${config.name}:${intent.id}`),
+		id: stringValue(event.id, `dispatch:${config.name}:${intent.id}`),
 		type: stringValue(event.type, intent.target.workflow),
 		source: stringValue(event.source, config.name),
 		occurredAt: stringValue(event.occurredAt, intent.runAt),
 		receivedAt: stringValue(event.receivedAt, startedAt),
 		payload: {
-			deferredRunId: intent.id,
+			dispatchRunId: intent.id,
 			...payload,
 		},
 	};
 }
 
 function exhaustiveTarget(value: never): never {
-	throw new Error(`Unsupported deferred run target: ${JSON.stringify(value)}`);
+	throw new Error(`Unsupported dispatch run target: ${JSON.stringify(value)}`);
 }
 
 async function runReactiveRule(
@@ -1750,10 +1750,10 @@ async function createScheduledWorkbenchTaskIntent(
 	context: WorkbenchContext,
 	task: WorkbenchTask,
 	now: Date,
-): Promise<DeferredRunIntent | undefined> {
+): Promise<DispatchRunIntent | undefined> {
 	try {
-		return await createDeferredRunIntent(context, {
-			id: scheduledDeferredRunId(task.id, now),
+		return await createDispatchRunIntent(context, {
+			id: scheduledDispatchRunId(task.id, now),
 			runAt: now.toISOString(),
 			target: {
 				kind: "workbench-task",
@@ -1776,30 +1776,30 @@ async function createScheduledWorkbenchTaskIntent(
 	}
 }
 
-async function readDeferredRunIntent(
+async function readDispatchRunIntent(
 	context: WorkbenchContext,
 	intentId: string,
-): Promise<DeferredRunIntent> {
-	const intentPath = deferredIntentPath(context, intentId);
+): Promise<DispatchRunIntent> {
+	const intentPath = dispatchIntentPath(context, intentId);
 	try {
-		return normalizeDeferredRunIntent(parseJsonText(await readFile(intentPath, "utf8"), intentPath));
+		return normalizeDispatchRunIntent(parseJsonText(await readFile(intentPath, "utf8"), intentPath));
 	} catch (error) {
 		if (isNotFoundError(error)) {
-			throw new Error(`Unknown deferred run: ${intentId}`);
+			throw new Error(`Unknown dispatch run: ${intentId}`);
 		}
 		throw error;
 	}
 }
 
-async function readDeferredRunAttempts(
+async function readDispatchRunAttempts(
 	context: WorkbenchContext,
 	attemptIds: string[],
-): Promise<DeferredRunAttempt[]> {
-	const attempts: DeferredRunAttempt[] = [];
+): Promise<DispatchRunAttempt[]> {
+	const attempts: DispatchRunAttempt[] = [];
 	for (const attemptId of attemptIds) {
-		const attemptPath = deferredAttemptPath(context, attemptId);
+		const attemptPath = dispatchAttemptPath(context, attemptId);
 		try {
-			attempts.push(normalizeDeferredRunAttempt(
+			attempts.push(normalizeDispatchRunAttempt(
 				parseJsonText(await readFile(attemptPath, "utf8"), attemptPath),
 			));
 		} catch {}
@@ -1807,10 +1807,10 @@ async function readDeferredRunAttempts(
 	return attempts.sort((left, right) => left.startedAt.localeCompare(right.startedAt));
 }
 
-async function readDeferredRunAttemptOutputs(
-	attempts: DeferredRunAttempt[],
-): Promise<DeferredRunAttemptOutput[]> {
-	const outputs: DeferredRunAttemptOutput[] = [];
+async function readDispatchRunAttemptOutputs(
+	attempts: DispatchRunAttempt[],
+): Promise<DispatchRunAttemptOutput[]> {
+	const outputs: DispatchRunAttemptOutput[] = [];
 	for (const attempt of attempts) {
 		if (!attempt.outputPath) {
 			continue;
@@ -1832,13 +1832,13 @@ async function readDeferredRunAttemptOutputs(
 	return outputs;
 }
 
-async function readDeferredRunCollectCursor(
+async function readDispatchRunCollectCursor(
 	context: WorkbenchContext,
 	cursor: string,
-): Promise<DeferredRunCollectCursor | undefined> {
-	const file = deferredCollectCursorPath(context, cursor);
+): Promise<DispatchRunCollectCursor | undefined> {
+	const file = dispatchCollectCursorPath(context, cursor);
 	try {
-		return normalizeDeferredRunCollectCursor(parseJsonText(await readFile(file, "utf8"), file), cursor);
+		return normalizeDispatchRunCollectCursor(parseJsonText(await readFile(file, "utf8"), file), cursor);
 	} catch (error) {
 		if (isNotFoundError(error)) {
 			return undefined;
@@ -1847,21 +1847,21 @@ async function readDeferredRunCollectCursor(
 	}
 }
 
-async function claimDeferredRunIntent(
+async function claimDispatchRunIntent(
 	context: WorkbenchContext,
-	intent: DeferredRunIntent,
+	intent: DispatchRunIntent,
 	options: {
 		now: Date;
 		leaseMs: number;
 	},
-): Promise<{ intent: DeferredRunIntent; attempt: DeferredRunAttempt } | undefined> {
-	const current = await readDeferredRunIntent(context, intent.id);
-	if (!await isDeferredIntentDue(context, current, options.now)) {
+): Promise<{ intent: DispatchRunIntent; attempt: DispatchRunAttempt } | undefined> {
+	const current = await readDispatchRunIntent(context, intent.id);
+	if (!await isDispatchIntentDue(context, current, options.now)) {
 		return undefined;
 	}
-	const claimPath = deferredClaimPath(context, current.id);
+	const claimPath = dispatchClaimPath(context, current.id);
 	const claimedAt = options.now.toISOString();
-	const attemptId = deferredAttemptId(current.id, claimedAt);
+	const attemptId = dispatchAttemptId(current.id, claimedAt);
 	const leaseExpiresAt = new Date(options.now.getTime() + options.leaseMs).toISOString();
 	const executorId = `${process.pid}:${randomUUID()}`;
 	const claim = { intentId: current.id, attemptId, claimedAt, leaseExpiresAt, executorId };
@@ -1885,7 +1885,7 @@ async function claimDeferredRunIntent(
 			throw retryError;
 		}
 	}
-	const attempt: DeferredRunAttempt = {
+	const attempt: DispatchRunAttempt = {
 		id: attemptId,
 		intentId: current.id,
 		status: "running",
@@ -1894,7 +1894,7 @@ async function claimDeferredRunIntent(
 		executorId,
 		leaseExpiresAt,
 	};
-	const running: DeferredRunIntent = {
+	const running: DispatchRunIntent = {
 		...current,
 		status: "running",
 		updatedAt: claimedAt,
@@ -1905,15 +1905,15 @@ async function claimDeferredRunIntent(
 			executorId,
 		},
 	};
-	await writeJsonFileAtomic(deferredIntentPath(context, current.id), running);
+	await writeJsonFileAtomic(dispatchIntentPath(context, current.id), running);
 	return { intent: running, attempt };
 }
 
-async function releaseDeferredRunClaim(
+async function releaseDispatchRunClaim(
 	context: WorkbenchContext,
 	intentId: string,
 ): Promise<void> {
-	await rm(deferredClaimPath(context, intentId), { force: true });
+	await rm(dispatchClaimPath(context, intentId), { force: true });
 }
 
 async function readClaimFile(file: string): Promise<{ leaseExpiresAt: string } | undefined> {
@@ -1927,13 +1927,13 @@ async function readClaimFile(file: string): Promise<{ leaseExpiresAt: string } |
 	}
 }
 
-function parseDeferredRunCreateParams(value: unknown): DeferredRunCreateParams {
+function parseDispatchRunCreateParams(value: unknown): DispatchRunCreateParams {
 	const input = record(value);
 	const runAt = optionalString(input.runAt);
 	if (runAt && Number.isNaN(Date.parse(runAt))) {
-		throw new Error(`Deferred run runAt must be an ISO-compatible date: ${runAt}`);
+		throw new Error(`Dispatch run runAt must be an ISO-compatible date: ${runAt}`);
 	}
-	const target = parseDeferredRunTarget(input.target);
+	const target = parseDispatchRunTarget(input.target);
 	const source = recordOrUndefined(input.source);
 	return compactUndefined({
 		id: optionalString(input.id),
@@ -1942,7 +1942,7 @@ function parseDeferredRunCreateParams(value: unknown): DeferredRunCreateParams {
 		createdBy: optionalString(input.createdBy),
 		reason: optionalString(input.reason),
 		source,
-		dependsOn: parseDeferredRunDependencies(input.dependsOn),
+		dependsOn: parseDispatchRunDependencies(input.dependsOn),
 	});
 }
 
@@ -1952,7 +1952,7 @@ function parsePromptQueueEnqueueParams(value: unknown): PromptQueueEnqueueParams
 	if (runAt && Number.isNaN(Date.parse(runAt))) {
 		throw new Error(`Prompt queue runAt must be an ISO-compatible date: ${runAt}`);
 	}
-	const afterStatus = deferredDependencyStatusValue(input.afterStatus, "prompt queue afterStatus");
+	const afterStatus = dispatchDependencyStatusValue(input.afterStatus, "prompt queue afterStatus");
 	return compactUndefined({
 		id: optionalString(input.id),
 		runAt,
@@ -1984,7 +1984,7 @@ function parseLocalHandoffEnqueueParams(value: unknown): LocalHandoffEnqueuePara
 	if (runAt && Number.isNaN(Date.parse(runAt))) {
 		throw new Error(`Local handoff runAt must be an ISO-compatible date: ${runAt}`);
 	}
-	const afterStatus = deferredDependencyStatusValue(input.afterStatus, "local handoff afterStatus");
+	const afterStatus = dispatchDependencyStatusValue(input.afterStatus, "local handoff afterStatus");
 	return compactUndefined({
 		id: optionalString(input.id),
 		runAt,
@@ -2014,32 +2014,32 @@ function parseLocalHandoffEnqueueParams(value: unknown): LocalHandoffEnqueuePara
 	});
 }
 
-function parseDeferredRunDependencies(value: unknown): DeferredRunDependency[] | undefined {
+function parseDispatchRunDependencies(value: unknown): DispatchRunDependency[] | undefined {
 	if (!Array.isArray(value)) {
 		return undefined;
 	}
-	const dependencies = value.map(parseDeferredRunDependency);
+	const dependencies = value.map(parseDispatchRunDependency);
 	return dependencies.length > 0 ? dependencies : undefined;
 }
 
-function parseDeferredRunDependency(value: unknown): DeferredRunDependency {
+function parseDispatchRunDependency(value: unknown): DispatchRunDependency {
 	const input = record(value);
-	const kind = requiredString(input.kind, "deferred run dependency kind");
-	if (kind !== "deferred-run") {
-		throw new Error(`Invalid deferred run dependency kind: ${kind}`);
+	const kind = requiredString(input.kind, "dispatch run dependency kind");
+	if (kind !== "dispatch-run") {
+		throw new Error(`Invalid dispatch run dependency kind: ${kind}`);
 	}
 	return compactUndefined({
-		kind: "deferred-run" as const,
-		intentId: requiredString(input.intentId, "deferred run dependency intentId"),
-		status: deferredDependencyStatusValue(input.status, "deferred run dependency status"),
+		kind: "dispatch-run" as const,
+		intentId: requiredString(input.intentId, "dispatch run dependency intentId"),
+		status: dispatchDependencyStatusValue(input.status, "dispatch run dependency status"),
 	});
 }
 
-function parseDeferredRunRetryParams(value: unknown): DeferredRunRetryParams {
+function parseDispatchRunRetryParams(value: unknown): DispatchRunRetryParams {
 	const input = record(value);
 	const runAt = optionalString(input.runAt);
 	if (runAt && Number.isNaN(Date.parse(runAt))) {
-		throw new Error(`Deferred run retry runAt must be an ISO-compatible date: ${runAt}`);
+		throw new Error(`Dispatch run retry runAt must be an ISO-compatible date: ${runAt}`);
 	}
 	return compactUndefined({
 		id: optionalString(input.id),
@@ -2050,16 +2050,16 @@ function parseDeferredRunRetryParams(value: unknown): DeferredRunRetryParams {
 	});
 }
 
-function retryDeferredRunSource(
-	originalIntent: DeferredRunIntent,
+function retryDispatchRunSource(
+	originalIntent: DispatchRunIntent,
 	source: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
 	const originalSource = recordOrUndefined(originalIntent.source) ?? {};
 	return compactUndefined({
 		...originalSource,
-		kind: optionalString(originalSource.kind) ?? "deferred-retry",
+		kind: optionalString(originalSource.kind) ?? "dispatch-retry",
 		retry: compactUndefined({
-			kind: "deferred-retry",
+			kind: "dispatch-retry",
 			originalIntentId: originalIntent.id,
 			originalStatus: originalIntent.status,
 			originalRunAt: originalIntent.runAt,
@@ -2071,7 +2071,7 @@ function retryDeferredRunSource(
 
 function promptQueueSource(
 	input: PromptQueueEnqueueParams,
-	after: DeferredRunDependency | undefined,
+	after: DispatchRunDependency | undefined,
 ): Record<string, unknown> {
 	return compactUndefined({
 		kind: "prompt-queue",
@@ -2085,7 +2085,7 @@ function promptQueueSource(
 
 function localHandoffSource(
 	input: LocalHandoffEnqueueParams,
-	after: DeferredRunDependency | undefined,
+	after: DispatchRunDependency | undefined,
 ): Record<string, unknown> {
 	const requester = compactUndefined({
 		host: input.requesterHost,
@@ -2104,7 +2104,7 @@ function localHandoffSource(
 	});
 }
 
-function isPromptQueueIntent(intent: DeferredRunIntent, queue?: string): boolean {
+function isPromptQueueIntent(intent: DispatchRunIntent, queue?: string): boolean {
 	if (intent.target.kind !== "turn") {
 		return false;
 	}
@@ -2116,7 +2116,7 @@ function isPromptQueueIntent(intent: DeferredRunIntent, queue?: string): boolean
 }
 
 function isLocalHandoffIntent(
-	intent: DeferredRunIntent,
+	intent: DispatchRunIntent,
 	options: {
 		queue?: string;
 		targetHost?: string;
@@ -2149,30 +2149,30 @@ function isLocalHandoffIntent(
 	return true;
 }
 
-function parseDeferredRunTarget(value: unknown): DeferredRunTarget {
+function parseDispatchRunTarget(value: unknown): DispatchRunTarget {
 	const target = record(value);
-	const kind = requiredString(target.kind, "deferred run target kind");
+	const kind = requiredString(target.kind, "dispatch run target kind");
 	if (kind === "workbench-task") {
 		return {
 			kind,
-			taskId: requiredString(target.taskId, "deferred run workbench-task taskId"),
+			taskId: requiredString(target.taskId, "dispatch run workbench-task taskId"),
 		};
 	}
 	if (kind === "workflow") {
 		return compactUndefined({
 			kind,
-			workflow: requiredString(target.workflow, "deferred run workflow target workflow"),
+			workflow: requiredString(target.workflow, "dispatch run workflow target workflow"),
 			event: recordOrUndefined(target.event),
 			prompt: optionalString(target.prompt),
 			cwd: optionalString(target.cwd),
 			model: optionalString(target.model),
-			sandbox: sandboxValue(target.sandbox, "deferred run workflow target sandbox"),
-			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "deferred run workflow target approvalPolicy"),
+			sandbox: sandboxValue(target.sandbox, "dispatch run workflow target sandbox"),
+			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "dispatch run workflow target approvalPolicy"),
 			permissions: optionalString(target.permissions),
 		});
 	}
 	if (kind === "turn") {
-		const prompt = requiredString(target.prompt, "deferred run turn target prompt");
+		const prompt = requiredString(target.prompt, "dispatch run turn target prompt");
 		return compactUndefined({
 			kind,
 			prompt,
@@ -2180,40 +2180,40 @@ function parseDeferredRunTarget(value: unknown): DeferredRunTarget {
 			cwd: optionalString(target.cwd),
 			model: optionalString(target.model),
 			serviceTier: optionalString(target.serviceTier),
-			effort: reasoningEffortValue(target.effort, "deferred run turn target effort"),
-			sandbox: sandboxValue(target.sandbox, "deferred run turn target sandbox"),
-			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "deferred run turn target approvalPolicy"),
+			effort: reasoningEffortValue(target.effort, "dispatch run turn target effort"),
+			sandbox: sandboxValue(target.sandbox, "dispatch run turn target sandbox"),
+			approvalPolicy: approvalPolicyValue(target.approvalPolicy, "dispatch run turn target approvalPolicy"),
 			permissions: optionalString(target.permissions),
 			responsesapiClientMetadata: stringRecord(target.responsesapiClientMetadata),
 			outputSchema: target.outputSchema,
 		});
 	}
-	throw new Error(`Invalid deferred run target kind: ${kind}`);
+	throw new Error(`Invalid dispatch run target kind: ${kind}`);
 }
 
-function normalizeDeferredRunIntent(value: unknown): DeferredRunIntent {
+function normalizeDispatchRunIntent(value: unknown): DispatchRunIntent {
 	const input = record(value);
 	return {
-		id: requiredString(input.id, "deferred run id"),
-		status: deferredRunStatus(input.status),
+		id: requiredString(input.id, "dispatch run id"),
+		status: dispatchRunStatus(input.status),
 		mode: workbenchMode(input.mode),
-		runAt: requiredString(input.runAt, "deferred run runAt"),
-		target: parseDeferredRunTarget(input.target),
-		createdAt: requiredString(input.createdAt, "deferred run createdAt"),
-		updatedAt: requiredString(input.updatedAt, "deferred run updatedAt"),
+		runAt: requiredString(input.runAt, "dispatch run runAt"),
+		target: parseDispatchRunTarget(input.target),
+		createdAt: requiredString(input.createdAt, "dispatch run createdAt"),
+		updatedAt: requiredString(input.updatedAt, "dispatch run updatedAt"),
 		createdBy: optionalString(input.createdBy),
 		reason: optionalString(input.reason),
 		source: recordOrUndefined(input.source),
-		dependsOn: parseDeferredRunDependencies(input.dependsOn),
+		dependsOn: parseDispatchRunDependencies(input.dependsOn),
 		attemptIds: Array.isArray(input.attemptIds)
 			? input.attemptIds.filter((entry): entry is string => typeof entry === "string")
 			: [],
 		lease: isRecord(input.lease)
 			? {
-				attemptId: requiredString(input.lease.attemptId, "deferred run lease attemptId"),
-				claimedAt: requiredString(input.lease.claimedAt, "deferred run lease claimedAt"),
-				expiresAt: requiredString(input.lease.expiresAt, "deferred run lease expiresAt"),
-				executorId: requiredString(input.lease.executorId, "deferred run lease executorId"),
+				attemptId: requiredString(input.lease.attemptId, "dispatch run lease attemptId"),
+				claimedAt: requiredString(input.lease.claimedAt, "dispatch run lease claimedAt"),
+				expiresAt: requiredString(input.lease.expiresAt, "dispatch run lease expiresAt"),
+				executorId: requiredString(input.lease.executorId, "dispatch run lease executorId"),
 			}
 			: undefined,
 		completedAt: optionalString(input.completedAt),
@@ -2222,30 +2222,30 @@ function normalizeDeferredRunIntent(value: unknown): DeferredRunIntent {
 	};
 }
 
-function normalizeDeferredRunAttempt(value: unknown): DeferredRunAttempt {
+function normalizeDispatchRunAttempt(value: unknown): DispatchRunAttempt {
 	const input = record(value);
 	return {
-		id: requiredString(input.id, "deferred run attempt id"),
-		intentId: requiredString(input.intentId, "deferred run attempt intentId"),
-		status: deferredAttemptStatus(input.status),
+		id: requiredString(input.id, "dispatch run attempt id"),
+		intentId: requiredString(input.intentId, "dispatch run attempt intentId"),
+		status: dispatchAttemptStatus(input.status),
 		mode: workbenchMode(input.mode),
-		startedAt: requiredString(input.startedAt, "deferred run attempt startedAt"),
+		startedAt: requiredString(input.startedAt, "dispatch run attempt startedAt"),
 		finishedAt: optionalString(input.finishedAt),
-		executorId: requiredString(input.executorId, "deferred run attempt executorId"),
-		leaseExpiresAt: requiredString(input.leaseExpiresAt, "deferred run attempt leaseExpiresAt"),
+		executorId: requiredString(input.executorId, "dispatch run attempt executorId"),
+		leaseExpiresAt: requiredString(input.leaseExpiresAt, "dispatch run attempt leaseExpiresAt"),
 		outputPath: optionalString(input.outputPath),
 		error: optionalString(input.error),
 	};
 }
 
-function normalizeDeferredRunCollectCursor(
+function normalizeDispatchRunCollectCursor(
 	value: unknown,
 	fallbackCursor: string,
-): DeferredRunCollectCursor {
+): DispatchRunCollectCursor {
 	const input = record(value);
 	return compactUndefined({
 		cursor: optionalString(input.cursor) ?? fallbackCursor,
-		updatedAt: requiredString(input.updatedAt, "deferred run collect cursor updatedAt"),
+		updatedAt: requiredString(input.updatedAt, "dispatch run collect cursor updatedAt"),
 		lastUpdatedAt: optionalString(input.lastUpdatedAt),
 		lastIntentId: optionalString(input.lastIntentId),
 	});
@@ -2255,7 +2255,7 @@ function dueTasks(
 	tasks: WorkbenchTask[],
 	runs: WorkbenchRunRecord[],
 	now: Date,
-	intents: DeferredRunIntent[] = [],
+	intents: DispatchRunIntent[] = [],
 ): WorkbenchTask[] {
 	return tasks.filter((task) => {
 		if (!task.enabled) {
@@ -2297,10 +2297,10 @@ function hasRunForDate(taskId: string, runs: WorkbenchRunRecord[], now: Date): b
 
 function hasScheduledIntentForDate(
 	taskId: string,
-	intents: DeferredRunIntent[],
+	intents: DispatchRunIntent[],
 	now: Date,
 ): boolean {
-	const expected = scheduledDeferredRunId(taskId, now);
+	const expected = scheduledDispatchRunId(taskId, now);
 	return intents.some((intent) =>
 		intent.id === expected ||
 		(
@@ -2312,14 +2312,14 @@ function hasScheduledIntentForDate(
 	);
 }
 
-async function isDeferredIntentDue(
+async function isDispatchIntentDue(
 	context: WorkbenchContext,
-	intent: DeferredRunIntent,
+	intent: DispatchRunIntent,
 	now: Date,
 ): Promise<boolean> {
 	if (intent.status === "pending") {
 		return intent.runAt <= now.toISOString() &&
-			await areDeferredRunDependenciesSatisfied(context, intent.dependsOn);
+			await areDispatchRunDependenciesSatisfied(context, intent.dependsOn);
 	}
 	if (intent.status === "running" && intent.lease?.expiresAt) {
 		return intent.lease.expiresAt <= now.toISOString();
@@ -2327,26 +2327,26 @@ async function isDeferredIntentDue(
 	return false;
 }
 
-async function areDeferredRunDependenciesSatisfied(
+async function areDispatchRunDependenciesSatisfied(
 	context: WorkbenchContext,
-	dependencies: DeferredRunDependency[] | undefined,
+	dependencies: DispatchRunDependency[] | undefined,
 ): Promise<boolean> {
 	if (!dependencies || dependencies.length === 0) {
 		return true;
 	}
 	for (const dependency of dependencies) {
-		if (dependency.kind !== "deferred-run") {
+		if (dependency.kind !== "dispatch-run") {
 			return false;
 		}
-		let intent: DeferredRunIntent;
+		let intent: DispatchRunIntent;
 		try {
-			intent = await readDeferredRunIntent(context, dependency.intentId);
+			intent = await readDispatchRunIntent(context, dependency.intentId);
 		} catch {
 			return false;
 		}
 		const status = dependency.status ?? "completed";
 		if (status === "terminal") {
-			if (!isTerminalDeferredRunStatus(intent.status)) {
+			if (!isTerminalDispatchRunStatus(intent.status)) {
 				return false;
 			}
 			continue;
@@ -2358,15 +2358,15 @@ async function areDeferredRunDependenciesSatisfied(
 	return true;
 }
 
-function isTerminalDeferredRunStatus(
-	status: DeferredRunIntentStatus,
-): status is Extract<DeferredRunIntentStatus, "completed" | "failed" | "canceled"> {
+function isTerminalDispatchRunStatus(
+	status: DispatchRunIntentStatus,
+): status is Extract<DispatchRunIntentStatus, "completed" | "failed" | "canceled"> {
 	return status === "completed" || status === "failed" || status === "canceled";
 }
 
-function isAfterDeferredRunCollectCursor(
-	intent: DeferredRunIntent,
-	cursor: DeferredRunCollectCursor | undefined,
+function isAfterDispatchRunCollectCursor(
+	intent: DispatchRunIntent,
+	cursor: DispatchRunCollectCursor | undefined,
 ): boolean {
 	if (!cursor?.lastUpdatedAt) {
 		return true;
@@ -2404,15 +2404,15 @@ function workbenchDoctorErrors(context: WorkbenchContext): string[] {
 async function collectWorkbenchRunnerInfo(
 	context: WorkbenchContext,
 	tasks: WorkbenchTask[],
-	deferredRuns: DeferredRunIntent[],
+	dispatchRuns: DispatchRunIntent[],
 	probe: (args: string[]) => Promise<string>,
 ): Promise<WorkbenchRunnerInfo> {
 	const workbenchRoot = path.resolve(context.repoRoot);
 	const hasScheduledWork = tasks.some((task) => task.enabled && task.schedule);
-	const hasPendingDeferredWork = deferredRuns.some((intent) =>
+	const hasPendingDispatchWork = dispatchRuns.some((intent) =>
 		intent.status === "pending" || intent.status === "running"
 	);
-	const hasRunnableWork = hasScheduledWork || hasPendingDeferredWork;
+	const hasRunnableWork = hasScheduledWork || hasPendingDispatchWork;
 	const base: Pick<WorkbenchRunnerInfo, "kind" | "workbenchRoot" | "candidates"> = {
 		kind: "systemd-user",
 		workbenchRoot,
@@ -2455,8 +2455,8 @@ async function collectWorkbenchRunnerInfo(
 				continue;
 			}
 			const runsWorkbenchTick = /\bworkbench\s+tick\b/.test(command);
-			const runsDeferredOnly = /\bworkbench\s+deferred\s+run-due\b/.test(command);
-			if (!runsWorkbenchTick && !runsDeferredOnly) {
+			const runsDispatchOnly = /\bworkbench\s+dispatch\s+run-due\b/.test(command);
+			if (!runsWorkbenchTick && !runsDispatchOnly) {
 				continue;
 			}
 			const timerShow = parseSystemdShow(await probe([
@@ -2485,7 +2485,7 @@ async function collectWorkbenchRunnerInfo(
 				lastTrigger: timerShow.LastTriggerUSec,
 				workbenchRoot: runnerWorkbenchRoot,
 				runsWorkbenchTick,
-				runsDeferredOnly,
+				runsDispatchOnly,
 				matchesWorkbench,
 			}));
 		}
@@ -2516,8 +2516,8 @@ async function collectWorkbenchRunnerInfo(
 			status,
 			selected,
 			candidates,
-			warning: selected.runsDeferredOnly
-				? "The matching runner only runs deferred work; scheduled tasks need workbench tick."
+			warning: selected.runsDispatchOnly
+				? "The matching runner only runs dispatch work; scheduled tasks need workbench tick."
 				: status === "inactive" && hasRunnableWork
 					? "The matching local runner is not active; due work needs a manual tick or another scheduler."
 					: undefined,
@@ -2587,7 +2587,7 @@ function formatWorkbenchRunnerInfo(runner: WorkbenchRunnerInfo | undefined): str
 		return "not checked";
 	}
 	if (runner.selected) {
-		const command = runner.selected.runsWorkbenchTick ? "workbench tick" : "workbench deferred run-due";
+		const command = runner.selected.runsWorkbenchTick ? "workbench tick" : "workbench dispatch run-due";
 		return `${runner.status} ${runner.selected.timer} -> ${runner.selected.service} (${command})`;
 	}
 	if (runner.status === "unsupported") {
@@ -2639,87 +2639,87 @@ async function ensureStateDirs(context: WorkbenchContext): Promise<void> {
 	}
 }
 
-async function ensureDeferredRunDirs(context: WorkbenchContext): Promise<void> {
+async function ensureDispatchRunDirs(context: WorkbenchContext): Promise<void> {
 	for (const dir of [
-		deferredIntentDir(context),
-		deferredAttemptDir(context),
-		deferredOutputDir(context),
-		deferredClaimDir(context),
-		deferredCollectCursorDir(context),
+		dispatchIntentDir(context),
+		dispatchAttemptDir(context),
+		dispatchOutputDir(context),
+		dispatchClaimDir(context),
+		dispatchCollectCursorDir(context),
 	]) {
 		await mkdir(dir, { recursive: true });
 	}
 }
 
-function deferredRoot(context: WorkbenchContext): string {
-	return path.join(context.stateRoot, "deferred");
+function dispatchRoot(context: WorkbenchContext): string {
+	return path.join(context.stateRoot, "dispatch");
 }
 
-function deferredIntentDir(context: WorkbenchContext): string {
-	return path.join(deferredRoot(context), "intents");
+function dispatchIntentDir(context: WorkbenchContext): string {
+	return path.join(dispatchRoot(context), "intents");
 }
 
-function deferredAttemptDir(context: WorkbenchContext): string {
-	return path.join(deferredRoot(context), "attempts");
+function dispatchAttemptDir(context: WorkbenchContext): string {
+	return path.join(dispatchRoot(context), "attempts");
 }
 
-function deferredOutputDir(context: WorkbenchContext): string {
-	return path.join(deferredRoot(context), "outputs");
+function dispatchOutputDir(context: WorkbenchContext): string {
+	return path.join(dispatchRoot(context), "outputs");
 }
 
-function deferredClaimDir(context: WorkbenchContext): string {
-	return path.join(deferredRoot(context), "claims");
+function dispatchClaimDir(context: WorkbenchContext): string {
+	return path.join(dispatchRoot(context), "claims");
 }
 
-function deferredCollectCursorDir(context: WorkbenchContext): string {
-	return path.join(deferredRoot(context), "collect-cursors");
+function dispatchCollectCursorDir(context: WorkbenchContext): string {
+	return path.join(dispatchRoot(context), "collect-cursors");
 }
 
-function deferredIntentPath(context: WorkbenchContext, intentId: string): string {
-	return path.join(deferredIntentDir(context), `${safeFileSegment(intentId)}.json`);
+function dispatchIntentPath(context: WorkbenchContext, intentId: string): string {
+	return path.join(dispatchIntentDir(context), `${safeFileSegment(intentId)}.json`);
 }
 
-function deferredAttemptPath(context: WorkbenchContext, attemptId: string): string {
-	return path.join(deferredAttemptDir(context), `${safeFileSegment(attemptId)}.json`);
+function dispatchAttemptPath(context: WorkbenchContext, attemptId: string): string {
+	return path.join(dispatchAttemptDir(context), `${safeFileSegment(attemptId)}.json`);
 }
 
-function deferredClaimPath(context: WorkbenchContext, intentId: string): string {
-	return path.join(deferredClaimDir(context), `${safeFileSegment(intentId)}.json`);
+function dispatchClaimPath(context: WorkbenchContext, intentId: string): string {
+	return path.join(dispatchClaimDir(context), `${safeFileSegment(intentId)}.json`);
 }
 
-function deferredCollectCursorPath(context: WorkbenchContext, cursor: string): string {
-	return path.join(deferredCollectCursorDir(context), `${safeFileSegment(cursor)}.json`);
+function dispatchCollectCursorPath(context: WorkbenchContext, cursor: string): string {
+	return path.join(dispatchCollectCursorDir(context), `${safeFileSegment(cursor)}.json`);
 }
 
-function deferredCollectCursorName(value: string | undefined, defaultCursor = "default"): string {
+function dispatchCollectCursorName(value: string | undefined, defaultCursor = "default"): string {
 	const cursor = value?.trim() || defaultCursor;
 	if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(cursor)) {
-		throw new Error(`Invalid deferred collect cursor: ${cursor}`);
+		throw new Error(`Invalid dispatch collect cursor: ${cursor}`);
 	}
 	return cursor;
 }
 
-function deferredRunId(createdAt: string): string {
-	return `deferred-${createdAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
+function dispatchRunId(createdAt: string): string {
+	return `dispatch-${createdAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
 }
 
-function deferredRetryRunId(originalIntentId: string, createdAt: string): string {
+function dispatchRetryRunId(originalIntentId: string, createdAt: string): string {
 	return `retry-${safeFileSegment(originalIntentId).slice(0, 40)}-${createdAt.replace(/[:.]/g, "-")}-${
 		randomUUID().slice(0, 8)
 	}`;
 }
 
-function deferredAttemptId(intentId: string, startedAt: string): string {
+function dispatchAttemptId(intentId: string, startedAt: string): string {
 	return `${startedAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}-${safeFileSegment(intentId).slice(0, 48)}`;
 }
 
-function scheduledDeferredRunId(taskId: string, now: Date): string {
+function scheduledDispatchRunId(taskId: string, now: Date): string {
 	return `scheduled-${safeFileSegment(taskId)}-${now.toISOString().slice(0, 10)}`;
 }
 
 function safeFileSegment(value: string): string {
 	const safe = value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
-	return safe.slice(0, 120) || "deferred-run";
+	return safe.slice(0, 120) || "dispatch-run";
 }
 
 async function writeNewJsonFile(file: string, value: unknown): Promise<void> {
@@ -3076,7 +3076,7 @@ function approvalPolicyValue(
 function reasoningEffortValue(
 	value: unknown,
 	label: string,
-): DeferredReasoningEffort | undefined {
+): DispatchReasoningEffort | undefined {
 	if (
 		value === "none" ||
 		value === "minimal" ||
@@ -3093,10 +3093,10 @@ function reasoningEffortValue(
 	return undefined;
 }
 
-function deferredDependencyStatusValue(
+function dispatchDependencyStatusValue(
 	value: unknown,
 	label: string,
-): DeferredRunDependency["status"] | undefined {
+): DispatchRunDependency["status"] | undefined {
 	if (
 		value === "completed" ||
 		value === "failed" ||
@@ -3111,7 +3111,7 @@ function deferredDependencyStatusValue(
 	return undefined;
 }
 
-function deferredRunStatus(value: unknown): DeferredRunIntentStatus {
+function dispatchRunStatus(value: unknown): DispatchRunIntentStatus {
 	if (
 		value === "pending" ||
 		value === "running" ||
@@ -3121,14 +3121,14 @@ function deferredRunStatus(value: unknown): DeferredRunIntentStatus {
 	) {
 		return value;
 	}
-	throw new Error(`Invalid deferred run status: ${String(value)}`);
+	throw new Error(`Invalid dispatch run status: ${String(value)}`);
 }
 
-function deferredAttemptStatus(value: unknown): DeferredRunAttempt["status"] {
+function dispatchAttemptStatus(value: unknown): DispatchRunAttempt["status"] {
 	if (value === "running" || value === "completed" || value === "failed") {
 		return value;
 	}
-	throw new Error(`Invalid deferred run attempt status: ${String(value)}`);
+	throw new Error(`Invalid dispatch run attempt status: ${String(value)}`);
 }
 
 function workbenchMode(value: unknown): WorkbenchMode {

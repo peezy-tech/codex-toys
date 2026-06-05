@@ -23,7 +23,7 @@ binding refresh workflow.
 - Workflow: [`docs/pages/primitives/workflow.md`](docs/pages/primitives/workflow.md).
 - Workbench: [`docs/pages/primitives/workbench.md`](docs/pages/primitives/workbench.md).
 - Delegation: [`docs/pages/primitives/delegation.md`](docs/pages/primitives/delegation.md).
-- Deferred queues: [`docs/pages/primitives/deferred-queues.md`](docs/pages/primitives/deferred-queues.md).
+- Dispatch and queues: [`docs/pages/primitives/dispatch-queues.md`](docs/pages/primitives/dispatch-queues.md).
 - Feed: [`docs/pages/primitives/feed.md`](docs/pages/primitives/feed.md).
 - Toybox: [`docs/pages/components/toybox.md`](docs/pages/components/toybox.md).
 - Proxy: [`docs/pages/components/proxy.md`](docs/pages/components/proxy.md).
@@ -125,7 +125,7 @@ The root README is intentionally short. Canonical documentation belongs in the
 docs site:
 
 - Primitive pages define the product surface: workflow, workbench, delegation,
-  deferred queues, and feed.
+  dispatch queues, and feed.
 - Component pages define supporting surfaces: toybox, proxy, kits, and CLI.
 - Guides show end-to-end setup paths for scheduled workbenches, remotes,
   dashboards, feeds, kits, and delegation.

@@ -36,7 +36,7 @@ schedule = "0 * * * *"
 ```
 
 Schedules use five-field cron syntax in UTC. `workbench tick` creates due
-scheduled intents, runs due deferred work, and evaluates reactive rules.
+scheduled intents, runs due dispatch work, and evaluates reactive rules.
 
 ## 2. Test the Tick Manually
 
@@ -45,7 +45,7 @@ From the workbench root:
 ```bash
 codex-toys workbench doctor --mode local --json
 codex-toys workbench tick --mode local
-codex-toys workbench deferred list --mode local --json
+codex-toys workbench dispatch list --mode local --json
 ```
 
 Local mode writes generated state such as:

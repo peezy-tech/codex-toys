@@ -44,7 +44,7 @@ codex-toys workbench init actions --forgejo [--image <ref>|--no-image]
 `doctor` reports mode, roots, config, memory presence, task health, latest runs,
 queue health, and local runner visibility when available.
 
-`tick` creates due scheduled task intents, runs due deferred work, and evaluates
+`tick` creates due scheduled task intents, runs due dispatch work, and evaluates
 reactive rules. `run <task-id>` runs one configured task immediately.
 
 ## Config
@@ -128,7 +128,7 @@ where that history belongs in git.
 
 - fetch and doctor summary
 - queue counts and compact intents
-- latest deferred output status
+- latest dispatch output status
 - workflows
 - functions
 - recent cwd threads

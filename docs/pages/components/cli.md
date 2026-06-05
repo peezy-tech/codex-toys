@@ -28,7 +28,7 @@ codex-toys turn run <prompt> [--wait] [--thread-id <id>]
 codex-toys --ssh <target> --cwd <remote-workbench> turn run <prompt> --wait
 ```
 
-SSH-backed `turn run` requires `--wait`. Use delegation or deferred queues for
+SSH-backed `turn run` requires `--wait`. Use delegation or dispatch queues for
 supervised background work.
 
 ## Workflow
@@ -101,18 +101,17 @@ codex-toys workbench delegate start --cwd @/repos/name --prompt <text> --return-
 codex-toys --ssh <target> --cwd <remote-root> workbench delegate start --target-cwd @/repos/name --prompt <text>
 ```
 
-## Deferred Queues
+## Dispatch Queues
 
 ```bash
-codex-toys workbench deferred create --params-json <json>
-codex-toys workbench deferred list [--mode auto|local|actions] [--json]
-codex-toys workbench deferred read <intent-id> [--include-output] [--json]
-codex-toys workbench deferred pull <intent-id> [--json]
-codex-toys workbench deferred collect [--cursor <name>] [--json]
-codex-toys workbench deferred cancel <intent-id>
-codex-toys workbench deferred retry <intent-id> [--run-at <iso>]
-codex-toys workbench deferred run-due [--mode auto|local|actions]
-codex-toys workbench deferred prune --older-than-days <days> [--dry-run]
+codex-toys workbench dispatch create --params-json <json>
+codex-toys workbench dispatch list [--mode auto|local|actions] [--json]
+codex-toys workbench dispatch read <intent-id> [--include-output] [--json]
+codex-toys workbench dispatch collect [--cursor <name>] [--json]
+codex-toys workbench dispatch cancel <intent-id>
+codex-toys workbench dispatch retry <intent-id> [--run-at <iso>]
+codex-toys workbench dispatch run-due [--mode auto|local|actions]
+codex-toys workbench dispatch prune --older-than-days <days> [--dry-run]
 ```
 
 ```bash

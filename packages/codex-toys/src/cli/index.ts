@@ -137,30 +137,30 @@ import {
 	transplantThreadRollout,
 } from "@codex-toys/bridge";
 import {
-	collectDeferredRuns,
+	collectDispatchRuns,
 	collectLocalHandoffRuns,
 	collectPromptQueueRuns,
 	collectWorkbenchDoctorInfo,
 	commitActionsWorkbenchState,
-	cancelDeferredRunIntent,
+	cancelDispatchRunIntent,
 	createWorkbenchContext,
-	createDeferredRunIntent,
+	createDispatchRunIntent,
 	drainLocalHandoffQueue,
 	enqueueLocalHandoffIntent,
 	enqueuePromptQueueIntent,
 	listLocalHandoffIntents,
 	listPromptQueueIntents,
-	listDeferredRunIntents,
-	pruneDeferredRunHistory,
-	readDeferredRun,
+	listDispatchRunIntents,
+	pruneDispatchRunHistory,
+	readDispatchRun,
 	formatWorkbenchDoctorInfo,
-	retryDeferredRunIntent,
+	retryDispatchRunIntent,
 	runDuePromptQueueIntents,
-	runDueDeferredRuns,
+	runDueDispatchRuns,
 	runWorkbenchTaskById,
 	scaffoldActionsWorkbench,
 	tickWorkbench,
-	type DeferredRunIntent,
+	type DispatchRunIntent,
 } from "@codex-toys/workbench";
 import {
 	formatWorkbenchDelegationListResult,
@@ -742,7 +742,7 @@ async function main(): Promise<void> {
 				}), parsed);
 				write(parsed.json
 					? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
-					: formatPromptQueueList((record(result).intents ?? []) as DeferredRunIntent[]));
+					: formatPromptQueueList((record(result).intents ?? []) as DispatchRunIntent[]));
 				return;
 			}
 			const context = await createWorkbenchContext({
@@ -767,7 +767,7 @@ async function main(): Promise<void> {
 					mode: parsed.mode,
 					workbenchRoot: parsed.workbenchRoot,
 				}), parsed)
-				: await readDeferredRun(
+				: await readDispatchRun(
 					await createWorkbenchContext({
 						workbenchRoot: parsed.workbenchRoot,
 						mode: parsed.mode,
@@ -808,7 +808,7 @@ async function main(): Promise<void> {
 					workbenchRoot: parsed.workbenchRoot,
 				}), parsed)
 				: {
-					intent: await cancelDeferredRunIntent(
+					intent: await cancelDispatchRunIntent(
 						await createWorkbenchContext({
 							workbenchRoot: parsed.workbenchRoot,
 							mode: parsed.mode,
@@ -827,7 +827,7 @@ async function main(): Promise<void> {
 					mode: parsed.mode,
 					workbenchRoot: parsed.workbenchRoot,
 				}), parsed)
-				: await retryDeferredRunIntent(
+				: await retryDispatchRunIntent(
 					await createWorkbenchContext({
 						workbenchRoot: parsed.workbenchRoot,
 						mode: parsed.mode,
@@ -919,7 +919,7 @@ async function main(): Promise<void> {
 				}), parsed);
 				write(parsed.json
 					? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
-					: formatLocalHandoffList((record(result).intents ?? []) as DeferredRunIntent[]));
+					: formatLocalHandoffList((record(result).intents ?? []) as DispatchRunIntent[]));
 				return;
 			}
 			const context = await createWorkbenchContext({
@@ -946,7 +946,7 @@ async function main(): Promise<void> {
 					mode: parsed.mode,
 					workbenchRoot: parsed.workbenchRoot,
 				}), parsed)
-				: await readDeferredRun(
+				: await readDispatchRun(
 					await createWorkbenchContext({
 						workbenchRoot: parsed.workbenchRoot,
 						mode: parsed.mode,
@@ -992,7 +992,7 @@ async function main(): Promise<void> {
 					workbenchRoot: parsed.workbenchRoot,
 				}), parsed)
 				: {
-					intent: await cancelDeferredRunIntent(
+					intent: await cancelDispatchRunIntent(
 						await createWorkbenchContext({
 							workbenchRoot: parsed.workbenchRoot,
 							mode: parsed.mode,
@@ -1011,7 +1011,7 @@ async function main(): Promise<void> {
 					mode: parsed.mode,
 					workbenchRoot: parsed.workbenchRoot,
 				}), parsed)
-				: await retryDeferredRunIntent(
+				: await retryDispatchRunIntent(
 					await createWorkbenchContext({
 						workbenchRoot: parsed.workbenchRoot,
 						mode: parsed.mode,
@@ -1056,16 +1056,16 @@ async function main(): Promise<void> {
 			writeJson(result, parsed.pretty);
 			return;
 		}
-		if (parsed.type === "workbench-deferred-create") {
+		if (parsed.type === "workbench-dispatch-create") {
 		const params = await readParams(parsed.paramsText, parsed.paramsFile);
 		const result = hasSshRemote(parsed)
-			? await callToybox("deferred.create", compactUndefined({
+			? await callToybox("dispatch.create", compactUndefined({
 				...record(params),
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 			}), parsed)
 			: {
-				intent: await createDeferredRunIntent(
+				intent: await createDispatchRunIntent(
 					await createWorkbenchContext({
 						workbenchRoot: parsed.workbenchRoot,
 						mode: parsed.mode,
@@ -1076,36 +1076,36 @@ async function main(): Promise<void> {
 		writeJson(result, parsed.pretty);
 		return;
 	}
-	if (parsed.type === "workbench-deferred-list") {
+	if (parsed.type === "workbench-dispatch-list") {
 		if (hasSshRemote(parsed)) {
-			const result = await callToybox("deferred.list", compactUndefined({
+			const result = await callToybox("dispatch.list", compactUndefined({
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 			}), parsed);
 			write(parsed.json
 				? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
-				: formatDeferredRunList((record(result).intents ?? []) as DeferredRunIntent[]));
+				: formatDispatchRunList((record(result).intents ?? []) as DispatchRunIntent[]));
 			return;
 		}
 		const context = await createWorkbenchContext({
 			workbenchRoot: parsed.workbenchRoot,
 			mode: parsed.mode,
 		});
-		const intents = await listDeferredRunIntents(context);
+		const intents = await listDispatchRunIntents(context);
 		write(parsed.json
 			? `${JSON.stringify({ intents }, null, parsed.pretty ? 2 : 0)}\n`
-			: formatDeferredRunList(intents));
+			: formatDispatchRunList(intents));
 		return;
 	}
-	if (parsed.type === "workbench-deferred-read") {
+	if (parsed.type === "workbench-dispatch-read") {
 		const result = hasSshRemote(parsed)
-			? await callToybox("deferred.read", compactUndefined({
+			? await callToybox("dispatch.read", compactUndefined({
 				id: parsed.intentId,
 				includeOutput: parsed.includeOutput,
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 			}), parsed)
-			: await readDeferredRun(
+			: await readDispatchRun(
 				await createWorkbenchContext({
 					workbenchRoot: parsed.workbenchRoot,
 					mode: parsed.mode,
@@ -1118,14 +1118,14 @@ async function main(): Promise<void> {
 			: `${JSON.stringify(result, null, 2)}\n`);
 		return;
 	}
-	if (parsed.type === "workbench-deferred-collect") {
+	if (parsed.type === "workbench-dispatch-collect") {
 		const result = hasSshRemote(parsed)
-			? await callToybox("deferred.collect", compactUndefined({
+			? await callToybox("dispatch.collect", compactUndefined({
 				cursor: parsed.cursor,
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 			}), parsed)
-			: await collectDeferredRuns(
+			: await collectDispatchRuns(
 				await createWorkbenchContext({
 					workbenchRoot: parsed.workbenchRoot,
 					mode: parsed.mode,
@@ -1137,15 +1137,15 @@ async function main(): Promise<void> {
 			: `${JSON.stringify(result, null, 2)}\n`);
 		return;
 	}
-	if (parsed.type === "workbench-deferred-cancel") {
+	if (parsed.type === "workbench-dispatch-cancel") {
 		const result = hasSshRemote(parsed)
-			? await callToybox("deferred.cancel", compactUndefined({
+			? await callToybox("dispatch.cancel", compactUndefined({
 				id: parsed.intentId,
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 			}), parsed)
 			: {
-				intent: await cancelDeferredRunIntent(
+				intent: await cancelDispatchRunIntent(
 					await createWorkbenchContext({
 						workbenchRoot: parsed.workbenchRoot,
 						mode: parsed.mode,
@@ -1156,15 +1156,15 @@ async function main(): Promise<void> {
 		writeJson(result, parsed.pretty);
 		return;
 	}
-	if (parsed.type === "workbench-deferred-retry") {
+	if (parsed.type === "workbench-dispatch-retry") {
 		const result = hasSshRemote(parsed)
-			? await callToybox("deferred.retry", compactUndefined({
+			? await callToybox("dispatch.retry", compactUndefined({
 				id: parsed.intentId,
 				runAt: parsed.runAt,
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 			}), parsed)
-			: await retryDeferredRunIntent(
+			: await retryDispatchRunIntent(
 				await createWorkbenchContext({
 					workbenchRoot: parsed.workbenchRoot,
 					mode: parsed.mode,
@@ -1177,14 +1177,14 @@ async function main(): Promise<void> {
 		writeJson(result, parsed.pretty);
 		return;
 	}
-	if (parsed.type === "workbench-deferred-run-due") {
+	if (parsed.type === "workbench-dispatch-run-due") {
 		const result = hasSshRemote(parsed)
-			? await callToybox("deferred.runDue", compactUndefined({
+			? await callToybox("dispatch.runDue", compactUndefined({
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 			}), parsed)
 			: await withToyboxRequest(parsed, async (request) =>
-				await runDueDeferredRuns(
+				await runDueDispatchRuns(
 					await createWorkbenchContext({
 						workbenchRoot: parsed.workbenchRoot,
 						mode: parsed.mode,
@@ -1198,15 +1198,15 @@ async function main(): Promise<void> {
 		writeJson(result, parsed.pretty);
 		return;
 	}
-	if (parsed.type === "workbench-deferred-prune") {
+	if (parsed.type === "workbench-dispatch-prune") {
 		const result = hasSshRemote(parsed)
-			? await callToybox("deferred.prune", compactUndefined({
+			? await callToybox("dispatch.prune", compactUndefined({
 				mode: parsed.mode,
 				workbenchRoot: parsed.workbenchRoot,
 				olderThanDays: parsed.olderThanDays,
 				dryRun: parsed.dryRun,
 			}), parsed)
-			: await pruneDeferredRunHistory(
+			: await pruneDispatchRunHistory(
 				await createWorkbenchContext({
 					workbenchRoot: parsed.workbenchRoot,
 					mode: parsed.mode,
@@ -1499,14 +1499,14 @@ function formatWorkbenchOverview(overview: WorkbenchOverview): string {
 		`mode               ${overview.workbench.mode}`,
 		`config             ${overview.workbench.config.exists ? "found" : "missing"} ${overview.workbench.config.path}`,
 		`health             ${overview.health.ok ? "ok" : "attention"}`,
-		`deferred           ${overview.deferred.summary.total} total, ${overview.deferred.summary.due} due, ${overview.deferred.summary.running} running, ${overview.deferred.summary.failed} failed`,
+		`dispatch           ${overview.dispatch.summary.total} total, ${overview.dispatch.summary.due} due, ${overview.dispatch.summary.running} running, ${overview.dispatch.summary.failed} failed`,
 		`workflows        ${overview.workflows.ok ? overview.workflows.total : `error: ${overview.workflows.error}`}`,
 		`functions          ${overview.functions.ok ? overview.functions.total : `error: ${overview.functions.error}`}`,
 		`threads            ${overview.threads.ok ? `${overview.threads.total} recent for cwd` : `error: ${overview.threads.error}`}`,
 		`git                ${overview.git.ok && overview.git.isRepo ? `${overview.git.branch ?? "unknown"} ${overview.git.commit ?? ""}${overview.git.dirty ? " dirty" : ""}` : overview.git.error ?? "not a git repo"}`,
 	];
-	if (overview.deferred.latest) {
-		lines.push(`latest deferred    ${overview.deferred.latest.status} ${overview.deferred.latest.id} ${overview.deferred.latest.updatedAt}`);
+	if (overview.dispatch.latest) {
+		lines.push(`latest dispatch    ${overview.dispatch.latest.status} ${overview.dispatch.latest.id} ${overview.dispatch.latest.updatedAt}`);
 	}
 	for (const check of overview.health.checks.filter((item) => !item.ok)) {
 		lines.push(`check              ${check.name} ${check.status}${check.error ? `: ${check.error}` : ""}`);
@@ -2056,19 +2056,19 @@ function truncate(value: string, maxLength: number): string {
 	return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
 }
 
-	function formatDeferredRunList(intents: DeferredRunIntent[]): string {
+	function formatDispatchRunList(intents: DispatchRunIntent[]): string {
 		if (intents.length === 0) {
-			return "No deferred runs found.\n";
+			return "No dispatch runs found.\n";
 	}
 	return intents.map((intent) => [
 		intent.id,
 		intent.status,
 		intent.runAt,
-		deferredTargetLabel(intent.target),
+		dispatchTargetLabel(intent.target),
 	].join("  ")).join("\n") + "\n";
 }
 
-function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
+function dispatchTargetLabel(target: DispatchRunIntent["target"]): string {
 	if (target.kind === "workbench-task") {
 		return `workbench-task:${target.taskId}`;
 	}
@@ -2078,7 +2078,7 @@ function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
 		return "turn";
 	}
 
-	function formatPromptQueueList(intents: DeferredRunIntent[]): string {
+	function formatPromptQueueList(intents: DispatchRunIntent[]): string {
 		if (intents.length === 0) {
 			return "No queued prompts found.\n";
 		}
@@ -2090,7 +2090,7 @@ function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
 		].join("  ")).join("\n") + "\n";
 	}
 
-	function promptQueueLabel(intent: DeferredRunIntent): string {
+	function promptQueueLabel(intent: DispatchRunIntent): string {
 		const source = record(intent.source);
 		const queue = stringValue(source.queue) ?? "default";
 		const title = stringValue(source.title);
@@ -2100,7 +2100,7 @@ function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
 		return queue;
 	}
 
-	function formatLocalHandoffList(intents: DeferredRunIntent[]): string {
+	function formatLocalHandoffList(intents: DispatchRunIntent[]): string {
 		if (intents.length === 0) {
 			return "No local handoffs found.\n";
 		}
@@ -2112,7 +2112,7 @@ function deferredTargetLabel(target: DeferredRunIntent["target"]): string {
 		].join("  ")).join("\n") + "\n";
 	}
 
-	function localHandoffLabel(intent: DeferredRunIntent): string {
+	function localHandoffLabel(intent: DispatchRunIntent): string {
 		const source = record(intent.source);
 		const queue = stringValue(source.queue) ?? "local";
 		const targetHost = stringValue(source.targetHost) ?? "local-controller";

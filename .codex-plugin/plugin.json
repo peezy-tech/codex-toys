@@ -1,6 +1,6 @@
 {
   "name": "codex-toys",
-  "version": "0.140.11",
+  "version": "0.140.12",
   "description": "Codex workflow authoring, toybox operation, SSH workbench orchestration, and dashboard proxy guidance.",
   "author": {
     "name": "Peezy",

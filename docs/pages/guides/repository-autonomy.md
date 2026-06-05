@@ -70,7 +70,7 @@ schedule = "0 9 * * 1"
 ```
 
 Task schedules use five-field cron syntax in UTC. `workbench tick --mode actions`
-creates due scheduled intents, runs due deferred work, evaluates reactive rules,
+creates due scheduled intents, runs due dispatch work, evaluates reactive rules,
 and records state under `.codex/workbench/actions`.
 
 Use `kind = "workflow"` when the task should run a workflow primitive from
@@ -133,7 +133,7 @@ Run the same mode locally before relying on the schedule:
 ```bash
 codex-toys workbench doctor --mode actions --json
 codex-toys workbench tick --mode actions
-codex-toys workbench deferred list --mode actions --json
+codex-toys workbench dispatch list --mode actions --json
 ```
 
 Then trigger the GitHub Actions workflow manually or wait for the schedule. A

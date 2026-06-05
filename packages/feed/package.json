@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/feed",
-	"version": "0.140.11",
+	"version": "0.140.12",
 	"private": true,
 	"description": "Durable external feed polling, RSS/Atom normalization, checkpoints, and collection cursors.",
 	"type": "module",

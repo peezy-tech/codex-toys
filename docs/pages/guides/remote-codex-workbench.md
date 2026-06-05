@@ -104,7 +104,7 @@ codex-toys --ssh workbox --cwd /srv/codex/workbenches/ops turn run \
   --approval-policy never
 ```
 
-For background work, use workbench delegation or deferred queues instead of a
+For background work, use workbench delegation or dispatch queues instead of a
 detached SSH command.
 
 ## 5. Inspect Remote State

@@ -12,13 +12,13 @@ import {
 import {
 	collectWorkbenchDoctorInfo,
 	createWorkbenchContext,
-	listDeferredRunIntents,
+	listDispatchRunIntents,
 	parseMode,
-	readDeferredRun,
-	type DeferredRunAttempt,
-	type DeferredRunAttemptOutput,
-	type DeferredRunIntent,
-	type DeferredRunIntentStatus,
+	readDispatchRun,
+	type DispatchRunAttempt,
+	type DispatchRunAttemptOutput,
+	type DispatchRunIntent,
+	type DispatchRunIntentStatus,
 	type WorkbenchDoctorInfo,
 	type WorkbenchModeInput,
 } from "./workbench-runtime.ts";
@@ -87,11 +87,11 @@ export type WorkbenchOverview = {
 		ok: boolean;
 		checks: WorkbenchOverviewHealthCheck[];
 	};
-	deferred: {
+	dispatch: {
 		ok: boolean;
-		summary: DeferredRunSummary;
-		intents: DeferredRunIntentSummary[];
-		latest?: LatestDeferredRunSummary;
+		summary: DispatchRunSummary;
+		intents: DispatchRunIntentSummary[];
+		latest?: LatestDispatchRunSummary;
 		error?: string;
 	};
 	workflows: {
@@ -121,7 +121,7 @@ export type WorkbenchOverviewHealthCheck = {
 	error?: string;
 };
 
-export type DeferredRunSummary = {
+export type DispatchRunSummary = {
 	total: number;
 	pending: number;
 	running: number;
@@ -131,9 +131,9 @@ export type DeferredRunSummary = {
 	due: number;
 };
 
-export type DeferredRunIntentSummary = {
+export type DispatchRunIntentSummary = {
 	id: string;
-	status: DeferredRunIntentStatus;
+	status: DispatchRunIntentStatus;
 	mode: string;
 	runAt: string;
 	createdAt: string;
@@ -143,7 +143,7 @@ export type DeferredRunIntentSummary = {
 	error?: string;
 };
 
-export type LatestDeferredRunSummary = DeferredRunIntentSummary & {
+export type LatestDispatchRunSummary = DispatchRunIntentSummary & {
 	attempt?: {
 		id: string;
 		status: string;
@@ -248,7 +248,7 @@ export async function collectWorkbenchOverview(
 
 	const [
 		fetch,
-		deferred,
+		dispatch,
 		workflows,
 		functions,
 		threads,
@@ -256,7 +256,7 @@ export async function collectWorkbenchOverview(
 		codex,
 	] = await Promise.all([
 		collectOverviewFetch(cwd, toybox, options),
-		collectDeferred(context, now, limits.intents, limits.outputChars),
+		collectDispatch(context, now, limits.intents, limits.outputChars),
 		collectWorkflows(cwd),
 		collectFunctions(cwd),
 		collectThreads(cwd, limits.threads, options.appRequest),
@@ -319,7 +319,7 @@ export async function collectWorkbenchOverview(
 	];
 
 	const ok = checks.every((check) => check.ok || check.status === "warning") &&
-		deferred.ok &&
+		dispatch.ok &&
 		workflows.ok &&
 		functions.ok &&
 		git.ok;
@@ -347,7 +347,7 @@ export async function collectWorkbenchOverview(
 			ok: checks.every((check) => check.ok || check.status === "warning"),
 			checks,
 		},
-		deferred,
+		dispatch,
 		workflows,
 		functions,
 		threads,
@@ -384,29 +384,29 @@ async function collectOverviewFetch(
 	};
 }
 
-async function collectDeferred(
+async function collectDispatch(
 	context: Awaited<ReturnType<typeof createWorkbenchContext>>,
 	now: Date,
 	limit: number,
 	outputChars: number,
-): Promise<WorkbenchOverview["deferred"]> {
+): Promise<WorkbenchOverview["dispatch"]> {
 	try {
-		const intents = await listDeferredRunIntents(context);
+		const intents = await listDispatchRunIntents(context);
 		const latest = intents
 			.toSorted((left, right) => bFirst(left.updatedAt, right.updatedAt))
 			[0];
 		const latestRead = latest
-			? await readDeferredRun(context, latest.id, { includeOutput: true }).catch(() => undefined)
+			? await readDispatchRun(context, latest.id, { includeOutput: true }).catch(() => undefined)
 			: undefined;
 		return {
 			ok: true,
-			summary: summarizeDeferred(intents, now),
+			summary: summarizeDispatch(intents, now),
 			intents: intents
 				.toSorted((left, right) => bFirst(left.updatedAt, right.updatedAt))
 				.slice(0, limit)
 				.map(summarizeIntent),
 			...(latest ? {
-				latest: summarizeLatestDeferred(
+				latest: summarizeLatestDispatch(
 					latest,
 					latestRead?.attempts ?? [],
 					latestRead?.outputs ?? [],
@@ -432,11 +432,11 @@ async function collectDeferred(
 	}
 }
 
-function summarizeDeferred(
-	intents: DeferredRunIntent[],
+function summarizeDispatch(
+	intents: DispatchRunIntent[],
 	now: Date,
-): DeferredRunSummary {
-	const summary: DeferredRunSummary = {
+): DispatchRunSummary {
+	const summary: DispatchRunSummary = {
 		total: intents.length,
 		pending: 0,
 		running: 0,
@@ -457,7 +457,7 @@ function summarizeDeferred(
 	return summary;
 }
 
-function summarizeIntent(intent: DeferredRunIntent): DeferredRunIntentSummary {
+function summarizeIntent(intent: DispatchRunIntent): DispatchRunIntentSummary {
 	return {
 		id: intent.id,
 		status: intent.status,
@@ -471,12 +471,12 @@ function summarizeIntent(intent: DeferredRunIntent): DeferredRunIntentSummary {
 	};
 }
 
-function summarizeLatestDeferred(
-	intent: DeferredRunIntent,
-	attempts: DeferredRunAttempt[],
-	outputs: DeferredRunAttemptOutput[],
+function summarizeLatestDispatch(
+	intent: DispatchRunIntent,
+	attempts: DispatchRunAttempt[],
+	outputs: DispatchRunAttemptOutput[],
 	outputChars: number,
-): LatestDeferredRunSummary {
+): LatestDispatchRunSummary {
 	const latestAttempt = attempts
 		.toSorted((left, right) => bFirst(left.startedAt, right.startedAt))
 		[0];
@@ -500,9 +500,9 @@ function summarizeLatestDeferred(
 }
 
 function summarizeOutput(
-	output: DeferredRunAttemptOutput,
+	output: DispatchRunAttemptOutput,
 	outputChars: number,
-): LatestDeferredRunSummary["output"] {
+): LatestDispatchRunSummary["output"] {
 	if (output.error) {
 		return {
 			attemptId: output.attemptId,
@@ -803,7 +803,7 @@ function bFirst(left: string, right: string): number {
 	return right.localeCompare(left);
 }
 
-function targetLabel(target: DeferredRunIntent["target"]): string {
+function targetLabel(target: DispatchRunIntent["target"]): string {
 	if (target.kind === "workbench-task") {
 		return `workbench-task:${target.taskId}`;
 	}

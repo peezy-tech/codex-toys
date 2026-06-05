@@ -10,7 +10,7 @@ sources, normalizes entries into feed items, records source checkpoints, and let
 consumers collect items with named cursors.
 
 Feed does not decide what a signal means. A workflow, workbench task, dashboard,
-or product function decides whether to enqueue a prompt, create a deferred run,
+or product function decides whether to enqueue a prompt, create a dispatch run,
 or ignore the item.
 
 ## Config
@@ -126,4 +126,4 @@ storage, collection cursors, cursor advancement, ack-aware dispatch mechanics,
 and pruning.
 
 Products own source catalogs, scoring, filtering, prompt templates, dashboards,
-deferred-run policy, and external writes.
+dispatch-run policy, and external writes.

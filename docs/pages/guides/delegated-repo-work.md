@@ -95,7 +95,7 @@ export default async function run(context) {
 `context.delegate.*` requires the toybox/workbench surface. It is not available
 when a workflow deliberately runs through direct app-server calls.
 
-## 5. Choose Delegation vs Deferred Queues
+## 5. Choose Delegation vs Dispatch Queues
 
 Use delegation when:
 
@@ -103,7 +103,7 @@ Use delegation when:
 - the target should get a normal Codex thread
 - the controlling workbench should keep a delegation record
 
-Use deferred queues when:
+Use dispatch queues when:
 
 - the work should run later
 - retries, attempts, output capture, or claiming matter

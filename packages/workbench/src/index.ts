@@ -1,4 +1,4 @@
-export * from "./deferred-run-methods.ts";
+export * from "./dispatch-run-methods.ts";
 export * from "./delegation-methods.ts";
 export * from "./delegation.ts";
 export * from "./fetch.ts";

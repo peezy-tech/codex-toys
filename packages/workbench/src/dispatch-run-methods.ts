@@ -4,35 +4,35 @@ import {
 	type ToyboxMethodHandler,
 } from "@codex-toys/toybox";
 import {
-	cancelDeferredRunIntent,
+	cancelDispatchRunIntent,
 	collectLocalHandoffRuns,
 	collectPromptQueueRuns,
-	collectDeferredRuns,
-	createDeferredRunIntent,
+	collectDispatchRuns,
+	createDispatchRunIntent,
 	createWorkbenchContext,
 	drainLocalHandoffQueue,
 	enqueueLocalHandoffIntent,
 	enqueuePromptQueueIntent,
 	listLocalHandoffIntents,
 	listPromptQueueIntents,
-	listDeferredRunIntents,
+	listDispatchRunIntents,
 	parseMode,
-	pruneDeferredRunHistory,
-	readDeferredRun,
-	retryDeferredRunIntent,
+	pruneDispatchRunHistory,
+	readDispatchRun,
+	retryDispatchRunIntent,
 	runDuePromptQueueIntents,
-	runDueDeferredRuns,
+	runDueDispatchRuns,
 	type WorkbenchModeInput,
 } from "./workbench-runtime.ts";
 
-export const WORKBENCH_DEFERRED_CREATE_METHOD = "deferred.create";
-export const WORKBENCH_DEFERRED_LIST_METHOD = "deferred.list";
-export const WORKBENCH_DEFERRED_READ_METHOD = "deferred.read";
-export const WORKBENCH_DEFERRED_COLLECT_METHOD = "deferred.collect";
-export const WORKBENCH_DEFERRED_CANCEL_METHOD = "deferred.cancel";
-export const WORKBENCH_DEFERRED_RETRY_METHOD = "deferred.retry";
-export const WORKBENCH_DEFERRED_RUN_DUE_METHOD = "deferred.runDue";
-export const WORKBENCH_DEFERRED_PRUNE_METHOD = "deferred.prune";
+export const WORKBENCH_DISPATCH_CREATE_METHOD = "dispatch.create";
+export const WORKBENCH_DISPATCH_LIST_METHOD = "dispatch.list";
+export const WORKBENCH_DISPATCH_READ_METHOD = "dispatch.read";
+export const WORKBENCH_DISPATCH_COLLECT_METHOD = "dispatch.collect";
+export const WORKBENCH_DISPATCH_CANCEL_METHOD = "dispatch.cancel";
+export const WORKBENCH_DISPATCH_RETRY_METHOD = "dispatch.retry";
+export const WORKBENCH_DISPATCH_RUN_DUE_METHOD = "dispatch.runDue";
+export const WORKBENCH_DISPATCH_PRUNE_METHOD = "dispatch.prune";
 export const WORKBENCH_PROMPT_QUEUE_ENQUEUE_METHOD = "promptQueue.enqueue";
 export const WORKBENCH_PROMPT_QUEUE_LIST_METHOD = "promptQueue.list";
 export const WORKBENCH_PROMPT_QUEUE_READ_METHOD = "promptQueue.read";
@@ -48,58 +48,58 @@ export const WORKBENCH_LOCAL_HANDOFF_CANCEL_METHOD = "localHandoff.cancel";
 export const WORKBENCH_LOCAL_HANDOFF_RETRY_METHOD = "localHandoff.retry";
 export const WORKBENCH_LOCAL_HANDOFF_DRAIN_METHOD = "localHandoff.drain";
 
-export const workbenchDeferredRunMethodMetadata: ToyboxMethodMetadata[] = [
+export const workbenchDispatchRunMethodMetadata: ToyboxMethodMetadata[] = [
 	{
-		name: WORKBENCH_DEFERRED_CREATE_METHOD,
-		description: "Create a durable deferred workbench run intent.",
+		name: WORKBENCH_DISPATCH_CREATE_METHOD,
+		description: "Create a durable dispatch workbench run intent.",
 		sideEffects: "writes-local",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
-		name: WORKBENCH_DEFERRED_LIST_METHOD,
-		description: "List deferred workbench run intents.",
+		name: WORKBENCH_DISPATCH_LIST_METHOD,
+		description: "List dispatch workbench run intents.",
 		sideEffects: "read-only",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
-		name: WORKBENCH_DEFERRED_READ_METHOD,
-		description: "Read one deferred run intent and its attempts.",
+		name: WORKBENCH_DISPATCH_READ_METHOD,
+		description: "Read one dispatch run intent and its attempts.",
 		sideEffects: "read-only",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
-		name: WORKBENCH_DEFERRED_COLLECT_METHOD,
-		description: "Collect terminal deferred run results after a named cursor.",
+		name: WORKBENCH_DISPATCH_COLLECT_METHOD,
+		description: "Collect terminal dispatch run results after a named cursor.",
 		sideEffects: "writes-local",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
-		name: WORKBENCH_DEFERRED_CANCEL_METHOD,
-		description: "Cancel a pending deferred run intent.",
+		name: WORKBENCH_DISPATCH_CANCEL_METHOD,
+		description: "Cancel a pending dispatch run intent.",
 		sideEffects: "writes-local",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
-		name: WORKBENCH_DEFERRED_RETRY_METHOD,
-		description: "Create a new pending deferred run from a terminal intent.",
+		name: WORKBENCH_DISPATCH_RETRY_METHOD,
+		description: "Create a new pending dispatch run from a terminal intent.",
 		sideEffects: "writes-local",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
-		name: WORKBENCH_DEFERRED_RUN_DUE_METHOD,
-		description: "Claim and run due deferred workbench run intents.",
+		name: WORKBENCH_DISPATCH_RUN_DUE_METHOD,
+		description: "Claim and run due dispatch workbench run intents.",
 		sideEffects: "external-write",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
-		name: WORKBENCH_DEFERRED_PRUNE_METHOD,
-		description: "Prune terminal deferred run history older than a retention window.",
+		name: WORKBENCH_DISPATCH_PRUNE_METHOD,
+		description: "Prune terminal dispatch run history older than a retention window.",
 		sideEffects: "writes-local",
-		category: "deferred",
+		category: "dispatch",
 	},
 	{
 		name: WORKBENCH_PROMPT_QUEUE_ENQUEUE_METHOD,
-		description: "Enqueue a one-off prompt as a durable workbench deferred turn.",
+		description: "Enqueue a one-off prompt as a durable workbench dispatch turn.",
 		sideEffects: "writes-local",
 		category: "prompt-queue",
 	},
@@ -183,60 +183,60 @@ export const workbenchDeferredRunMethodMetadata: ToyboxMethodMetadata[] = [
 	},
 ];
 
-export type WorkbenchDeferredRunRuntimeOptions = {
+export type WorkbenchDispatchRunRuntimeOptions = {
 	appRequest(method: string, params: unknown): Promise<unknown>;
 	workbenchRequest(method: string, params: unknown): Promise<unknown>;
 	workbenchRoot?: string;
 	env?: Record<string, string | undefined>;
 };
 
-export function createWorkbenchDeferredRunMethods(
-	options: WorkbenchDeferredRunRuntimeOptions,
+export function createWorkbenchDispatchRunMethods(
+	options: WorkbenchDispatchRunRuntimeOptions,
 ): Record<string, ToyboxMethodHandler> {
 	return {
-		[WORKBENCH_DEFERRED_CREATE_METHOD]: async (params) => {
+		[WORKBENCH_DISPATCH_CREATE_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
-			return { intent: await createDeferredRunIntent(context, params) };
+			return { intent: await createDispatchRunIntent(context, params) };
 		},
-		[WORKBENCH_DEFERRED_LIST_METHOD]: async (params) => {
+		[WORKBENCH_DISPATCH_LIST_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
 			const input = record(params);
 			return {
-				intents: await listDeferredRunIntents(context, {
+				intents: await listDispatchRunIntents(context, {
 					status: statusValue(input.status),
 					limit: numberValue(input.limit),
 				}),
 			};
 		},
-		[WORKBENCH_DEFERRED_READ_METHOD]: async (params) => {
+		[WORKBENCH_DISPATCH_READ_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
 			const input = record(params);
-			return await readDeferredRun(context, requiredString(input.id, "deferred.read id"), {
+			return await readDispatchRun(context, requiredString(input.id, "dispatch.read id"), {
 				includeOutput: input.includeOutput === true,
 			});
 		},
-		[WORKBENCH_DEFERRED_COLLECT_METHOD]: async (params) => {
+		[WORKBENCH_DISPATCH_COLLECT_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
 			const input = record(params);
-			return await collectDeferredRuns(context, {
+			return await collectDispatchRuns(context, {
 				cursor: stringValue(input.cursor),
 			});
 		},
-		[WORKBENCH_DEFERRED_CANCEL_METHOD]: async (params) => {
+		[WORKBENCH_DISPATCH_CANCEL_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
 			return {
-				intent: await cancelDeferredRunIntent(
+				intent: await cancelDispatchRunIntent(
 					context,
-					requiredString(record(params).id, "deferred.cancel id"),
+					requiredString(record(params).id, "dispatch.cancel id"),
 				),
 			};
 		},
-		[WORKBENCH_DEFERRED_RETRY_METHOD]: async (params) => {
+		[WORKBENCH_DISPATCH_RETRY_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
 			const input = record(params);
-			return await retryDeferredRunIntent(
+			return await retryDispatchRunIntent(
 				context,
-				requiredString(input.id, "deferred.retry id"),
+				requiredString(input.id, "dispatch.retry id"),
 				{
 					id: stringValue(input.newId),
 					runAt: stringValue(input.runAt),
@@ -246,10 +246,10 @@ export function createWorkbenchDeferredRunMethods(
 				},
 			);
 		},
-		[WORKBENCH_DEFERRED_RUN_DUE_METHOD]: async (params) => {
+		[WORKBENCH_DISPATCH_RUN_DUE_METHOD]: async (params) => {
 			const context = await contextFromParams(params, options);
 			const input = record(params);
-			return await runDueDeferredRuns(context, {
+			return await runDueDispatchRuns(context, {
 				limit: numberValue(input.limit),
 				callToybox: async (method, value) => {
 					if (method === APP_CALL_METHOD) {
@@ -263,11 +263,11 @@ export function createWorkbenchDeferredRunMethods(
 				},
 			});
 		},
-			[WORKBENCH_DEFERRED_PRUNE_METHOD]: async (params) => {
+			[WORKBENCH_DISPATCH_PRUNE_METHOD]: async (params) => {
 				const context = await contextFromParams(params, options);
 				const input = record(params);
-				return await pruneDeferredRunHistory(context, {
-					olderThanDays: requiredPositiveNumber(input.olderThanDays, "deferred.prune olderThanDays"),
+				return await pruneDispatchRunHistory(context, {
+					olderThanDays: requiredPositiveNumber(input.olderThanDays, "dispatch.prune olderThanDays"),
 					dryRun: input.dryRun === true,
 				});
 			},
@@ -289,7 +289,7 @@ export function createWorkbenchDeferredRunMethods(
 			[WORKBENCH_PROMPT_QUEUE_READ_METHOD]: async (params) => {
 				const context = await contextFromParams(params, options);
 				const input = record(params);
-				return await readDeferredRun(context, requiredString(input.id, "promptQueue.read id"), {
+				return await readDispatchRun(context, requiredString(input.id, "promptQueue.read id"), {
 					includeOutput: input.includeOutput === true,
 				});
 			},
@@ -304,7 +304,7 @@ export function createWorkbenchDeferredRunMethods(
 			[WORKBENCH_PROMPT_QUEUE_CANCEL_METHOD]: async (params) => {
 				const context = await contextFromParams(params, options);
 				return {
-					intent: await cancelDeferredRunIntent(
+					intent: await cancelDispatchRunIntent(
 						context,
 						requiredString(record(params).id, "promptQueue.cancel id"),
 					),
@@ -313,7 +313,7 @@ export function createWorkbenchDeferredRunMethods(
 			[WORKBENCH_PROMPT_QUEUE_RETRY_METHOD]: async (params) => {
 				const context = await contextFromParams(params, options);
 				const input = record(params);
-				return await retryDeferredRunIntent(
+				return await retryDispatchRunIntent(
 					context,
 					requiredString(input.id, "promptQueue.retry id"),
 					{
@@ -363,7 +363,7 @@ export function createWorkbenchDeferredRunMethods(
 			[WORKBENCH_LOCAL_HANDOFF_READ_METHOD]: async (params) => {
 				const context = await contextFromParams(params, options);
 				const input = record(params);
-				return await readDeferredRun(context, requiredString(input.id, "localHandoff.read id"), {
+				return await readDispatchRun(context, requiredString(input.id, "localHandoff.read id"), {
 					includeOutput: input.includeOutput === true,
 				});
 			},
@@ -380,7 +380,7 @@ export function createWorkbenchDeferredRunMethods(
 			[WORKBENCH_LOCAL_HANDOFF_CANCEL_METHOD]: async (params) => {
 				const context = await contextFromParams(params, options);
 				return {
-					intent: await cancelDeferredRunIntent(
+					intent: await cancelDispatchRunIntent(
 						context,
 						requiredString(record(params).id, "localHandoff.cancel id"),
 					),
@@ -389,7 +389,7 @@ export function createWorkbenchDeferredRunMethods(
 			[WORKBENCH_LOCAL_HANDOFF_RETRY_METHOD]: async (params) => {
 				const context = await contextFromParams(params, options);
 				const input = record(params);
-				return await retryDeferredRunIntent(
+				return await retryDispatchRunIntent(
 					context,
 					requiredString(input.id, "localHandoff.retry id"),
 					{
@@ -428,7 +428,7 @@ export function createWorkbenchDeferredRunMethods(
 
 async function contextFromParams(
 	params: unknown,
-	options: WorkbenchDeferredRunRuntimeOptions,
+	options: WorkbenchDispatchRunRuntimeOptions,
 ) {
 	const input = record(params);
 	return await createWorkbenchContext({
@@ -453,7 +453,7 @@ function statusValue(value: unknown) {
 		return value;
 	}
 	if (value !== undefined) {
-		throw new Error(`Invalid deferred run status: ${String(value)}`);
+		throw new Error(`Invalid dispatch run status: ${String(value)}`);
 	}
 	return undefined;
 }

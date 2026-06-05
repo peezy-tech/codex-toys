@@ -1,6 +1,6 @@
 import { validateMethodName } from "./actions.ts";
 import { parseFeedMode, type FeedItemStatus, type FeedModeInput } from "@codex-toys/feed";
-import { parseMode, type DeferredRunIntentStatus, type DeferredReasoningEffort, type WorkbenchModeInput } from "@codex-toys/workbench";
+import { parseMode, type DispatchRunIntentStatus, type DispatchReasoningEffort, type WorkbenchModeInput } from "@codex-toys/workbench";
 import type { MemoryTransplantDirection } from "./memories.ts";
 
 export type ParsedRemoteOptions = {
@@ -303,7 +303,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-create";
+			type: "workbench-dispatch-create";
 			mode?: WorkbenchModeInput;
 			workbenchRoot?: string;
 			paramsText?: string;
@@ -313,7 +313,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-list";
+			type: "workbench-dispatch-list";
 			mode?: WorkbenchModeInput;
 			workbenchRoot?: string;
 			url: string;
@@ -322,7 +322,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-read";
+			type: "workbench-dispatch-read";
 			intentId: string;
 			includeOutput: boolean;
 			mode?: WorkbenchModeInput;
@@ -333,7 +333,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-collect";
+			type: "workbench-dispatch-collect";
 			cursor?: string;
 			mode?: WorkbenchModeInput;
 			workbenchRoot?: string;
@@ -343,7 +343,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-cancel";
+			type: "workbench-dispatch-cancel";
 			intentId: string;
 			mode?: WorkbenchModeInput;
 			workbenchRoot?: string;
@@ -352,7 +352,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-retry";
+			type: "workbench-dispatch-retry";
 			intentId: string;
 			runAt?: string;
 			mode?: WorkbenchModeInput;
@@ -362,7 +362,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-run-due";
+			type: "workbench-dispatch-run-due";
 			mode?: WorkbenchModeInput;
 			workbenchRoot?: string;
 			url: string;
@@ -370,7 +370,7 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "workbench-deferred-prune";
+			type: "workbench-dispatch-prune";
 			mode?: WorkbenchModeInput;
 			workbenchRoot?: string;
 			olderThanDays: number;
@@ -392,7 +392,7 @@ type ParsedCliBase =
 			cwd?: string;
 			model?: string;
 			serviceTier?: string;
-			effort?: DeferredReasoningEffort;
+			effort?: DispatchReasoningEffort;
 			sandbox?: RemoteTurnSandbox;
 			approvalPolicy?: RemoteTurnApprovalPolicy;
 			permissions?: string;
@@ -404,7 +404,7 @@ type ParsedCliBase =
 	  }
 	| {
 			type: "workbench-prompt-list";
-			status?: DeferredRunIntentStatus;
+			status?: DispatchRunIntentStatus;
 			queue?: string;
 			limit?: number;
 			mode?: WorkbenchModeInput;
@@ -482,7 +482,7 @@ type ParsedCliBase =
 			cwd?: string;
 			model?: string;
 			serviceTier?: string;
-			effort?: DeferredReasoningEffort;
+			effort?: DispatchReasoningEffort;
 			sandbox?: RemoteTurnSandbox;
 			approvalPolicy?: RemoteTurnApprovalPolicy;
 			permissions?: string;
@@ -494,7 +494,7 @@ type ParsedCliBase =
 	  }
 	| {
 			type: "workbench-handoff-list";
-			status?: DeferredRunIntentStatus;
+			status?: DispatchRunIntentStatus;
 			queue?: string;
 			targetHost?: string;
 			capabilities: string[];
@@ -744,12 +744,12 @@ export function parseArgs(
 	let runAt: string | undefined;
 	let model: string | undefined;
 	let serviceTier: string | undefined;
-	let effort: DeferredReasoningEffort | undefined;
+	let effort: DispatchReasoningEffort | undefined;
 	let queue: string | undefined;
 	let promptQueue: string | undefined;
 	let afterIntentId: string | undefined;
 	let afterStatus: "completed" | "failed" | "canceled" | "terminal" | undefined;
-	let status: DeferredRunIntentStatus | undefined;
+	let status: DispatchRunIntentStatus | undefined;
 	let feedStatus: FeedItemStatus | undefined;
 	let sourceId: string | undefined;
 	let limit: number | undefined;
@@ -1189,22 +1189,22 @@ export function parseArgs(
 				continue;
 			}
 			if (arg === "--after-status") {
-				afterStatus = parseDeferredDependencyStatus(required(argv, ++index, arg));
+				afterStatus = parseDispatchDependencyStatus(required(argv, ++index, arg));
 				continue;
 			}
 			if (arg.startsWith("--after-status=")) {
-				afterStatus = parseDeferredDependencyStatus(arg.slice("--after-status=".length));
+				afterStatus = parseDispatchDependencyStatus(arg.slice("--after-status=".length));
 				continue;
 			}
 			if (arg === "--status") {
 				const value = required(argv, ++index, arg);
-				status = parseDeferredRunStatusMaybe(value);
+				status = parseDispatchRunStatusMaybe(value);
 				feedStatus = parseFeedItemStatusMaybe(value);
 				continue;
 			}
 			if (arg.startsWith("--status=")) {
 				const value = arg.slice("--status=".length);
-				status = parseDeferredRunStatusMaybe(value);
+				status = parseDispatchRunStatusMaybe(value);
 				feedStatus = parseFeedItemStatusMaybe(value);
 				continue;
 			}
@@ -2087,11 +2087,11 @@ export function parseArgs(
 			}
 			throw new Error("workbench handoff requires enqueue, list, read, collect, cancel, retry, or drain");
 		}
-		if (subcommand === "deferred" || subcommand === "defer") {
+		if (subcommand === "dispatch") {
 			const action = positionals[2] ?? "list";
 			if (action === "create" || action === "add") {
 				return {
-					type: "workbench-deferred-create",
+					type: "workbench-dispatch-create",
 					mode,
 					workbenchRoot,
 					...paramsSource(positionals.slice(3), paramsJson, paramsFile),
@@ -2103,7 +2103,7 @@ export function parseArgs(
 			}
 			if (action === "list" || action === "ls") {
 				return {
-					type: "workbench-deferred-list",
+					type: "workbench-dispatch-list",
 					mode,
 					workbenchRoot,
 					url: workbenchUrl,
@@ -2113,11 +2113,11 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			if (action === "read" || action === "show" || action === "pull") {
+			if (action === "read" || action === "show") {
 				return {
-					type: "workbench-deferred-read",
-					intentId: requiredPositional(positionals, 3, `workbench deferred ${action} requires <intent-id>`),
-					includeOutput: includeOutput || action === "pull",
+					type: "workbench-dispatch-read",
+					intentId: requiredPositional(positionals, 3, `workbench dispatch ${action} requires <intent-id>`),
+					includeOutput,
 					mode,
 					workbenchRoot,
 					url: workbenchUrl,
@@ -2129,7 +2129,7 @@ export function parseArgs(
 			}
 			if (action === "collect") {
 				return {
-					type: "workbench-deferred-collect",
+					type: "workbench-dispatch-collect",
 					cursor,
 					mode,
 					workbenchRoot,
@@ -2142,8 +2142,8 @@ export function parseArgs(
 			}
 			if (action === "cancel") {
 				return {
-					type: "workbench-deferred-cancel",
-					intentId: requiredPositional(positionals, 3, "workbench deferred cancel requires <intent-id>"),
+					type: "workbench-dispatch-cancel",
+					intentId: requiredPositional(positionals, 3, "workbench dispatch cancel requires <intent-id>"),
 					mode,
 					workbenchRoot,
 					url: workbenchUrl,
@@ -2154,8 +2154,8 @@ export function parseArgs(
 			}
 			if (action === "retry" || action === "requeue") {
 				return {
-					type: "workbench-deferred-retry",
-					intentId: requiredPositional(positionals, 3, `workbench deferred ${action} requires <intent-id>`),
+					type: "workbench-dispatch-retry",
+					intentId: requiredPositional(positionals, 3, `workbench dispatch ${action} requires <intent-id>`),
 					runAt,
 					mode,
 					workbenchRoot,
@@ -2167,7 +2167,7 @@ export function parseArgs(
 			}
 			if (action === "run-due" || action === "run") {
 				return {
-					type: "workbench-deferred-run-due",
+					type: "workbench-dispatch-run-due",
 					mode,
 					workbenchRoot,
 					url: workbenchUrl,
@@ -2178,10 +2178,10 @@ export function parseArgs(
 			}
 			if (action === "prune") {
 				if (olderThanDays === undefined) {
-					throw new Error("workbench deferred prune requires --older-than-days");
+					throw new Error("workbench dispatch prune requires --older-than-days");
 				}
 				return {
-					type: "workbench-deferred-prune",
+					type: "workbench-dispatch-prune",
 					mode,
 					workbenchRoot,
 					olderThanDays,
@@ -2192,7 +2192,7 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			throw new Error("workbench deferred requires create, list, read, collect, cancel, retry, run-due, or prune");
+			throw new Error("workbench dispatch requires create, list, read, collect, cancel, retry, run-due, or prune");
 		}
 		if (subcommand === "run") {
 			return {
@@ -2223,6 +2223,9 @@ export function parseArgs(
 		}
 		if (subcommand === "backend") {
 			throw new Error("toybox service commands have been removed; use codex-toys toybox serve or codex-toys-proxy serve");
+		}
+		if (subcommand === "deferred" || subcommand === "defer") {
+			throw new Error("workbench deferred commands have been removed; use workbench dispatch");
 		}
 		if (subcommand === "app") {
 			const method = requiredPositional(
@@ -2464,7 +2467,7 @@ function parseRemoteTurnApprovalPolicy(value: string): RemoteTurnApprovalPolicy 
 	throw new Error("--approval-policy must be never, on-failure, on-request, or untrusted");
 }
 
-function parseReasoningEffort(value: string): DeferredReasoningEffort {
+function parseReasoningEffort(value: string): DispatchReasoningEffort {
 	if (
 		value === "none" ||
 		value === "minimal" ||
@@ -2478,7 +2481,7 @@ function parseReasoningEffort(value: string): DeferredReasoningEffort {
 	throw new Error("--effort must be none, minimal, low, medium, high, or xhigh");
 }
 
-function parseDeferredDependencyStatus(value: string): "completed" | "failed" | "canceled" | "terminal" {
+function parseDispatchDependencyStatus(value: string): "completed" | "failed" | "canceled" | "terminal" {
 	if (
 		value === "completed" ||
 		value === "failed" ||
@@ -2490,7 +2493,7 @@ function parseDeferredDependencyStatus(value: string): "completed" | "failed" | 
 	throw new Error("--after-status must be completed, failed, canceled, or terminal");
 }
 
-function parseDeferredRunStatus(value: string): DeferredRunIntentStatus {
+function parseDispatchRunStatus(value: string): DispatchRunIntentStatus {
 	if (
 		value === "pending" ||
 		value === "running" ||
@@ -2503,7 +2506,7 @@ function parseDeferredRunStatus(value: string): DeferredRunIntentStatus {
 	throw new Error("--status must be pending, running, completed, failed, or canceled");
 }
 
-function parseDeferredRunStatusMaybe(value: string): DeferredRunIntentStatus | undefined {
+function parseDispatchRunStatusMaybe(value: string): DispatchRunIntentStatus | undefined {
 	if (
 		value === "pending" ||
 		value === "running" ||

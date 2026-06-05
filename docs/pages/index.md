@@ -21,7 +21,7 @@ feature boundaries that are embedded into the public tarball and exposed through
 | Workflow | A script that inspects state and can start, read, wait on, or delegate Codex turns. | [Workflow](primitives/workflow) |
 | Workbench | Repo-local config, modes, scheduled tasks, functions, health, and overview. | [Workbench](primitives/workbench) |
 | Delegation | Starting and tracking Codex work in another workbench-relative cwd. | [Delegation](primitives/delegation) |
-| Deferred Queues | Durable future intents, prompt queues, handoff queues, attempts, and collection. | [Deferred queues](primitives/deferred-queues) |
+| Dispatch And Queues | Durable future intents, prompt queues, handoff queues, attempts, and collection. | [Dispatch and queues](primitives/dispatch-queues) |
 | Feed | RSS/Atom intake, item storage, cursors, and ack-aware dispatch. | [Feed](primitives/feed) |
 
 ## Components
@@ -62,7 +62,7 @@ codex-toys workflow run <name> --event event.json
 codex-toys workbench doctor
 codex-toys feed poll --json
 codex-toys workbench prompt enqueue "Review this later."
-codex-toys workbench deferred list --json
+codex-toys workbench dispatch list --json
 ```
 
 Run the same workbench over SSH without opening a remote port:
@@ -70,7 +70,7 @@ Run the same workbench over SSH without opening a remote port:
 ```bash
 codex-toys --ssh <target> --cwd <remote-workbench> fetch
 codex-toys --ssh <target> --cwd <remote-workbench> workflow run <name> --event event.json
-codex-toys --ssh <target> --cwd <remote-workbench> workbench deferred collect --cursor operator --json
+codex-toys --ssh <target> --cwd <remote-workbench> workbench dispatch collect --cursor operator --json
 ```
 
 ## Runtime Shape

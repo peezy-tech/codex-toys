@@ -12,7 +12,7 @@ import { CodexEventEmitter } from "@codex-toys/bridge/app-server/events";
 import {
 	collectHostOverview,
 	createHostOverviewMethods,
-	createWorkbenchDeferredRunMethods,
+	createWorkbenchDispatchRunMethods,
 	createWorkbenchDelegationMethods,
 	createWorkbenchOverviewMethods,
 	type HostOverviewCommandResult,
@@ -359,40 +359,40 @@ describe("Codex toybox protocol", () => {
 		)).rejects.toThrow(/Absolute delegation cwd requires/);
 	});
 
-	test("deferred run methods persist mode-scoped intents", async () => {
-		const workbenchRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-deferred-"));
+	test("dispatch run methods persist mode-scoped intents", async () => {
+		const workbenchRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-dispatch-"));
 		await mkdir(path.join(workbenchRoot, ".codex"), { recursive: true });
-		const methods = createWorkbenchDeferredRunMethods({
+		const methods = createWorkbenchDispatchRunMethods({
 			workbenchRoot,
 			appRequest: async () => ({ ok: true }),
 			workbenchRequest: async () => ({ ok: true }),
 		});
 
-		const created = await methods["deferred.create"]!(
+		const created = await methods["dispatch.create"]!(
 			{
 				target: {
 					kind: "turn",
 					prompt: "review later",
 				},
 			},
-			jsonRpcRequest("create", "deferred.create"),
+			jsonRpcRequest("create", "dispatch.create"),
 		) as { intent: { id: string; status: string } };
-		const listed = await methods["deferred.list"]!(
+		const listed = await methods["dispatch.list"]!(
 			{},
-			jsonRpcRequest("list", "deferred.list"),
+			jsonRpcRequest("list", "dispatch.list"),
 		) as { intents: Array<{ id: string; status: string }> };
-		const read = await methods["deferred.read"]!(
+		const read = await methods["dispatch.read"]!(
 			{
 				id: created.intent.id,
 				includeOutput: true,
 			},
-			jsonRpcRequest("read", "deferred.read"),
+			jsonRpcRequest("read", "dispatch.read"),
 		) as { intent: { id: string }; attempts: unknown[]; outputs: unknown[] };
-			const collected = await methods["deferred.collect"]!(
+			const collected = await methods["dispatch.collect"]!(
 				{
 					cursor: "operator",
 				},
-				jsonRpcRequest("collect", "deferred.collect"),
+				jsonRpcRequest("collect", "dispatch.collect"),
 			) as { cursor: string; intents: unknown[] };
 			const queuedPrompt = await methods["promptQueue.enqueue"]!(
 				{
@@ -443,9 +443,9 @@ describe("Codex toybox protocol", () => {
 				{},
 				jsonRpcRequest("handoff-blocked", "localHandoff.drain"),
 			) as { executions: unknown[] };
-			const due = await methods["deferred.runDue"]!(
+			const due = await methods["dispatch.runDue"]!(
 				{},
-				jsonRpcRequest("run", "deferred.runDue"),
+				jsonRpcRequest("run", "dispatch.runDue"),
 			) as { executions: Array<{ intent: { id: string; status: string } }> };
 			const handoffMaterialized = await methods["localHandoff.drain"]!(
 				{
@@ -455,26 +455,26 @@ describe("Codex toybox protocol", () => {
 				},
 				jsonRpcRequest("handoff-drain", "localHandoff.drain"),
 			) as { action: string; executions: Array<{ output: { localHandoff: { handoffIntentId: string; promptIntentId: string; queue: string } } }> };
-		const retried = await methods["deferred.retry"]!(
+		const retried = await methods["dispatch.retry"]!(
 			{
 				id: created.intent.id,
 				runAt: "2100-01-01T00:00:00.000Z",
 			},
-			jsonRpcRequest("retry", "deferred.retry"),
+			jsonRpcRequest("retry", "dispatch.retry"),
 		) as { intent: { id: string; status: string; runAt: string }; originalIntent: { id: string; status: string } };
-		const oldRead = await methods["deferred.read"]!(
+		const oldRead = await methods["dispatch.read"]!(
 			{
 				id: created.intent.id,
 				includeOutput: true,
 			},
-			jsonRpcRequest("old-read", "deferred.read"),
+			jsonRpcRequest("old-read", "dispatch.read"),
 		) as { intent: { id: string; status: string }; attempts: unknown[]; outputs: unknown[] };
-		const pruned = await methods["deferred.prune"]!(
+		const pruned = await methods["dispatch.prune"]!(
 			{
 				olderThanDays: 1,
 				dryRun: true,
 			},
-			jsonRpcRequest("prune", "deferred.prune"),
+			jsonRpcRequest("prune", "dispatch.prune"),
 		) as { pruned: number };
 
 		expect(created.intent.status).toBe("pending");
@@ -591,7 +591,7 @@ describe("Codex toybox protocol", () => {
 			generatedAt: string;
 			workbench: { repoRoot: string; config: { exists: boolean } };
 			fetch: { package: string; toybox: { status: string } };
-			deferred: { summary: { total: number }; intents: unknown[] };
+			dispatch: { summary: { total: number }; intents: unknown[] };
 			threads: { ok: boolean; total: number };
 			health: { checks: Array<{ name: string; ok: boolean }> };
 		};
@@ -601,8 +601,8 @@ describe("Codex toybox protocol", () => {
 		expect(overview.workbench.config.exists).toBe(true);
 		expect(overview.fetch.package).toBe("codex-toys");
 		expect(overview.fetch.toybox.status).toBe("connected");
-		expect(overview.deferred.summary.total).toBe(0);
-		expect(overview.deferred.intents).toEqual([]);
+		expect(overview.dispatch.summary.total).toBe(0);
+		expect(overview.dispatch.intents).toEqual([]);
 		expect(overview.threads).toMatchObject({ ok: true, total: 0 });
 		expect(overview.health.checks.map((check) => check.name)).toContain("workbench-config");
 		expect(appServer.requests).toContainEqual({

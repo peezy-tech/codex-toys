@@ -1,16 +1,17 @@
 ---
-title: Deferred Queues
+title: Dispatch And Queues
 description: Durable future run intents, prompt queues, local handoffs, retries, and collection.
 ---
 
-# Deferred Queues
+# Dispatch And Queues
 
-Deferred queues give codex-toys a durable way to say "do this later" without
-leaving an agent process running. All queues are stored under the workbench state
+Dispatch is the durable "run this later" primitive. Prompt queue and local
+handoff queue are intake surfaces that create dispatch intents without leaving
+an agent process running. All dispatch state is stored under the workbench state
 root for the selected mode.
 
 ```text
-.codex/workbench/local/deferred/
+.codex/workbench/local/dispatch/
   intents/
   attempts/
   outputs/
@@ -18,26 +19,25 @@ root for the selected mode.
   collect-cursors/
 ```
 
-Actions mode uses `.codex/workbench/actions/deferred`.
+Actions mode uses `.codex/workbench/actions/dispatch`.
 
-## Deferred Runs
+## Dispatch Runs
 
-The base deferred queue stores future workbench intents. A target can be:
+The base dispatch queue stores future workbench intents. A target can be:
 
 - a direct Codex turn
 - a named workflow
 - a configured workbench task
 
 ```bash
-codex-toys workbench deferred create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workbench."}}'
-codex-toys workbench deferred list --json
-codex-toys workbench deferred run-due
-codex-toys workbench deferred read <intent-id> --include-output --json
-codex-toys workbench deferred pull <intent-id> --json
-codex-toys workbench deferred collect --cursor operator --json
-codex-toys workbench deferred cancel <intent-id>
-codex-toys workbench deferred retry <intent-id>
-codex-toys workbench deferred prune --older-than-days 30 --dry-run
+codex-toys workbench dispatch create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workbench."}}'
+codex-toys workbench dispatch list --json
+codex-toys workbench dispatch run-due
+codex-toys workbench dispatch read <intent-id> --include-output --json
+codex-toys workbench dispatch collect --cursor operator --json
+codex-toys workbench dispatch cancel <intent-id>
+codex-toys workbench dispatch retry <intent-id>
+codex-toys workbench dispatch prune --older-than-days 30 --dry-run
 ```
 
 One-shot intents run at most once. Retry creates a new pending intent from
@@ -46,7 +46,7 @@ terminal history and leaves the original intent, attempts, and outputs in place.
 ## Prompt Queue
 
 The prompt queue is the friendly surface for one-off prompts. It stores prompts
-as deferred turn intents with `source.kind = "prompt-queue"`.
+as dispatch turn intents with `source.kind = "prompt-queue"`.
 
 ```bash
 codex-toys workbench prompt enqueue "Draft migration notes." --queue low-priority --effort low
@@ -60,7 +60,7 @@ codex-toys workbench prompt retry <intent-id>
 
 Prompt entries can target an existing thread with `--thread-id`, set turn
 options such as `--model`, `--service-tier`, `--effort`, `--sandbox`,
-`--approval-policy`, or `--permissions`, and depend on another deferred intent:
+`--approval-policy`, or `--permissions`, and depend on another dispatch intent:
 
 ```bash
 codex-toys workbench prompt enqueue "Continue after the audit." \
@@ -73,7 +73,7 @@ codex-toys workbench prompt enqueue "Continue after the audit." \
 ## Local Handoff Queue
 
 The local handoff queue is for work discovered in one workbench that requires a
-specific local controller host or local-only capability. Handoffs are deferred
+specific local controller host or local-only capability. Handoffs are dispatch
 turn intents with `source.kind = "local-handoff"`, but generic drains skip them.
 
 ```bash
@@ -113,7 +113,7 @@ SSH is transport, not a third queue. With `--ssh`, queue commands operate on the
 remote workbench's local queue through the remote toybox.
 
 ```bash
-codex-toys --ssh <target> --cwd <remote-workbench> workbench deferred list --json
+codex-toys --ssh <target> --cwd <remote-workbench> workbench dispatch list --json
 codex-toys --ssh <target> --cwd <remote-workbench> workbench prompt run-due --limit 1
 codex-toys --ssh <target> --cwd <remote-workbench> workbench handoff collect --cursor operator --json
 ```

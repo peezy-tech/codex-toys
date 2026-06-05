@@ -15,7 +15,7 @@ export default {
 				"primitives/workflow",
 				"primitives/workbench",
 				"primitives/delegation",
-				"primitives/deferred-queues",
+				"primitives/dispatch-queues",
 				"primitives/feed",
 			],
 		},

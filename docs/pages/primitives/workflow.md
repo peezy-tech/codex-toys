@@ -179,6 +179,6 @@ workflow = "release-check"
 schedule = "0 14 * * *"
 ```
 
-Scheduled workflow tasks create deferred run intents, so scheduled work and
-one-shot deferred work share the same claiming, attempt, output, retry, and
+Scheduled workflow tasks create dispatch run intents, so scheduled work and
+one-shot dispatch work share the same claiming, attempt, output, retry, and
 collection path.

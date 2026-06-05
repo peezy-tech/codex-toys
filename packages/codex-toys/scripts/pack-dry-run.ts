@@ -37,7 +37,7 @@ const requiredTarEntries = [
 	"package/docs/pages/guides/feed-to-workflow.md",
 	"package/docs/pages/guides/capability-kit-setup.md",
 	"package/docs/pages/guides/delegated-repo-work.md",
-	"package/docs/pages/primitives/deferred-queues.md",
+	"package/docs/pages/primitives/dispatch-queues.md",
 	"package/docs/pages/primitives/delegation.md",
 	"package/docs/pages/primitives/feed.md",
 	"package/docs/pages/primitives/workbench.md",

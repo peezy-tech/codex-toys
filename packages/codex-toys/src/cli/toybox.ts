@@ -10,9 +10,9 @@ import {
 	type ToyboxMethodMetadata,
 } from "@codex-toys/toybox";
 import {
-	createWorkbenchDeferredRunMethods,
+	createWorkbenchDispatchRunMethods,
 	createWorkbenchDelegationMethods,
-	workbenchDeferredRunMethodMetadata,
+	workbenchDispatchRunMethodMetadata,
 	workbenchDelegationMethodMetadata,
 } from "@codex-toys/workbench";
 import {
@@ -135,7 +135,7 @@ export async function serveToybox(
 		appServer: client,
 		workbenchRoot,
 	}));
-	Object.assign(methods, createWorkbenchDeferredRunMethods({
+	Object.assign(methods, createWorkbenchDispatchRunMethods({
 		appRequest: async (method, params) => await client.request(method, params),
 		workbenchRequest,
 		workbenchRoot,
@@ -171,7 +171,7 @@ export async function serveToybox(
 				...feedMethodMetadata,
 				...workbenchFunctionMethodMetadata,
 				...workbenchDelegationMethodMetadata,
-				...workbenchDeferredRunMethodMetadata,
+				...workbenchDispatchRunMethodMetadata,
 				...workbenchOverviewMethodMetadata,
 				...remoteWorkflowMethodMetadata,
 			],

@@ -29,7 +29,7 @@ version-matched Markdown snapshot under `docs/pages` in the npm tarball:
 - overview: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/index.md>
 - workflow: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/workflow.md>
 - workbench: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/workbench.md>
-- deferred queues: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/deferred-queues.md>
+- dispatch and queues: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/dispatch-queues.md>
 - feed: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/primitives/feed.md>
 - toybox: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/components/toybox.md>
 - proxy: <https://github.com/peezy-tech/codex-toys/blob/main/docs/pages/components/proxy.md>
@@ -213,9 +213,9 @@ codex-toys workbench prompt run-due --queue low-priority --limit 1
 codex-toys workbench prompt collect --queue low-priority --json
 codex-toys workbench handoff enqueue "Test the dashboard locally." --capability browser
 codex-toys workbench handoff drain --capability browser --materialize --prompt-queue local-followups
-codex-toys workbench deferred create --params-json '{"target":{"kind":"turn","prompt":"Review later."}}'
-codex-toys workbench deferred list --json
-codex-toys workbench deferred prune --older-than-days 30 --dry-run
+codex-toys workbench dispatch create --params-json '{"target":{"kind":"turn","prompt":"Review later."}}'
+codex-toys workbench dispatch list --json
+codex-toys workbench dispatch prune --older-than-days 30 --dry-run
 codex-toys memories transplant global-to-workbench
 codex-toys threads transplant <thread-id> --from-codex-home ~/.codex --to-codex-home ~/.codex --cwd "$PWD"
 

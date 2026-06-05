@@ -65,9 +65,9 @@ async function main(): Promise<void> {
 		"codex-toys workbench doctor [--mode auto|local|actions] [--json]",
 		"codex-toys workbench delegate list [--json]",
 		"codex-toys workbench delegate start --cwd @/workbenches/name --prompt <text> [--wait]",
-		"codex-toys workbench deferred create --params-json <json>",
-		"codex-toys workbench deferred pull <intent-id> [--json]",
-		"codex-toys workbench deferred prune --older-than-days <days> [--dry-run]",
+		"codex-toys workbench dispatch create --params-json <json>",
+		"codex-toys workbench dispatch read <intent-id> [--include-output] [--json]",
+		"codex-toys workbench dispatch prune --older-than-days <days> [--dry-run]",
 		"codex-toys memories transplant global-to-workbench [--apply]",
 		"codex-toys threads install-rollout <rollout.jsonl> [--codex-home <home>] [--cwd <path>] [--replace]",
 		"codex-toys kit setup <source> [--wait]",
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
 		"docs/pages/primitives/workflow.md",
 		"docs/pages/primitives/workbench.md",
 		"docs/pages/primitives/delegation.md",
-		"docs/pages/primitives/deferred-queues.md",
+		"docs/pages/primitives/dispatch-queues.md",
 		"docs/pages/primitives/feed.md",
 		"docs/pages/components/toybox.md",
 		"docs/pages/components/proxy.md",
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
 	}
 
 	await expectIncludes("docs/tome.config.js", "\"primitives/workflow\"");
-	await expectIncludes("docs/tome.config.js", "\"primitives/deferred-queues\"");
+	await expectIncludes("docs/tome.config.js", "\"primitives/dispatch-queues\"");
 	await expectIncludes("docs/tome.config.js", "\"components/toybox\"");
 	await expectIncludes("docs/tome.config.js", "\"components/cli\"");
 	await expectIncludes("docs/tome.config.js", "\"guides/repository-autonomy\"");
@@ -132,8 +132,8 @@ async function main(): Promise<void> {
 	await expectIncludes("docs/pages/index.md", "Primitive Map");
 	await expectIncludes("docs/pages/primitives/workflow.md", "export default async function run");
 	await expectIncludes("docs/pages/primitives/workbench.md", ".codex/workbench/actions");
-	await expectIncludes("docs/pages/primitives/deferred-queues.md", "source.kind = \"prompt-queue\"");
-	await expectIncludes("docs/pages/primitives/deferred-queues.md", "source.kind = \"local-handoff\"");
+	await expectIncludes("docs/pages/primitives/dispatch-queues.md", "source.kind = \"prompt-queue\"");
+	await expectIncludes("docs/pages/primitives/dispatch-queues.md", "source.kind = \"local-handoff\"");
 	await expectIncludes("docs/pages/components/proxy.md", "POST /api/workbench/overview");
 	await expectIncludes("docs/pages/components/kits.md", "codex-kit.toml");
 	await expectIncludes("docs/pages/guides/repository-autonomy.md", "codex-toys workbench init actions --github");
@@ -160,7 +160,11 @@ async function main(): Promise<void> {
 		"workspace delegate",
 		"workspace prompt",
 		"workspace handoff",
-		"workspace deferred",
+		"workspace dispatch",
+		"workbench deferred",
+		"workbench defer",
+		"Deferred Queues",
+		"deferred queues",
 		"/home/peezy",
 		"rammstein",
 		"portfolioSnapshot",

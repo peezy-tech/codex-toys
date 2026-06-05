@@ -64,15 +64,14 @@ Usage:
 	  codex-toys workbench handoff enqueue <prompt> [--target-host <host>] [--capability <name>]
 	  codex-toys workbench handoff list [--queue <name>] [--status <status>] [--json]
 	  codex-toys workbench handoff drain [--host-id <host>] [--capability <name>] [--materialize]
-	  codex-toys workbench deferred create --params-json <json>
-  codex-toys workbench deferred list [--mode auto|local|actions] [--json]
-  codex-toys workbench deferred read <intent-id> [--include-output] [--json]
-  codex-toys workbench deferred pull <intent-id> [--json]
-  codex-toys workbench deferred collect [--cursor <name>] [--json]
-  codex-toys workbench deferred cancel <intent-id>
-  codex-toys workbench deferred retry <intent-id> [--run-at <iso>]
-  codex-toys workbench deferred run-due [--mode auto|local|actions]
-  codex-toys workbench deferred prune --older-than-days <days> [--dry-run]
+	  codex-toys workbench dispatch create --params-json <json>
+  codex-toys workbench dispatch list [--mode auto|local|actions] [--json]
+  codex-toys workbench dispatch read <intent-id> [--include-output] [--json]
+  codex-toys workbench dispatch collect [--cursor <name>] [--json]
+  codex-toys workbench dispatch cancel <intent-id>
+  codex-toys workbench dispatch retry <intent-id> [--run-at <iso>]
+  codex-toys workbench dispatch run-due [--mode auto|local|actions]
+  codex-toys workbench dispatch prune --older-than-days <days> [--dry-run]
   codex-toys workbench init actions [--forgejo|--github] [--image <ref>|--no-image]
 
   codex-toys actions prepare-auth
@@ -136,10 +135,10 @@ Options:
 	  --after <intent-id>                        Hold queued prompt until another intent finishes.
 	  --after-status <status>                    Dependency status: completed, failed,
 	                                             canceled, or terminal.
-	  --status <status>                          Deferred/prompt status filter.
+	  --status <status>                          Dispatch/prompt status filter.
                                              Feed item list/collect supports new.
 	  --limit <n>                                Limit listed or due queued work.
-	  --run-at <iso>                             Future run time for deferred or queued work.
+	  --run-at <iso>                             Future run time for dispatch or queued work.
 	  --service-tier <tier>                      Turn service tier for queued prompts.
 	  --effort <effort>                          Reasoning effort: none, minimal, low,
 	                                             medium, high, or xhigh.
@@ -153,8 +152,8 @@ Options:
                                              --ssh, where --cwd selects the
                                              remote workbench root.
   --dry-run                                  Preview supported write operations.
-  --older-than-days <days>                   Retention window for deferred prune.
-  --cursor <name>                            Deferred collect cursor name.
+  --older-than-days <days>                   Retention window for dispatch prune.
+  --cursor <name>                            Dispatch collect cursor name.
                                              Feed collect also uses this cursor.
   --source <source-id>                       Feed source filter.
   --target <target>                          Feed dispatch target.
@@ -210,7 +209,7 @@ Examples:
   codex-toys workbench overview --json
   codex-toys workbench delegate start --cwd @/workbenches/trading --prompt "Inspect status"
   codex-toys workbench doctor --mode actions
-  codex-toys workbench deferred create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workbench."}}'
+  codex-toys workbench dispatch create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workbench."}}'
   codex-toys workbench init actions --forgejo
   codex-toys memories transplant global-to-workbench
   codex-toys threads inspect 019e3654-1492-70d0-9b01-46b17d6444a9 --codex-home ./.codex

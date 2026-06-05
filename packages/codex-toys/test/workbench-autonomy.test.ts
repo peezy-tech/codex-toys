@@ -6,12 +6,12 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { parseArgs } from "../src/cli/args.ts";
 import {
-	cancelDeferredRunIntent,
-	collectDeferredRuns,
+	cancelDispatchRunIntent,
+	collectDispatchRuns,
 	collectLocalHandoffRuns,
 	collectPromptQueueRuns,
 	collectWorkbenchDoctorInfo,
-	createDeferredRunIntent,
+	createDispatchRunIntent,
 	createWorkbenchContext,
 	defaultActionsRunnerImage,
 	drainLocalHandoffQueue,
@@ -19,14 +19,14 @@ import {
 	enqueuePromptQueueIntent,
 	listLocalHandoffIntents,
 	listPromptQueueIntents,
-	listDeferredRunIntents,
+	listDispatchRunIntents,
 	loadWorkbenchConfig,
-	pruneDeferredRunHistory,
-	readDeferredRun,
+	pruneDispatchRunHistory,
+	readDispatchRun,
 	resolveWorkbenchMode,
-	retryDeferredRunIntent,
+	retryDispatchRunIntent,
 	runDuePromptQueueIntents,
-	runDueDeferredRuns,
+	runDueDispatchRuns,
 	runWorkbenchTaskById,
 	scaffoldActionsWorkbench,
 	tickWorkbench,
@@ -157,32 +157,32 @@ describe("workbench autonomy", () => {
 			});
 			expect(parseArgs([
 				"workbench",
-				"deferred",
+				"dispatch",
 			"create",
 			"--params-json",
 			"{\"target\":{\"kind\":\"turn\",\"prompt\":\"review later\"}}",
 		], {})).toMatchObject({
-			type: "workbench-deferred-create",
+			type: "workbench-dispatch-create",
 			paramsText: "{\"target\":{\"kind\":\"turn\",\"prompt\":\"review later\"}}",
 		});
-		expect(parseArgs(["workbench", "deferred", "list", "--json"], {}))
-			.toMatchObject({ type: "workbench-deferred-list", json: true });
-		expect(parseArgs(["workbench", "deferred", "read", "later-1", "--include-output"], {}))
-			.toMatchObject({ type: "workbench-deferred-read", intentId: "later-1", includeOutput: true });
-		expect(parseArgs(["workbench", "deferred", "pull", "later-1"], {}))
-			.toMatchObject({ type: "workbench-deferred-read", intentId: "later-1", includeOutput: true });
-		expect(parseArgs(["workbench", "deferred", "collect", "--cursor", "operator", "--json"], {}))
-			.toMatchObject({ type: "workbench-deferred-collect", cursor: "operator", json: true });
-		expect(parseArgs(["workbench", "deferred", "retry", "later-1", "--run-at", "2026-01-02T00:00:00.000Z"], {}))
+		expect(parseArgs(["workbench", "dispatch", "list", "--json"], {}))
+			.toMatchObject({ type: "workbench-dispatch-list", json: true });
+		expect(parseArgs(["workbench", "dispatch", "read", "later-1", "--include-output"], {}))
+			.toMatchObject({ type: "workbench-dispatch-read", intentId: "later-1", includeOutput: true });
+		expect(() => parseArgs(["workbench", "dispatch", "pull", "later-1"], {}))
+			.toThrow("workbench dispatch requires create, list, read, collect, cancel, retry, run-due, or prune");
+		expect(parseArgs(["workbench", "dispatch", "collect", "--cursor", "operator", "--json"], {}))
+			.toMatchObject({ type: "workbench-dispatch-collect", cursor: "operator", json: true });
+		expect(parseArgs(["workbench", "dispatch", "retry", "later-1", "--run-at", "2026-01-02T00:00:00.000Z"], {}))
 			.toMatchObject({
-				type: "workbench-deferred-retry",
+				type: "workbench-dispatch-retry",
 				intentId: "later-1",
 				runAt: "2026-01-02T00:00:00.000Z",
 			});
-		expect(parseArgs(["workbench", "deferred", "run-due"], {}))
-			.toMatchObject({ type: "workbench-deferred-run-due" });
-		expect(parseArgs(["workbench", "deferred", "prune", "--older-than-days", "30", "--dry-run"], {}))
-			.toMatchObject({ type: "workbench-deferred-prune", olderThanDays: 30, dryRun: true });
+		expect(parseArgs(["workbench", "dispatch", "run-due"], {}))
+			.toMatchObject({ type: "workbench-dispatch-run-due" });
+		expect(parseArgs(["workbench", "dispatch", "prune", "--older-than-days", "30", "--dry-run"], {}))
+			.toMatchObject({ type: "workbench-dispatch-prune", olderThanDays: 30, dryRun: true });
 		expect(() => parseArgs(["workbench", "backend", "start"], {}))
 			.toThrow("toybox service commands have been removed");
 		expect(parseArgs(["workbench", "call", "delegation.list"], {}))
@@ -294,7 +294,7 @@ schedule = "* * * * *"
 		const doctor = await collectWorkbenchDoctorInfo(context);
 		expect(doctor.taskCount).toBe(1);
 		expect(doctor.latestRun?.taskId).toBe("command-due");
-		expect(doctor.deferredCount).toBe(1);
+		expect(doctor.dispatchCount).toBe(1);
 		expect(doctor.errors).toEqual([]);
 	});
 
@@ -342,7 +342,7 @@ schedule = "* * * * *"
 		expect(doctor.runner?.selected?.matchesWorkbench).toBe(true);
 	});
 
-	test("creates and runs one-shot deferred workbench task intents once", async () => {
+	test("creates and runs one-shot dispatch workbench task intents once", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
@@ -352,10 +352,10 @@ name = "demo"
 id = "hello"
 enabled = true
 kind = "command"
-command = ["node", "-e", "console.log('hello deferred')"]
+command = ["node", "-e", "console.log('hello dispatch')"]
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		const intent = await createDeferredRunIntent(context, {
+		const intent = await createDispatchRunIntent(context, {
 			runAt: "2026-01-01T00:00:00.000Z",
 			target: {
 				kind: "workbench-task",
@@ -364,13 +364,13 @@ command = ["node", "-e", "console.log('hello deferred')"]
 			reason: "one shot",
 		});
 
-		const first = await runDueDeferredRuns(context, {
+		const first = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:01.000Z"),
 			callToybox: async () => {
 				throw new Error("unused");
 			},
 		});
-		const second = await runDueDeferredRuns(context, {
+		const second = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:02.000Z"),
 			callToybox: async () => {
 				throw new Error("unused");
@@ -379,21 +379,21 @@ command = ["node", "-e", "console.log('hello deferred')"]
 
 		expect(first.executions).toHaveLength(1);
 		expect(second.executions).toHaveLength(0);
-		const read = await readDeferredRun(context, intent.id);
+		const read = await readDispatchRun(context, intent.id);
 		expect(read.intent.status).toBe("completed");
 		expect(read.attempts).toHaveLength(1);
 		expect(read.attempts[0]?.status).toBe("completed");
 		expect(read.outputs).toBeUndefined();
-		const readWithOutput = await readDeferredRun(context, intent.id, { includeOutput: true });
+		const readWithOutput = await readDispatchRun(context, intent.id, { includeOutput: true });
 		expect(readWithOutput.outputs).toHaveLength(1);
 		expect(readWithOutput.outputs?.[0]).toMatchObject({
 			attemptId: read.attempts[0]?.id,
 		});
 		expect((readWithOutput.outputs?.[0]?.output as { workbenchRun?: { taskId?: string } }).workbenchRun)
 			.toMatchObject({ taskId: "hello" });
-		const firstCollect = await collectDeferredRuns(context, { now: new Date("2026-01-01T00:00:03.000Z") });
-		const secondCollect = await collectDeferredRuns(context, { now: new Date("2026-01-01T00:00:04.000Z") });
-		const namedCollect = await collectDeferredRuns(context, {
+		const firstCollect = await collectDispatchRuns(context, { now: new Date("2026-01-01T00:00:03.000Z") });
+		const secondCollect = await collectDispatchRuns(context, { now: new Date("2026-01-01T00:00:04.000Z") });
+		const namedCollect = await collectDispatchRuns(context, {
 			cursor: "operator",
 			now: new Date("2026-01-01T00:00:05.000Z"),
 		});
@@ -411,7 +411,7 @@ command = ["node", "-e", "console.log('hello deferred')"]
 		});
 	});
 
-	test("queues prompt intents and gates follow-up prompts on deferred completion", async () => {
+	test("queues prompt intents and gates follow-up prompts on dispatch completion", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
@@ -451,7 +451,7 @@ command = ["node", "-e", "console.log('hello deferred')"]
 			},
 		});
 		expect(child.dependsOn).toEqual([{
-			kind: "deferred-run",
+			kind: "dispatch-run",
 			intentId: parent.id,
 			status: "completed",
 		}]);
@@ -463,7 +463,7 @@ command = ["node", "-e", "console.log('hello deferred')"]
 			now: new Date("2026-01-01T00:00:01.000Z"),
 			callToybox,
 		});
-		const blockedChild = await readDeferredRun(context, child.id);
+		const blockedChild = await readDispatchRun(context, child.id);
 		const second = await runDuePromptQueueIntents(context, {
 			now: new Date("2026-01-01T00:00:02.000Z"),
 			callToybox,
@@ -472,7 +472,7 @@ command = ["node", "-e", "console.log('hello deferred')"]
 		expect(first.executions.map((execution) => execution.intent.id)).toEqual([parent.id]);
 		expect(blockedChild.intent.status).toBe("pending");
 		expect(second.executions.map((execution) => execution.intent.id)).toEqual([child.id]);
-		expect((await readDeferredRun(context, child.id)).intent.status).toBe("completed");
+		expect((await readDispatchRun(context, child.id)).intent.status).toBe("completed");
 
 		const collected = await collectPromptQueueRuns(context, {
 			queue: "night",
@@ -535,7 +535,7 @@ command = ["node", "-e", "console.log('hello deferred')"]
 		expect((await listLocalHandoffIntents(context, { queue: "local" })).map((intent) => intent.id))
 			.toEqual([browserHandoff.id, hostHandoff.id]);
 
-		const generic = await runDueDeferredRuns(context, {
+		const generic = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:01.000Z"),
 			callToybox: fakeCompletedTurnToybox(),
 		});
@@ -559,8 +559,8 @@ command = ["node", "-e", "console.log('hello deferred')"]
 		expect(missingCapability.executions).toHaveLength(0);
 		expect(browserDrain.executions.map((execution) => execution.intent.id)).toEqual([browserHandoff.id]);
 		expect(hostDrain.executions.map((execution) => execution.intent.id)).toEqual([hostHandoff.id]);
-		expect((await readDeferredRun(context, browserHandoff.id)).intent.status).toBe("completed");
-		expect((await readDeferredRun(context, hostHandoff.id)).intent.status).toBe("completed");
+		expect((await readDispatchRun(context, browserHandoff.id)).intent.status).toBe("completed");
+		expect((await readDispatchRun(context, hostHandoff.id)).intent.status).toBe("completed");
 
 		const collected = await collectLocalHandoffRuns(context, {
 			queue: "local",
@@ -605,7 +605,7 @@ command = ["node", "-e", "console.log('hello deferred')"]
 				queue: "local-followups",
 			},
 		});
-		expect((await readDeferredRun(context, handoff.id)).intent.status).toBe("completed");
+		expect((await readDispatchRun(context, handoff.id)).intent.status).toBe("completed");
 		expect(prompts).toHaveLength(1);
 		expect(prompts[0]).toMatchObject({
 			target: {
@@ -626,7 +626,7 @@ command = ["node", "-e", "console.log('hello deferred')"]
 		});
 	});
 
-	test("retries failed deferred intents as new pending intents without mutating history", async () => {
+	test("retries failed dispatch intents as new pending intents without mutating history", async () => {
 		const root = await tempWorkbench();
 		const marker = path.join(root, "retry-ok");
 		const command = [
@@ -645,7 +645,7 @@ kind = "command"
 command = ${JSON.stringify(command)}
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		const original = await createDeferredRunIntent(context, {
+		const original = await createDispatchRunIntent(context, {
 			runAt: "2026-01-01T00:00:00.000Z",
 			target: {
 				kind: "workbench-task",
@@ -654,19 +654,19 @@ command = ${JSON.stringify(command)}
 			reason: "first attempt",
 		});
 
-		const failedRun = await runDueDeferredRuns(context, {
+		const failedRun = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:01.000Z"),
 			callToybox: async () => {
 				throw new Error("unused");
 			},
 		});
 		expect(failedRun.executions[0]?.intent.status).toBe("failed");
-		const failedRead = await readDeferredRun(context, original.id, { includeOutput: true });
+		const failedRead = await readDispatchRun(context, original.id, { includeOutput: true });
 		expect(failedRead.intent.status).toBe("failed");
 		expect(failedRead.attempts).toHaveLength(1);
 		expect(failedRead.outputs).toHaveLength(1);
 
-		const retry = await retryDeferredRunIntent(
+		const retry = await retryDispatchRunIntent(
 			context,
 			original.id,
 			{ id: original.id },
@@ -683,9 +683,9 @@ command = ${JSON.stringify(command)}
 				kind: "workbench-task",
 				taskId: "flaky",
 			},
-			createdBy: "workbench-deferred-retry",
+			createdBy: "workbench-dispatch-retry",
 			source: {
-				kind: "deferred-retry",
+				kind: "dispatch-retry",
 				retry: {
 					originalIntentId: original.id,
 					originalStatus: "failed",
@@ -695,13 +695,13 @@ command = ${JSON.stringify(command)}
 		});
 		expect(retry.intent.id).not.toBe(original.id);
 
-		const unchangedOriginal = await readDeferredRun(context, original.id, { includeOutput: true });
+		const unchangedOriginal = await readDispatchRun(context, original.id, { includeOutput: true });
 		expect(unchangedOriginal.intent).toEqual(failedRead.intent);
 		expect(unchangedOriginal.attempts).toEqual(failedRead.attempts);
 		expect(unchangedOriginal.outputs).toEqual(failedRead.outputs);
 
 		await writeFile(marker, "ok");
-		const retryRun = await runDueDeferredRuns(context, {
+		const retryRun = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:03.000Z"),
 			callToybox: async () => {
 				throw new Error("unused");
@@ -711,29 +711,29 @@ command = ${JSON.stringify(command)}
 		expect(retryRun.executions[0]?.intent.id).toBe(retry.intent.id);
 		expect(retryRun.executions[0]?.intent.status).toBe("completed");
 
-		const retryRead = await readDeferredRun(context, retry.intent.id, { includeOutput: true });
+		const retryRead = await readDispatchRun(context, retry.intent.id, { includeOutput: true });
 		expect(retryRead.intent.status).toBe("completed");
 		expect(retryRead.attempts).toHaveLength(1);
 		expect((retryRead.outputs?.[0]?.output as { workbenchRun?: { taskId?: string; status?: string } }).workbenchRun)
 			.toMatchObject({ taskId: "flaky", status: "completed" });
-		expect((await readDeferredRun(context, original.id)).attempts).toHaveLength(1);
+		expect((await readDispatchRun(context, original.id)).attempts).toHaveLength(1);
 	});
 
-	test("rejects retry for non-terminal deferred intents", async () => {
+	test("rejects retry for non-terminal dispatch intents", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		const pending = await createDeferredRunIntent(context, {
+		const pending = await createDispatchRunIntent(context, {
 			id: "pending-retry",
 			target: {
 				kind: "turn",
 				prompt: "not yet",
 			},
 		});
-		await expect(retryDeferredRunIntent(context, pending.id))
-			.rejects.toThrow("Only terminal deferred runs can be retried");
+		await expect(retryDispatchRunIntent(context, pending.id))
+			.rejects.toThrow("Only terminal dispatch runs can be retried");
 
-		const running = await createDeferredRunIntent(context, {
+		const running = await createDispatchRunIntent(context, {
 			id: "running-retry",
 			target: {
 				kind: "turn",
@@ -745,7 +745,7 @@ command = ${JSON.stringify(command)}
 			".codex",
 			"workbench",
 			"local",
-			"deferred",
+			"dispatch",
 			"intents",
 			"running-retry.json",
 		);
@@ -755,11 +755,11 @@ command = ${JSON.stringify(command)}
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		}, null, 2)}\n`);
 
-		await expect(retryDeferredRunIntent(context, running.id))
-			.rejects.toThrow("Only terminal deferred runs can be retried");
+		await expect(retryDispatchRunIntent(context, running.id))
+			.rejects.toThrow("Only terminal dispatch runs can be retried");
 	});
 
-	test("does not run future deferred intents and supports canceling pending work", async () => {
+	test("does not run future dispatch intents and supports canceling pending work", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
@@ -772,7 +772,7 @@ kind = "command"
 command = ["node", "--version"]
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		const intent = await createDeferredRunIntent(context, {
+		const intent = await createDispatchRunIntent(context, {
 			runAt: "2026-01-02T00:00:00.000Z",
 			target: {
 				kind: "workbench-task",
@@ -780,17 +780,17 @@ command = ["node", "--version"]
 			},
 		});
 
-		const result = await runDueDeferredRuns(context, {
+		const result = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T23:59:59.000Z"),
 			callToybox: async () => {
 				throw new Error("unused");
 			},
 		});
 		expect(result.executions).toEqual([]);
-		expect((await cancelDeferredRunIntent(context, intent.id)).status).toBe("canceled");
+		expect((await cancelDispatchRunIntent(context, intent.id)).status).toBe("canceled");
 	});
 
-	test("prunes only terminal deferred run history older than the retention window", async () => {
+	test("prunes only terminal dispatch run history older than the retention window", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
@@ -803,14 +803,14 @@ kind = "command"
 command = ["node", "-e", "console.log('prune me')"]
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		const completed = await createDeferredRunIntent(context, {
+		const completed = await createDispatchRunIntent(context, {
 			runAt: "2026-01-01T00:00:00.000Z",
 			target: {
 				kind: "workbench-task",
 				taskId: "hello",
 			},
 		});
-		const pending = await createDeferredRunIntent(context, {
+		const pending = await createDispatchRunIntent(context, {
 			runAt: "2100-01-01T00:00:00.000Z",
 			target: {
 				kind: "workbench-task",
@@ -818,16 +818,16 @@ command = ["node", "-e", "console.log('prune me')"]
 			},
 		});
 
-		await runDueDeferredRuns(context, {
+		await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:01.000Z"),
 			callToybox: async () => {
 				throw new Error("unused");
 			},
 		});
-		const before = await readDeferredRun(context, completed.id);
+		const before = await readDispatchRun(context, completed.id);
 		const outputPath = before.attempts[0]?.outputPath;
 		expect(outputPath).toBeTruthy();
-		const dryRun = await pruneDeferredRunHistory(context, {
+		const dryRun = await pruneDispatchRunHistory(context, {
 			olderThanDays: 1,
 			dryRun: true,
 			now: new Date("2100-01-03T00:00:00.000Z"),
@@ -835,21 +835,21 @@ command = ["node", "-e", "console.log('prune me')"]
 		expect(dryRun.pruned).toBe(1);
 		expect(await readFile(outputPath!, "utf8")).toContain("workbenchRun");
 
-		const pruned = await pruneDeferredRunHistory(context, {
+		const pruned = await pruneDispatchRunHistory(context, {
 			olderThanDays: 1,
 			now: new Date("2100-01-03T00:00:00.000Z"),
 		});
 		expect(pruned.pruned).toBe(1);
-		await expect(readDeferredRun(context, completed.id)).rejects.toThrow("Unknown deferred run");
+		await expect(readDispatchRun(context, completed.id)).rejects.toThrow("Unknown dispatch run");
 		await expect(readFile(outputPath!, "utf8")).rejects.toThrow();
-		expect((await readDeferredRun(context, pending.id)).intent.status).toBe("pending");
+		expect((await readDispatchRun(context, pending.id)).intent.status).toBe("pending");
 	});
 
-	test("runs direct turn deferred intents through app-server pass-through", async () => {
+	test("runs direct turn dispatch intents through app-server pass-through", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		await createDeferredRunIntent(context, {
+		await createDispatchRunIntent(context, {
 			runAt: "2026-01-01T00:00:00.000Z",
 			target: {
 				kind: "turn",
@@ -858,7 +858,7 @@ command = ["node", "-e", "console.log('prune me')"]
 			},
 		});
 		const calls: Array<{ method: string; params: unknown }> = [];
-		const result = await runDueDeferredRuns(context, {
+		const result = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:01.000Z"),
 			callToybox: async (method, params) => {
 				calls.push({ method, params });
@@ -897,20 +897,20 @@ command = ["node", "-e", "console.log('prune me')"]
 		]);
 	});
 
-	test("rejects retired deferred target kind", async () => {
+	test("rejects retired dispatch target kind", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
 		const retired = ["auto", "mation"].join("");
-		await expect(createDeferredRunIntent(context, {
+		await expect(createDispatchRunIntent(context, {
 			target: {
 				kind: retired,
 				[retired]: "release-check",
 			},
-		} as never)).rejects.toThrow("Invalid deferred run target kind");
+		} as never)).rejects.toThrow("Invalid dispatch run target kind");
 	});
 
-	test("runs direct workflow deferred intents through the workflow host", async () => {
+	test("runs direct workflow dispatch intents through the workflow host", async () => {
 		const root = await tempWorkbench();
 		const workflowRoot = path.join(root, "workflows", "release-check");
 		await mkdir(workflowRoot, { recursive: true });
@@ -928,7 +928,7 @@ export default async function run(context) {
 `);
 		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		await createDeferredRunIntent(context, {
+		await createDispatchRunIntent(context, {
 			runAt: "2026-01-01T00:00:00.000Z",
 			target: {
 				kind: "workflow",
@@ -942,7 +942,7 @@ export default async function run(context) {
 			},
 		});
 
-		const result = await runDueDeferredRuns(context, {
+		const result = await runDueDispatchRuns(context, {
 			now: new Date("2026-01-01T00:00:01.000Z"),
 			callToybox: async () => {
 				throw new Error("unused");
@@ -957,37 +957,37 @@ export default async function run(context) {
 		});
 	});
 
-	test("keeps local and actions deferred queues separate", async () => {
+	test("keeps local and actions dispatch queues separate", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
 		const local = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
 		const actions = await createWorkbenchContext({ workbenchRoot: root, mode: "actions", env: {} });
-		await createDeferredRunIntent(local, {
+		await createDispatchRunIntent(local, {
 			target: {
 				kind: "turn",
 				prompt: "local review",
 			},
 		});
-		await createDeferredRunIntent(actions, {
+		await createDispatchRunIntent(actions, {
 			target: {
 				kind: "turn",
 				prompt: "actions review",
 			},
 		});
 
-		expect(await listDeferredRunIntents(local)).toHaveLength(1);
-		expect(await listDeferredRunIntents(actions)).toHaveLength(1);
-		expect((await listDeferredRunIntents(local))[0]?.target).toMatchObject({
+		expect(await listDispatchRunIntents(local)).toHaveLength(1);
+		expect(await listDispatchRunIntents(actions)).toHaveLength(1);
+		expect((await listDispatchRunIntents(local))[0]?.target).toMatchObject({
 			kind: "turn",
 			prompt: "local review",
 		});
-		expect((await listDeferredRunIntents(actions))[0]?.target).toMatchObject({
+		expect((await listDispatchRunIntents(actions))[0]?.target).toMatchObject({
 			kind: "turn",
 			prompt: "actions review",
 		});
 	});
 
-	test("claims due deferred intents once across overlapping runners", async () => {
+	test("claims due dispatch intents once across overlapping runners", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
@@ -1000,7 +1000,7 @@ kind = "command"
 command = ["node", "-e", "setTimeout(() => console.log('done'), 100)"]
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		await createDeferredRunIntent(context, {
+		await createDispatchRunIntent(context, {
 			runAt: "2026-01-01T00:00:00.000Z",
 			target: {
 				kind: "workbench-task",
@@ -1008,13 +1008,13 @@ command = ["node", "-e", "setTimeout(() => console.log('done'), 100)"]
 			},
 		});
 		const [left, right] = await Promise.all([
-			runDueDeferredRuns(context, {
+			runDueDispatchRuns(context, {
 				now: new Date("2026-01-01T00:00:01.000Z"),
 				callToybox: async () => {
 					throw new Error("unused");
 				},
 			}),
-			runDueDeferredRuns(context, {
+			runDueDispatchRuns(context, {
 				now: new Date("2026-01-01T00:00:01.000Z"),
 				callToybox: async () => {
 					throw new Error("unused");
