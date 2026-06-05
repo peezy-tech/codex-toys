@@ -19,6 +19,9 @@ describe("openai codex bindings workflow", () => {
 		expect(codexVersionFromReleaseText("https://github.com/openai/codex/releases/tag/rust-v0.136.0"))
 			.toBe("0.136.0");
 		expect(codexVersionFromReleaseText("rust-v0.138.0-alpha.4")).toBe("0.138.0-alpha.4");
+		expect(codexVersionFromReleaseText("https://github.com/openai/codex/releases/tag/rust-v0.138.0-alpha.4"))
+			.toBe("0.138.0-alpha.4");
+		expect(codexVersionFromReleaseText("python-v0.1.0b3")).toBeUndefined();
 		expect(isStableCodexReleaseVersion("0.136.0")).toBe(true);
 		expect(isStableCodexReleaseVersion("0.136.0+build.1")).toBe(false);
 		expect(isStableCodexReleaseVersion("0.138.0-alpha.4")).toBe(false);
@@ -40,6 +43,15 @@ describe("openai codex bindings workflow", () => {
 			version: "0.136.0",
 			tag: "rust-v0.136.0",
 		});
+	});
+
+	test("rejects non-rust package feed tags", () => {
+		expect(() => releaseInfoFromFeedItem({
+			id: "feed-openai-codex-python",
+			externalId: "tag:github.com,2008:Repository/965415649/python-v0.1.0b3",
+			title: "python-v0.1.0b3",
+			url: "https://github.com/openai/codex/releases/tag/python-v0.1.0b3",
+		})).toThrow("Could not determine Codex release version");
 	});
 
 	test("derives ephemeral release branches", () => {

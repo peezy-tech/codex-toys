@@ -414,7 +414,16 @@ function shortStableHash(value: string): string {
 }
 
 export function codexVersionFromReleaseText(value: string): string | undefined {
-	const match = value.match(/(?:^|[^\d])(?:rust-v|v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
+	const titleMatch = value.trim().match(/^(?:rust-v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/);
+	if (titleMatch) {
+		return titleMatch[1];
+	}
+	const tagMatch = value.match(/(?:^|[/:])rust-v(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:$|[?#])/);
+	return tagMatch?.[1];
+}
+
+function codexVersionFromInstalledOutput(value: string): string | undefined {
+	const match = value.match(/(?:^|[^\d])(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:$|[^0-9A-Za-z.-])/);
 	return match?.[1];
 }
 
@@ -423,7 +432,7 @@ export function isStableCodexReleaseVersion(value: string): boolean {
 }
 
 export function installedCodexVersion(output: string): string {
-	const version = codexVersionFromReleaseText(output);
+	const version = codexVersionFromInstalledOutput(output);
 	if (!version) {
 		throw new Error(`Could not parse Codex version from: ${output.trim()}`);
 	}

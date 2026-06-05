@@ -20,6 +20,7 @@ jobs:
       has_release: ${{ steps.release.outputs.has_release }}
       version: ${{ steps.release.outputs.version }}
       item_id: ${{ steps.release.outputs.item_id }}
+      cursor_item_id: ${{ steps.release.outputs.cursor_item_id }}
       image: ${{ steps.release.outputs.image }}
       image_tag: ${{ steps.release.outputs.image_tag }}
       event_b64: ${{ steps.release.outputs.event_b64 }}
@@ -146,14 +147,18 @@ jobs:
           const fs = require("node:fs");
           const collect = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
           const items = Array.isArray(collect.items) ? collect.items : [];
-          const versionFromText = (value) => {
-            const match = String(value ?? "").match(/(?:^|[^\d])(?:rust-v|v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
+          const versionFromTitle = (value) => {
+            const match = String(value ?? "").trim().match(/^(?:rust-v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/);
+            return match?.[1];
+          };
+          const versionFromRustTag = (value) => {
+            const match = String(value ?? "").match(/(?:^|[/:])rust-v(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:$|[?#])/);
             return match?.[1];
           };
           const stableVersion = (item) =>
-            versionFromText(item.title) ??
-            versionFromText(item.url) ??
-            versionFromText(item.externalId);
+            versionFromTitle(item.title) ??
+            versionFromRustTag(item.url) ??
+            versionFromRustTag(item.externalId);
           const stable = items
             .map((item) => ({ item, version: stableVersion(item) }))
             .filter(({ version }) => version && /^\d+\.\d+\.\d+$/.test(version))
@@ -161,6 +166,10 @@ jobs:
               String(right.item.updatedAt ?? right.item.observedAt ?? "").localeCompare(String(left.item.updatedAt ?? left.item.observedAt ?? ""))
             )[0];
           const write = (key, value) => fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
+          const cursorItem = items[items.length - 1];
+          if (cursorItem?.id) {
+            write("cursor_item_id", cursorItem.id);
+          }
           if (!stable) {
             write("has_release", "false");
             process.exit(0);
@@ -182,6 +191,66 @@ jobs:
           write("image_tag", imageTag);
           write("event_b64", Buffer.from(JSON.stringify(event), "utf8").toString("base64"));
           NODE
+
+      - name: Advance skipped feed cursor
+        if: steps.release.outputs.has_release != 'true' && steps.release.outputs.cursor_item_id != ''
+        run: |
+          pnpm exec tsx packages/codex-toys/src/cli/index.ts feed cursor advance \
+            --cursor openai-codex-bindings \
+            --mode actions \
+            --item "${CURSOR_ITEM_ID}" \
+            --json
+        env:
+          CURSOR_ITEM_ID: ${{ steps.release.outputs.cursor_item_id }}
+
+      - name: Persist skipped release feed state
+        if: steps.release.outputs.has_release != 'true' && steps.release.outputs.cursor_item_id != ''
+        run: |
+          state_branch="${CODEX_RELEASE_FEED_STATE_BRANCH}"
+          case "${state_branch}" in
+            thread/openai-codex-bindings/*) ;;
+            *)
+              echo "Refusing to persist unexpected feed state branch: ${state_branch}" >&2
+              exit 1
+              ;;
+          esac
+
+          state_ref="refs/remotes/origin/${state_branch}"
+          if git fetch origin "${state_branch}:${state_ref}"; then
+            parent="$(git rev-parse "${state_ref}")"
+            git read-tree "${state_ref}"
+          else
+            parent=""
+            git read-tree --empty
+          fi
+
+          if [ -e .codex/feed/actions ]; then
+            git add -A -- .codex/feed/actions
+          else
+            git rm -r --cached --ignore-unmatch -- .codex/feed/actions
+          fi
+
+          new_tree="$(git write-tree)"
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          if [ -z "${parent}" ] && [ "${new_tree}" = "${empty_tree}" ]; then
+            echo "No release feed state to persist."
+            exit 0
+          fi
+          if [ -n "${parent}" ] && [ "${new_tree}" = "$(git rev-parse "${state_ref}^{tree}")" ]; then
+            echo "No release feed state changes to persist."
+            exit 0
+          fi
+
+          git config user.name codex-toys-actions
+          git config user.email codex-toys-actions@users.noreply.github.com
+          if [ -n "${parent}" ]; then
+            new_commit="$(printf '%s\n' "Update Codex release feed state" | git commit-tree "${new_tree}" -p "${parent}")"
+          else
+            new_commit="$(printf '%s\n' "Update Codex release feed state" | git commit-tree "${new_tree}")"
+          fi
+          git push origin "${new_commit}:refs/heads/${state_branch}"
+        env:
+          GIT_INDEX_FILE: ${{ runner.temp }}/codex-release-feed-state.index
 
   build-codex-runner:
     needs: resolve-release
@@ -367,10 +436,10 @@ jobs:
           pnpm exec tsx packages/codex-toys/src/cli/index.ts feed cursor advance \
             --cursor openai-codex-bindings \
             --mode actions \
-            --item "${ITEM_ID}" \
+            --item "${CURSOR_ITEM_ID}" \
             --json
         env:
-          ITEM_ID: ${{ needs.resolve-release.outputs.item_id }}
+          CURSOR_ITEM_ID: ${{ needs.resolve-release.outputs.cursor_item_id }}
 
       - name: Cleanup Codex auth
         if: always()
