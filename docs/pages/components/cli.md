@@ -89,7 +89,7 @@ codex-toys workbench overview [--json]
 codex-toys workbench doctor [--mode auto|local|actions] [--json]
 codex-toys workbench tick [--mode auto|local|actions]
 codex-toys workbench run <task-id> [--mode auto|local|actions]
-codex-toys workbench init actions [--forgejo|--github]
+codex-toys workbench init actions [--forgejo|--github] [--image <ref>|--no-image]
 ```
 
 ## Delegation

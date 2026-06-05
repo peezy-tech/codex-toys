@@ -88,6 +88,14 @@ Actions-mode helpers:
 These helpers prepare repo-local auth for Actions mode and clean runtime-only
 files without deleting durable workbench state.
 
+## `ghcr.io/peezy-tech/codex-toys-actions`
+
+Actions-mode runner image. Use
+`ghcr.io/peezy-tech/codex-toys-actions:<version>` to pin the runtime to a
+codex-toys release, or build a custom image from it when a workbench needs extra
+system packages. The generated Actions-mode workflow uses
+`ghcr.io/peezy-tech/codex-toys-actions:latest` by default.
+
 ## `codex-toys/remote`
 
 SSH-backed transport and preflight helpers. This package creates toybox

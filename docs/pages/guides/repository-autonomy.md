@@ -32,7 +32,18 @@ The scaffold writes:
 ```
 
 The generated GitHub Actions workflow runs hourly by default and can also be
-started manually with `workflow_dispatch`.
+started manually with `workflow_dispatch`. It uses the published
+`ghcr.io/peezy-tech/codex-toys-actions:latest` runner image by default so each
+scheduled tick does not reinstall Node, VitePlus, Codex CLI, and codex-toys.
+
+Use a custom image when a repository needs extra system packages or tools:
+
+```bash
+codex-toys workbench init actions --github --image ghcr.io/example/codex-runner:2026-06
+```
+
+Use `--no-image` to generate the older setup-node workflow that installs
+codex-toys during each run.
 
 ## 2. Add Workbench Tasks
 
@@ -71,7 +82,7 @@ for explicit shell commands.
 The generated workflow runs:
 
 ```bash
-vp dlx codex-toys actions prepare-auth
+codex-toys actions prepare-auth
 ```
 
 `prepare-auth` writes `.codex/auth.json` from the first available secret:
@@ -126,7 +137,7 @@ codex-toys workbench deferred list --mode actions --json
 
 Then trigger the GitHub Actions workflow manually or wait for the schedule. A
 healthy run should prepare auth, run
-`vp dlx codex-toys workbench tick --mode actions`, clean runtime-only files, and
+`codex-toys workbench tick --mode actions`, clean runtime-only files, and
 push durable state if anything changed.
 
 ## Repository-Owned Decisions
@@ -138,4 +149,6 @@ The scaffold provides a runner, not product policy. The repo still owns:
 - feed sources and dispatch rules
 - whether `.codex/sessions` should be committed
 - branch protection and workflow write permissions
+- whether to use the published runner image directly or build a custom image
+  from it
 - review policy for commits produced by the runner

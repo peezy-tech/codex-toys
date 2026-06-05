@@ -381,6 +381,7 @@ export type ScaffoldActionsWorkbenchOptions = {
 	workbenchRoot?: string;
 	forgejo?: boolean;
 	github?: boolean;
+	runnerImage?: string | null;
 	overwrite?: boolean;
 };
 
@@ -391,6 +392,8 @@ export type ScaffoldActionsWorkbenchResult = {
 		action: "created" | "updated" | "unchanged";
 	}>;
 };
+
+export const defaultActionsRunnerImage = "ghcr.io/peezy-tech/codex-toys-actions:latest";
 
 export async function discoverWorkbenchRoot(start = process.cwd()): Promise<string> {
 	let current = path.resolve(start);
@@ -606,6 +609,7 @@ export async function scaffoldActionsWorkbench(
 ): Promise<ScaffoldActionsWorkbenchResult> {
 	const workbenchRoot = path.resolve(options.workbenchRoot ?? await discoverWorkbenchRoot());
 	const files: ScaffoldActionsWorkbenchResult["files"] = [];
+	const runnerImage = options.runnerImage === undefined ? defaultActionsRunnerImage : options.runnerImage;
 	const write = async (relativePath: string, content: string): Promise<void> => {
 		files.push(await writeScaffoldFile(workbenchRoot, relativePath, content, options.overwrite === true));
 	};
@@ -613,10 +617,10 @@ export async function scaffoldActionsWorkbench(
 	await write(".codex/workbench.toml", workbenchTomlTemplate(workbenchRoot));
 	await write(".codex/config.toml", codexConfigTemplate());
 	if (options.forgejo) {
-		await write(".forgejo/workflows/codex-toys-actions.yml", actionsWorkflowTemplate("forgejo"));
+		await write(".forgejo/workflows/codex-toys-actions.yml", actionsWorkflowTemplate("forgejo", runnerImage));
 	}
 	if (options.github || !options.forgejo) {
-		await write(".github/workflows/codex-toys-actions.yml", actionsWorkflowTemplate("github"));
+		await write(".github/workflows/codex-toys-actions.yml", actionsWorkflowTemplate("github", runnerImage));
 	}
 	files.push(await appendGitignoreEntries(
 		workbenchRoot,
@@ -2801,10 +2805,10 @@ function codexConfigTemplate(): string {
 	].join("\n");
 }
 
-function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
+function actionsWorkflowTemplate(provider: "forgejo" | "github", runnerImage: string | null): string {
 	const checkout = provider === "github" ? "actions/checkout@v4" : "actions/checkout@v4";
 	const setupNode = provider === "github" ? "actions/setup-node@v4" : "actions/setup-node@v4";
-	return [
+	const lines = [
 		"name: Codex Toys Actions",
 		"",
 		"on:",
@@ -2815,22 +2819,41 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 		"jobs:",
 		"  workbench:",
 		"    runs-on: ubuntu-latest",
+	];
+	if (runnerImage) {
+		lines.push(
+			"    container:",
+			`      image: ${runnerImage}`,
+		);
+	}
+	lines.push(
 		"    permissions:",
 		"      contents: write",
 		"    steps:",
 		`      - uses: ${checkout}`,
-		`      - uses: ${setupNode}`,
-		"        with:",
-		"          node-version: 24",
-		"      - run: npm install -g vite-plus",
-		"      - run: vp dlx codex-toys actions prepare-auth",
+	);
+	if (runnerImage) {
+		lines.push(
+			"      - run: git config --global --add safe.directory \"${GITHUB_WORKSPACE:-$PWD}\"",
+			"      - run: codex-toys actions prepare-auth",
+		);
+	} else {
+		lines.push(
+			`      - uses: ${setupNode}`,
+			"        with:",
+			"          node-version: 24",
+			"      - run: npm install -g vite-plus",
+			"      - run: vp dlx codex-toys actions prepare-auth",
+		);
+	}
+	lines.push(
 		"        env:",
 		"          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}",
 		"          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}",
 		"          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
-		"      - run: vp dlx codex-toys workbench tick --mode actions",
+		`      - run: ${runnerImage ? "codex-toys" : "vp dlx codex-toys"} workbench tick --mode actions`,
 		"      - if: always()",
-		"        run: vp dlx codex-toys actions cleanup",
+		`        run: ${runnerImage ? "codex-toys" : "vp dlx codex-toys"} actions cleanup`,
 		"      - if: always()",
 		"        run: |",
 		"          git add -- .codex/memories .codex/workbench/actions",
@@ -2846,7 +2869,8 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github"): string {
 		"          git commit -m \"Update Codex workbench state\"",
 		"          git push",
 		"",
-	].join("\n");
+	);
+	return lines.join("\n");
 }
 
 function actionsGitignoreEntries(): string[] {

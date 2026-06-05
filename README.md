@@ -11,6 +11,8 @@ bundled into the published tarball.
 The full user documentation lives in the Tome docs site under
 [`docs/pages`](docs/pages). The public npm tarball also carries a Markdown
 snapshot at `docs/pages` so installed versions keep matching docs.
+Each release also publishes the Actions-mode base image
+`ghcr.io/peezy-tech/codex-toys-actions:<version>` for scheduled workbench runs.
 
 ## Start Here
 

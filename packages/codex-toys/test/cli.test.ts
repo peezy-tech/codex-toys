@@ -525,7 +525,39 @@ describe("codex-toys CLI args", () => {
 			workbenchRoot: undefined,
 			forgejo: true,
 			github: false,
+			runnerImage: undefined,
 			overwrite: true,
+			pretty: true,
+		});
+		expect(parseArgs([
+			"workbench",
+			"init",
+			"actions",
+			"--github",
+			"--image",
+			"ghcr.io/example/custom-codex-runner:2026-06",
+		], {})).toEqual({
+			type: "workbench-init-actions",
+			workbenchRoot: undefined,
+			forgejo: false,
+			github: true,
+			runnerImage: "ghcr.io/example/custom-codex-runner:2026-06",
+			overwrite: false,
+			pretty: true,
+		});
+		expect(parseArgs([
+			"workbench",
+			"init",
+			"actions",
+			"--github",
+			"--no-image",
+		], {})).toEqual({
+			type: "workbench-init-actions",
+			workbenchRoot: undefined,
+			forgejo: false,
+			github: true,
+			runnerImage: null,
+			overwrite: false,
 			pretty: true,
 		});
 	});

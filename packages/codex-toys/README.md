@@ -12,6 +12,13 @@ or:
 npm install codex-toys
 ```
 
+Actions-mode runner images are published with each release:
+
+```text
+ghcr.io/peezy-tech/codex-toys-actions:<version>
+ghcr.io/peezy-tech/codex-toys-actions:latest
+```
+
 Full documentation lives in the repo docs site and is also published as a
 version-matched Markdown snapshot under `docs/pages` in the npm tarball:
 

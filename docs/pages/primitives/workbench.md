@@ -38,7 +38,7 @@ codex-toys workbench doctor --mode actions --json
 codex-toys workbench tick --mode local
 codex-toys workbench run <task-id> --mode actions
 codex-toys workbench overview --json
-codex-toys workbench init actions --forgejo
+codex-toys workbench init actions --forgejo [--image <ref>|--no-image]
 ```
 
 `doctor` reports mode, roots, config, memory presence, task health, latest runs,
@@ -104,8 +104,12 @@ For the full GitHub Actions schedule setup, see
 [Repository autonomy](../guides/repository-autonomy).
 
 The generated runner prepares auth, runs `workbench tick --mode actions`,
-cleans up runtime-only files, and preserves durable workbench state. Durable
-state may include:
+cleans up runtime-only files, and preserves durable workbench state. By default
+it runs inside `ghcr.io/peezy-tech/codex-toys-actions:latest`, which supplies
+Node, VitePlus, Codex CLI, codex-toys, Git, and common shell tools. Pass
+`--image <ref>` to use a custom image built from that base image, or `--no-image`
+to generate a workflow that installs the runtime during every run. Durable state
+may include:
 
 ```text
 .codex/memories/

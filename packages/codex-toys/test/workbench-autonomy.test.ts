@@ -11,6 +11,7 @@ import {
 	collectWorkbenchDoctorInfo,
 	createDeferredRunIntent,
 	createWorkbenchContext,
+	defaultActionsRunnerImage,
 	drainLocalHandoffQueue,
 	enqueueLocalHandoffIntent,
 	enqueuePromptQueueIntent,
@@ -1309,12 +1310,45 @@ schedule = "not-cron"
 		expect(await readFile(path.join(root, ".forgejo", "workflows", "codex-toys-actions.yml"), "utf8"))
 			.toContain("codex-toys actions cleanup");
 		const workflow = await readFile(path.join(root, ".forgejo", "workflows", "codex-toys-actions.yml"), "utf8");
+		expect(workflow).toContain(`image: ${defaultActionsRunnerImage}`);
+		expect(workflow).toContain("git config --global --add safe.directory");
+		expect(workflow).not.toContain("actions/setup-node");
+		expect(workflow).not.toContain("vp dlx codex-toys");
 		expect(workflow).toContain("git add -- .codex/memories .codex/workbench/actions");
 		expect(workflow).toContain("git add -- .codex/feed/actions");
 		expect(workflow).toContain("git add -A -f -- .codex/sessions");
 		const gitignore = await readFile(path.join(root, ".gitignore"), "utf8");
 		expect(gitignore).toContain(".codex/auth.json");
 		expect(gitignore).not.toContain(".codex/sessions/");
+	});
+
+	test("scaffoldActionsWorkbench accepts custom and setup-based Actions runtimes", async () => {
+		const customRoot = await tempWorkbench();
+		await scaffoldActionsWorkbench({
+			workbenchRoot: customRoot,
+			github: true,
+			runnerImage: "ghcr.io/example/custom-codex-runner:2026-06",
+		});
+		const customWorkflow = await readFile(
+			path.join(customRoot, ".github", "workflows", "codex-toys-actions.yml"),
+			"utf8",
+		);
+		expect(customWorkflow).toContain("image: ghcr.io/example/custom-codex-runner:2026-06");
+		expect(customWorkflow).toContain("codex-toys workbench tick --mode actions");
+
+		const setupRoot = await tempWorkbench();
+		await scaffoldActionsWorkbench({
+			workbenchRoot: setupRoot,
+			github: true,
+			runnerImage: null,
+		});
+		const setupWorkflow = await readFile(
+			path.join(setupRoot, ".github", "workflows", "codex-toys-actions.yml"),
+			"utf8",
+		);
+		expect(setupWorkflow).not.toContain("container:");
+		expect(setupWorkflow).toContain("actions/setup-node");
+		expect(setupWorkflow).toContain("vp dlx codex-toys workbench tick --mode actions");
 	});
 });
 

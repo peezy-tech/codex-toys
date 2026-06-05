@@ -73,7 +73,7 @@ Usage:
   codex-toys workbench deferred retry <intent-id> [--run-at <iso>]
   codex-toys workbench deferred run-due [--mode auto|local|actions]
   codex-toys workbench deferred prune --older-than-days <days> [--dry-run]
-  codex-toys workbench init actions [--forgejo|--github]
+  codex-toys workbench init actions [--forgejo|--github] [--image <ref>|--no-image]
 
   codex-toys actions prepare-auth
   codex-toys actions cleanup
@@ -127,6 +127,8 @@ Options:
   --script-stdin                             Read an inline workflow module from stdin.
   --forgejo                                  Generate a Forgejo Actions workflow.
   --github                                   Generate a GitHub Actions workflow.
+  --image <ref>                              Use an Actions runner container image.
+  --no-image                                 Generate setup-node/vp dlx Actions workflow.
 	  --prompt <text>                            Prompt text for workflow script context.
 	  --title <text>                             Delegation thread title or queued prompt title.
 	  --queue <name>                             Prompt queue name.

@@ -568,6 +568,7 @@ type ParsedCliBase =
 			workbenchRoot?: string;
 			forgejo: boolean;
 			github: boolean;
+			runnerImage?: string | null;
 			overwrite: boolean;
 			pretty: boolean;
 	  }
@@ -727,6 +728,7 @@ export function parseArgs(
 	let ref: string | undefined;
 	let forgejo = false;
 	let github = false;
+	let runnerImage: string | null | undefined;
 	let prompt: string | undefined;
 	let title: string | undefined;
 	let groupId: string | undefined;
@@ -1007,6 +1009,27 @@ export function parseArgs(
 		}
 		if (arg === "--github") {
 			github = true;
+			continue;
+		}
+		if (arg === "--image") {
+			const value = argv[index + 1];
+			if (value && !value.startsWith("--")) {
+				runnerImage = value;
+				index += 1;
+			} else {
+				runnerImage = undefined;
+			}
+			continue;
+		}
+		if (arg.startsWith("--image=")) {
+			runnerImage = arg.slice("--image=".length);
+			if (!runnerImage) {
+				throw new Error("--image requires a non-empty value");
+			}
+			continue;
+		}
+		if (arg === "--no-image") {
+			runnerImage = null;
 			continue;
 		}
 			if (arg === "--prompt") {
@@ -2193,6 +2216,7 @@ export function parseArgs(
 				workbenchRoot,
 				forgejo,
 				github,
+				runnerImage,
 				overwrite,
 				pretty,
 			};

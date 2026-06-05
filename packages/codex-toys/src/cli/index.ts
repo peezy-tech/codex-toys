@@ -1224,6 +1224,7 @@ async function main(): Promise<void> {
 			workbenchRoot: parsed.workbenchRoot,
 			forgejo: parsed.forgejo,
 			github: parsed.github,
+			runnerImage: parsed.runnerImage,
 			overwrite: parsed.overwrite,
 		}), parsed.pretty);
 		return;

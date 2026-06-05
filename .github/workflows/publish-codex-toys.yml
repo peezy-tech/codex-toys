@@ -7,19 +7,39 @@ on:
         description: "Type codex-toys"
         required: true
         type: string
+  release:
+    types: [published]
 
 permissions:
   contents: read
   id-token: write
+  packages: write
 
 jobs:
   publish:
-    if: inputs.confirm_package == 'codex-toys'
+    if: github.event_name == 'release' || github.event.inputs.confirm_package == 'codex-toys'
     runs-on: ubuntu-latest
     environment: npm-publish
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Resolve release package
+        id: release
+        run: |
+          version=$(node -p "require('./packages/codex-toys/package.json').version")
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            tag="${GITHUB_REF_NAME}"
+            case "${tag}" in
+              "${version}"|"v${version}") ;;
+              *)
+                echo "Release tag ${tag} does not match codex-toys ${version}" >&2
+                exit 1
+                ;;
+            esac
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER}/codex-toys-actions" >> "${GITHUB_OUTPUT}"
 
       - name: Setup VitePlus
         uses: voidzero-dev/setup-vp@v1
@@ -67,3 +87,27 @@ jobs:
           pnpm exec tsx scripts/pack-public-package.ts --pack-destination "$tmpdir"
           tarball=$(find "$tmpdir" -maxdepth 1 -name '*.tgz' -print -quit)
           npm publish "$tarball" --access public --provenance
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and publish Actions runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: containers/codex-toys-actions
+          push: true
+          build-args: |
+            CODEX_TOYS_VERSION=${{ steps.release.outputs.version }}
+          tags: |
+            ${{ steps.release.outputs.image }}:${{ steps.release.outputs.version }}
+            ${{ steps.release.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}

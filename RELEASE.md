@@ -75,6 +75,11 @@ Public npm package:
 
 - `codex-toys`
 
+Public OCI image:
+
+- `ghcr.io/peezy-tech/codex-toys-actions:<version>`
+- `ghcr.io/peezy-tech/codex-toys-actions:latest`
+
 The scoped `@codex-toys/*` packages are private workspace boundaries. They are
 built and checked in the monorepo, then embedded into the public `codex-toys`
 tarball under `dist/internal`. They are not published or declared as standalone
@@ -89,6 +94,11 @@ packed with `npm pack`, and then handed to `npm publish` so internal workspaces
 are already embedded and private workspace dependency specifiers are removed
 before the npm registry sees the package while GitHub provenance still comes
 from npm.
+The same workflow builds and publishes the Actions-mode runner image to GHCR.
+The image installs the released `codex-toys` npm package, Codex CLI, Node 24,
+VitePlus, pnpm, Git, and common shell tools. Repositories can use the image
+directly in generated Actions-mode workflows or build custom runner images from
+it when they need extra system packages.
 Version numbers intentionally track the upstream Codex release line rather than
 strict semantic-versioning meaning. For example, if the current Codex-aligned
 line is `0.140.x`, a breaking codex-toys stack release should usually advance
@@ -121,9 +131,11 @@ To publish through GitHub trusted publishing:
    package/trusted-publisher setup with the owning npm account first. Do not add
    npm tokens to the repo or GitHub secrets.
 6. Run `.github/workflows/publish-codex-toys.yml` on GitHub with confirmation
-   input `codex-toys`.
-7. Verify npm:
+   input `codex-toys`. Publishing a GitHub Release tagged with the same package
+   version also runs the workflow.
+7. Verify npm and GHCR:
 
 ```bash
 npm dist-tag ls codex-toys
+docker buildx imagetools inspect ghcr.io/peezy-tech/codex-toys-actions:<version>
 ```
