@@ -148,7 +148,7 @@ jobs:
           const write = (key, value) => fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
           if (!stable) {
             write("has_release", "false");
-            return;
+            process.exit(0);
           }
           const image = `ghcr.io/${process.env.GITHUB_REPOSITORY_OWNER}/codex-toys-actions`;
           const imageTag = `codex-${stable.version}`;
