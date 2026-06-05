@@ -1,8 +1,8 @@
 {
   "sourceId": "openai-codex-releases",
-  "updatedAt": "2026-06-05T16:31:54.701Z",
-  "lastPolledAt": "2026-06-05T16:31:54.082Z",
-  "lastStatus": 200,
+  "updatedAt": "2026-06-05T16:40:34.700Z",
+  "lastPolledAt": "2026-06-05T16:40:34.280Z",
+  "lastStatus": 304,
   "etag": "W/\"f42fe44d98c1b696ded23e2143d87751\"",
   "lastItemIds": [
     "feed-openai-codex-releases-5ba26481265176742935",
