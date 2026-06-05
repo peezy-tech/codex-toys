@@ -1301,8 +1301,6 @@ schedule = "not-cron"
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `[workbench]\nname = "demo"\n`);
 		await runGit(["init"], root);
-		await runGit(["config", "user.email", "test@example.com"], root);
-		await runGit(["config", "user.name", "Workbench Test"], root);
 		await mkdir(path.join(root, ".codex", "workbench", "actions"), { recursive: true });
 		await writeFile(path.join(root, ".codex", "workbench", "actions", "summary.json"), "{}\n");
 
@@ -1318,6 +1316,8 @@ schedule = "not-cron"
 
 		expect(result.committed).toBe(true);
 		expect(await runGit(["log", "-1", "--pretty=%s"], root)).toBe("Update test workbench state");
+		expect(await runGit(["log", "-1", "--pretty=%an <%ae>"], root))
+			.toBe("codex-toys-actions <codex-toys-actions@users.noreply.github.com>");
 		const committedFiles = await runGit(["show", "--name-only", "--pretty=", "HEAD"], root);
 		expect(committedFiles).toContain(".codex/workbench/actions/summary.json");
 		expect(committedFiles).not.toContain(".codex/memories");

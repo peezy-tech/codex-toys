@@ -715,6 +715,8 @@ export async function commitActionsWorkbenchState(
 	if (stagedPaths.length === 0) {
 		return { attempted: true, committed: false, paths: context.actionsCommitPaths };
 	}
+	await runGit(context.repoRoot, ["config", "user.name", "codex-toys-actions"]);
+	await runGit(context.repoRoot, ["config", "user.email", "codex-toys-actions@users.noreply.github.com"]);
 	const commit = await runGit(context.repoRoot, [
 		"commit",
 		"-m",
