@@ -5,10 +5,12 @@ import path from "node:path";
 import { parseArgs } from "../src/cli/args.ts";
 import {
 	advanceFeedCursor,
+	appendFeedItem,
 	collectFeedItems,
 	collectFeedDoctorInfo,
 	createFeedContext,
 	createFeedMethods,
+	FEED_ITEM_APPEND_METHOD,
 	dispatchFeedItems,
 	FEED_CURSOR_ADVANCE_METHOD,
 	FEED_DISPATCH_METHOD,
@@ -165,6 +167,49 @@ describe("feed primitive", () => {
 		});
 		expect(pruned.pruned).toBe(2);
 		expect(await listFeedItems(context)).toHaveLength(0);
+	});
+
+	test("appends manual feed items and dedupes by external id", async () => {
+		const root = await tempFeedRoot();
+		const context = await createFeedContext({ root, mode: "local", env: {} });
+		const first = await appendFeedItem(context, {
+			sourceId: "hq-dispatch-results",
+			externalId: "dispatch-1",
+			title: "Dispatch result",
+			summary: "Workbench task completed",
+			raw: { status: "completed", runId: "run-1" },
+			now: new Date("2026-06-05T12:00:00.000Z"),
+		});
+		expect(first).toMatchObject({
+			appended: true,
+			duplicate: false,
+			item: {
+				sourceId: "hq-dispatch-results",
+				sourceKind: "manual",
+				externalId: "dispatch-1",
+				title: "Dispatch result",
+				observedAt: "2026-06-05T12:00:00.000Z",
+				raw: { status: "completed", runId: "run-1" },
+			},
+		});
+		const duplicate = await appendFeedItem(context, {
+			sourceId: "hq-dispatch-results",
+			externalId: "dispatch-1",
+			title: "Dispatch result replay",
+		});
+		expect(duplicate).toMatchObject({
+			appended: false,
+			duplicate: true,
+			item: {
+				id: first.item.id,
+				title: "Dispatch result",
+			},
+		});
+		expect((await collectFeedItems(context, {
+			cursor: "manual",
+			sourceId: "hq-dispatch-results",
+			advance: false,
+		})).items.map((item) => item.id)).toEqual([first.item.id]);
 	});
 
 	test("limits RSS intake to latest_only or max_items", async () => {
@@ -470,6 +515,24 @@ describe("feed primitive", () => {
 		const item = (await listFeedItems(context))[0];
 		expect(item ? await readFeedItem(context, item.id) : undefined)
 			.toMatchObject({ title: "Toybox" });
+		const append = await methods[FEED_ITEM_APPEND_METHOD]?.({
+			sourceId: "manual-source",
+			externalId: "manual-1",
+			title: "Manual item",
+			payload: { ok: true },
+		}, {
+			jsonrpc: "2.0",
+			id: "feed",
+			method: FEED_ITEM_APPEND_METHOD,
+			params: {},
+		});
+		expect(append).toMatchObject({
+			appended: true,
+			item: expect.objectContaining({
+				sourceKind: "manual",
+				raw: { ok: true },
+			}),
+		});
 		const advance = await methods[FEED_CURSOR_ADVANCE_METHOD]?.({
 			itemId: item?.id,
 		}, {
@@ -503,6 +566,8 @@ describe("feed primitive", () => {
 			.toMatchObject({ type: "feed-item-list", status: "new", limit: 2 });
 		expect(parseArgs(["feed", "item", "read", "item-1"], {}))
 			.toMatchObject({ type: "feed-item-read", itemId: "item-1" });
+		expect(parseArgs(["feed", "item", "append", "--source", "hq-dispatch-results", "--params-json", "{\"title\":\"Result\"}"], {}))
+			.toMatchObject({ type: "feed-item-append", sourceId: "hq-dispatch-results", paramsText: "{\"title\":\"Result\"}" });
 		expect(parseArgs(["feed", "collect", "--cursor", "radar"], {}))
 			.toMatchObject({ type: "feed-collect", cursor: "radar", advance: true });
 		expect(parseArgs(["feed", "collect", "--cursor", "radar", "--no-advance"], {}))

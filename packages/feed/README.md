@@ -1,10 +1,10 @@
 # @codex-toys/feed
 
-Internal package boundary for durable external RSS/Atom feed polling, collection
-cursors, and acknowledged dispatch.
+Internal package boundary for durable RSS/Atom feed polling, manual/local feed
+item append, collection cursors, and acknowledged dispatch.
 
 Install `codex-toys` and import from the public subpath:
 
 ```ts
-import { dispatchFeedItems, pollFeedSources } from "codex-toys/feed";
+import { appendFeedItem, dispatchFeedItems, pollFeedSources } from "codex-toys/feed";
 ```

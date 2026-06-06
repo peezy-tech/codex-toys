@@ -1,13 +1,13 @@
 ---
 title: Feed
-description: RSS and Atom intake, durable items, cursors, and ack-aware dispatch.
+description: RSS, Atom, and manual intake, durable items, cursors, and ack-aware dispatch.
 ---
 
 # Feed
 
-Feed is the durable external signal intake primitive. It polls RSS or Atom
-sources, normalizes entries into feed items, records source checkpoints, and lets
-consumers collect items with named cursors.
+Feed is the durable signal intake primitive. It polls RSS or Atom sources,
+normalizes entries into feed items, records source checkpoints, accepts
+manual/local event items, and lets consumers collect items with named cursors.
 
 Feed does not decide what a signal means. A workflow, workbench task, dashboard,
 or product function decides whether to enqueue a prompt, create a dispatch run,
@@ -44,6 +44,7 @@ codex-toys feed source list --json
 codex-toys feed poll --source project-releases --json
 codex-toys feed item list --source project-releases --status new --json
 codex-toys feed item read <item-id> --json
+codex-toys feed item append --source hq-dispatch-results --params-json '{"externalId":"run-123","title":"Dispatch result","raw":{"status":"completed"}}' --json
 codex-toys feed collect --cursor radar --limit 50 --no-advance --json
 codex-toys feed cursor advance --cursor radar --item <item-id> --json
 codex-toys feed dispatch --source project-releases --cursor radar --target workbench-task:release-check --json
@@ -87,6 +88,7 @@ under an Actions environment.
 ```ts
 import {
   advanceFeedCursor,
+  appendFeedItem,
   collectFeedItems,
   createFeedContext,
   dispatchFeedItems,
@@ -99,6 +101,13 @@ const context = await createFeedContext({ root: "/repo", mode: "local" });
 const config = await loadFeedConfig(context);
 
 await pollFeedSources(context, config, { sourceId: "project-releases" });
+
+await appendFeedItem(context, {
+  sourceId: "hq-dispatch-results",
+  externalId: "run-123",
+  title: "Dispatch result",
+  raw: { status: "completed" }
+});
 
 const batch = await collectFeedItems(context, {
   cursor: "radar",
@@ -121,9 +130,9 @@ await dispatchFeedItems(context, config, {
 
 ## Boundary
 
-Feed owns source config, polling, HTTP checkpoints, item dedupe, durable item
-storage, collection cursors, cursor advancement, ack-aware dispatch mechanics,
-and pruning.
+Feed owns source config, polling, HTTP checkpoints, manual/local item append,
+item dedupe, durable item storage, collection cursors, cursor advancement,
+ack-aware dispatch mechanics, and pruning.
 
 Products own source catalogs, scoring, filtering, prompt templates, dashboards,
 dispatch-run policy, and external writes.

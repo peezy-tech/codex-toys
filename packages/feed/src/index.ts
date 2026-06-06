@@ -8,6 +8,7 @@ export type FeedModeInput = "auto" | "local" | "actions";
 export type FeedMode = "local" | "actions";
 export type FeedItemStatus = "new";
 export type FeedSourceKind = "rss" | "atom";
+export type FeedItemSourceKind = FeedSourceKind | "manual";
 
 export type FeedContext = {
 	mode: FeedMode;
@@ -52,7 +53,7 @@ export type FeedCheckpoint = {
 export type FeedItem = {
 	id: string;
 	sourceId: string;
-	sourceKind: FeedSourceKind;
+	sourceKind: FeedItemSourceKind;
 	status: FeedItemStatus;
 	externalId: string;
 	title: string;
@@ -63,6 +64,29 @@ export type FeedItem = {
 	contentText?: string;
 	observedAt: string;
 	raw?: Record<string, unknown>;
+};
+
+export type FeedAppendItemOptions = {
+	sourceId: string;
+	externalId?: string;
+	title?: string;
+	url?: string;
+	publishedAt?: string;
+	updatedAt?: string;
+	summary?: string;
+	contentText?: string;
+	observedAt?: string;
+	raw?: Record<string, unknown>;
+	payload?: Record<string, unknown>;
+	now?: Date;
+};
+
+export type FeedAppendItemResult = {
+	mode: FeedMode;
+	appended: boolean;
+	duplicate: boolean;
+	appendedAt: string;
+	item: FeedItem;
 };
 
 export type FeedPollRun = {
@@ -230,6 +254,7 @@ export type FeedPruneOptions = {
 export const FEED_DOCTOR_METHOD = "feed.doctor";
 export const FEED_SOURCE_LIST_METHOD = "feed.source.list";
 export const FEED_POLL_METHOD = "feed.poll";
+export const FEED_ITEM_APPEND_METHOD = "feed.item.append";
 export const FEED_ITEM_LIST_METHOD = "feed.item.list";
 export const FEED_ITEM_READ_METHOD = "feed.item.read";
 export const FEED_COLLECT_METHOD = "feed.collect";
@@ -253,6 +278,12 @@ export const feedMethodMetadata: ToyboxMethodMetadata[] = [
 	{
 		name: FEED_POLL_METHOD,
 		description: "Poll RSS/Atom feed sources and store newly observed items.",
+		sideEffects: "writes-local",
+		category: "feed",
+	},
+	{
+		name: FEED_ITEM_APPEND_METHOD,
+		description: "Append a local/manual feed item without polling an external source.",
 		sideEffects: "writes-local",
 		category: "feed",
 	},
@@ -320,6 +351,13 @@ export function createFeedMethods(
 					sourceIds: stringArrayValue(input.sourceIds),
 					fetch: options.fetch,
 				},
+			);
+		},
+		[FEED_ITEM_APPEND_METHOD]: async (params) => {
+			const input = record(params);
+			return await appendFeedItem(
+				await contextFromParams(input, options),
+				feedAppendItemOptionsFromParams(input),
 			);
 		},
 		[FEED_ITEM_LIST_METHOD]: async (params) => {
@@ -567,6 +605,69 @@ export async function pollFeedSources(
 		finishedAt: new Date().toISOString(),
 		runs,
 	};
+}
+
+export function feedAppendItemOptionsFromParams(params: unknown): FeedAppendItemOptions {
+	const input = record(params);
+	return compactUndefined({
+		sourceId: requiredString(input.sourceId ?? input.source, "feed.item.append sourceId"),
+		externalId: optionalString(input.externalId) ?? optionalString(input.external_id),
+		title: optionalString(input.title),
+		url: optionalString(input.url),
+		publishedAt: optionalString(input.publishedAt) ?? optionalString(input.published_at),
+		updatedAt: optionalString(input.updatedAt) ?? optionalString(input.updated_at),
+		summary: optionalString(input.summary),
+		contentText: optionalString(input.contentText) ?? optionalString(input.content_text),
+		observedAt: optionalString(input.observedAt) ?? optionalString(input.observed_at),
+		raw: feedAppendRawPayload(input),
+	});
+}
+
+export async function appendFeedItem(
+	context: FeedContext,
+	options: FeedAppendItemOptions,
+): Promise<FeedAppendItemResult> {
+	await ensureFeedStateDirs(context);
+	validateSlug(options.sourceId, "feed append source id");
+	const appendedAt = (options.now ?? new Date()).toISOString();
+	const externalId = options.externalId ?? `manual:${randomUUID()}`;
+	const observedAt = normalizeOptionalDateString(options.observedAt, "feed append observedAt") ?? appendedAt;
+	const item: FeedItem = compactUndefined({
+		id: feedItemId(options.sourceId, externalId),
+		sourceId: options.sourceId,
+		sourceKind: "manual",
+		status: "new",
+		externalId,
+		title: options.title ?? options.summary ?? options.sourceId,
+		url: options.url,
+		publishedAt: normalizeOptionalDateString(options.publishedAt, "feed append publishedAt"),
+		updatedAt: normalizeOptionalDateString(options.updatedAt, "feed append updatedAt"),
+		summary: options.summary,
+		contentText: options.contentText,
+		observedAt,
+		raw: options.raw ?? options.payload,
+	});
+	try {
+		await writeNewJsonFile(feedItemPath(context, item.id), item);
+		return {
+			mode: context.mode,
+			appended: true,
+			duplicate: false,
+			appendedAt,
+			item,
+		};
+	} catch (error) {
+		if (!isFileExists(error)) {
+			throw error;
+		}
+		return {
+			mode: context.mode,
+			appended: false,
+			duplicate: true,
+			appendedAt,
+			item: await readFeedItem(context, item.id),
+		};
+	}
 }
 
 export async function listFeedItems(
@@ -1438,6 +1539,33 @@ function dateString(value: string): string | undefined {
 	return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
+function normalizeOptionalDateString(value: string | undefined, label: string): string | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const parsed = dateString(value);
+	if (!parsed) {
+		throw new Error(`${label} must be a valid date string`);
+	}
+	return parsed;
+}
+
+function feedAppendRawPayload(input: Record<string, unknown>): Record<string, unknown> | undefined {
+	if (isPlainRecord(input.raw)) {
+		return input.raw;
+	}
+	if (input.raw !== undefined) {
+		return { raw: input.raw };
+	}
+	if (isPlainRecord(input.payload)) {
+		return input.payload;
+	}
+	if (input.payload !== undefined) {
+		return { payload: input.payload };
+	}
+	return undefined;
+}
+
 function safeFileSegment(value: string): string {
 	return value.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 160) || "feed";
 }
@@ -1467,7 +1595,7 @@ function normalizeFeedItem(value: unknown): FeedItem {
 	return compactUndefined({
 		id: requiredString(input.id, "feed item id"),
 		sourceId: requiredString(input.sourceId, "feed item sourceId"),
-		sourceKind: feedSourceKindValue(input.sourceKind),
+		sourceKind: feedItemSourceKindValue(input.sourceKind),
 		status,
 		externalId: requiredString(input.externalId, "feed item externalId"),
 		title: requiredString(input.title, "feed item title"),
@@ -1529,6 +1657,13 @@ function feedSourceKindValue(value: unknown): FeedSourceKind {
 		return value;
 	}
 	throw new Error(`Invalid feed source kind: ${String(value)}`);
+}
+
+function feedItemSourceKindValue(value: unknown): FeedItemSourceKind {
+	if (value === "manual") {
+		return value;
+	}
+	return feedSourceKindValue(value);
 }
 
 function feedPollRunStatusValue(value: unknown): FeedPollRun["status"] {

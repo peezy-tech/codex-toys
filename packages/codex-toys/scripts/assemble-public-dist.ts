@@ -7,6 +7,11 @@ type InternalPackage = {
 	dir: string;
 };
 
+type PackageManifest = {
+	name?: string;
+	version?: string;
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(packageRoot, "../..");
@@ -40,6 +45,7 @@ async function main(): Promise<void> {
 		await rewriteInternalPackageSpecifiers(filePath);
 	}
 
+	await writeInternalPackageManifest();
 	await chmod(path.join(publicInternalDistDir, "proxy", "bin", "codex-toys-proxy.js"), 0o755);
 }
 
@@ -75,6 +81,24 @@ async function rewriteInternalPackageSpecifiers(filePath: string): Promise<void>
 	if (updated !== original) {
 		await writeFile(filePath, updated);
 	}
+}
+
+async function writeInternalPackageManifest(): Promise<void> {
+	const packageJson = JSON.parse(
+		await readFile(path.join(packageRoot, "package.json"), "utf8"),
+	) as PackageManifest;
+	await writeFile(
+		path.join(publicInternalDistDir, "package.json"),
+		`${JSON.stringify(
+			{
+				name: packageJson.name ?? "codex-toys",
+				version: packageJson.version ?? "unknown",
+				type: "module",
+			},
+			null,
+			2,
+		)}\n`,
+	);
 }
 
 function resolveInternalPackagePath(packageName: string, subpath?: string): string | null {

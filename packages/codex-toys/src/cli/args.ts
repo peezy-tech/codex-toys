@@ -182,6 +182,18 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
+			type: "feed-item-append";
+			mode?: FeedModeInput;
+			feedRoot?: string;
+			sourceId: string;
+			paramsText?: string;
+			paramsFile?: string;
+			url: string;
+			timeoutMs: number;
+			json: boolean;
+			pretty: boolean;
+	  }
+	| {
 			type: "feed-item-read";
 			itemId: string;
 			mode?: FeedModeInput;
@@ -1681,7 +1693,22 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			throw new Error("feed item requires list or read");
+			if (action === "append" || action === "add") {
+				const appendSourceId = sourceId ?? requiredPositional(positionals, 3, "feed item append requires --source <source-id>");
+				return {
+					type: "feed-item-append",
+					mode: feedMode,
+					feedRoot,
+					sourceId: appendSourceId,
+					...paramsSource(positionals.slice(sourceId ? 3 : 4), paramsJson, paramsFile),
+					url: workbenchUrl,
+					timeoutMs,
+					json,
+					pretty,
+					...remoteFields(),
+				};
+			}
+			throw new Error("feed item requires list, read, or append");
 		}
 		if (subcommand === "collect") {
 			return {

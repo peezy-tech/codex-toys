@@ -36,6 +36,7 @@ export const COMMON_TOYBOX_METHODS = [
 	"feed.doctor",
 	"feed.source.list",
 	"feed.poll",
+	"feed.item.append",
 	"feed.item.list",
 	"feed.item.read",
 	"feed.collect",

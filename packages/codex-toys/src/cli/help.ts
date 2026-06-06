@@ -39,6 +39,7 @@ Usage:
   codex-toys feed poll [--source <source-id>] [--json]
   codex-toys feed item list [--source <source-id>] [--status new] [--json]
   codex-toys feed item read <item-id> [--json]
+  codex-toys feed item append --source <source-id> --params-json <json> [--json]
   codex-toys feed collect [--cursor <name>] [--source <source-id>] [--limit <n>] [--no-advance] [--json]
   codex-toys feed cursor advance --cursor <name> --item <item-id> [--json]
   codex-toys feed dispatch --source <source-id> --cursor <name> --target workbench-task:<task-id> [--limit <n>] [--no-poll] [--json]
@@ -199,6 +200,7 @@ Examples:
   codex-toys --ssh devbox --cwd /repo functions list --json
   codex-toys --ssh devbox --cwd /repo functions call portfolioSnapshot --json
   codex-toys feed poll --source openai-blog --json
+  codex-toys feed item append --source hq-dispatch-results --params-json '{"externalId":"run-123","title":"Dispatch result","raw":{"status":"completed"}}' --json
   codex-toys feed collect --cursor radar --json
   codex-toys feed dispatch --source cli-utility-releases --cursor cli-toys-bindings-refresh --target workbench-task:cli-toys-bindings-refresh --json
   codex-toys --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'

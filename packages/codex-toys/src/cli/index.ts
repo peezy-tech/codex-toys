@@ -18,6 +18,7 @@ import {
 	type ParsedCli,
 } from "./args.ts";
 import {
+	appendFeedItem,
 	collectFeedDoctorInfo,
 	collectFeedItems,
 	createFeedContext,
@@ -27,11 +28,13 @@ import {
 	FEED_CURSOR_ADVANCE_METHOD,
 	FEED_DISPATCH_METHOD,
 	FEED_DOCTOR_METHOD,
+	FEED_ITEM_APPEND_METHOD,
 	FEED_ITEM_LIST_METHOD,
 	FEED_ITEM_READ_METHOD,
 	FEED_POLL_METHOD,
 	FEED_PRUNE_METHOD,
 	FEED_SOURCE_LIST_METHOD,
+	feedAppendItemOptionsFromParams,
 	formatFeedDoctorInfo,
 	listFeedItems,
 	loadFeedConfig,
@@ -40,6 +43,7 @@ import {
 	readFeedItem,
 	toFeedEvent,
 	type FeedAdvanceCursorResult,
+	type FeedAppendItemResult,
 	type FeedCollectResult,
 	type FeedDispatchResult,
 	type FeedDoctorInfo,
@@ -422,6 +426,29 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify({ item }, null, parsed.pretty ? 2 : 0)}\n`
 			: `${JSON.stringify(item, null, 2)}\n`);
+		return;
+	}
+	if (parsed.type === "feed-item-append") {
+		const params = {
+			...record(await readParams(parsed.paramsText, parsed.paramsFile)),
+			sourceId: parsed.sourceId,
+		};
+		const result = hasSshRemote(parsed)
+			? await callToybox(FEED_ITEM_APPEND_METHOD, compactUndefined({
+				...params,
+				mode: parsed.mode,
+				feedRoot: parsed.feedRoot,
+			}), parsed) as FeedAppendItemResult
+			: await appendFeedItem(
+				await createFeedContext({
+					root: parsed.feedRoot,
+					mode: parsed.mode,
+				}),
+				feedAppendItemOptionsFromParams(params),
+			);
+		write(parsed.json
+			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
+			: formatFeedAppendResult(result));
 		return;
 	}
 	if (parsed.type === "feed-collect") {
@@ -1435,6 +1462,12 @@ function formatFeedItemList(items: FeedItem[]): string {
 		const link = item.url ? ` ${item.url}` : "";
 		return `${item.id} [${item.sourceId}] ${when} ${item.title}${link}`;
 	}).join("\n")}\n`;
+}
+
+function formatFeedAppendResult(result: FeedAppendItemResult): string {
+	const status = result.appended ? "appended" : "duplicate";
+	const when = result.item.publishedAt ?? result.item.updatedAt ?? result.item.observedAt;
+	return `${status} ${result.item.id} [${result.item.sourceId}] ${when} ${result.item.title}\n`;
 }
 
 function formatFeedCollectResult(result: FeedCollectResult): string {

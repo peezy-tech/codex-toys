@@ -55,7 +55,7 @@ from focused subpaths:
 |--------|---------|
 | `codex-toys/bridge` | Native Codex app-server, auth, memory, thread, JSON-RPC, and generated protocol bridge primitives. |
 | `codex-toys/toybox` | Stdio JSON-RPC toybox client/server protocol. |
-| `codex-toys/feed` | Durable RSS/Atom polling, source checkpoints, feed items, and collection cursors. |
+| `codex-toys/feed` | Durable RSS/Atom polling, manual feed item append, source checkpoints, feed items, and collection cursors. |
 | `codex-toys/workbench` | Workbench runtime, delegation, prompt queue, handoff, functions, workflow, and overview primitives. |
 | `codex-toys/actions` | GitHub/Forgejo Actions auth and state helpers. |
 | `codex-toys/remote` | SSH-backed toybox transports and remote control helpers. |
@@ -114,8 +114,9 @@ await pollFeedSources(context, config, { sourceId: "openai-blog" });
 const batch = await collectFeedItems(context, { cursor: "radar" });
 ```
 
-Feed reads `.codex/feed.toml`, writes mode-scoped state under `.codex/feed/*`,
-and leaves product-specific scoring, prompt policy, and dispatch to consumers.
+Feed reads `.codex/feed.toml`, accepts manual item append, writes mode-scoped
+state under `.codex/feed/*`, and leaves product-specific scoring, prompt policy,
+and dispatch to consumers.
 
 ## Workflow
 

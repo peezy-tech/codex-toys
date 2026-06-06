@@ -7,8 +7,8 @@ description: Primitive-first documentation for codex-toys workflow, workbench, f
 
 `codex-toys` is a workbench layer for Codex. It gives a repository or operator
 process a small set of primitives for running code before Codex turns, operating
-local or SSH-backed workbenches, polling external feeds, scheduling durable work,
-and moving durable Codex state between homes.
+local or SSH-backed workbenches, ingesting external or manual feed signals,
+scheduling durable work, and moving durable Codex state between homes.
 
 The public npm package is `codex-toys`. Internal `@codex-toys/*` packages are
 feature boundaries that are embedded into the public tarball and exposed through
@@ -22,7 +22,7 @@ feature boundaries that are embedded into the public tarball and exposed through
 | Workbench | Repo-local config, modes, scheduled tasks, functions, health, and overview. | [Workbench](primitives/workbench) |
 | Delegation | Starting and tracking Codex work in another workbench-relative cwd. | [Delegation](primitives/delegation) |
 | Dispatch And Queues | Durable future intents, prompt queues, handoff queues, attempts, and collection. | [Dispatch and queues](primitives/dispatch-queues) |
-| Feed | RSS/Atom intake, item storage, cursors, and ack-aware dispatch. | [Feed](primitives/feed) |
+| Feed | RSS/Atom and manual intake, item storage, cursors, and ack-aware dispatch. | [Feed](primitives/feed) |
 
 ## Components
 

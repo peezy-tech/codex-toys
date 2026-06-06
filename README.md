@@ -46,8 +46,8 @@ binding refresh workflow.
 - `packages/bridge`: native Codex app-server, auth, memory, thread, JSON, and
   generated protocol bridge primitives.
 - `packages/toybox`: stdio JSON-RPC toybox client/server protocol.
-- `packages/feed`: durable RSS/Atom polling, source checkpoints, feed items, and
-  collection cursors.
+- `packages/feed`: durable RSS/Atom polling, manual feed item append, source
+  checkpoints, feed items, and collection cursors.
 - `packages/workbench`: workbench runtime, delegation, prompt queue, handoff,
   functions, workflow, and overview primitives.
 - `packages/actions`: Actions-mode auth and state helpers.

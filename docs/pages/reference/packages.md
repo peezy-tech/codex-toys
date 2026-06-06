@@ -37,6 +37,7 @@ Feed intake helpers:
 
 - `.codex/feed.toml` config
 - RSS/Atom polling and normalization
+- manual/local feed item append
 - source checkpoints
 - durable feed item storage
 - collection cursors
@@ -45,6 +46,7 @@ Feed intake helpers:
 
 ```ts
 import {
+  appendFeedItem,
   createFeedContext,
   loadFeedConfig,
   pollFeedSources,
