@@ -8,7 +8,7 @@ description: Primitive-first documentation for codex-toys workflow, workbench, f
 `codex-toys` is a workbench layer for Codex. It gives a repository or operator
 process a small set of primitives for running code before Codex turns, operating
 local or SSH-backed workbenches, ingesting external or manual feed signals,
-scheduling durable work, and moving durable Codex state between homes.
+dispatching durable work, and moving durable Codex state between homes.
 
 The public npm package is `codex-toys`. Internal `@codex-toys/*` packages are
 feature boundaries that are embedded into the public tarball and exposed through
@@ -19,7 +19,7 @@ feature boundaries that are embedded into the public tarball and exposed through
 | Primitive | Owns | Start here |
 |-----------|------|------------|
 | Workflow | A script that inspects state and can start, read, wait on, or delegate Codex turns. | [Workflow](primitives/workflow) |
-| Workbench | Repo-local config, modes, scheduled tasks, functions, health, and overview. | [Workbench](primitives/workbench) |
+| Workbench | Repo-local config, modes, explicit tasks, functions, health, and overview. | [Workbench](primitives/workbench) |
 | Delegation | Starting and tracking Codex work in another workbench-relative cwd. | [Delegation](primitives/delegation) |
 | Dispatch And Queues | Durable future intents, prompt queues, handoff queues, attempts, and collection. | [Dispatch and queues](primitives/dispatch-queues) |
 | Feed | RSS/Atom and manual intake, item storage, cursors, and ack-aware dispatch. | [Feed](primitives/feed) |
@@ -39,7 +39,7 @@ feature boundaries that are embedded into the public tarball and exposed through
 |-------|-------------|
 | [Repository autonomy](guides/repository-autonomy) | A repo should run its workbench on a GitHub Actions schedule and commit durable Codex state back to itself. |
 | [Remote Codex workbench](guides/remote-codex-workbench) | A VPS or SSH host should run a separate Codex workbench controlled from local commands. |
-| [Local scheduled workbench](guides/local-scheduled-workbench) | A trusted local machine should run `workbench tick --mode local` on a systemd user timer. |
+| [Local scheduled workbench](guides/local-scheduled-workbench) | A trusted local machine should run explicit workbench or feed commands on systemd user timers. |
 | [Dashboard over toybox](guides/dashboard-over-toybox) | A browser UI should inspect or operate a local or SSH-backed workbench through the proxy. |
 | [Feed to workflow](guides/feed-to-workflow) | RSS or Atom items should dispatch into workflow-backed workbench tasks. |
 | [Capability kit setup](guides/capability-kit-setup) | A workbench should install checked-in local skills, plugins, or workflows from a kit. |

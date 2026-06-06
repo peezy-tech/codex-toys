@@ -208,7 +208,7 @@ codex-toys app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-toys workbench app thread/list --params-json '{"limit":20,"sourceKinds":[]}'
 codex-toys workbench delegate start --cwd @/repos/example --prompt "Inspect status"
 codex-toys workbench doctor
-codex-toys workbench tick --mode local
+codex-toys workbench run daily-review --mode local
 codex-toys workbench prompt enqueue "Review later." --queue low-priority --effort low
 codex-toys workbench prompt run-due --queue low-priority --limit 1
 codex-toys workbench prompt collect --queue low-priority --json
@@ -226,8 +226,9 @@ codex-toys-proxy serve --ssh <target> --cwd <remote-workbench> --static ./dashbo
 
 See `docs/pages/components/cli.md` for the full command surface.
 
-`workbench doctor` also reports whether it can see a matching local systemd
-user timer that runs `workbench tick` for the current workbench root.
+Use systemd user timers or Actions schedules to run explicit workbench and feed
+commands. `workbench doctor` reports workbench state; scheduler visibility
+belongs to the host scheduler.
 
 Local CLI, MCP, workflow, functions, and delegation use a spawned
 `codex-toys toybox serve` process over stdio. With `--ssh`, the local CLI starts

@@ -35,17 +35,18 @@ repo `.codex` home so CI work can use repo-local skills and memories.
 ```bash
 codex-toys workbench doctor
 codex-toys workbench doctor --mode actions --json
-codex-toys workbench tick --mode local
 codex-toys workbench run <task-id> --mode actions
+codex-toys workbench dispatch run-due --mode actions
 codex-toys workbench overview --json
 codex-toys workbench init actions --forgejo [--image <ref>|--no-image]
 ```
 
 `doctor` reports mode, roots, config, memory presence, task health, latest runs,
-queue health, and local runner visibility when available.
+and queue health.
 
-`tick` creates due scheduled task intents, runs due dispatch work, and evaluates
-reactive rules. `run <task-id>` runs one configured task immediately.
+`run <task-id>` runs one configured task immediately. `dispatch run-due` drains
+durable queued dispatch work. Clocks are owned by the host scheduler: systemd
+timers for local machines and Actions schedules for repository autonomy.
 
 ## Config
 
@@ -58,26 +59,23 @@ id = "daily-check"
 enabled = true
 kind = "workflow"
 workflow = "release-check"
-schedule = "0 14 * * *"
+history = "latest"
 
 [[workbench.tasks]]
 id = "node-version"
 enabled = true
 kind = "command"
 command = ["node", "--version"]
-schedule = "0 * * * *"
-
-[[workbench.reactive]]
-id = "repair-failing-task"
-enabled = true
-task = "*"
-consecutive_failures_gte = 3
-kind = "skill"
-skill = "skill-repair"
+history = "full"
 ```
 
-Task ids should be lowercase slug-like ids. Schedules use five-field cron
-syntax.
+Task ids should be lowercase slug-like ids. `history = "full"` is the default
+and writes per-run status and output files. `history = "latest"` overwrites
+stable latest status and output files for that task.
+
+Task-level schedules and reactive rule blocks are not workbench config
+surfaces. Put recurrence in systemd timers or Actions workflow schedules and
+have those schedulers call explicit codex-toys commands.
 
 ## Task Kinds
 
@@ -103,7 +101,7 @@ codex-toys workbench init actions --github
 For the full GitHub Actions schedule setup, see
 [Repository autonomy](../guides/repository-autonomy).
 
-The generated runner prepares auth, runs `workbench tick --mode actions`,
+The generated runner prepares auth, runs `workbench dispatch run-due --mode actions`,
 cleans up runtime-only files, and preserves durable workbench state. By default
 it runs inside `ghcr.io/peezy-tech/codex-toys-actions:latest`, which supplies
 Node, VitePlus, native Codex CLI, codex-toys, Git, and common shell tools. Pass

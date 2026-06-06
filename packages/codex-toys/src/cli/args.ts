@@ -298,14 +298,6 @@ type ParsedCliBase =
 			json: boolean;
 	  }
 	| {
-			type: "workbench-tick";
-			mode?: WorkbenchModeInput;
-			workbenchRoot?: string;
-			url: string;
-			timeoutMs: number;
-			pretty: boolean;
-	  }
-	| {
 			type: "workbench-run";
 			taskId: string;
 			mode?: WorkbenchModeInput;
@@ -1860,15 +1852,7 @@ export function parseArgs(
 			throw new Error("workbench delegate requires list or start");
 		}
 		if (subcommand === "tick") {
-			return {
-				type: "workbench-tick",
-				mode,
-				workbenchRoot,
-				url: workbenchUrl,
-				timeoutMs,
-				pretty,
-				...remoteFields(),
-			};
+			throw new Error("workbench tick has been removed; run explicit codex-toys commands from systemd or Actions schedules");
 		}
 		if (subcommand === "prompt" || subcommand === "prompts" || subcommand === "prompt-queue") {
 			const action = positionals[2] ?? "list";

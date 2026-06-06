@@ -12,7 +12,8 @@ The full user documentation lives in the Tome docs site under
 [`docs/pages`](docs/pages). The public npm tarball also carries a Markdown
 snapshot at `docs/pages` so installed versions keep matching docs.
 Each release also publishes the Actions-mode base image
-`ghcr.io/peezy-tech/codex-toys-actions:<version>` for scheduled workbench runs.
+`ghcr.io/peezy-tech/codex-toys-actions:<version>` for repository-owned
+workbench runs.
 The OpenAI Codex release feed also publishes native Codex-pinned image tags such
 as `ghcr.io/peezy-tech/codex-toys-actions:codex-0.137.0` before running the
 binding refresh workflow.
@@ -127,7 +128,7 @@ docs site:
 - Primitive pages define the product surface: workflow, workbench, delegation,
   dispatch queues, and feed.
 - Component pages define supporting surfaces: toybox, proxy, kits, and CLI.
-- Guides show end-to-end setup paths for scheduled workbenches, remotes,
+- Guides show end-to-end setup paths for scheduler-owned workbenches, remotes,
   dashboards, feeds, kits, and delegation.
 - Operations pages cover Codex state moves and plugin install.
 - Reference pages define package exports.

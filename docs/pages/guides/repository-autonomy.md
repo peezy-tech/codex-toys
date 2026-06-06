@@ -6,12 +6,12 @@ description: Set up a workbench repo to run Codex work on a GitHub Actions sched
 # Repository Autonomy
 
 Repository autonomy means the repo carries enough Codex workbench state to run
-scheduled work without a human opening Codex locally. The GitHub Actions runner
+Codex work without a human opening Codex locally. The GitHub Actions runner
 uses Actions mode, so the runtime Codex home is the repo-local `.codex`
 directory instead of the operator's global Codex home.
 
-Use this guide when a repository should poll feeds, enqueue or run scheduled
-workbench tasks, execute workflows, and commit durable Codex state back to the
+Use this guide when a repository should let GitHub Actions own recurrence,
+execute explicit codex-toys commands, and commit durable Codex state back to the
 same repo.
 
 ## 1. Scaffold Actions Mode
@@ -34,7 +34,7 @@ The scaffold writes:
 The generated GitHub Actions workflow runs hourly by default and can also be
 started manually with `workflow_dispatch`. It uses the published
 `ghcr.io/peezy-tech/codex-toys-actions:latest` runner image by default so each
-scheduled tick does not reinstall Node, VitePlus, native Codex CLI, and
+scheduled run does not reinstall Node, VitePlus, native Codex CLI, and
 codex-toys.
 
 Use a custom image when a repository needs extra system packages or tools:
@@ -48,7 +48,7 @@ codex-toys during each run.
 
 ## 2. Add Workbench Tasks
 
-Define scheduled tasks in `.codex/workbench.toml`:
+Define explicit tasks in `.codex/workbench.toml`:
 
 ```toml
 [workbench]
@@ -59,24 +59,31 @@ id = "daily-review"
 enabled = true
 kind = "workflow"
 workflow = "daily-review"
-schedule = "0 14 * * *"
+history = "full"
 
 [[workbench.tasks]]
 id = "dependency-check"
 enabled = true
 kind = "command"
 command = ["npm", "outdated", "--json"]
-schedule = "0 9 * * 1"
+history = "latest"
 ```
 
-Task schedules use five-field cron syntax in UTC. `workbench tick --mode actions`
-creates due scheduled intents, runs due dispatch work, evaluates reactive rules,
-and records state under `.codex/workbench/actions`.
+Actions `on.schedule` owns time. Workbench task config does not accept task
+schedules. The generated workflow drains the durable dispatch queue with
+`workbench dispatch run-due --mode actions`; add explicit workflow steps for
+tasks that should run directly on that Actions schedule.
 
 Use `kind = "workflow"` when the task should run a workflow primitive from
 `.codex/workflows/*` or `workflows/*`. Use `kind = "skill"` when the repo has a
 repo-local skill under `.codex/skills/<skill>/SKILL.md`. Use `kind = "command"`
 for explicit shell commands.
+
+For example, a daily Actions workflow can run a configured task directly:
+
+```yaml
+- run: codex-toys workbench run daily-review --mode actions
+```
 
 ## 3. Provide Codex Auth
 
@@ -100,7 +107,7 @@ API-key auth file.
 
 Do not commit `.codex/auth.json`. The scaffold adds runtime-only Codex auth and
 cache paths to `.gitignore`, and the generated workflow runs cleanup after each
-tick.
+run.
 
 ## 4. Commit Durable State
 
@@ -109,7 +116,7 @@ feed config:
 
 ```bash
 git add .codex/workbench.toml .codex/config.toml .github/workflows/codex-toys-actions.yml .gitignore
-git commit -m "Set up Codex workbench schedule"
+git commit -m "Set up Codex workbench runner"
 ```
 
 The generated runner commits durable Actions-mode state after each run when
@@ -132,13 +139,14 @@ Run the same mode locally before relying on the schedule:
 
 ```bash
 codex-toys workbench doctor --mode actions --json
-codex-toys workbench tick --mode actions
+codex-toys workbench dispatch run-due --mode actions
+codex-toys workbench run dependency-check --mode actions
 codex-toys workbench dispatch list --mode actions --json
 ```
 
 Then trigger the GitHub Actions workflow manually or wait for the schedule. A
 healthy run should prepare auth, run
-`codex-toys workbench tick --mode actions`, clean runtime-only files, and
+`codex-toys workbench dispatch run-due --mode actions`, clean runtime-only files, and
 push durable state if anything changed.
 
 ## Repository-Owned Decisions

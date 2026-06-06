@@ -163,7 +163,6 @@ import {
 	runDueDispatchRuns,
 	runWorkbenchTaskById,
 	scaffoldActionsWorkbench,
-	tickWorkbench,
 	type DispatchRunIntent,
 } from "@codex-toys/workbench";
 import {
@@ -653,7 +652,7 @@ async function main(): Promise<void> {
 			workbenchRoot: parsed.workbenchRoot,
 			mode: parsed.mode,
 		});
-		const info = await collectWorkbenchDoctorInfo(context, { includeRunner: true });
+		const info = await collectWorkbenchDoctorInfo(context);
 		const toybox = await collectToyboxInfo({
 			appUrl: parsed.appUrl,
 			workbenchUrl: parsed.workbenchUrl,
@@ -683,23 +682,6 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify(overview, null, parsed.pretty ? 2 : 0)}\n`
 			: formatWorkbenchOverview(overview));
-		return;
-	}
-	if (parsed.type === "workbench-tick") {
-		const context = await createWorkbenchContext({
-			workbenchRoot: parsed.workbenchRoot,
-			mode: parsed.mode,
-		});
-		const result = await withToyboxRequest(parsed, async (request) =>
-			await tickWorkbench(context, {
-				callToybox: request,
-				workflowCwd: parsed.cwd,
-			})
-		);
-		writeJson({
-			...result,
-			actionsCommit: await commitActionsWorkbenchState(context),
-		}, parsed.pretty);
 		return;
 	}
 		if (parsed.type === "workbench-run") {

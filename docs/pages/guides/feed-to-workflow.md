@@ -1,6 +1,6 @@
 ---
 title: Feed To Workflow
-description: Dispatch RSS or Atom feed items into scheduled workbench workflow tasks.
+description: Dispatch RSS or Atom feed items into explicit workbench workflow tasks.
 ---
 
 # Feed To Workflow
@@ -86,8 +86,8 @@ kind = "workflow"
 workflow = "release-check"
 ```
 
-The task does not need a schedule if feed dispatch is the trigger. It can still
-have one if the repo also wants periodic checks.
+The task has no schedule. Feed dispatch is the trigger, and the host scheduler
+decides when to call feed dispatch.
 
 ## 4. Poll and Dispatch
 
@@ -116,30 +116,20 @@ delivery.
 
 ## 5. Schedule the Dispatch
 
-For GitHub Actions, use the repository autonomy guide and add a command task:
+For GitHub Actions, let `on.schedule` own recurrence and run feed dispatch as a
+workflow step:
 
-```toml
-[[workbench.tasks]]
-id = "dispatch-release-feed"
-enabled = true
-kind = "command"
-command = [
-  "codex-toys",
-  "feed",
-  "dispatch",
-  "--source",
-  "project-releases",
-  "--cursor",
-  "release-feed",
-  "--target",
-  "workbench-task:release-check",
-  "--limit",
-  "5"
-]
-schedule = "0 * * * *"
+```yaml
+- run: >-
+    codex-toys feed dispatch
+    --source project-releases
+    --cursor release-feed
+    --target workbench-task:release-check
+    --limit 5
 ```
 
-For a local machine, run the same task through a local scheduled workbench.
+For a local machine, put the same command in a systemd user service and attach
+an `OnCalendar` timer.
 
 ## Boundary
 

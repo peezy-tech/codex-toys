@@ -24,13 +24,15 @@ export type WorkbenchSurface = {
 	taskThreadsChannelId?: string;
 };
 
+export type WorkbenchTaskHistory = "full" | "latest";
+
 export type WorkbenchTask =
 	| {
 			id: string;
 			enabled: boolean;
 			kind: "skill";
 			skill: string;
-			schedule?: string;
+			history: WorkbenchTaskHistory;
 			var?: string;
 	  }
 	| {
@@ -41,30 +43,20 @@ export type WorkbenchTask =
 			event?: Record<string, unknown>;
 			prompt?: string;
 			cwd?: string;
-			schedule?: string;
+			history: WorkbenchTaskHistory;
 	  }
 	| {
 			id: string;
 			enabled: boolean;
 			kind: "command";
 			command: string[];
-			schedule?: string;
+			history: WorkbenchTaskHistory;
 	  };
-
-export type WorkbenchReactiveRule = {
-	id: string;
-	enabled: boolean;
-	task: string;
-	consecutiveFailuresGte: number;
-	kind: "skill";
-	skill: string;
-};
 
 export type WorkbenchConfig = {
 	name: string;
 	surfaces: WorkbenchSurface[];
 	tasks: WorkbenchTask[];
-	reactive: WorkbenchReactiveRule[];
 	path: string;
 };
 
@@ -100,7 +92,7 @@ export type WorkbenchRunRecord = {
 	id: string;
 	taskId: string;
 	status: "completed" | "failed" | "skipped";
-	kind: WorkbenchTask["kind"] | "reactive";
+	kind: WorkbenchTask["kind"];
 	startedAt: string;
 	finishedAt: string;
 	mode: WorkbenchMode;
@@ -316,38 +308,6 @@ export type DispatchRunPruneResult = {
 	}>;
 };
 
-export type WorkbenchRunnerCandidate = {
-	kind: "systemd-user";
-	timer: string;
-	service: string;
-	command?: string;
-	activeState?: string;
-	unitFileState?: string;
-	timerActiveState?: string;
-	timerUnitFileState?: string;
-	nextTrigger?: string;
-	lastTrigger?: string;
-	workbenchRoot?: string;
-	runsWorkbenchTick: boolean;
-	runsDispatchOnly: boolean;
-	matchesWorkbench: boolean;
-};
-
-export type WorkbenchRunnerInfo = {
-	kind: "systemd-user";
-	status: "active" | "inactive" | "missing" | "unsupported" | "unknown";
-	workbenchRoot: string;
-	selected?: WorkbenchRunnerCandidate;
-	candidates: WorkbenchRunnerCandidate[];
-	warning?: string;
-	error?: string;
-};
-
-export type WorkbenchDoctorOptions = {
-	includeRunner?: boolean;
-	runnerProbe?: (args: string[]) => Promise<string>;
-};
-
 export type WorkbenchDoctorInfo = {
 	mode: WorkbenchMode;
 	requestedMode: WorkbenchModeInput;
@@ -364,7 +324,6 @@ export type WorkbenchDoctorInfo = {
 	globalMemorySummaryExists: boolean;
 	workbenchMemorySummaryExists: boolean;
 	taskCount: number;
-	dueCount: number;
 	failingCount: number;
 	dispatchCount: number;
 	dispatchDueCount: number;
@@ -372,7 +331,6 @@ export type WorkbenchDoctorInfo = {
 	dispatchFailedCount: number;
 	latestRun?: WorkbenchRunRecord;
 	latestDispatchRun?: DispatchRunIntent;
-	runner?: WorkbenchRunnerInfo;
 	surfaces: WorkbenchSurface[];
 	errors: string[];
 };
@@ -484,7 +442,9 @@ export async function loadWorkbenchConfig(context: WorkbenchContext): Promise<Wo
 	const workbench = isRecord(parsed.workbench) ? parsed.workbench : undefined;
 	const surfacesInput = Array.isArray(workbench?.surfaces) ? workbench.surfaces : [];
 	const tasksInput = Array.isArray(workbench?.tasks) ? workbench.tasks : [];
-	const reactiveInput = Array.isArray(workbench?.reactive) ? workbench.reactive : [];
+	if (workbench?.reactive !== undefined) {
+		throw new Error("workbench.reactive has been removed; run explicit tasks or dispatch queues from systemd or Actions schedules");
+	}
 	const tasks = tasksInput.map(parseTask);
 	const ids = new Set<string>();
 	for (const task of tasks) {
@@ -497,14 +457,12 @@ export async function loadWorkbenchConfig(context: WorkbenchContext): Promise<Wo
 		name: stringValue(workbench?.name, path.basename(context.repoRoot)),
 		surfaces: surfacesInput.map(parseSurface),
 		tasks,
-		reactive: reactiveInput.map(parseReactiveRule),
 		path: context.configPath,
 	};
 }
 
 export async function collectWorkbenchDoctorInfo(
 	context: WorkbenchContext,
-	options: WorkbenchDoctorOptions = {},
 ): Promise<WorkbenchDoctorInfo> {
 	let config: WorkbenchConfig | undefined;
 	let configExists = true;
@@ -530,15 +488,6 @@ export async function collectWorkbenchDoctorInfo(
 		dispatchRuns.map(async (intent) => await isDispatchIntentDue(context, intent, now)),
 	);
 	const failingCount = countFailingTasks(config?.tasks ?? [], runs);
-	const includeRunner = options.includeRunner === true || options.runnerProbe !== undefined;
-	const runner = includeRunner
-		? await collectWorkbenchRunnerInfo(
-			context,
-			config?.tasks ?? [],
-			dispatchRuns,
-			options.runnerProbe ?? runSystemctlUser,
-		)
-		: undefined;
 	return {
 		mode: context.mode,
 		requestedMode: context.requestedMode,
@@ -555,7 +504,6 @@ export async function collectWorkbenchDoctorInfo(
 		globalMemorySummaryExists: await exists(path.join(context.globalCodexHome, "memories", "memory_summary.md")),
 		workbenchMemorySummaryExists: await exists(path.join(context.workbenchCodexHome, "memories", "memory_summary.md")),
 		taskCount: config?.tasks.length ?? 0,
-		dueCount: dueTasks(config?.tasks ?? [], runs, new Date()).length,
 		failingCount,
 		dispatchCount: dispatchRuns.length,
 		dispatchDueCount: dispatchDueFlags.filter(Boolean).length,
@@ -563,7 +511,6 @@ export async function collectWorkbenchDoctorInfo(
 		dispatchFailedCount: dispatchRuns.filter((intent) => intent.status === "failed").length,
 		latestRun,
 		latestDispatchRun,
-		runner,
 		surfaces: config?.surfaces ?? [],
 		errors: workbenchDoctorErrors(context),
 	};
@@ -581,7 +528,7 @@ export function formatWorkbenchDoctorInfo(info: WorkbenchDoctorInfo): string {
 		["actions state", info.actionsStateRoot],
 		["global memories", `${info.globalMemoryRoot}${info.globalMemorySummaryExists ? " (summary)" : ""}`],
 		["workbench memories", `${info.workbenchMemoryRoot}${info.workbenchMemorySummaryExists ? " (summary)" : ""}`],
-		["tasks", `${info.taskCount} configured, ${info.dueCount} due, ${info.failingCount} failing`],
+		["tasks", `${info.taskCount} configured, ${info.failingCount} failing`],
 		["latest run", info.latestRun ? `${info.latestRun.status} ${info.latestRun.taskId} ${info.latestRun.finishedAt}` : "none"],
 		[
 			"dispatch runs",
@@ -593,11 +540,7 @@ export function formatWorkbenchDoctorInfo(info: WorkbenchDoctorInfo): string {
 				? `${info.latestDispatchRun.status} ${info.latestDispatchRun.id} ${info.latestDispatchRun.updatedAt}`
 				: "none",
 		],
-		["runner", formatWorkbenchRunnerInfo(info.runner)],
 	];
-	if (info.runner?.warning) {
-		rows.push(["runner warning", info.runner.warning]);
-	}
 	for (const error of info.errors) {
 		rows.push(["error", error]);
 	}
@@ -628,42 +571,6 @@ export async function scaffoldActionsWorkbench(
 		retiredActionsGitignoreEntries(),
 	));
 	return { workbenchRoot, files };
-}
-
-export async function tickWorkbench(
-	context: WorkbenchContext,
-	options: {
-		callToybox: (method: string, params: unknown) => Promise<unknown>;
-		workflowCwd?: string;
-	},
-): Promise<{ mode: WorkbenchMode; due: string[]; runs: WorkbenchRunRecord[] }> {
-	await ensureStateDirs(context);
-	const config = await loadWorkbenchConfig(context);
-	const previousRuns = await readRuns(context);
-	const previousIntents = await listDispatchRunIntents(context);
-	const now = new Date();
-	const due = dueTasks(config.tasks, previousRuns, now, previousIntents);
-	const runs: WorkbenchRunRecord[] = [];
-	for (const task of due) {
-		await createScheduledWorkbenchTaskIntent(context, task, now);
-	}
-	const executions = await runDueDispatchRuns(context, options);
-	for (const execution of executions.executions) {
-		const workbenchRun = record(execution.output).workbenchRun;
-		if (isWorkbenchRunRecord(workbenchRun)) {
-			runs.push(workbenchRun);
-		}
-	}
-	const allRuns = [...previousRuns, ...runs];
-	for (const rule of config.reactive.filter((item) => item.enabled)) {
-		const targets = config.tasks.filter((task) =>
-			rule.task === "*" ? true : task.id === rule.task
-		);
-		if (targets.some((task) => consecutiveFailures(task.id, allRuns) >= rule.consecutiveFailuresGte)) {
-			runs.push(await runReactiveRule(context, rule));
-		}
-	}
-	return { mode: context.mode, due: due.map((task) => task.id), runs };
 }
 
 export async function runWorkbenchTaskById(
@@ -1270,13 +1177,13 @@ async function runWorkbenchTask(
 ): Promise<WorkbenchRunRecord> {
 	const startedAt = new Date().toISOString();
 	const runId = workbenchRunId(task.id, startedAt);
-	const outputPath = path.join(context.stateRoot, "outputs", `${runId}.json`);
+	const outputPath = workbenchTaskOutputPath(context, task, runId);
 	try {
 		let result: unknown;
 		if (!task.enabled) {
 			result = { skipped: "disabled" };
 			const run = runRecord(context, runId, task.id, task.kind, startedAt, "skipped", outputPath);
-			await persistRun(context, run, result);
+			await persistRun(context, task, run, result);
 			return run;
 		}
 		if (task.kind === "workflow") {
@@ -1294,17 +1201,27 @@ async function runWorkbenchTask(
 			result = await runSkill(task, context);
 		}
 		const run = runRecord(context, runId, task.id, task.kind, startedAt, "completed", outputPath);
-		await persistRun(context, run, result);
+		await persistRun(context, task, run, result);
 		return run;
 	} catch (error) {
 		const run = runRecord(context, runId, task.id, task.kind, startedAt, "failed", outputPath, errorMessage(error));
-		await persistRun(context, run, { error: errorMessage(error) });
+		await persistRun(context, task, run, { error: errorMessage(error) });
 		return run;
 	}
 }
 
 function workbenchRunId(taskId: string, startedAt: string): string {
 	return `${startedAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}-${taskId}`;
+}
+
+function workbenchTaskOutputPath(
+	context: WorkbenchContext,
+	task: WorkbenchTask,
+	runId: string,
+): string {
+	return task.history === "latest"
+		? path.join(latestOutputDir(context), `${safeFileSegment(task.id)}.json`)
+		: path.join(context.stateRoot, "outputs", `${runId}.json`);
 }
 
 async function runWorkflowTask(
@@ -1392,7 +1309,6 @@ async function executeDispatchRunTarget(
 				name: path.basename(context.repoRoot),
 				surfaces: [],
 				tasks: [],
-				reactive: [],
 				path: context.configPath,
 			} satisfies WorkbenchConfig));
 			const result = await runWorkflowDispatchTarget(
@@ -1578,31 +1494,6 @@ function exhaustiveTarget(value: never): never {
 	throw new Error(`Unsupported dispatch run target: ${JSON.stringify(value)}`);
 }
 
-async function runReactiveRule(
-	context: WorkbenchContext,
-	rule: WorkbenchReactiveRule,
-): Promise<WorkbenchRunRecord> {
-	const startedAt = new Date().toISOString();
-	const runId = `${startedAt.replace(/[:.]/g, "-")}-${rule.id}`;
-	const outputPath = path.join(context.stateRoot, "outputs", `${runId}.json`);
-	try {
-		const result = await runSkill({
-			id: rule.id,
-			enabled: rule.enabled,
-			kind: "skill",
-			skill: rule.skill,
-			var: `repair failures for ${rule.task}`,
-		}, context);
-		const run = runRecord(context, runId, rule.id, "reactive", startedAt, "completed", outputPath);
-		await persistRun(context, run, result);
-		return run;
-	} catch (error) {
-		const run = runRecord(context, runId, rule.id, "reactive", startedAt, "failed", outputPath, errorMessage(error));
-		await persistRun(context, run, { error: errorMessage(error) });
-		return run;
-	}
-}
-
 async function runSkill(task: Extract<WorkbenchTask, { kind: "skill" }>, context: WorkbenchContext) {
 	const skillPath = path.join(context.runtimeCodexHome, "skills", task.skill, "SKILL.md");
 	if (!await exists(skillPath)) {
@@ -1660,19 +1551,6 @@ async function runGit(cwd: string, args: string[]): Promise<{ stdout: string; st
 	return { stdout, stderr };
 }
 
-async function runSystemctlUser(args: string[]): Promise<string> {
-	const proc = spawn("systemctl", ["--user", ...args]);
-	const [stdout, stderr, exitCode] = await Promise.all([
-		collectText(proc.stdout),
-		collectText(proc.stderr),
-		exitCodeFor(proc),
-	]);
-	if (exitCode !== 0) {
-		throw new Error(`systemctl --user ${args.join(" ")} failed (${exitCode}): ${stderr || stdout}`);
-	}
-	return stdout;
-}
-
 function collectText(stream: NodeJS.ReadableStream | null): Promise<string> {
 	return new Promise((resolve, reject) => {
 		let output = "";
@@ -1696,17 +1574,26 @@ function exitCodeFor(child: ReturnType<typeof spawn>): Promise<number | null> {
 	});
 }
 
-async function persistRun(context: WorkbenchContext, run: WorkbenchRunRecord, output: unknown): Promise<void> {
+async function persistRun(
+	context: WorkbenchContext,
+	task: WorkbenchTask,
+	run: WorkbenchRunRecord,
+	output: unknown,
+): Promise<void> {
 	await ensureStateDirs(context);
 	if (run.outputPath) {
 		await writeFile(run.outputPath, `${JSON.stringify(output, null, 2)}\n`);
 	}
-	await writeFile(path.join(context.stateRoot, "runs", `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`);
+	const runPath = task.history === "latest"
+		? path.join(latestRunDir(context), `${safeFileSegment(task.id)}.json`)
+		: path.join(context.stateRoot, "runs", `${run.id}.json`);
+	await writeFile(runPath, `${JSON.stringify(run, null, 2)}\n`);
 	await writeHealth(context, run);
 }
 
 async function writeHealth(context: WorkbenchContext, run: WorkbenchRunRecord): Promise<void> {
-	const runs = [...await readRuns(context), run].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+	const runs = uniqueWorkbenchRuns([...await readRuns(context), run])
+		.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 	const health = {
 		updatedAt: new Date().toISOString(),
 		latestRun: run,
@@ -1721,59 +1608,35 @@ async function writeHealth(context: WorkbenchContext, run: WorkbenchRunRecord): 
 }
 
 async function readRuns(context: WorkbenchContext): Promise<WorkbenchRunRecord[]> {
-	const dir = path.join(context.stateRoot, "runs");
-	try {
-		const entries = await readdir(dir);
-		const runs: WorkbenchRunRecord[] = [];
-		for (const entry of entries) {
-			if (!entry.endsWith(".json")) {
-				continue;
-			}
-			try {
-				const runPath = path.join(dir, entry);
-				const parsed = parseJsonText(
-					await readFile(runPath, "utf8"),
-					runPath,
-				) as WorkbenchRunRecord;
-				if (parsed && typeof parsed.taskId === "string") {
-					runs.push(parsed);
+	const dirs = [path.join(context.stateRoot, "runs"), latestRunDir(context)];
+	const runs: WorkbenchRunRecord[] = [];
+	for (const dir of dirs) {
+		try {
+			const entries = await readdir(dir);
+			for (const entry of entries) {
+				if (!entry.endsWith(".json")) {
+					continue;
 				}
-			} catch {}
+				try {
+					const runPath = path.join(dir, entry);
+					const parsed = parseJsonText(
+						await readFile(runPath, "utf8"),
+						runPath,
+					);
+					if (isWorkbenchRunRecord(parsed)) {
+						runs.push(parsed);
+					}
+				} catch {}
+			}
+		} catch {
+			continue;
 		}
-		return runs;
-	} catch {
-		return [];
 	}
+	return uniqueWorkbenchRuns(runs);
 }
 
-async function createScheduledWorkbenchTaskIntent(
-	context: WorkbenchContext,
-	task: WorkbenchTask,
-	now: Date,
-): Promise<DispatchRunIntent | undefined> {
-	try {
-		return await createDispatchRunIntent(context, {
-			id: scheduledDispatchRunId(task.id, now),
-			runAt: now.toISOString(),
-			target: {
-				kind: "workbench-task",
-				taskId: task.id,
-			},
-			createdBy: "workbench-schedule",
-			reason: `Scheduled workbench task ${task.id}`,
-			source: {
-				kind: "workbench-task-schedule",
-				taskId: task.id,
-				schedule: task.schedule,
-				date: now.toISOString().slice(0, 10),
-			},
-		});
-	} catch (error) {
-		if (isAlreadyExistsError(error)) {
-			return undefined;
-		}
-		throw error;
-	}
+function uniqueWorkbenchRuns(runs: WorkbenchRunRecord[]): WorkbenchRunRecord[] {
+	return [...new Map(runs.map((run) => [run.id, run])).values()];
 }
 
 async function readDispatchRunIntent(
@@ -2251,67 +2114,6 @@ function normalizeDispatchRunCollectCursor(
 	});
 }
 
-function dueTasks(
-	tasks: WorkbenchTask[],
-	runs: WorkbenchRunRecord[],
-	now: Date,
-	intents: DispatchRunIntent[] = [],
-): WorkbenchTask[] {
-	return tasks.filter((task) => {
-		if (!task.enabled) {
-			return false;
-		}
-		if (!task.schedule) {
-			return false;
-		}
-		return isScheduleDue(task.schedule, now) &&
-			!hasRunForDate(task.id, runs, now) &&
-			!hasScheduledIntentForDate(task.id, intents, now);
-	});
-}
-
-function isScheduleDue(schedule: string, now: Date): boolean {
-	const parts = schedule.trim().split(/\s+/);
-	if (parts.length !== 5) {
-		throw new Error(`Invalid workbench task schedule: ${schedule}`);
-	}
-	const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-	return cronPartMatches(minute, now.getUTCMinutes()) &&
-		cronPartMatches(hour, now.getUTCHours()) &&
-		cronPartMatches(dayOfMonth, now.getUTCDate()) &&
-		cronPartMatches(month, now.getUTCMonth() + 1) &&
-		cronPartMatches(dayOfWeek, now.getUTCDay());
-}
-
-function cronPartMatches(part: string | undefined, value: number): boolean {
-	if (!part || part === "*") {
-		return true;
-	}
-	return part.split(",").some((item) => Number.parseInt(item, 10) === value);
-}
-
-function hasRunForDate(taskId: string, runs: WorkbenchRunRecord[], now: Date): boolean {
-	const today = now.toISOString().slice(0, 10);
-	return runs.some((run) => run.taskId === taskId && run.startedAt.startsWith(today));
-}
-
-function hasScheduledIntentForDate(
-	taskId: string,
-	intents: DispatchRunIntent[],
-	now: Date,
-): boolean {
-	const expected = scheduledDispatchRunId(taskId, now);
-	return intents.some((intent) =>
-		intent.id === expected ||
-		(
-			intent.target.kind === "workbench-task" &&
-			intent.target.taskId === taskId &&
-			intent.source?.kind === "workbench-task-schedule" &&
-			intent.source.date === now.toISOString().slice(0, 10)
-		)
-	);
-}
-
 async function isDispatchIntentDue(
 	context: WorkbenchContext,
 	intent: DispatchRunIntent,
@@ -2401,204 +2203,6 @@ function workbenchDoctorErrors(context: WorkbenchContext): string[] {
 	return [];
 }
 
-async function collectWorkbenchRunnerInfo(
-	context: WorkbenchContext,
-	tasks: WorkbenchTask[],
-	dispatchRuns: DispatchRunIntent[],
-	probe: (args: string[]) => Promise<string>,
-): Promise<WorkbenchRunnerInfo> {
-	const workbenchRoot = path.resolve(context.repoRoot);
-	const hasScheduledWork = tasks.some((task) => task.enabled && task.schedule);
-	const hasPendingDispatchWork = dispatchRuns.some((intent) =>
-		intent.status === "pending" || intent.status === "running"
-	);
-	const hasRunnableWork = hasScheduledWork || hasPendingDispatchWork;
-	const base: Pick<WorkbenchRunnerInfo, "kind" | "workbenchRoot" | "candidates"> = {
-		kind: "systemd-user",
-		workbenchRoot,
-		candidates: [],
-	};
-	if (context.mode !== "local") {
-		return {
-			...base,
-			status: "unsupported",
-			warning: hasRunnableWork
-				? "Runner visibility currently checks local systemd user timers only."
-				: undefined,
-		};
-	}
-	if (os.platform() !== "linux") {
-		return {
-			...base,
-			status: "unsupported",
-			warning: hasRunnableWork
-				? "No local systemd user timer check is available on this platform."
-				: undefined,
-		};
-	}
-	try {
-		const timerRows = parseSystemdTimerRows(
-			await probe(["list-timers", "--all", "--no-legend", "--no-pager"]),
-		);
-		const candidates: WorkbenchRunnerCandidate[] = [];
-		for (const row of timerRows) {
-			const serviceShow = parseSystemdShow(await probe([
-				"show",
-				row.service,
-				"--property=ExecStart",
-				"--property=ActiveState",
-				"--property=UnitFileState",
-				"--no-pager",
-			]));
-			const command = normalizeSystemdCommand(serviceShow.ExecStart);
-			if (!command.includes("codex-toys")) {
-				continue;
-			}
-			const runsWorkbenchTick = /\bworkbench\s+tick\b/.test(command);
-			const runsDispatchOnly = /\bworkbench\s+dispatch\s+run-due\b/.test(command);
-			if (!runsWorkbenchTick && !runsDispatchOnly) {
-				continue;
-			}
-			const timerShow = parseSystemdShow(await probe([
-				"show",
-				row.timer,
-				"--property=ActiveState",
-				"--property=UnitFileState",
-				"--property=NextElapseUSecRealtime",
-				"--property=LastTriggerUSec",
-				"--no-pager",
-			]));
-			const runnerWorkbenchRoot = extractWorkbenchRootFromCommand(command);
-			const matchesWorkbench = runnerWorkbenchRoot
-				? path.resolve(runnerWorkbenchRoot) === workbenchRoot
-				: command.includes(workbenchRoot);
-			candidates.push(compactUndefined({
-				kind: "systemd-user",
-				timer: row.timer,
-				service: row.service,
-				command,
-				activeState: serviceShow.ActiveState,
-				unitFileState: serviceShow.UnitFileState,
-				timerActiveState: timerShow.ActiveState,
-				timerUnitFileState: timerShow.UnitFileState,
-				nextTrigger: timerShow.NextElapseUSecRealtime,
-				lastTrigger: timerShow.LastTriggerUSec,
-				workbenchRoot: runnerWorkbenchRoot,
-				runsWorkbenchTick,
-				runsDispatchOnly,
-				matchesWorkbench,
-			}));
-		}
-		const selected = candidates.find((candidate) =>
-			candidate.matchesWorkbench &&
-			candidate.runsWorkbenchTick &&
-			candidate.timerActiveState === "active"
-		) ?? candidates.find((candidate) =>
-			candidate.matchesWorkbench &&
-			candidate.timerActiveState === "active"
-		) ?? candidates.find((candidate) =>
-			candidate.matchesWorkbench &&
-			candidate.runsWorkbenchTick
-		) ?? candidates.find((candidate) => candidate.matchesWorkbench);
-		if (!selected) {
-			return {
-				...base,
-				status: "missing",
-				candidates,
-				warning: hasRunnableWork
-					? "No matching local runner was found; due work needs a manual tick or another scheduler."
-					: undefined,
-			};
-		}
-		const status = selected.timerActiveState === "active" ? "active" : "inactive";
-		return {
-			...base,
-			status,
-			selected,
-			candidates,
-			warning: selected.runsDispatchOnly
-				? "The matching runner only runs dispatch work; scheduled tasks need workbench tick."
-				: status === "inactive" && hasRunnableWork
-					? "The matching local runner is not active; due work needs a manual tick or another scheduler."
-					: undefined,
-		};
-	} catch (error) {
-		return {
-			...base,
-			status: "unknown",
-			error: error instanceof Error ? error.message : String(error),
-			warning: hasRunnableWork
-				? "Could not inspect local runner status; due work may need a manual tick or another scheduler."
-				: undefined,
-		};
-	}
-}
-
-function parseSystemdTimerRows(output: string): Array<{ timer: string; service: string }> {
-	const rows: Array<{ timer: string; service: string }> = [];
-	for (const line of output.split(/\r?\n/)) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		const fields = trimmed.split(/\s+/);
-		const timerIndex = fields.findIndex((field) => field.endsWith(".timer"));
-		if (timerIndex < 0) {
-			continue;
-		}
-		const timer = fields[timerIndex];
-		const service = fields[timerIndex + 1];
-		if (!timer || !service?.endsWith(".service")) {
-			continue;
-		}
-		rows.push({ timer, service });
-	}
-	return rows;
-}
-
-function parseSystemdShow(output: string): Record<string, string> {
-	const result: Record<string, string> = {};
-	for (const line of output.split(/\r?\n/)) {
-		const index = line.indexOf("=");
-		if (index <= 0) {
-			continue;
-		}
-		result[line.slice(0, index)] = line.slice(index + 1);
-	}
-	return result;
-}
-
-function normalizeSystemdCommand(value: string | undefined): string {
-	return (value ?? "")
-		.replace(/\\x([0-9a-fA-F]{2})/g, (_match, hex: string) =>
-			String.fromCharCode(Number.parseInt(hex, 16))
-		)
-		.replace(/\s+/g, " ")
-		.trim();
-}
-
-function extractWorkbenchRootFromCommand(command: string): string | undefined {
-	const match = command.match(/--workbench-root(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s;]+))/);
-	return match?.[1] ?? match?.[2] ?? match?.[3];
-}
-
-function formatWorkbenchRunnerInfo(runner: WorkbenchRunnerInfo | undefined): string {
-	if (!runner) {
-		return "not checked";
-	}
-	if (runner.selected) {
-		const command = runner.selected.runsWorkbenchTick ? "workbench tick" : "workbench dispatch run-due";
-		return `${runner.status} ${runner.selected.timer} -> ${runner.selected.service} (${command})`;
-	}
-	if (runner.status === "unsupported") {
-		return "unsupported";
-	}
-	if (runner.status === "unknown") {
-		return `unknown${runner.error ? ` (${runner.error})` : ""}`;
-	}
-	return `${runner.status}${runner.candidates.length > 0 ? ` (${runner.candidates.length} codex-toys runner candidates)` : ""}`;
-}
-
 function consecutiveFailures(taskId: string, runs: WorkbenchRunRecord[]): number {
 	let count = 0;
 	for (const run of runs.filter((item) => item.taskId === taskId).sort((a, b) => b.startedAt.localeCompare(a.startedAt))) {
@@ -2634,7 +2238,7 @@ function runRecord(
 }
 
 async function ensureStateDirs(context: WorkbenchContext): Promise<void> {
-	for (const name of ["state", "runs", "outputs", "health"]) {
+	for (const name of ["state", "runs", "outputs", "latest-runs", "latest-outputs", "health"]) {
 		await mkdir(path.join(context.stateRoot, name), { recursive: true });
 	}
 }
@@ -2713,8 +2317,12 @@ function dispatchAttemptId(intentId: string, startedAt: string): string {
 	return `${startedAt.replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}-${safeFileSegment(intentId).slice(0, 48)}`;
 }
 
-function scheduledDispatchRunId(taskId: string, now: Date): string {
-	return `scheduled-${safeFileSegment(taskId)}-${now.toISOString().slice(0, 10)}`;
+function latestRunDir(context: WorkbenchContext): string {
+	return path.join(context.stateRoot, "latest-runs");
+}
+
+function latestOutputDir(context: WorkbenchContext): string {
+	return path.join(context.stateRoot, "latest-outputs");
 }
 
 function safeFileSegment(value: string): string {
@@ -2854,7 +2462,7 @@ function actionsWorkflowTemplate(provider: "forgejo" | "github", runnerImage: st
 		"          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}",
 		"          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}",
 		"          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
-		`      - run: ${runnerImage ? "codex-toys" : "vp dlx codex-toys"} workbench tick --mode actions`,
+		`      - run: ${runnerImage ? "codex-toys" : "vp dlx codex-toys"} workbench dispatch run-due --mode actions`,
 		"      - if: always()",
 		`        run: ${runnerImage ? "codex-toys" : "vp dlx codex-toys"} actions cleanup`,
 		"      - if: always()",
@@ -2925,12 +2533,12 @@ function parseTask(input: unknown): WorkbenchTask {
 	const id = requiredTaskId(input.id);
 	const enabled = input.enabled === undefined ? true : booleanValue(input.enabled, `workbench task ${id} enabled`);
 	const kind = requiredString(input.kind, `workbench task ${id} kind`);
-	const schedule = optionalString(input.schedule);
-	if (schedule) {
-		isScheduleDue(schedule, new Date());
+	if (input.schedule !== undefined) {
+		throw new Error(`workbench task ${id} schedule has been removed; run explicit codex-toys commands from systemd or Actions schedules`);
 	}
+	const history = workbenchTaskHistoryValue(input.history, `workbench task ${id} history`);
 	if (kind === "skill") {
-		return { id, enabled, kind, skill: requiredString(input.skill, `workbench task ${id} skill`), schedule, var: optionalString(input.var) };
+		return { id, enabled, kind, skill: requiredString(input.skill, `workbench task ${id} skill`), history, var: optionalString(input.var) };
 	}
 	if (kind === "workflow") {
 		return {
@@ -2938,7 +2546,7 @@ function parseTask(input: unknown): WorkbenchTask {
 			enabled,
 			kind,
 			workflow: requiredString(input.workflow, `workbench task ${id} workflow`),
-			schedule,
+			history,
 			event: isRecord(input.event) ? input.event : undefined,
 			prompt: optionalString(input.prompt),
 			cwd: optionalString(input.cwd),
@@ -2948,28 +2556,9 @@ function parseTask(input: unknown): WorkbenchTask {
 		if (!Array.isArray(input.command) || !input.command.every((item) => typeof item === "string")) {
 			throw new Error(`workbench task ${id} command must be an array of strings`);
 		}
-		return { id, enabled, kind, command: input.command, schedule };
+		return { id, enabled, kind, command: input.command, history };
 	}
 	throw new Error(`Invalid workbench task kind for ${id}: ${kind}`);
-}
-
-function parseReactiveRule(input: unknown): WorkbenchReactiveRule {
-	if (!isRecord(input)) {
-		throw new Error("workbench.reactive entries must be tables");
-	}
-	const id = requiredTaskId(input.id);
-	const kind = requiredString(input.kind, `workbench reactive ${id} kind`);
-	if (kind !== "skill") {
-		throw new Error(`Invalid workbench reactive kind for ${id}: ${kind}`);
-	}
-	return {
-		id,
-		enabled: input.enabled === undefined ? true : booleanValue(input.enabled, `workbench reactive ${id} enabled`),
-		task: requiredString(input.task, `workbench reactive ${id} task`),
-		consecutiveFailuresGte: positiveInteger(input.consecutive_failures_gte, `workbench reactive ${id} consecutive_failures_gte`),
-		kind,
-		skill: requiredString(input.skill, `workbench reactive ${id} skill`),
-	};
 }
 
 function requiredTaskId(value: unknown): string {
@@ -3018,6 +2607,16 @@ function booleanValue(value: unknown, label: string): boolean {
 		throw new Error(`${label} must be a boolean`);
 	}
 	return value;
+}
+
+function workbenchTaskHistoryValue(value: unknown, label: string): WorkbenchTaskHistory {
+	if (value === undefined) {
+		return "full";
+	}
+	if (value === "full" || value === "latest") {
+		return value;
+	}
+	throw new Error(`${label} must be full or latest`);
 }
 
 function stringRecord(value: unknown): Record<string, string> | undefined {
@@ -3136,13 +2735,6 @@ function workbenchMode(value: unknown): WorkbenchMode {
 		return value;
 	}
 	throw new Error(`Invalid workbench mode: ${String(value)}`);
-}
-
-function positiveInteger(value: unknown, label: string): number {
-	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-		throw new Error(`${label} must be a positive integer`);
-	}
-	return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

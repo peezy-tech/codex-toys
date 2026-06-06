@@ -165,7 +165,8 @@ method, not a direct app-server method.
 
 ## Workbench Tasks
 
-Workbench tasks can run named workflows on a schedule or from `workbench run`:
+Workbench tasks can run named workflows from `workbench run`, dispatch targets,
+or feed dispatch:
 
 ```toml
 [workbench]
@@ -176,9 +177,9 @@ id = "release-check"
 enabled = true
 kind = "workflow"
 workflow = "release-check"
-schedule = "0 14 * * *"
 ```
 
-Scheduled workflow tasks create dispatch run intents, so scheduled work and
-one-shot dispatch work share the same claiming, attempt, output, retry, and
-collection path.
+Use systemd timers or Actions schedules to call explicit commands when a
+workflow should run on a clock. Durable dispatch and feed dispatch can also
+target the workflow-backed task so queued work shares the same attempt, output,
+retry, and collection path.

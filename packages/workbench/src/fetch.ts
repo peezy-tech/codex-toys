@@ -123,7 +123,7 @@ export function formatFetchInfo(
 					["workbench mode", info.workbench.mode],
 					["workbench root", info.workbench.repoRoot],
 					["state root", info.workbench.stateRoot],
-					["tasks", `${info.workbench.taskCount} configured, ${info.workbench.dueCount} due, ${info.workbench.failingCount} failing`],
+					["tasks", `${info.workbench.taskCount} configured, ${info.workbench.failingCount} failing`],
 				] as Array<[string, string]>
 			: []),
 		["toybox status", toyboxLabel(info.toybox)],

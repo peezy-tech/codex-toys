@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -29,7 +29,6 @@ import {
 	runDueDispatchRuns,
 	runWorkbenchTaskById,
 	scaffoldActionsWorkbench,
-	tickWorkbench,
 	commitActionsWorkbenchState,
 } from "@codex-toys/workbench";
 
@@ -75,8 +74,8 @@ describe("workbench autonomy", () => {
 	test("parses workbench and memories commands without disturbing JSON-RPC commands", () => {
 		expect(parseArgs(["workbench", "doctor", "--mode", "actions"], {}))
 			.toMatchObject({ type: "workbench-doctor", mode: "actions" });
-		expect(parseArgs(["workbench", "tick", "--workbench-root", "/tmp/work"], {}))
-			.toMatchObject({ type: "workbench-tick", workbenchRoot: "/tmp/work" });
+		expect(() => parseArgs(["workbench", "tick", "--workbench-root", "/tmp/work"], {}))
+			.toThrow("workbench tick has been removed");
 			expect(parseArgs(["workbench", "run", "morning-brief"], {}))
 				.toMatchObject({ type: "workbench-run", taskId: "morning-brief" });
 			expect(parseArgs([
@@ -207,22 +206,14 @@ id = "daily"
 enabled = true
 kind = "command"
 command = ["node", "--version"]
-schedule = "* * * * *"
-
-[[workbench.reactive]]
-id = "repair"
-enabled = true
-task = "*"
-consecutive_failures_gte = 3
-kind = "skill"
-skill = "skill-repair"
+history = "latest"
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "actions", env: {} });
 		const config = await loadWorkbenchConfig(context);
 		expect(config.name).toBe("demo");
 		expect(config.surfaces[0]?.kind).toBe("local");
 		expect(config.tasks.map((task) => task.id)).toEqual(["daily"]);
-		expect(config.reactive[0]?.skill).toBe("skill-repair");
+		expect(config.tasks[0]?.history).toBe("latest");
 		expect(context.runtimeCodexHome).toBe(path.join(root, ".codex"));
 		expect(context.stateRoot).toBe(path.join(root, ".codex", "workbench", "actions"));
 		expect(context.actionsCommitPaths).toEqual([
@@ -261,44 +252,52 @@ command = ["node", "-e", "console.log('hello')"]
 			.toContain("\"taskId\": \"hello\"");
 	});
 
-	test("tick runs due command tasks once and doctor reports health", async () => {
+	test("latest task history overwrites stable status and output paths", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
 name = "demo"
 
 [[workbench.tasks]]
-id = "command-due"
+id = "command-latest"
 enabled = true
 kind = "command"
-command = ["node", "-e", "console.log('done')"]
-schedule = "* * * * *"
+command = ["node", "-e", "console.log(Date.now())"]
+history = "latest"
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "actions", env: {} });
-		const calls: unknown[] = [];
-		const first = await tickWorkbench(context, {
+		const first = await runWorkbenchTaskById(context, "command-latest", {
 			callToybox: async (_method, params) => {
-				calls.push(params);
-				return { ok: true };
+				throw new Error(`unused ${JSON.stringify(params)}`);
 			},
 		});
-		const second = await tickWorkbench(context, {
+		const second = await runWorkbenchTaskById(context, "command-latest", {
 			callToybox: async (_method, params) => {
-				calls.push(params);
-				return { ok: true };
+				throw new Error(`unused ${JSON.stringify(params)}`);
 			},
 		});
-		expect(first.due).toEqual(["command-due"]);
-		expect(second.due).toEqual([]);
-		expect(calls).toHaveLength(0);
+		expect(first.status).toBe("completed");
+		expect(second.status).toBe("completed");
+		const latestRunPath = path.join(context.stateRoot, "latest-runs", "command-latest.json");
+		const latestOutputPath = path.join(context.stateRoot, "latest-outputs", "command-latest.json");
+		expect(first.outputPath).toBe(latestOutputPath);
+		expect(second.outputPath).toBe(latestOutputPath);
+		const latestRun = JSON.parse(await readFile(latestRunPath, "utf8")) as { id: string; taskId: string };
+		expect(latestRun).toMatchObject({ id: second.id, taskId: "command-latest" });
+		expect(await readFile(latestOutputPath, "utf8")).toContain("\"stdout\"");
+		expect(await pathExists(path.join(context.stateRoot, "runs", `${first.id}.json`))).toBe(false);
+		expect(await pathExists(path.join(context.stateRoot, "runs", `${second.id}.json`))).toBe(false);
+		expect(await pathExists(path.join(context.stateRoot, "outputs", `${first.id}.json`))).toBe(false);
+		expect(await pathExists(path.join(context.stateRoot, "outputs", `${second.id}.json`))).toBe(false);
 		const doctor = await collectWorkbenchDoctorInfo(context);
 		expect(doctor.taskCount).toBe(1);
-		expect(doctor.latestRun?.taskId).toBe("command-due");
-		expect(doctor.dispatchCount).toBe(1);
+		expect(doctor.latestRun?.taskId).toBe("command-latest");
+		expect(doctor.latestRun?.id).toBe(second.id);
+		expect(doctor.dispatchCount).toBe(0);
 		expect(doctor.errors).toEqual([]);
 	});
 
-	test("doctor can report matching local systemd workbench tick runner", async () => {
+	test("doctor reports workbench health without scheduler runner state", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
@@ -309,37 +308,11 @@ id = "command-due"
 enabled = true
 kind = "command"
 command = ["node", "-e", "console.log('done')"]
-schedule = "* * * * *"
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
-		const doctor = await collectWorkbenchDoctorInfo(context, {
-			runnerProbe: async (args) => {
-				if (args[0] === "list-timers") {
-					return `Sat 2026-05-30 12:57:32 UTC 59s - - demo-workbench-tick.timer demo-workbench-tick.service\n`;
-				}
-				const unit = args[1];
-				if (unit === "demo-workbench-tick.service") {
-					return [
-						"ActiveState=inactive",
-						"UnitFileState=static",
-						`ExecStart={ path=/usr/bin/codex-toys ; argv[]=/usr/bin/codex-toys workbench tick --mode local --workbench-root ${root} ; }`,
-					].join("\n");
-				}
-				if (unit === "demo-workbench-tick.timer") {
-					return [
-						"ActiveState=active",
-						"UnitFileState=enabled",
-						"NextElapseUSecRealtime=Sat 2026-05-30 12:57:32 UTC",
-						"LastTriggerUSec=Sat 2026-05-30 12:56:32 UTC",
-					].join("\n");
-				}
-				throw new Error(`unexpected probe: ${args.join(" ")}`);
-			},
-		});
-		expect(doctor.runner?.status).toBe("active");
-		expect(doctor.runner?.selected?.timer).toBe("demo-workbench-tick.timer");
-		expect(doctor.runner?.selected?.runsWorkbenchTick).toBe(true);
-		expect(doctor.runner?.selected?.matchesWorkbench).toBe(true);
+		const doctor = await collectWorkbenchDoctorInfo(context);
+		expect(doctor.taskCount).toBe(1);
+		expect("runner" in doctor).toBe(false);
 	});
 
 	test("creates and runs one-shot dispatch workbench task intents once", async () => {
@@ -409,6 +382,54 @@ command = ["node", "-e", "console.log('hello dispatch')"]
 			taskId: "hello",
 			status: "completed",
 		});
+	});
+
+	test("keeps dispatch attempts durable for latest-history workbench tasks", async () => {
+		const root = await tempWorkbench();
+		await writeWorkbenchToml(root, `
+[workbench]
+name = "demo"
+
+[[workbench.tasks]]
+id = "latest-dispatch"
+enabled = true
+kind = "command"
+command = ["node", "-e", "console.log('queued')"]
+history = "latest"
+`);
+		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
+		const intent = await createDispatchRunIntent(context, {
+			runAt: "2026-01-01T00:00:00.000Z",
+			target: {
+				kind: "workbench-task",
+				taskId: "latest-dispatch",
+			},
+		});
+
+		const result = await runDueDispatchRuns(context, {
+			now: new Date("2026-01-01T00:00:01.000Z"),
+			callToybox: async () => {
+				throw new Error("unused");
+			},
+		});
+
+		expect(result.executions).toHaveLength(1);
+		const read = await readDispatchRun(context, intent.id, { includeOutput: true });
+		const attempt = read.attempts[0];
+		expect(attempt?.status).toBe("completed");
+		expect(attempt?.outputPath).toContain(path.join(".codex", "workbench", "local", "dispatch", "outputs"));
+		expect(await pathExists(attempt!.outputPath!)).toBe(true);
+		const workbenchRun = (read.outputs?.[0]?.output as { workbenchRun?: { id: string; taskId: string; status: string; outputPath?: string } })
+			.workbenchRun!;
+		expect(workbenchRun).toMatchObject({
+			taskId: "latest-dispatch",
+			status: "completed",
+			outputPath: path.join(context.stateRoot, "latest-outputs", "latest-dispatch.json"),
+		});
+		expect(await pathExists(path.join(context.stateRoot, "latest-runs", "latest-dispatch.json"))).toBe(true);
+		expect(await pathExists(path.join(context.stateRoot, "latest-outputs", "latest-dispatch.json"))).toBe(true);
+		expect(await pathExists(path.join(context.stateRoot, "runs", `${workbenchRun.id}.json`))).toBe(false);
+		expect(await pathExists(path.join(context.stateRoot, "outputs", `${workbenchRun.id}.json`))).toBe(false);
 	});
 
 	test("queues prompt intents and gates follow-up prompts on dispatch completion", async () => {
@@ -1186,7 +1207,7 @@ command = ["node", "--version"]
 		expect(run.status).toBe("skipped");
 	});
 
-	test("reactive rules fire after the configured failure threshold", async () => {
+	test("rejects removed reactive rules", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
@@ -1207,28 +1228,10 @@ kind = "skill"
 skill = "missing-repair-skill"
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "actions", env: {} });
-		await mkdir(path.join(context.stateRoot, "runs"), { recursive: true });
-		for (const index of [1, 2, 3]) {
-			await writeFile(path.join(context.stateRoot, "runs", `failed-${index}.json`), JSON.stringify({
-				id: `failed-${index}`,
-				taskId: "watched",
-				status: "failed",
-				kind: "command",
-				startedAt: `2026-01-0${index}T00:00:00.000Z`,
-				finishedAt: `2026-01-0${index}T00:00:01.000Z`,
-				mode: "actions",
-			}));
-		}
-		const result = await tickWorkbench(context, {
-			callToybox: async () => {
-				throw new Error("unused");
-			},
-		});
-		expect(result.runs.some((run) => run.taskId === "repair")).toBe(true);
-		expect(result.runs.find((run) => run.taskId === "repair")?.status).toBe("failed");
+		await expect(loadWorkbenchConfig(context)).rejects.toThrow("workbench.reactive has been removed");
 	});
 
-	test("rejects invalid task ids, kinds, and schedules", async () => {
+	test("rejects invalid task ids, kinds, schedules, history, and reactive rules", async () => {
 		const root = await tempWorkbench();
 		await writeWorkbenchToml(root, `
 [workbench]
@@ -1238,7 +1241,6 @@ name = "demo"
 id = "bad id"
 kind = "command"
 command = ["node", "--version"]
-schedule = "not-cron"
 `);
 		const context = await createWorkbenchContext({ workbenchRoot: root, mode: "local", env: {} });
 		await expect(loadWorkbenchConfig(context)).rejects.toThrow("Invalid workbench task id");
@@ -1278,7 +1280,35 @@ command = ["node", "--version"]
 schedule = "not-cron"
 `);
 		await expect(loadWorkbenchConfig(await createWorkbenchContext({ workbenchRoot: badSchedule, mode: "local", env: {} })))
-			.rejects.toThrow("Invalid workbench task schedule");
+			.rejects.toThrow("schedule has been removed");
+		const badHistory = await tempWorkbench();
+		await writeWorkbenchToml(badHistory, `
+[workbench]
+name = "demo"
+
+[[workbench.tasks]]
+id = "bad-history"
+kind = "command"
+command = ["node", "--version"]
+history = "forever"
+`);
+		await expect(loadWorkbenchConfig(await createWorkbenchContext({ workbenchRoot: badHistory, mode: "local", env: {} })))
+			.rejects.toThrow("history must be full or latest");
+		const badReactive = await tempWorkbench();
+		await writeWorkbenchToml(badReactive, `
+[workbench]
+name = "demo"
+
+[[workbench.reactive]]
+id = "repair"
+enabled = true
+task = "*"
+consecutive_failures_gte = 3
+kind = "skill"
+skill = "repair"
+`);
+		await expect(loadWorkbenchConfig(await createWorkbenchContext({ workbenchRoot: badReactive, mode: "local", env: {} })))
+			.rejects.toThrow("workbench.reactive has been removed");
 	});
 
 	test("actions commit helper is gated outside GitHub Actions", async () => {
@@ -1366,7 +1396,8 @@ schedule = "not-cron"
 			"utf8",
 		);
 		expect(customWorkflow).toContain("image: ghcr.io/example/custom-codex-runner:2026-06");
-		expect(customWorkflow).toContain("codex-toys workbench tick --mode actions");
+		expect(customWorkflow).toContain("codex-toys workbench dispatch run-due --mode actions");
+		expect(customWorkflow).not.toContain("workbench tick");
 
 		const setupRoot = await tempWorkbench();
 		await scaffoldActionsWorkbench({
@@ -1380,7 +1411,8 @@ schedule = "not-cron"
 		);
 		expect(setupWorkflow).not.toContain("container:");
 		expect(setupWorkflow).toContain("actions/setup-node");
-		expect(setupWorkflow).toContain("vp dlx codex-toys workbench tick --mode actions");
+		expect(setupWorkflow).toContain("vp dlx codex-toys workbench dispatch run-due --mode actions");
+		expect(setupWorkflow).not.toContain("workbench tick");
 	});
 });
 
@@ -1398,6 +1430,15 @@ async function writeWorkbenchToml(root: string, text: string): Promise<void> {
 async function runGit(args: string[], cwd: string): Promise<string> {
 	const result = await execFile("git", args, { cwd });
 	return result.stdout.trim();
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+	try {
+		await stat(filePath);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function fakeCompletedTurnToybox(): (method: string, params: unknown) => Promise<unknown> {
