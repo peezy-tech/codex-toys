@@ -14,6 +14,7 @@ import { parseJsonText } from "@codex-toys/bridge/json";
 const MODULE_RESULT_PREFIX = "WORKFLOW_MODULE_RESULT ";
 const DEFAULT_TURN_WAIT_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_TURN_WAIT_POLL_INTERVAL_MS = 1000;
+const FAILURE_OUTPUT_PREVIEW_CHARS = 4000;
 
 export type WorkflowContext = {
 	workflow: {
@@ -114,14 +115,24 @@ export async function runWorkflowScript(
 			type: "workflow.context",
 			context,
 		});
-		const timer = setTimeout(() => subprocess.kill("SIGTERM"), options.timeoutMs);
-		const [stdout, stderr, exitCode] = await Promise.all([
+		let timedOut = false;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			subprocess.kill("SIGTERM");
+		}, options.timeoutMs);
+		const [stdout, stderr, exitStatus] = await Promise.all([
 			collectText(subprocess.stdout),
 			collectText(subprocess.stderr),
-			exitCodeFor(subprocess),
+			exitStatusFor(subprocess),
 		]).finally(() => clearTimeout(timer));
-		if (exitCode !== 0) {
-			throw new Error(`Workflow script failed:\n${stderr || stdout}`);
+		if (exitStatus.code !== 0) {
+			throw new Error(formatWorkflowScriptFailure({
+				stdout,
+				stderr,
+				exitStatus,
+				timedOut,
+				timeoutMs: options.timeoutMs,
+			}));
 		}
 		const parsed = parseWorkflowResult(stdout);
 		return {
@@ -546,15 +557,15 @@ export async function waitWorkflowTurnWithRequest(
 		}
 		if (snapshot.status !== "inProgress") {
 			if (
-				snapshot.status === "failed" &&
+				isFailureTurnStatus(snapshot.status) &&
 				options.throwOnFailure !== false
 			) {
-				throw new Error(`Turn ${ref.turnId} failed`);
+				throw new Error(workflowTurnFailureMessage(snapshot));
 			}
 			return snapshot;
 		}
 		if (Date.now() - startedAt >= timeoutMs) {
-			throw new Error(`Timed out waiting for turn ${ref.turnId}`);
+			throw new Error(`Timed out after ${timeoutMs}ms waiting for turn ${ref.turnId} on thread ${ref.threadId}`);
 		}
 		await delay(Math.min(pollIntervalMs, Math.max(0, timeoutMs - (Date.now() - startedAt))));
 	}
@@ -565,6 +576,10 @@ function isTransientThreadReadError(error: unknown): boolean {
 	return message.includes("failed to read thread") &&
 		message.includes("rollout at ") &&
 		message.includes(" is empty");
+}
+
+function isFailureTurnStatus(status: string): boolean {
+	return status === "failed" || status === "interrupted";
 }
 
 export async function readWorkflowDelegationWithRequest(
@@ -607,7 +622,7 @@ export async function waitWorkflowDelegationWithRequest(
 		const snapshot = await readWorkflowDelegationWithRequest(options, ref);
 		if (snapshot.status !== "active" && snapshot.status !== "idle") {
 			if (snapshot.status === "failed" && waitOptions.throwOnFailure !== false) {
-				throw new Error(`Delegation ${snapshot.delegation.id} failed`);
+				throw new Error(workflowDelegationFailureMessage(snapshot));
 			}
 			return snapshot;
 		}
@@ -1170,11 +1185,108 @@ async function collectText(stream: NodeJS.ReadableStream | null): Promise<string
 	return output;
 }
 
-function exitCodeFor(subprocess: ReturnType<typeof spawn>): Promise<number | null> {
+type WorkflowExitStatus = {
+	code: number | null;
+	signal: NodeJS.Signals | null;
+};
+
+function exitStatusFor(subprocess: ReturnType<typeof spawn>): Promise<WorkflowExitStatus> {
 	return new Promise((resolve, reject) => {
 		subprocess.once("error", reject);
-		subprocess.once("exit", (code) => resolve(code));
+		subprocess.once("exit", (code, signal) => resolve({ code, signal }));
 	});
+}
+
+function formatWorkflowScriptFailure(options: {
+	stdout: string;
+	stderr: string;
+	exitStatus: WorkflowExitStatus;
+	timedOut: boolean;
+	timeoutMs: number;
+}): string {
+	const lines = ["Workflow script failed:"];
+	if (options.timedOut) {
+		lines.push(`timed out after ${options.timeoutMs}ms`);
+	}
+	if (options.exitStatus.signal) {
+		lines.push(`terminated by signal ${options.exitStatus.signal}`);
+	} else if (options.exitStatus.code !== null) {
+		lines.push(`exit code ${options.exitStatus.code}`);
+	} else {
+		lines.push("exit status unavailable");
+	}
+	appendCapturedOutput(lines, "stderr", options.stderr);
+	appendCapturedOutput(lines, "stdout", options.stdout);
+	if (!options.stderr.trim() && !options.stdout.trim()) {
+		lines.push("no stdout or stderr captured");
+	}
+	return lines.join("\n");
+}
+
+function workflowTurnFailureMessage(snapshot: WorkflowTurnSnapshot): string {
+	const lines = [
+		`Turn ${snapshot.turnId} on thread ${snapshot.threadId} ended with status ${snapshot.status}`,
+		`status ${snapshot.status}`,
+	];
+	if (snapshot.id) {
+		lines.push(`workflow turn id ${snapshot.id}`);
+	}
+	appendUnknownDetail(lines, "turn error", snapshot.error);
+	appendCapturedOutput(lines, "turn output", snapshot.outputText);
+	return lines.join("\n");
+}
+
+function workflowDelegationFailureMessage(snapshot: WorkflowDelegationSnapshot): string {
+	const lines = [
+		`Delegation ${snapshot.delegation.id} failed`,
+		`status ${snapshot.status}`,
+	];
+	if (snapshot.delegation.codexThreadId) {
+		lines.push(`thread id ${snapshot.delegation.codexThreadId}`);
+	}
+	if (snapshot.latestTurnId) {
+		lines.push(`latest turn id ${snapshot.latestTurnId}`);
+	}
+	if (snapshot.latestStatus) {
+		lines.push(`latest status ${snapshot.latestStatus}`);
+	}
+	appendUnknownDetail(lines, "delegation error", snapshot.error);
+	appendCapturedOutput(lines, "delegation output", snapshot.outputText);
+	return lines.join("\n");
+}
+
+function appendUnknownDetail(lines: string[], label: string, value: unknown): void {
+	const detail = unknownFailureDetail(value);
+	if (detail) {
+		lines.push(`${label}:\n${previewLong(detail)}`);
+	}
+}
+
+function appendCapturedOutput(lines: string[], label: string, value: string): void {
+	const output = value.trim();
+	if (output) {
+		lines.push(`${label}:\n${previewLong(output)}`);
+	}
+}
+
+function unknownFailureDetail(value: unknown): string | undefined {
+	if (value === undefined || value === null) {
+		return undefined;
+	}
+	if (value instanceof Error) {
+		return value.stack ?? value.message;
+	}
+	if (typeof value === "string") {
+		return value.length > 0 ? value : undefined;
+	}
+	const json = JSON.stringify(value, null, 2);
+	return json && json !== "{}" ? json : undefined;
+}
+
+function previewLong(value: string): string {
+	return value.length > FAILURE_OUTPUT_PREVIEW_CHARS
+		? `${value.slice(0, FAILURE_OUTPUT_PREVIEW_CHARS)}\n... truncated ...`
+		: value;
 }
 
 function optionalString(value: unknown): string | undefined {

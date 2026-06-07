@@ -169,6 +169,65 @@ export default function run() {
 		})).rejects.toThrow("boom");
 	});
 
+	test("captures timeout and signal details for silent workflow failures", async () => {
+		let message = "";
+		try {
+			await runWorkflowScript({
+				script: `
+export default async function run() {
+  await new Promise(() => {});
+}
+`,
+				timeoutMs: 50,
+			});
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error);
+		}
+		expect(message).toContain("Workflow script failed:");
+		expect(message).toContain("timed out after 50ms");
+		expect(message).toContain("terminated by signal SIGTERM");
+	});
+
+	test("includes child turn context when waited turns fail or interrupt", async () => {
+		for (const status of ["failed", "interrupted"]) {
+			let message = "";
+			try {
+				await waitWorkflowTurnWithRequest(
+					"workbench",
+					async (method, params) => {
+						expect(method).toBe("thread/read");
+						expect(params).toEqual({
+							threadId: `thread-${status}`,
+							includeTurns: true,
+						});
+						return {
+							thread: {
+								turns: [{
+									id: `turn-${status}`,
+									status,
+									error: { message: "child interrupted" },
+									items: [{
+										type: "agentMessage",
+										phase: "final_answer",
+										text: "partial child context",
+									}],
+								}],
+							},
+						};
+					},
+					{ id: "child-check", threadId: `thread-${status}`, turnId: `turn-${status}` },
+					{ timeoutMs: 100, pollIntervalMs: 1 },
+				);
+			} catch (error) {
+				message = error instanceof Error ? error.message : String(error);
+			}
+			expect(message).toContain(`Turn turn-${status} on thread thread-${status} ended with status ${status}`);
+			expect(message).toContain("workflow turn id child-check");
+			expect(message).toContain("child interrupted");
+			expect(message).toContain("partial child context");
+		}
+	});
+
 	test("discovers named workflow manifests", async () => {
 		const root = await mkdtemp(path.join(tmpdir(), "codex-toys-workflow-root-"));
 		const workflowRoot = path.join(root, "workflows", "release-check");
