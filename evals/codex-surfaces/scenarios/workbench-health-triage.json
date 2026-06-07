@@ -1,0 +1,24 @@
+{
+	"id": "workbench-health-triage",
+	"title": "Workbench Health Triage",
+	"description": "Inspect the repository workbench health and produce a compact status report with evidence.",
+	"targetCwd": "@",
+	"timeoutMs": 1800000,
+	"permissions": {
+		"sandbox": "workspace-write",
+		"approvalPolicy": "never"
+	},
+	"tags": ["workbench", "health", "read-only"],
+	"prompt": "Evaluate the current codex-toys workbench health. Use read-only commands where possible. Report the key status from workbench doctor and workbench overview, and call out any attention items with exact evidence. Do not use codex exec.",
+	"nativePacket": {
+		"checklist": [
+			"Prefer the native App terminal or tools to inspect workbench health.",
+			"If codex-toys affordances are available in the profile, use `codex-toys workbench doctor --json` and `codex-toys workbench overview --json`."
+		],
+		"affordanceHints": ["Native App can inspect terminal output directly."]
+	},
+	"oracle": [
+		{ "type": "finalTextMatches", "pattern": "workbench", "flags": "i" },
+		{ "type": "finalTextMatches", "pattern": "doctor|overview", "flags": "i" }
+	]
+}

@@ -1,0 +1,23 @@
+{
+	"id": "scheduler-queue-run-due",
+	"title": "Scheduler-Owned Queue Operation",
+	"description": "Check the explicit dispatch queue path that replaced workbench-owned scheduling.",
+	"targetCwd": "@",
+	"timeoutMs": 1800000,
+	"permissions": {
+		"sandbox": "workspace-write",
+		"approvalPolicy": "never"
+	},
+	"tags": ["workbench", "dispatch", "scheduler-boundary"],
+	"prompt": "Inspect how this repo drains durable queued work now that workbench-owned scheduling has been removed. Verify the current explicit command path uses `workbench dispatch run-due` and does not rely on `workbench tick`. Report what you checked and the current status. Do not use codex exec.",
+	"nativePacket": {
+		"checklist": [
+			"Confirm the current docs/CLI mention `workbench dispatch run-due`.",
+			"Confirm `workbench tick` is not the expected eval scenario path."
+		]
+	},
+	"oracle": [
+		{ "type": "finalTextIncludes", "text": "workbench dispatch run-due" },
+		{ "type": "finalTextMatches", "pattern": "workbench tick|tick", "flags": "i" }
+	]
+}

@@ -1,0 +1,23 @@
+{
+	"id": "manual-feed-item-append",
+	"title": "Manual Feed Item Append",
+	"description": "Inspect the manual/local signal intake path added to the feed primitive.",
+	"targetCwd": "@",
+	"timeoutMs": 1800000,
+	"permissions": {
+		"sandbox": "workspace-write",
+		"approvalPolicy": "never"
+	},
+	"tags": ["feed", "manual-intake"],
+	"prompt": "Inspect the manual feed item append surface. Explain what command/API appends a local item, how dedupe works at a high level, and how this differs from polling RSS or Atom. Do not mutate feed state and do not use codex exec.",
+	"nativePacket": {
+		"checklist": [
+			"Keep the check read-only.",
+			"Inspect docs and tests for `feed item append` rather than appending a real item."
+		]
+	},
+	"oracle": [
+		{ "type": "finalTextMatches", "pattern": "feed item append|appendFeedItem", "flags": "i" },
+		{ "type": "finalTextMatches", "pattern": "manual|local", "flags": "i" }
+	]
+}

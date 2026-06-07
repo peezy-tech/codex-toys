@@ -1,0 +1,22 @@
+{
+	"id": "native-app-toys",
+	"label": "Native Codex App + codex-toys",
+	"kind": "native-app",
+	"description": "Operator-mediated Codex App run with codex-toys plugins, skills, workbench conventions, and CLI affordances available.",
+	"toysEnabled": true,
+	"codexHomeMode": "operator-app",
+	"affordances": [
+		"Native Codex App thread",
+		"Installed codex-toys plugins and skills",
+		"codex-toys CLI, workbench, feed, dispatch, delegation, toybox, and thread-state commands"
+	],
+	"promptAddendum": "Use codex-toys surfaces when they materially reduce work or improve reliability. Do not use codex exec as the benchmark surface.",
+	"taskPacket": {
+		"operatorInstructions": [
+			"Open or create a Codex App thread rooted at the target cwd.",
+			"Make sure the codex-toys plugins/skills intended for this host are enabled before starting.",
+			"Use native App tools and codex-toys affordances naturally; the eval is measuring their combined workflow.",
+			"Do not translate the task into codex exec."
+		]
+	}
+}

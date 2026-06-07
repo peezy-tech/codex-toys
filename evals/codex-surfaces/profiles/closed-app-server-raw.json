@@ -1,0 +1,18 @@
+{
+	"id": "closed-app-server-raw",
+	"label": "Closed app-server, raw",
+	"kind": "closed-app-server",
+	"description": "Headless Codex app-server run with minimal extra affordances.",
+	"toysEnabled": false,
+	"codexHomeMode": "global",
+	"affordances": [
+		"Native app-server thread and turn APIs",
+		"Normal shell and file tools available to the agent"
+	],
+	"appServer": {
+		"requestTimeoutMs": 60000
+	},
+	"taskPacket": {
+		"operatorInstructions": []
+	}
+}

@@ -1,0 +1,23 @@
+{
+	"id": "feed-to-workflow-dispatch",
+	"title": "Feed To Workflow Dispatch",
+	"description": "Inspect the RSS/Atom feed dispatch path into an explicit workbench workflow task.",
+	"targetCwd": "@",
+	"timeoutMs": 1800000,
+	"permissions": {
+		"sandbox": "workspace-write",
+		"approvalPolicy": "never"
+	},
+	"tags": ["feed", "workflow", "dispatch"],
+	"prompt": "Inspect this repo's feed-to-workflow path. Explain how feed polling/collection dispatches into the openai-codex-bindings workbench task, and identify the explicit command shape that should be benchmarked. Do not use codex exec.",
+	"nativePacket": {
+		"checklist": [
+			"Check `.codex/feed.toml`, `.codex/workbench.toml`, and the feed-to-workflow docs.",
+			"Prefer `feed dispatch` as the benchmarked trigger path."
+		]
+	},
+	"oracle": [
+		{ "type": "finalTextMatches", "pattern": "feed dispatch", "flags": "i" },
+		{ "type": "finalTextMatches", "pattern": "openai-codex-bindings|workbench-task", "flags": "i" }
+	]
+}

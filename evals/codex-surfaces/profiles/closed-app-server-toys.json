@@ -1,0 +1,20 @@
+{
+	"id": "closed-app-server-toys",
+	"label": "Closed app-server + codex-toys",
+	"kind": "closed-app-server",
+	"description": "Headless Codex app-server run where codex-toys CLI, plugins, skills, workbench, feed, and toybox surfaces are explicitly available.",
+	"toysEnabled": true,
+	"codexHomeMode": "global",
+	"affordances": [
+		"codex-toys CLI from the repository checkout",
+		"Workbench, feed, dispatch, delegation, threads, and toybox commands",
+		"Repo-local codex-toys plugin and skill docs"
+	],
+	"promptAddendum": "You may use codex-toys repository affordances when they are useful: workbench doctor/overview/run, workbench dispatch run-due, feed item append, feed dispatch, threads locate/inspect, workflow run, delegation, and the local plugin skill docs. Do not use codex exec as the benchmark surface.",
+	"appServer": {
+		"requestTimeoutMs": 60000
+	},
+	"taskPacket": {
+		"operatorInstructions": []
+	}
+}

@@ -1,0 +1,23 @@
+{
+	"id": "workflow-failure-diagnostics",
+	"title": "Workflow Failure Diagnostics",
+	"description": "Inspect current workflow failure messages and child-turn failure diagnostics.",
+	"targetCwd": "@",
+	"timeoutMs": 1800000,
+	"permissions": {
+		"sandbox": "workspace-write",
+		"approvalPolicy": "never"
+	},
+	"tags": ["workflow", "diagnostics"],
+	"prompt": "Inspect the current workflow failure diagnostics. Explain what information is surfaced for a timed-out workflow script and for failed or interrupted child turns. Cite the relevant strings or tests. Do not use codex exec.",
+	"nativePacket": {
+		"checklist": [
+			"Inspect workflow implementation and tests.",
+			"Look for `Workflow script failed:` and failed/interrupted child turn messages."
+		]
+	},
+	"oracle": [
+		{ "type": "finalTextIncludes", "text": "Workflow script failed:" },
+		{ "type": "finalTextMatches", "pattern": "failed|interrupted", "flags": "i" }
+	]
+}

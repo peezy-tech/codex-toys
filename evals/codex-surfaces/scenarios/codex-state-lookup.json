@@ -1,0 +1,23 @@
+{
+	"id": "codex-state-lookup",
+	"title": "Codex State Lookup",
+	"description": "Inspect the thread/session lookup surfaces for finding and inspecting Codex rollout state.",
+	"targetCwd": "@",
+	"timeoutMs": 1800000,
+	"permissions": {
+		"sandbox": "workspace-write",
+		"approvalPolicy": "never"
+	},
+	"tags": ["codex-state", "threads"],
+	"prompt": "Inspect the Codex state lookup surfaces in this repo. Explain how an operator should locate and inspect a thread/session rollout using codex-toys, and mention the command names. Do not use codex exec.",
+	"nativePacket": {
+		"checklist": [
+			"Inspect the CLI reference and package README for thread-state commands.",
+			"Do not require a live thread id for this scenario."
+		]
+	},
+	"oracle": [
+		{ "type": "finalTextIncludes", "text": "threads locate" },
+		{ "type": "finalTextIncludes", "text": "threads inspect" }
+	]
+}

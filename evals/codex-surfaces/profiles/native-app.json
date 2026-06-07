@@ -1,0 +1,20 @@
+{
+	"id": "native-app",
+	"label": "Native Codex App",
+	"kind": "native-app",
+	"description": "Operator-mediated Codex App run using native App tools and UI affordances.",
+	"toysEnabled": false,
+	"codexHomeMode": "operator-app",
+	"affordances": [
+		"Native Codex App thread",
+		"Native App worktree/local modes",
+		"Native App tools, terminal, Git UI, and thread UI"
+	],
+	"taskPacket": {
+		"operatorInstructions": [
+			"Open or create a Codex App thread rooted at the target cwd.",
+			"Use the App normally, including native App tools where useful.",
+			"Do not invoke codex-toys-only workflows unless the prompt itself discovers them naturally."
+		]
+	}
+}

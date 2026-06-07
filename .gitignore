@@ -7,3 +7,4 @@ dist/
 *.log
 .codex/code-mode-candidates/
 .codex/flow-artifacts/
+evals/codex-surfaces/.runs/
