@@ -61,4 +61,63 @@ describe("event normalization", () => {
 		const events = normalizeRawEvents([{ type: "turn.completed", status: "completed" }]);
 		expect(aggregateTokenUsage(events)).toEqual({ status: "unknown" });
 	});
+
+	test("normalizes native rollout records", () => {
+		const events = normalizeRawEvents([
+			{
+				timestamp: "2026-06-10T00:00:00.000Z",
+				type: "session_meta",
+				payload: { id: "thread-1" },
+			},
+			{
+				timestamp: "2026-06-10T00:00:01.000Z",
+				type: "event_msg",
+				payload: { type: "task_started", turn_id: "turn-1" },
+			},
+			{
+				timestamp: "2026-06-10T00:00:02.000Z",
+				type: "response_item",
+				payload: {
+					type: "message",
+					role: "assistant",
+					phase: "final_answer",
+					content: [{ type: "output_text", text: "native final" }],
+				},
+			},
+			{
+				timestamp: "2026-06-10T00:00:03.000Z",
+				type: "event_msg",
+				payload: {
+					type: "token_count",
+					info: {
+						total_token_usage: {
+							total_tokens: 20,
+							input_tokens: 12,
+							cached_input_tokens: 3,
+							output_tokens: 8,
+							reasoning_output_tokens: 1,
+						},
+					},
+				},
+			},
+			{
+				timestamp: "2026-06-10T00:00:04.000Z",
+				type: "event_msg",
+				payload: { type: "task_complete", turn_id: "turn-1", last_agent_message: "native final", duration_ms: 50 },
+			},
+		]);
+		expect(events.map((event) => event.type)).toEqual([
+			"thread.started",
+			"turn.started",
+			"agent.final",
+			"token.usage",
+			"agent.final",
+			"turn.completed",
+		]);
+		expect(finalTextFromEvents(events)).toBe("native final");
+		expect(aggregateTokenUsage(events)).toMatchObject({
+			status: "known",
+			total: { totalTokens: 20 },
+		});
+	});
 });

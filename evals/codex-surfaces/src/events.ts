@@ -7,6 +7,18 @@ export function normalizeRawEvents(rawEvents: unknown[]): NormalizedEvent[] {
 
 export function normalizeRawEvent(raw: unknown): NormalizedEvent[] {
 	const input = record(raw);
+	if (optionalString(input.type) === "session_meta") {
+		return normalizeRolloutSessionMeta(input, raw);
+	}
+	if (optionalString(input.type) === "turn_context") {
+		return [{ type: "raw", at: eventTime(input), raw }];
+	}
+	if (optionalString(input.type) === "event_msg") {
+		return normalizeRolloutEventMessage(input, raw);
+	}
+	if (optionalString(input.type) === "response_item") {
+		return normalizeRolloutResponseItem(input, raw);
+	}
 	if (optionalString(input.method)) {
 		return normalizeJsonRpcNotification(input, raw);
 	}
@@ -19,6 +31,112 @@ export function normalizeRawEvent(raw: unknown): NormalizedEvent[] {
 	return [{ type: "raw", at: eventTime(input), raw }];
 }
 
+function normalizeRolloutSessionMeta(input: Record<string, unknown>, raw: unknown): NormalizedEvent[] {
+	const payload = record(input.payload);
+	const threadId = optionalString(payload.id);
+	return threadId ? [{
+		type: "thread.started",
+		at: eventTime(input) ?? optionalString(payload.timestamp),
+		threadId,
+		raw,
+	}] : [{ type: "raw", at: eventTime(input), raw }];
+}
+
+function normalizeRolloutEventMessage(input: Record<string, unknown>, raw: unknown): NormalizedEvent[] {
+	const payload = record(input.payload);
+	const payloadType = optionalString(payload.type);
+	if (payloadType === "task_started") {
+		return [{
+			type: "turn.started",
+			at: eventTime(input) ?? optionalString(payload.started_at),
+			turnId: optionalString(payload.turn_id),
+			raw,
+		}];
+	}
+	if (payloadType === "task_complete") {
+		const finalText = optionalString(payload.last_agent_message);
+		const completed: NormalizedEvent = {
+			type: "turn.completed",
+			at: eventTime(input) ?? optionalString(payload.completed_at),
+			turnId: optionalString(payload.turn_id),
+			status: "completed",
+			durationMs: optionalNumber(payload.duration_ms),
+			raw,
+		};
+		return finalText ? [{ type: "agent.final", at: completed.at, text: finalText, raw }, completed] : [completed];
+	}
+	if (payloadType === "agent_message") {
+		const phase = optionalString(payload.phase);
+		const text = optionalString(payload.message);
+		return text && (phase === "final_answer" || phase === "final")
+			? [{ type: "agent.final", at: eventTime(input), text, raw }]
+			: [];
+	}
+	if (payloadType === "token_count") {
+		const usage = tokenUsageFromValue(record(record(payload.info).total_token_usage));
+		return usage ? [{
+			type: "token.usage",
+			at: eventTime(input),
+			usage,
+			raw,
+		}] : [{ type: "raw", at: eventTime(input), raw }];
+	}
+	if (payloadType === "web_search_end") {
+		return [{
+			type: "tool.call",
+			at: eventTime(input),
+			namespace: "web",
+			tool: "web_search",
+			status: "completed",
+			raw,
+		}];
+	}
+	if (payloadType === "exec_command_begin") {
+		return [{
+			type: "command",
+			at: eventTime(input),
+			command: optionalString(payload.command) ?? optionalString(payload.cmd) ?? "",
+			status: "in_progress",
+			raw,
+		}];
+	}
+	if (payloadType === "exec_command_end") {
+		return [{
+			type: "command",
+			at: eventTime(input),
+			command: optionalString(payload.command) ?? optionalString(payload.cmd) ?? "",
+			status: optionalString(payload.status) ?? "completed",
+			exitCode: optionalNumber(payload.exit_code) ?? optionalNumber(payload.exitCode) ?? null,
+			durationMs: optionalNumber(payload.duration_ms) ?? optionalNumber(payload.durationMs) ?? null,
+			raw,
+		}];
+	}
+	return [{ type: "raw", at: eventTime(input), raw }];
+}
+
+function normalizeRolloutResponseItem(input: Record<string, unknown>, raw: unknown): NormalizedEvent[] {
+	const payload = record(input.payload);
+	const payloadType = optionalString(payload.type);
+	if (payloadType === "message" && optionalString(payload.role) === "assistant") {
+		const phase = optionalString(payload.phase);
+		const text = rolloutMessageText(payload);
+		return text && (phase === "final_answer" || phase === "final")
+			? [{ type: "agent.final", at: eventTime(input), text, raw }]
+			: [];
+	}
+	if (payloadType === "web_search_call") {
+		return [{
+			type: "tool.call",
+			at: eventTime(input),
+			namespace: "web",
+			tool: "web_search",
+			status: optionalString(payload.status),
+			raw,
+		}];
+	}
+	return [{ type: "raw", at: eventTime(input), raw }];
+}
+
 export function aggregateTokenUsage(events: NormalizedEvent[]): TokenUsageSummary {
 	const latest = [...events].reverse().find((event) => event.type === "token.usage");
 	return latest?.type === "token.usage"
@@ -27,11 +145,11 @@ export function aggregateTokenUsage(events: NormalizedEvent[]): TokenUsageSummar
 }
 
 export function finalTextFromEvents(events: NormalizedEvent[]): string {
-	return events
+	const texts = events
 		.filter((event): event is Extract<NormalizedEvent, { type: "agent.final" }> => event.type === "agent.final")
 		.map((event) => event.text.trim())
-		.filter(Boolean)
-		.join("\n\n");
+		.filter(Boolean);
+	return [...new Set(texts)].join("\n\n");
 }
 
 export function runMetrics(events: NormalizedEvent[]): {
@@ -203,6 +321,13 @@ function tokenUsageFromValue(value: unknown): TokenUsageBreakdown | undefined {
 		reasoningOutputTokens === undefined
 		? undefined
 		: { totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens };
+}
+
+function rolloutMessageText(payload: Record<string, unknown>): string {
+	return array(payload.content)
+		.map((entry) => optionalString(record(entry).text))
+		.filter((entry): entry is string => Boolean(entry))
+		.join("\n\n");
 }
 
 function numberField(input: Record<string, unknown>, camel: string, snake: string): number | undefined {
