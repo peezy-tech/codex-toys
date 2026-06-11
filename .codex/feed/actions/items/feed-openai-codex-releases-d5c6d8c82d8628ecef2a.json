@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-d5c6d8c82d8628ecef2a",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.140.0-alpha.10",
+  "title": "0.140.0-alpha.10",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.140.0-alpha.10",
+  "updatedAt": "2026-06-11T16:51:16.000Z",
+  "contentText": "Release 0.140.0-alpha.10",
+  "observedAt": "2026-06-11T17:04:39.035Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.140.0-alpha.10",
+    "updated": "2026-06-11T16:51:16Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.140.0-alpha.10",
+        "type": "text/html"
+      }
+    ]
+  }
+}
