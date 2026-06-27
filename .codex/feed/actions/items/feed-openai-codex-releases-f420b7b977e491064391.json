@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-f420b7b977e491064391",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.142.3",
+  "title": "0.142.3",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.142.3",
+  "updatedAt": "2026-06-26T21:30:42.000Z",
+  "contentText": "Chores Maintenance-only patch release with no user-facing changes since 0.142.2. Changelog Full Changelog: rust-v0.142.2...rust-v0.142.3",
+  "observedAt": "2026-06-27T04:00:32.068Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.142.3",
+    "updated": "2026-06-26T21:30:42Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.142.3",
+        "type": "text/html"
+      }
+    ]
+  }
+}
