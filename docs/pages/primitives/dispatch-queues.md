@@ -110,10 +110,10 @@ codex-toys workbench handoff drain \
 ## SSH
 
 SSH is transport, not a third queue. With `--ssh`, queue commands operate on the
-remote workbench's local queue through the remote toybox.
+remote workspace's local queue through the remote runtime.
 
 ```bash
-codex-toys --ssh <target> --cwd <remote-workbench> workbench dispatch list --json
-codex-toys --ssh <target> --cwd <remote-workbench> workbench prompt run-due --limit 1
-codex-toys --ssh <target> --cwd <remote-workbench> workbench handoff collect --cursor operator --json
+codex-toys --ssh <target> --cwd <remote-workspace> workbench dispatch list --json
+codex-toys --ssh <target> --cwd <remote-workspace> workbench prompt run-due --limit 1
+codex-toys --ssh <target> --cwd <remote-workspace> workbench handoff collect --cursor operator --json
 ```

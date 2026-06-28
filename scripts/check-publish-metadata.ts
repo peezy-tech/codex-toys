@@ -57,8 +57,6 @@ const bundledRuntimePackages = [
 	"@esbuild/linux-x64",
 ] as const;
 
-const publicProxyBinPath = "dist/internal/proxy/bin/codex-toys-proxy.js";
-
 const publicSubpathExports = [
 	".",
 	"./actions",
@@ -71,11 +69,7 @@ const publicSubpathExports = [
 	"./bridge/threads",
 	"./feed",
 	"./kits",
-	"./proxy",
-	"./proxy/browser",
-	"./proxy/vite",
-	"./remote",
-	"./toybox",
+	"./runtime",
 	"./workbench",
 ] as const;
 
@@ -174,9 +168,6 @@ async function checkSourceManifests(): Promise<void> {
 	if (publicManifest.bin?.["codex-toys"] !== "dist/cli/index.js") {
 		failures.push(`${publicManifestPath}: missing codex-toys bin`);
 	}
-	if (publicManifest.bin?.["codex-toys-proxy"] !== publicProxyBinPath) {
-		failures.push(`${publicManifestPath}: missing codex-toys-proxy bin`);
-	}
 
 	for (const manifestPath of internalPackageJsonPaths) {
 		const manifest = await readManifest(manifestPath);
@@ -223,14 +214,13 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 		"package/dist/index.js",
 		"package/dist/feed.js",
 		"package/dist/workbench.js",
-		"package/dist/proxy/browser.js",
+		"package/dist/runtime.js",
 		"package/dist/bridge/json.js",
 		"package/dist/internal/actions/index.js",
 		"package/dist/internal/bridge/index.js",
 		"package/dist/internal/feed/index.js",
 		"package/dist/internal/kits/index.js",
 		"package/dist/internal/proxy/index.js",
-		"package/dist/internal/proxy/bin/codex-toys-proxy.js",
 		"package/dist/internal/remote/index.js",
 		"package/dist/internal/toybox/index.js",
 		"package/dist/internal/workbench/index.js",
@@ -239,17 +229,14 @@ async function checkPackedPackage(tarballPath: string): Promise<void> {
 		"package/docs/pages/operations/plugins.md",
 		"package/docs/pages/components/cli.md",
 		"package/docs/pages/components/kits.md",
-		"package/docs/pages/components/proxy.md",
-		"package/docs/pages/components/toybox.md",
+		"package/docs/pages/components/runtime.md",
 		"package/docs/pages/guides/repository-autonomy.md",
-		"package/docs/pages/guides/remote-codex-workbench.md",
+		"package/docs/pages/guides/remote-runtime.md",
 		"package/docs/pages/guides/local-scheduled-workbench.md",
-		"package/docs/pages/guides/dashboard-over-toybox.md",
+		"package/docs/pages/guides/dashboard-over-runtime.md",
 		"package/docs/pages/guides/feed-to-workflow.md",
 		"package/docs/pages/guides/capability-kit-setup.md",
-		"package/docs/pages/guides/delegated-repo-work.md",
 		"package/docs/pages/primitives/dispatch-queues.md",
-		"package/docs/pages/primitives/delegation.md",
 		"package/docs/pages/primitives/feed.md",
 		"package/docs/pages/primitives/workbench.md",
 		"package/docs/pages/primitives/workflow.md",

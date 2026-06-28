@@ -63,7 +63,7 @@ test("derives goal, plan, running command, activity, and final answer state", ()
 		params: {
 			threadId: "thread-1",
 			turnId: "turn-1",
-			item: dynamicToolItem("tool-1", "codex_workbench", "list_delegations", "completed"),
+			item: dynamicToolItem("tool-1", "codex_workbench", "list_functions", "completed"),
 			completedAtMs: fixedNow.getTime(),
 		},
 	}, { now: fixedNow });
@@ -102,7 +102,7 @@ test("derives goal, plan, running command, activity, and final answer state", ()
 			expect.objectContaining({
 				itemId: "tool-1",
 				kind: "tool",
-				label: "codex_workbench.list_delegations",
+				label: "codex_workbench.list_functions",
 				status: "completed",
 			}),
 		]),
@@ -248,7 +248,7 @@ test("derives snapshots from completed thread payloads", () => {
 	const snapshot = snapshotFromThread(thread("thread-1", [
 		turn("turn-1", "completed", [
 			agentMessage("answer-1", "Final from loaded turn.", "final_answer"),
-			dynamicToolItem("tool-1", null, "read_delegation", "completed"),
+			dynamicToolItem("tool-1", null, "read_function", "completed"),
 		]),
 	]), { now: fixedNow });
 
@@ -256,7 +256,7 @@ test("derives snapshots from completed thread payloads", () => {
 	expect(snapshot.progress.finalAnswer?.text).toBe("Final from loaded turn.");
 	expect(snapshot.recentActivity[0]).toMatchObject({
 		kind: "tool",
-		label: "read_delegation",
+		label: "read_function",
 	});
 });
 
@@ -296,11 +296,13 @@ function thread(id: string, turns: v2.Turn[] = []): v2.Thread {
 		id,
 		sessionId: `${id}-session`,
 		forkedFromId: null,
+		parentThreadId: null,
 		preview: "preview",
 		ephemeral: false,
 		modelProvider: "openai",
 		createdAt: 1,
 		updatedAt: 2,
+		recencyAt: 2,
 		status: { type: "idle" },
 		path: null,
 		cwd: "/workbench",

@@ -17,10 +17,10 @@ export type FetchInfo = {
 	shell?: string;
 	cwd: string;
 	codexCommand: string;
-	toyboxUrl: string;
+	runtimeUrl: string;
 	codexHome: string;
 	workbench?: WorkbenchDoctorInfo;
-	toybox: FetchToyboxInfo;
+	runtimeTransport: FetchRuntimeTransportInfo;
 };
 
 export type FetchInfoOptions = {
@@ -28,10 +28,10 @@ export type FetchInfoOptions = {
 	cwd?: string;
 	appUrl: string;
 	workbenchUrl: string;
-	toybox?: FetchToyboxInfo;
+	runtimeTransport?: FetchRuntimeTransportInfo;
 };
 
-export type FetchToyboxInfo = {
+export type FetchRuntimeTransportInfo = {
 	transport: "local" | "ssh";
 	status: "connected" | "unavailable";
 	url?: string;
@@ -40,10 +40,9 @@ export type FetchToyboxInfo = {
 		version: string;
 	};
 	capabilities?: {
-		toyboxMethods: number;
+		methods: number;
 	};
 	threads?: FetchThreadsInfo;
-	delegations?: FetchCountInfo;
 	error?: string;
 };
 
@@ -92,13 +91,13 @@ export async function collectFetchInfo(
 		...(env.SHELL || env.ComSpec ? { shell: env.SHELL ?? env.ComSpec } : {}),
 		cwd: options.cwd ?? process.cwd(),
 		codexCommand: env.CODEX_APP_SERVER_CODEX_COMMAND ?? "codex",
-		toyboxUrl: options.workbenchUrl,
+		runtimeUrl: options.workbenchUrl,
 		codexHome: env.CODEX_HOME ?? defaultCodexHome(),
 		...(workbench ? { workbench } : {}),
-		toybox: options.toybox ?? {
+		runtimeTransport: options.runtimeTransport ?? {
 			transport: "local",
 			status: "unavailable",
-			error: "No toybox probe was run",
+			error: "No runtime probe was run",
 		},
 	};
 }
@@ -116,7 +115,7 @@ export function formatFetchInfo(
 		["shell", info.shell ?? "unknown"],
 		["cwd", info.cwd],
 		["codex", info.codexCommand],
-		["toybox", info.toyboxUrl],
+		["runtime transport", info.runtimeUrl],
 		["CODEX_HOME", info.codexHome],
 		...(info.workbench
 			? [
@@ -126,8 +125,8 @@ export function formatFetchInfo(
 					["tasks", `${info.workbench.taskCount} configured, ${info.workbench.failingCount} failing`],
 				] as Array<[string, string]>
 			: []),
-		["toybox status", toyboxLabel(info.toybox)],
-		...toyboxRows(info.toybox),
+		["runtime status", runtimeTransportLabel(info.runtimeTransport)],
+		...runtimeTransportRows(info.runtimeTransport),
 	];
 	const logo = [
 		"    ______          ",
@@ -150,35 +149,34 @@ export function formatFetchInfo(
 	return `${lines.join("\n")}\n`;
 }
 
-function toyboxLabel(toybox: FetchToyboxInfo): string {
-	if (toybox.status === "connected") {
-		return toybox.url ? `${toybox.transport} connected (${toybox.url})` : `${toybox.transport} connected`;
+function runtimeTransportLabel(runtimeTransport: FetchRuntimeTransportInfo): string {
+	if (runtimeTransport.status === "connected") {
+		return runtimeTransport.url
+			? `${runtimeTransport.transport} connected (${runtimeTransport.url})`
+			: `${runtimeTransport.transport} connected`;
 	}
-	return toybox.error ? `unavailable (${toybox.error})` : "unavailable";
+	return runtimeTransport.error ? `unavailable (${runtimeTransport.error})` : "unavailable";
 }
 
-function toyboxRows(toybox: FetchToyboxInfo): Array<[string, string]> {
+function runtimeTransportRows(runtimeTransport: FetchRuntimeTransportInfo): Array<[string, string]> {
 	const rows: Array<[string, string]> = [];
-	if (toybox.server) {
-		rows.push(["server", `${toybox.server.name}@${toybox.server.version}`]);
+	if (runtimeTransport.server) {
+		rows.push(["server", `${runtimeTransport.server.name}@${runtimeTransport.server.version}`]);
 	}
-	if (toybox.capabilities) {
+	if (runtimeTransport.capabilities) {
 		rows.push([
 			"capabilities",
-			`${toybox.capabilities.toyboxMethods} methods`,
+			`${runtimeTransport.capabilities.methods} methods`,
 		]);
 	}
-	if (toybox.threads) {
-		rows.push(["threads", countLabel(toybox.threads)]);
-		for (const thread of toybox.threads.latest.slice(0, 3)) {
+	if (runtimeTransport.threads) {
+		rows.push(["threads", countLabel(runtimeTransport.threads)]);
+		for (const thread of runtimeTransport.threads.latest.slice(0, 3)) {
 			rows.push(["latest", `${thread.status} ${thread.label} ${compactId(thread.id)}`]);
 		}
-		if (toybox.threads.error) {
-			rows.push(["thread error", toybox.threads.error]);
+		if (runtimeTransport.threads.error) {
+			rows.push(["thread error", runtimeTransport.threads.error]);
 		}
-	}
-	if (toybox.delegations) {
-		rows.push(["delegations", countLabel(toybox.delegations)]);
 	}
 	return rows;
 }

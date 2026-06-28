@@ -46,7 +46,6 @@ type RuntimePackage = {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const publicPackageDir = path.join(repoRoot, "packages", "codex-toys");
-const publicProxyBinPath = "dist/internal/proxy/bin/codex-toys-proxy.js";
 
 const internalPackageNames = new Set([
 	"@codex-toys/actions",
@@ -102,7 +101,6 @@ async function main(): Promise<void> {
 		normalizeDependencies(publicManifest, catalog, publicVersion);
 		removeInternalPackageDependencies(publicManifest);
 		publicManifest.bin ??= {};
-		publicManifest.bin["codex-toys-proxy"] = publicProxyBinPath;
 		publicManifest.bundledDependencies = runtimePackages.map((runtimePackage) => runtimePackage.name);
 		delete publicManifest.bundleDependencies;
 		await writeManifest(path.join(stagingDir, "package.json"), publicManifest);
@@ -111,9 +109,6 @@ async function main(): Promise<void> {
 		for (const runtimePackage of runtimePackages) {
 			await copyRuntimePackage(stagingDir, runtimePackage);
 		}
-
-		await chmod(path.join(stagingDir, publicProxyBinPath), 0o755);
-
 		const pack = spawnSync(
 			"npm",
 			["pack", "--ignore-scripts", "--pack-destination", packDestination],

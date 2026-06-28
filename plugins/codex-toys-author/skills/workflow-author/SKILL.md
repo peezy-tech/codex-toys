@@ -21,8 +21,9 @@ compose native Codex turns.
   needed.
 - Start native Codex turns from the script with `context.turn.start`, then
   return the turn metadata or wait for it with `context.turn.wait`.
-- When the work belongs in another checkout, start delegated Codex threads with
-  `context.delegate.start` while running through `--via workbench`.
+- When the work belongs in another checkout, set `cwd` on `context.turn.start`
+  or run the workflow with `--ssh` and a remote `--cwd`. Use native app-server
+  thread methods directly when you need app-owned thread surfaces.
 - The CLI does not interpret returned `action` fields; the script owns its own
   orchestration.
 - Scripts must `export default async function run(context)` or an equivalent
@@ -31,17 +32,13 @@ compose native Codex turns.
 ## Host Helpers
 
 - `context.app.call(method, params)` calls app-server.
-- `context.workbench.call(method, params)` calls the codex-toys toybox when
+- `context.workbench.call(method, params)` calls codex-toys runtime methods when
   running through `--via workbench`.
 - `context.turn.start(params)` starts a native turn.
 - `context.turn.read(turn)` reads a started turn.
 - `context.turn.wait(turn, options)` waits for one turn and returns
   `status`, `outputText`, `thread`, and `turn`.
 - `context.turn.waitAll(turns, options)` waits for multiple turns.
-- `context.delegate.start(params)` starts a delegated Codex thread through the
-  toybox. Use `cwd: "@/workbenches/name"` or `cwd: "@/repos/name"`.
-- `context.delegate.read(delegation)` and `context.delegate.wait(delegation,
-  options)` refresh or wait on a delegated thread record.
 
 ## Named Layout
 
@@ -68,15 +65,14 @@ workflows/<name>/
 - `skills`: advisory routing metadata for now; current app-server builds do not
   enforce turn-scoped skill filtering.
 
-## Delegation Start Fields
+## Native Thread Fields
 
-- `cwd`: required target cwd. Prefer `@/workbenches/name` or `@/repos/name`
-  relative to the toybox workbench root.
-- `prompt`, `title`, `groupId`, `returnMode`: optional delegation metadata and
-  first-turn prompt.
-- `model`, `serviceTier`, `sandbox`, `approvalPolicy`, `permissions`: optional
-  app-server settings. Do not combine `sandbox` with `permissions`.
-- `allowAbsoluteCwd`: permits an absolute cwd only for trusted local toyboxes.
+- Use `context.turn.start` for normal workflow-owned turns.
+- Use `context.app.call("thread/start", params)` or
+  `context.app.call("thread/resume", params)` only when you need a specific
+  app-server thread method not wrapped by `context.turn`.
+- Return thread ids, titles, and `codex://` links from the workflow result when
+  the operator needs to open created threads in the Codex App.
 
 ## Rules
 
@@ -86,7 +82,7 @@ workflows/<name>/
   reports; there is no codex-toys artifact helper on the context.
 - Keep external side effects small before the turn starts; the turn should own
   work that needs Codex reasoning, tools, or skill guidance.
-- Use the SSH provider for remote workbenches. In SSH mode, named resolution,
+- Use the SSH provider for remote workspaces. In SSH mode, named resolution,
   event loading, and script execution happen on the remote host, and `--event`
   paths are remote paths relative to `--cwd` unless absolute:
   `codex-toys --ssh <target> --cwd /repo workflow run <name> --event .codex/events/name/manual.json --sandbox danger-full-access --approval-policy never`.

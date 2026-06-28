@@ -32,7 +32,7 @@ describe("codex-toys CLI args", () => {
 				type: "app-call",
 				method: "thread/list",
 				paramsText: "{\"limit\":1}",
-				url: "toybox://local",
+				url: "runtime://local",
 			});
 		expect(parseArgs([
 			"app",
@@ -57,49 +57,11 @@ describe("codex-toys CLI args", () => {
 	});
 
 	test("parses workbench-owned method calls", () => {
-		expect(parseArgs(["workbench", "delegation.list"], {})).toMatchObject({
+		expect(parseArgs(["workbench", "functions.list"], {})).toMatchObject({
 			type: "workbench-call",
-			method: "delegation.list",
-			url: "toybox://local",
+			method: "functions.list",
+			url: "runtime://local",
 		});
-		expect(parseArgs([
-			"workbench",
-			"delegate",
-			"start",
-			"--cwd",
-			"@/workbenches/trading",
-			"--prompt",
-			"scan the workbench",
-			"--title",
-			"Trading scan",
-			"--group-id",
-			"ops",
-			"--return-mode",
-			"wake_on_group",
-			"--wait",
-			"--sandbox",
-			"danger-full-access",
-			"--approval-policy",
-			"never",
-			"--json",
-		], {})).toMatchObject({
-			type: "workbench-delegate-start",
-			targetCwd: "@/workbenches/trading",
-			prompt: "scan the workbench",
-			title: "Trading scan",
-			groupId: "ops",
-			returnMode: "wake_on_group",
-			wait: true,
-			sandbox: "danger-full-access",
-			approvalPolicy: "never",
-			json: true,
-			timeoutMs: 30 * 60 * 1000,
-		});
-		expect(parseArgs(["workbench", "delegate", "list", "--json"], {}))
-			.toMatchObject({
-				type: "workbench-delegate-list",
-				json: true,
-			});
 		expect(parseArgs([
 			"workbench",
 			"dispatch",
@@ -123,48 +85,30 @@ describe("codex-toys CLI args", () => {
 				json: true,
 				timeoutMs: 5_000,
 			});
-		expect(parseArgs([
-			"--ssh",
-			"devbox",
-			"--cwd",
-			"/home/peezy",
-			"workbench",
-			"delegate",
-			"start",
-			"--target-cwd",
-			"@/repos/patch.moi",
-			"inspect patch status",
-		], {})).toMatchObject({
-			type: "workbench-delegate-start",
-			sshTarget: "devbox",
-			cwd: "/home/peezy",
-			targetCwd: "@/repos/patch.moi",
-			prompt: "inspect patch status",
-		});
 	});
 
 	test("rejects removed toybox setup commands", () => {
 		expect(() => parseArgs(["workbench", "backend", "init", "local", "--overwrite"], {}))
-			.toThrow("toybox service commands have been removed");
+			.toThrow("workbench backend commands have been removed");
 		expect(() => parseArgs(["workbench", "backend", "status", "--json"], {}))
-			.toThrow("toybox service commands have been removed");
+			.toThrow("workbench backend commands have been removed");
 		expect(() => parseArgs(["workbench", "backend", "start"], {}))
-			.toThrow("toybox service commands have been removed");
+			.toThrow("workbench backend commands have been removed");
 	});
 
-	test("parses toybox and SSH preflight commands", () => {
+	test("parses runtime and SSH preflight commands", () => {
 		expect(() => parseArgs(["remote", "status", "--json"], {}))
-			.toThrow("remote supports only preflight or host-overview");
+			.toThrow("Unknown command: remote");
 		expect(parseArgs([
 			"--ssh",
 			"devbox",
 			"--cwd",
 			"/work",
-			"remote",
+			"runtime",
 			"preflight",
 			"--json",
 		], {})).toMatchObject({
-			type: "remote-preflight",
+			type: "runtime-preflight",
 			cwd: "/work",
 			sshTarget: "devbox",
 			json: true,
@@ -172,23 +116,23 @@ describe("codex-toys CLI args", () => {
 		expect(parseArgs([
 			"--cwd",
 			"/work",
-			"toybox",
+			"runtime",
 			"serve",
 			"--codex-command",
 			"/opt/codex",
 		], {})).toMatchObject({
-			type: "toybox-serve",
+			type: "runtime-serve",
 			cwd: "/work",
 			remoteCodexCommand: "/opt/codex",
 		});
 		expect(() => parseArgs(["remote", "turn", "start", "--prompt", "hello"], {}))
-			.toThrow("remote supports only preflight or host-overview");
+			.toThrow("Unknown command: remote");
 		});
 
 	test("parses host overview commands", () => {
 		expect(parseArgs(["host", "overview", "--json"], {})).toMatchObject({
 			type: "host-overview",
-			url: "toybox://local",
+			url: "runtime://local",
 			json: true,
 		});
 		expect(parseArgs([
@@ -196,7 +140,7 @@ describe("codex-toys CLI args", () => {
 			"devbox",
 			"--cwd",
 			"/home/peezy",
-			"remote",
+			"runtime",
 			"host-overview",
 			"--json",
 		], {})).toMatchObject({
@@ -226,7 +170,7 @@ describe("codex-toys CLI args", () => {
 				"devbox",
 				"--cwd",
 				"/repo",
-				"--toybox-command",
+				"--runtime-command",
 				"/opt/codex-toys",
 				"--codex-command",
 				"/opt/codex",
@@ -357,7 +301,7 @@ describe("codex-toys CLI args", () => {
 			"/repo",
 			"--remote-path-prepend",
 			"/opt/node/bin",
-			"--toybox-command",
+			"--runtime-command",
 			"/opt/codex-toys",
 			"fetch",
 		], {})).toMatchObject({ type: "fetch", ...remote });
@@ -377,7 +321,7 @@ describe("codex-toys CLI args", () => {
 			"--cwd",
 			"/repo",
 			"workbench",
-			"delegation.list",
+			"functions.list",
 		], {})).toMatchObject({
 			type: "workbench-call",
 			sshTarget: "devbox",
@@ -476,7 +420,7 @@ describe("codex-toys CLI args", () => {
 			"devbox",
 			"--cwd",
 			"/repo",
-			"remote",
+			"runtime",
 			"host-overview",
 			"--json",
 		], env);
@@ -493,7 +437,7 @@ describe("codex-toys CLI args", () => {
 		});
 	});
 
-	test("parses app-server pass-through through the toybox", () => {
+	test("parses app-server pass-through through the runtime", () => {
 			expect(parseArgs([
 				"workbench",
 				"app",
@@ -760,8 +704,8 @@ describe("codex-toys CLI args", () => {
 	test("parses neofetch-style fetch command", () => {
 		expect(parseArgs(["--no-color", "fetch"], {})).toEqual({
 			type: "fetch",
-			appUrl: "toybox://local",
-			workbenchUrl: "toybox://local",
+			appUrl: "runtime://local",
+			workbenchUrl: "runtime://local",
 			timeoutMs: 1500,
 			color: false,
 			json: false,
@@ -790,18 +734,18 @@ describe("codex-toys CLI args", () => {
 			shell: "/bin/bash",
 			cwd: "/workbench",
 			codexCommand: "/tmp/codex",
-			toyboxUrl: "toybox://local",
+			runtimeUrl: "runtime://local",
 			codexHome: "/tmp/codex-home",
-			toybox: {
+			runtimeTransport: {
 				transport: "local",
 				status: "connected",
-				url: "toybox://local",
+				url: "runtime://local",
 				server: {
-					name: "codex-toys-toybox",
+					name: "codex-toys-runtime",
 					version: "0.1.0",
 				},
 				capabilities: {
-					toyboxMethods: 8,
+					methods: 8,
 				},
 				threads: {
 					total: 2,
@@ -821,8 +765,8 @@ describe("codex-toys CLI args", () => {
 		const output = formatFetchInfo(info, { color: false });
 		expect(output).toContain("codex-toys");
 		expect(output).toContain("package      codex-toys@0.3.1");
-		expect(output).toContain("toybox       toybox://local");
-		expect(output).toContain("toybox status local connected");
+		expect(output).toContain("runtime transport runtime://local");
+		expect(output).toContain("runtime status local connected");
 		expect(output).toContain("threads      2 listed, 1 active, 1 idle");
 		expect(output).not.toContain("\x1b[");
 	});
@@ -892,7 +836,7 @@ function resultFor(method, params) {
 	if (method === "toybox.initialize") {
 		return {
 			ok: true,
-			serverInfo: { name: "fake-toybox", version: "0.1.0" },
+			serverInfo: { name: "fake-runtime", version: "0.1.0" },
 			capabilities: {
 				appPassThrough: true,
 				toyboxMethods: ["functions.list", "functions.describe", "functions.call", "host.overview"],

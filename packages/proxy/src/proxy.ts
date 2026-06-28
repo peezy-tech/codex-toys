@@ -87,8 +87,8 @@ export function createProxyRequester(options: CodexToysProxyOptions): ProxyReque
 			TOYBOX_INITIALIZE_METHOD,
 			{
 				clientInfo: {
-					name: "codex-toys-proxy",
-					title: "Codex Toys Proxy",
+					name: "codex-toys-runtime-http",
+					title: "Codex Toys Runtime HTTP",
 					version: "0.1.0",
 				},
 				capabilities: {
@@ -121,17 +121,17 @@ async function handleApiRequest(
 	const apiPath = url.pathname.slice(apiBasePath.length) || "/";
 	if (request.method === "GET" && apiPath === "/status") {
 		const initialized = await requester.initialize();
-		let toybox: unknown = null;
+		let runtime: unknown = null;
 		try {
-			toybox = await requester.request("toybox.status", {});
+			runtime = await requester.request("runtime.status", {});
 		} catch {
-			toybox = null;
+			runtime = null;
 		}
 		writeJson(response, 200, {
 			ok: true,
 			serverInfo: initialized.serverInfo,
 			capabilities: initialized.capabilities,
-			toybox,
+			runtime,
 		});
 		return;
 	}

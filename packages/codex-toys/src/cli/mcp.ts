@@ -8,10 +8,6 @@ import {
 	hasSshRemote,
 	type SshRemoteProviderOptions,
 } from "@codex-toys/remote";
-import {
-	startWorkbenchDelegationWithRequest,
-	type WorkbenchDelegationListResult,
-} from "@codex-toys/workbench";
 
 type JsonRpcId = string | number | null;
 
@@ -42,7 +38,7 @@ const jsonObjectSchema = {
 	additionalProperties: false,
 };
 
-const toyboxProperty = {
+const runtimeProperty = {
 	timeoutMs: {
 		type: "number",
 		description: "Request timeout in milliseconds.",
@@ -51,61 +47,38 @@ const toyboxProperty = {
 
 export const codexToysMcpTools: McpToolDefinition[] = [
 	{
-		name: "delegate_start",
-		description: "Start a delegated Codex thread in another cwd through the current codex-toys toybox.",
+		name: "functions_list",
+		description: "List JSON-in/JSON-out workspace functions declared by the current codex-toys runtime.",
 		inputSchema: {
 			...jsonObjectSchema,
 			properties: {
-				...toyboxProperty,
-				cwd: {
-					type: "string",
-					description: "Target cwd. Use @/path for a path under the current workbench root.",
-				},
-				prompt: { type: "string" },
-				title: { type: "string" },
-				groupId: { type: "string" },
-				returnMode: {
-					type: "string",
-					enum: ["detached", "record_only", "wake_on_done", "wake_on_group", "manual"],
-				},
-				wait: { type: "boolean" },
-				allowAbsoluteCwd: { type: "boolean" },
-				model: { type: "string" },
-				sandbox: {
-					type: "string",
-					enum: ["danger-full-access", "workspace-write", "read-only"],
-				},
-				approvalPolicy: {
-					type: "string",
-					enum: ["never", "on-failure", "on-request", "untrusted"],
-				},
-				permissions: { type: "string" },
-			},
-			required: ["cwd"],
-		},
-	},
-	{
-		name: "delegate_list",
-		description: "List workbench delegations and discovered @/workbenches and @/repos targets.",
-		inputSchema: {
-			...jsonObjectSchema,
-			properties: {
-				...toyboxProperty,
-				includeTargets: { type: "boolean" },
+				...runtimeProperty,
 			},
 		},
 	},
 	{
-		name: "delegate_read",
-		description: "Read and refresh a delegated Codex thread record.",
+		name: "functions_describe",
+		description: "Read metadata and schemas for one workspace function.",
 		inputSchema: {
 			...jsonObjectSchema,
 			properties: {
-				...toyboxProperty,
-				delegationId: { type: "string" },
-				id: { type: "string" },
-				threadId: { type: "string" },
+				...runtimeProperty,
+				name: { type: "string" },
 			},
+			required: ["name"],
+		},
+	},
+	{
+		name: "functions_call",
+		description: "Call a workspace function with JSON params.",
+		inputSchema: {
+			...jsonObjectSchema,
+			properties: {
+				...runtimeProperty,
+				name: { type: "string" },
+				params: {},
+			},
+			required: ["name"],
 		},
 	},
 ];
@@ -217,44 +190,26 @@ async function callCodexToysMcpTool(
 	options: McpServerOptions,
 ): Promise<unknown> {
 	const timeoutMs = numberValue(args.timeoutMs) ?? options.timeoutMs;
-	return await withWorkbenchTransport({ ...options, timeoutMs }, async (transport) => {
-		if (name === "delegate_start") {
-			return await startWorkbenchDelegationWithRequest(
-				async (method, params) => await transport.request(method, params),
-				{
-					cwd: requiredString(args.cwd, "cwd"),
-					prompt: stringValue(args.prompt),
-					title: stringValue(args.title),
-					groupId: stringValue(args.groupId),
-					returnMode: returnModeValue(args.returnMode),
-					wait: booleanValue(args.wait, false),
-					timeoutMs,
-					allowAbsoluteCwd: booleanValue(args.allowAbsoluteCwd, false),
-					model: stringValue(args.model),
-					sandbox: stringValue(args.sandbox),
-					approvalPolicy: stringValue(args.approvalPolicy),
-					permissions: stringValue(args.permissions),
-				},
-			);
+	return await withRuntimeTransport({ ...options, timeoutMs }, async (transport) => {
+		if (name === "functions_list") {
+			return await transport.request("functions.list", {});
 		}
-		if (name === "delegate_list") {
-			return await transport.request<WorkbenchDelegationListResult>(
-				"delegation.list",
-				{ includeTargets: booleanValue(args.includeTargets, true) },
-			);
+		if (name === "functions_describe") {
+			return await transport.request("functions.describe", {
+				name: requiredString(args.name, "name"),
+			});
 		}
-		if (name === "delegate_read") {
-			return await transport.request("delegation.read", compactUndefined({
-				delegationId: stringValue(args.delegationId),
-				id: stringValue(args.id),
-				threadId: stringValue(args.threadId),
+		if (name === "functions_call") {
+			return await transport.request("functions.call", compactUndefined({
+				name: requiredString(args.name, "name"),
+				params: args.params,
 			}));
 		}
 		throw new Error(`unknown codex-toys tool: ${name}`);
 	});
 }
 
-async function withWorkbenchTransport<T>(
+async function withRuntimeTransport<T>(
 	options: { timeoutMs: number } & SshRemoteProviderOptions,
 	callback: (transport: CodexToyboxTransport) => Promise<T>,
 ): Promise<T> {
@@ -298,32 +253,6 @@ function numberValue(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) && value > 0
 		? value
 		: undefined;
-}
-
-function booleanValue(value: unknown, fallback: boolean): boolean {
-	if (typeof value === "boolean") {
-		return value;
-	}
-	if (typeof value === "string") {
-		return value === "1" || value === "true" || value === "yes" || value === "on";
-	}
-	return fallback;
-}
-
-function returnModeValue(value: unknown): "detached" | "record_only" | "wake_on_done" | "wake_on_group" | "manual" | undefined {
-	if (
-		value === "detached" ||
-		value === "record_only" ||
-		value === "wake_on_done" ||
-		value === "wake_on_group" ||
-		value === "manual"
-	) {
-		return value;
-	}
-	if (value !== undefined) {
-		throw new Error("returnMode must be detached, record_only, wake_on_done, wake_on_group, or manual");
-	}
-	return undefined;
 }
 
 function record(value: unknown): Record<string, unknown> {

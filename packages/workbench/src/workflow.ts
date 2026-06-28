@@ -6,10 +6,6 @@ import { fileURLToPath } from "node:url";
 import type { v2 } from "@codex-toys/bridge/generated";
 import { codexThreadUrl } from "@codex-toys/bridge";
 import type { ReasoningEffort } from "@codex-toys/bridge/generated/ReasoningEffort";
-import type {
-	WorkbenchDelegation,
-	WorkbenchDelegationStatus,
-} from "./delegation.ts";
 import { parseJsonText } from "@codex-toys/bridge/json";
 
 const MODULE_RESULT_PREFIX = "WORKFLOW_MODULE_RESULT ";
@@ -184,42 +180,12 @@ export type WorkflowTurnSnapshot = WorkflowStartedTurn & {
 	error?: unknown;
 };
 
-export type WorkflowStartedDelegation = {
-	id?: string;
-	delegation: WorkbenchDelegation;
-	turnId?: string;
-};
-
-export type WorkflowDelegationSnapshot = WorkflowStartedDelegation & {
-	status: WorkbenchDelegationStatus;
-	latestTurnId?: string;
-	latestStatus?: string;
-	outputText: string;
-	error?: unknown;
-};
-
 export type WorkflowHostTurnStartParams =
 	& Partial<Omit<WorkflowTurnStartParams, "prompt">>
 	& {
 		id?: string;
 		prompt?: string;
 	};
-
-export type WorkflowHostDelegationStartParams = {
-	id?: string;
-	cwd: string;
-	prompt?: string;
-	title?: string;
-	groupId?: string;
-	returnMode?: string;
-	allowAbsoluteCwd?: boolean;
-	model?: string;
-	serviceTier?: string;
-	effort?: ReasoningEffort;
-	sandbox?: v2.SandboxMode;
-	approvalPolicy?: v2.AskForApproval;
-	permissions?: string;
-};
 
 export type WorkflowScriptContext = WorkflowContext & {
 	app: {
@@ -249,22 +215,6 @@ export type WorkflowScriptContext = WorkflowContext & {
 				throwOnFailure?: boolean;
 			},
 		): Promise<WorkflowTurnSnapshot[]>;
-	};
-	delegate: {
-		list(params?: Record<string, unknown>): Promise<unknown>;
-		start(params: WorkflowHostDelegationStartParams): Promise<WorkflowStartedDelegation>;
-		send(params: Record<string, unknown>): Promise<unknown>;
-		read(
-			delegation: Pick<WorkflowStartedDelegation, "id"> | Record<string, unknown>,
-		): Promise<WorkflowDelegationSnapshot>;
-		wait(
-			delegation: Pick<WorkflowStartedDelegation, "id"> | Record<string, unknown>,
-			options?: {
-				timeoutMs?: number;
-				pollIntervalMs?: number;
-				throwOnFailure?: boolean;
-			},
-		): Promise<WorkflowDelegationSnapshot>;
 	};
 };
 
@@ -372,47 +322,12 @@ export function createWorkflowHost(
 		}
 		if (call.method === "workbench.call") {
 			if (!options.workbenchRequest) {
-				throw new Error("ctx.workbench.call is only available through a codex-toys toybox");
+				throw new Error("ctx.workbench.call is only available through a codex-toys runtime");
 			}
 			const params = record(call.params);
 			return await options.workbenchRequest(
 				requiredString(params.method, "ctx.workbench.call method"),
 				params.params,
-			);
-		}
-		if (call.method === "delegate.list") {
-			return await workbenchHostRequest(options, "delegation.list", call.params ?? {});
-		}
-		if (call.method === "delegate.start") {
-			const params = delegationStartParamsFromHostParams(
-				record(call.params),
-				options.defaults,
-			);
-			const started = await workbenchHostRequest<{
-				delegation: WorkbenchDelegation;
-				turnId?: string;
-			}>(options, "delegation.start", params);
-			return compactUndefined({
-				id: optionalString(record(call.params).id),
-				delegation: started.delegation,
-				turnId: started.turnId,
-			});
-		}
-		if (call.method === "delegate.send") {
-			return await workbenchHostRequest(options, "delegation.send", call.params ?? {});
-		}
-		if (call.method === "delegate.read") {
-			return await readWorkflowDelegationWithRequest(
-				options,
-				delegationRefFromValue(call.params, "ctx.delegate.read"),
-			);
-		}
-		if (call.method === "delegate.wait") {
-			const params = record(call.params);
-			return await waitWorkflowDelegationWithRequest(
-				options,
-				delegationRefFromValue(params.delegation ?? call.params, "ctx.delegate.wait"),
-				waitOptionsFromValue(params.options),
 			);
 		}
 		if (call.method === "turn.start") {
@@ -458,17 +373,6 @@ export function createWorkflowHost(
 		}
 		throw new Error(`Unknown workflow host method: ${call.method}`);
 	};
-}
-
-async function workbenchHostRequest<T = unknown>(
-	options: CreateWorkflowHostOptions,
-	method: string,
-	params: unknown,
-): Promise<T> {
-	if (!options.workbenchRequest) {
-		throw new Error("context.delegate is only available through a codex-toys toybox");
-	}
-	return await options.workbenchRequest(method, params) as T;
 }
 
 export async function startWorkflowTurnWithRequest(
@@ -585,57 +489,6 @@ function isTransientThreadReadError(error: unknown): boolean {
 
 function isFailureTurnStatus(status: string): boolean {
 	return status === "failed" || status === "interrupted";
-}
-
-export async function readWorkflowDelegationWithRequest(
-	options: CreateWorkflowHostOptions,
-	ref: Record<string, unknown>,
-): Promise<WorkflowDelegationSnapshot> {
-	const response = await workbenchHostRequest<{
-		delegation: WorkbenchDelegation;
-		latestTurnId?: string;
-		latestStatus?: string;
-		lastFinal?: { text: string };
-	}>(options, "delegation.read", ref);
-	return compactUndefined({
-		id: optionalString(ref.id),
-		delegation: response.delegation,
-		turnId: response.delegation.lastTurnId,
-		status: response.delegation.status,
-		latestTurnId: response.latestTurnId,
-		latestStatus: response.latestStatus,
-		outputText: response.lastFinal?.text ?? response.delegation.lastFinal ?? "",
-		error: response.delegation.status === "failed"
-			? response.delegation.lastStatus
-			: undefined,
-	});
-}
-
-export async function waitWorkflowDelegationWithRequest(
-	options: CreateWorkflowHostOptions,
-	ref: Record<string, unknown>,
-	waitOptions: {
-		timeoutMs?: number;
-		pollIntervalMs?: number;
-		throwOnFailure?: boolean;
-	} = {},
-): Promise<WorkflowDelegationSnapshot> {
-	const timeoutMs = waitOptions.timeoutMs ?? DEFAULT_TURN_WAIT_TIMEOUT_MS;
-	const pollIntervalMs = waitOptions.pollIntervalMs ?? DEFAULT_TURN_WAIT_POLL_INTERVAL_MS;
-	const startedAt = Date.now();
-	while (true) {
-		const snapshot = await readWorkflowDelegationWithRequest(options, ref);
-		if (snapshot.status !== "active" && snapshot.status !== "idle") {
-			if (snapshot.status === "failed" && waitOptions.throwOnFailure !== false) {
-				throw new Error(workflowDelegationFailureMessage(snapshot));
-			}
-			return snapshot;
-		}
-		if (Date.now() - startedAt >= timeoutMs) {
-			throw new Error(`Timed out waiting for delegation ${optionalString(ref.delegationId) ?? optionalString(ref.id) ?? optionalString(ref.threadId) ?? "unknown"}`);
-		}
-		await delay(Math.min(pollIntervalMs, Math.max(0, timeoutMs - (Date.now() - startedAt))));
-	}
 }
 
 export async function listWorkflows(
@@ -882,50 +735,6 @@ function turnStartParamsFromHostParams(
 	});
 }
 
-function delegationStartParamsFromHostParams(
-	params: Record<string, unknown>,
-	defaults: CreateWorkflowHostOptions["defaults"] = {},
-): WorkflowHostDelegationStartParams {
-	const prompt = optionalString(params.prompt) ?? defaults.prompt;
-	return compactUndefined({
-		id: optionalString(params.id),
-		cwd: requiredString(params.cwd ?? defaults.cwd, "ctx.delegate.start cwd"),
-		prompt,
-		title: optionalString(params.title),
-		groupId: optionalString(params.groupId),
-		returnMode: optionalString(params.returnMode),
-		allowAbsoluteCwd: optionalBoolean(params.allowAbsoluteCwd),
-		model: optionalString(params.model) ?? defaults.model,
-		serviceTier: optionalString(params.serviceTier),
-		effort: reasoningEffortValue(params.effort) ?? defaults.effort,
-		sandbox: sandboxModeValue(params.sandbox) ?? defaults.sandbox,
-		approvalPolicy: approvalPolicyValue(params.approvalPolicy) ??
-			defaults.approvalPolicy,
-		permissions: optionalString(params.permissions) ?? defaults.permissions,
-	});
-}
-
-function delegationRefFromValue(
-	value: unknown,
-	label: string,
-): Record<string, unknown> {
-	const params = record(value);
-	const delegation = record(params.delegation);
-	const id = optionalString(params.delegationId) ??
-		optionalString(params.id) ??
-		optionalString(delegation.id);
-	const threadId = optionalString(params.threadId) ??
-		optionalString(delegation.codexThreadId);
-	if (!id && !threadId) {
-		throw new Error(`${label} requires delegationId, id, or threadId`);
-	}
-	return compactUndefined({
-		id: optionalString(params.id),
-		delegationId: id,
-		threadId,
-	});
-}
-
 function turnRefFromValue(
 	value: unknown,
 	label: string,
@@ -962,7 +771,6 @@ function threadStartParamsFromWorkflow(
 		approvalPolicy: turn.approvalPolicy,
 		permissions: turn.permissions,
 		experimentalRawEvents: false,
-		persistExtendedHistory: false,
 	});
 }
 
@@ -1238,25 +1046,6 @@ function workflowTurnFailureMessage(snapshot: WorkflowTurnSnapshot): string {
 	}
 	appendUnknownDetail(lines, "turn error", snapshot.error);
 	appendCapturedOutput(lines, "turn output", snapshot.outputText);
-	return lines.join("\n");
-}
-
-function workflowDelegationFailureMessage(snapshot: WorkflowDelegationSnapshot): string {
-	const lines = [
-		`Delegation ${snapshot.delegation.id} failed`,
-		`status ${snapshot.status}`,
-	];
-	if (snapshot.delegation.codexThreadId) {
-		lines.push(`thread id ${snapshot.delegation.codexThreadId}`);
-	}
-	if (snapshot.latestTurnId) {
-		lines.push(`latest turn id ${snapshot.latestTurnId}`);
-	}
-	if (snapshot.latestStatus) {
-		lines.push(`latest status ${snapshot.latestStatus}`);
-	}
-	appendUnknownDetail(lines, "delegation error", snapshot.error);
-	appendCapturedOutput(lines, "delegation output", snapshot.outputText);
 	return lines.join("\n");
 }
 

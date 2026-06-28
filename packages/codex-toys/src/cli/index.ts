@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import http from "node:http";
 import { helpText } from "./help.ts";
 import {
 	APP_CALL_METHOD,
@@ -55,8 +56,8 @@ import {
 import {
 	collectFetchInfo,
 	formatFetchInfo,
-	type FetchToyboxInfo,
 	type FetchCountInfo,
+	type FetchRuntimeTransportInfo,
 	type FetchThreadSummary,
 	type FetchThreadsInfo,
 } from "@codex-toys/workbench";
@@ -129,6 +130,7 @@ import {
 	type WorkbenchOverview,
 } from "@codex-toys/workbench";
 import { serveToybox } from "./toybox.ts";
+import { createCodexToysProxyHandler } from "@codex-toys/proxy";
 import type { CodexToyboxTransport } from "@codex-toys/toybox";
 import {
 	formatThreadRolloutInspection,
@@ -165,12 +167,6 @@ import {
 	scaffoldActionsWorkbench,
 	type DispatchRunIntent,
 } from "@codex-toys/workbench";
-import {
-	formatWorkbenchDelegationListResult,
-	formatWorkbenchDelegationStartResult,
-	startWorkbenchDelegationWithRequest,
-	type WorkbenchDelegationListResult,
-} from "@codex-toys/workbench";
 import { serveCodexToysMcp } from "./mcp.ts";
 import { parseJsonParamsText, readJsonFile } from "@codex-toys/bridge/json";
 
@@ -196,14 +192,14 @@ async function main(): Promise<void> {
 			appUrl: parsed.appUrl,
 			workbenchUrl: parsed.workbenchUrl,
 			cwd: parsed.sshTarget ? parsed.cwd : undefined,
-			toybox: await collectToyboxInfo(parsed),
+			runtimeTransport: await collectRuntimeTransportInfo(parsed),
 		});
 		write(parsed.json
 			? `${JSON.stringify(info, null, 2)}\n`
 			: formatFetchInfo(info, { color: parsed.color }));
 		return;
 	}
-	if (parsed.type === "remote-preflight") {
+	if (parsed.type === "runtime-preflight") {
 		const result = await collectRemotePreflight(parsed);
 		write(parsed.json
 			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
@@ -213,13 +209,17 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
-	if (parsed.type === "toybox-serve") {
+	if (parsed.type === "runtime-serve") {
 		await serveToybox({
 			cwd: parsed.cwd,
 			timeoutMs: parsed.timeoutMs,
 			codexCommand: parsed.remoteCodexCommand,
 			codexArgs: parsed.remoteCodexArgs,
 		});
+		return;
+	}
+	if (parsed.type === "runtime-http") {
+		await serveRuntimeHttp(parsed);
 		return;
 	}
 	if (parsed.type === "workflow-run") {
@@ -607,54 +607,13 @@ async function main(): Promise<void> {
 		}, parsed.pretty);
 		return;
 	}
-	if (parsed.type === "workbench-delegate-list") {
-		const response = await callToybox(
-			"delegation.list",
-			{ includeTargets: true },
-			parsed,
-		) as WorkbenchDelegationListResult;
-		write(parsed.json
-			? `${JSON.stringify(response, null, parsed.pretty ? 2 : 0)}\n`
-			: formatWorkbenchDelegationListResult(response));
-		return;
-	}
-	if (parsed.type === "workbench-delegate-start") {
-		validateWorkflowTurnOptions(parsed);
-		const result = await withWorkbenchTransport(parsed, async (transport) => {
-			await initialize(transport);
-			return await startWorkbenchDelegationWithRequest(
-				async (method, params) => await transport.request(method, params),
-				{
-					cwd: parsed.targetCwd,
-					prompt: parsed.prompt,
-					title: parsed.title,
-					groupId: parsed.groupId,
-					returnMode: parsed.returnMode,
-					wait: parsed.wait,
-					timeoutMs: parsed.timeoutMs,
-					allowAbsoluteCwd: parsed.allowAbsoluteCwd,
-					model: parsed.model,
-					sandbox: parsed.sandbox,
-					approvalPolicy: parsed.approvalPolicy,
-					permissions: parsed.permissions,
-				},
-			);
-		});
-		write(parsed.json
-			? `${JSON.stringify(result, null, parsed.pretty ? 2 : 0)}\n`
-			: formatWorkbenchDelegationStartResult(result));
-		if (result.wait?.status === "failed") {
-			process.exitCode = 1;
-		}
-		return;
-	}
 	if (parsed.type === "workbench-doctor") {
 		const context = await createWorkbenchContext({
 			workbenchRoot: parsed.workbenchRoot,
 			mode: parsed.mode,
 		});
 		const info = await collectWorkbenchDoctorInfo(context);
-		const toybox = await collectToyboxInfo({
+		const runtimeTransport = await collectRuntimeTransportInfo({
 			appUrl: parsed.appUrl,
 			workbenchUrl: parsed.workbenchUrl,
 			timeoutMs: parsed.timeoutMs,
@@ -665,10 +624,10 @@ async function main(): Promise<void> {
 			remoteCodexCommand: parsed.remoteCodexCommand,
 			remoteCodexArgs: parsed.remoteCodexArgs,
 		});
-		const result = { ...info, toybox };
+		const result = { ...info, runtimeTransport };
 		write(parsed.json
 			? `${JSON.stringify(result, null, 2)}\n`
-			: `${formatWorkbenchDoctorInfo(info)}toybox             ${toyboxLabelForDoctor(toybox)}\n`);
+			: `${formatWorkbenchDoctorInfo(info)}runtime            ${runtimeTransportLabelForDoctor(runtimeTransport)}\n`);
 		return;
 	}
 	if (parsed.type === "workbench-overview") {
@@ -1411,11 +1370,13 @@ async function main(): Promise<void> {
 	}
 }
 
-function toyboxLabelForDoctor(toybox: FetchToyboxInfo): string {
-	if (toybox.status === "connected") {
-		return toybox.url ? `${toybox.transport} connected (${toybox.url})` : `${toybox.transport} connected`;
+function runtimeTransportLabelForDoctor(runtimeTransport: FetchRuntimeTransportInfo): string {
+	if (runtimeTransport.status === "connected") {
+		return runtimeTransport.url
+			? `${runtimeTransport.transport} connected (${runtimeTransport.url})`
+			: `${runtimeTransport.transport} connected`;
 	}
-	return toybox.error ? `unavailable (${toybox.error})` : "unavailable";
+	return runtimeTransport.error ? `unavailable (${runtimeTransport.error})` : "unavailable";
 }
 
 function formatFeedSourceList(sources: FeedSource[]): string {
@@ -1833,29 +1794,29 @@ async function initialize(
 	);
 }
 
-async function collectToyboxInfo(options: {
+async function collectRuntimeTransportInfo(options: {
 	appUrl: string;
 	workbenchUrl: string;
 	timeoutMs: number;
-} & SshRemoteProviderOptions): Promise<FetchToyboxInfo> {
+} & SshRemoteProviderOptions): Promise<FetchRuntimeTransportInfo> {
 	if (hasSshRemote(options)) {
-		return await collectSshToyboxInfo(options);
+		return await collectSshRuntimeTransportInfo(options);
 	}
-	return await collectLocalToyboxInfo(options);
+	return await collectLocalRuntimeTransportInfo(options);
 }
 
-async function collectSshToyboxInfo(
+async function collectSshRuntimeTransportInfo(
 	options: {
 		appUrl: string;
 		workbenchUrl: string;
 		timeoutMs: number;
 	} & SshRemoteProviderOptions,
-): Promise<FetchToyboxInfo> {
+): Promise<FetchRuntimeTransportInfo> {
 	try {
 		return await withSshRemoteToyboxTransport(options, async (transport) =>
-			await collectToyboxInfoFromTransport(
+			await collectRuntimeTransportInfoFromTransport(
 				transport,
-				"ssh://toybox",
+				"ssh://runtime",
 				"ssh",
 				options.timeoutMs,
 			)
@@ -1864,21 +1825,21 @@ async function collectSshToyboxInfo(
 		return {
 			transport: "ssh",
 			status: "unavailable",
-			error: `toybox: ${errorMessage(error)}`,
+			error: `runtime: ${errorMessage(error)}`,
 		};
 	}
 }
 
-async function collectLocalToyboxInfo(options: {
+async function collectLocalRuntimeTransportInfo(options: {
 	timeoutMs: number;
-}): Promise<FetchToyboxInfo> {
+}): Promise<FetchRuntimeTransportInfo> {
 	const transport = createLocalToyboxTransport(options);
 	transport.on("error", () => {});
 	try {
 		transport.start();
-		return await collectToyboxInfoFromTransport(
+		return await collectRuntimeTransportInfoFromTransport(
 			transport,
-			"toybox://local",
+			"runtime://local",
 			"local",
 			options.timeoutMs,
 		);
@@ -1886,7 +1847,7 @@ async function collectLocalToyboxInfo(options: {
 		return {
 			transport: "local",
 			status: "unavailable",
-			url: "toybox://local",
+			url: "runtime://local",
 			error: errorMessage(error),
 		};
 	} finally {
@@ -1894,31 +1855,26 @@ async function collectLocalToyboxInfo(options: {
 	}
 }
 
-async function collectToyboxInfoFromTransport(
+async function collectRuntimeTransportInfoFromTransport(
 	transport: CodexToyboxTransport,
 	url: string,
-	toyboxTransport: FetchToyboxInfo["transport"],
+	runtimeTransport: FetchRuntimeTransportInfo["transport"],
 	timeoutMs: number,
-): Promise<FetchToyboxInfo> {
+): Promise<FetchRuntimeTransportInfo> {
 	return await withProbeTimeout(async () => {
 		const initialized = await initialize(transport);
-		const methods = new Set(initialized.capabilities.toyboxMethods);
 		const threads = await collectThreadsViaWorkbench(transport);
-		const delegations = methods.has("delegation.list")
-			? await optionalProbe(() => collectDelegations(transport))
-			: undefined;
 		return {
-			transport: toyboxTransport,
+			transport: runtimeTransport,
 			status: "connected",
 			url,
 			server: initialized.serverInfo,
 			capabilities: {
-				toyboxMethods: initialized.capabilities.toyboxMethods.length,
+				methods: initialized.capabilities.toyboxMethods.length,
 			},
 			threads,
-			...(delegations ? { delegations } : {}),
 		};
-	}, timeoutMs, `toybox probe timed out after ${timeoutMs}ms`);
+	}, timeoutMs, `runtime probe timed out after ${timeoutMs}ms`);
 }
 
 async function collectThreadsViaWorkbench(
@@ -1940,13 +1896,6 @@ async function collectThreadsViaWorkbench(
 			error: errorMessage(error),
 		};
 	}
-}
-
-async function collectDelegations(
-	transport: CodexToyboxTransport,
-): Promise<FetchCountInfo> {
-	const response = record(await transport.request("delegation.list", {}));
-	return summarizeStatusList(arrayValue(response.delegations));
 }
 
 function threadListParams(): Record<string, unknown> {
@@ -2195,6 +2144,45 @@ function parseJson(text: string): unknown {
 
 function writeJson(value: unknown, pretty: boolean): void {
 	write(`${JSON.stringify(value, null, pretty ? 2 : 0)}\n`);
+}
+
+async function serveRuntimeHttp(options: {
+	cwd?: string;
+	sshTarget?: string;
+	staticDir?: string;
+	host: string;
+	port: number;
+	timeoutMs: number;
+	toyboxCommand?: string;
+	remoteCodexCommand?: string;
+	remoteCodexArgs?: string[];
+}): Promise<void> {
+	const handler = createCodexToysProxyHandler({
+		cwd: options.cwd,
+		sshTarget: options.sshTarget,
+		staticDir: options.staticDir,
+		timeoutMs: options.timeoutMs,
+		toyboxCommand: options.toyboxCommand,
+		remoteCodexCommand: options.remoteCodexCommand,
+		remoteCodexArgs: options.remoteCodexArgs,
+		apiBasePath: "/api",
+	});
+	const server = http.createServer((request, response) => {
+		void handler(request, response).catch((error: unknown) => {
+			response.statusCode = 500;
+			response.setHeader("content-type", "application/json; charset=utf-8");
+			response.end(`${JSON.stringify({ error: errorMessage(error) })}\n`);
+		});
+	});
+	await new Promise<void>((resolve) => {
+		server.listen(options.port, options.host, resolve);
+	});
+	const address = server.address();
+	const port = typeof address === "object" && address ? address.port : options.port;
+	process.stderr.write(`codex-toys runtime http listening on http://${options.host}:${port}\n`);
+	await new Promise<void>((resolve) => {
+		server.once("close", resolve);
+	});
 }
 
 function write(text: string): void {

@@ -5,9 +5,9 @@ import type { ToyboxMethodMetadata } from "@codex-toys/toybox";
 import {
 	collectFetchInfo,
 	type FetchInfo,
+	type FetchRuntimeTransportInfo,
 	type FetchThreadSummary,
 	type FetchThreadsInfo,
-	type FetchToyboxInfo,
 } from "./fetch.ts";
 import {
 	collectWorkbenchDoctorInfo,
@@ -77,11 +77,11 @@ export type WorkbenchOverview = {
 		| "shell"
 		| "cwd"
 		| "codexCommand"
-		| "toyboxUrl"
+		| "runtimeUrl"
 		| "codexHome"
 	> & {
 		workbench?: WorkbenchDoctorInfo;
-		toybox: FetchToyboxInfo;
+		runtimeTransport: FetchRuntimeTransportInfo;
 	};
 	health: {
 		ok: boolean;
@@ -114,7 +114,7 @@ export type WorkbenchOverview = {
 };
 
 export type WorkbenchOverviewHealthCheck = {
-	name: "node" | "codex-toys" | "codex" | "toybox" | "app-server" | "workbench-config";
+	name: "node" | "codex-toys" | "codex" | "runtime" | "app-server" | "workbench-config";
 	ok: boolean;
 	status: "ok" | "warning" | "unavailable" | "error";
 	detail?: string;
@@ -197,9 +197,9 @@ export type WorkbenchOverviewRuntimeOptions = {
 	mode?: WorkbenchModeInput;
 	env?: Record<string, string | undefined>;
 	appRequest?: (method: string, params: unknown) => Promise<unknown>;
-	toybox?: FetchToyboxInfo;
-	toyboxStatus?: unknown;
-	toyboxUrl?: string;
+	runtimeTransport?: FetchRuntimeTransportInfo;
+	runtimeStatus?: unknown;
+	runtimeUrl?: string;
 	now?: () => Date;
 };
 
@@ -239,12 +239,12 @@ export async function collectWorkbenchOverview(
 		env: options.env,
 	});
 	const cwd = context.repoRoot;
-	const toybox = options.toybox ?? {
+	const runtimeTransport = options.runtimeTransport ?? {
 		transport: "local",
 		status: options.appRequest ? "connected" : "unavailable",
-		url: options.toyboxUrl ?? "toybox://local",
-		error: options.appRequest ? undefined : "No toybox request surface was provided",
-	} satisfies FetchToyboxInfo;
+		url: options.runtimeUrl ?? "runtime://local",
+		error: options.appRequest ? undefined : "No runtime request surface was provided",
+	} satisfies FetchRuntimeTransportInfo;
 
 	const [
 		fetch,
@@ -255,7 +255,7 @@ export async function collectWorkbenchOverview(
 		git,
 		codex,
 	] = await Promise.all([
-		collectOverviewFetch(cwd, toybox, options),
+		collectOverviewFetch(cwd, runtimeTransport, options),
 		collectDispatch(context, now, limits.intents, limits.outputChars),
 		collectWorkflows(cwd),
 		collectFunctions(cwd),
@@ -290,15 +290,15 @@ export async function collectWorkbenchOverview(
 					ok: false,
 					status: "unavailable",
 					error: codex.error,
-				},
+		},
 		{
-			name: "toybox",
-			ok: toybox.status === "connected",
-			status: toybox.status === "connected" ? "ok" : "unavailable",
-			detail: toybox.status === "connected"
-				? `${toybox.transport}${toybox.server ? ` ${toybox.server.name}@${toybox.server.version}` : ""}`
+			name: "runtime",
+			ok: runtimeTransport.status === "connected",
+			status: runtimeTransport.status === "connected" ? "ok" : "unavailable",
+			detail: runtimeTransport.status === "connected"
+				? `${runtimeTransport.transport}${runtimeTransport.server ? ` ${runtimeTransport.server.name}@${runtimeTransport.server.version}` : ""}`
 				: undefined,
-			error: toybox.error,
+			error: runtimeTransport.error,
 		},
 		{
 			name: "app-server",
@@ -357,14 +357,14 @@ export async function collectWorkbenchOverview(
 
 async function collectOverviewFetch(
 	cwd: string,
-	toybox: FetchToyboxInfo,
+	runtimeTransport: FetchRuntimeTransportInfo,
 	options: WorkbenchOverviewRuntimeOptions,
 ): Promise<WorkbenchOverview["fetch"]> {
 	const info = await collectFetchInfo({
 		cwd,
-		appUrl: options.toyboxUrl ?? "toybox://local",
-		workbenchUrl: options.toyboxUrl ?? "toybox://local",
-		toybox,
+		appUrl: options.runtimeUrl ?? "runtime://local",
+		workbenchUrl: options.runtimeUrl ?? "runtime://local",
+		runtimeTransport,
 		env: options.env,
 	});
 	return {
@@ -377,10 +377,10 @@ async function collectOverviewFetch(
 		...(info.shell ? { shell: info.shell } : {}),
 		cwd: info.cwd,
 		codexCommand: info.codexCommand,
-		toyboxUrl: info.toyboxUrl,
+		runtimeUrl: info.runtimeUrl,
 		codexHome: info.codexHome,
 		...(info.workbench ? { workbench: info.workbench } : {}),
-		toybox: info.toybox,
+		runtimeTransport: info.runtimeTransport,
 	};
 }
 

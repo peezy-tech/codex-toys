@@ -1,7 +1,7 @@
 {
   "name": "codex-toys",
-  "version": "0.140.12",
-  "description": "Codex workflow authoring, toybox operation, SSH workbench orchestration, and dashboard proxy guidance.",
+  "version": "0.140.15",
+  "description": "Codex workflow authoring, runtime operation, SSH workspace orchestration, and dashboard guidance.",
   "author": {
     "name": "Peezy",
     "email": "support@peezy.tech",
@@ -12,9 +12,8 @@
   "license": "MIT",
   "keywords": [
     "codex",
-    "toybox",
+    "runtime",
     "mcp",
-    "proxy",
     "remote-control",
     "workflow",
     "skills"
@@ -22,8 +21,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "codex-toys",
-    "shortDescription": "Author workflows and operate Codex workbench toyboxes.",
-    "longDescription": "codex-toys provides Codex guidance for workflow scripts, local and SSH stdio toyboxes, optional dashboard proxy use, workbench delegation, and local MCP delegation tools. This plugin installs the Codex-facing guidance directly from the Git repository.",
+    "shortDescription": "Author workflows and operate Codex runtimes.",
+    "longDescription": "codex-toys provides Codex guidance for workflow scripts, local and SSH runtimes, functions, and optional local dashboard HTTP edges. This plugin installs the Codex-facing guidance directly from the Git repository.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [
@@ -36,11 +35,10 @@
     "termsOfServiceURL": "https://peezy.tech/terms",
     "defaultPrompt": [
       "Author a workflow script that can skip or start a Codex turn.",
-      "Check the local Codex workbench toybox.",
+      "Check the local Codex runtime.",
       "Discover my Codex App remote connections and run codex-toys over SSH.",
-      "Run codex-toys against a remote Codex workbench over SSH.",
-      "Coordinate delegated workbench work.",
-      "Build a local dashboard proxy for a remote workbench over SSH."
+      "Run codex-toys against a remote Codex workspace over SSH.",
+      "Build a local dashboard for a remote workspace over SSH."
     ],
     "brandColor": "#2563EB"
   }

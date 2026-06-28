@@ -25,14 +25,6 @@ export const COMMON_APP_SERVER_ACTIONS = [
 
 export const COMMON_TOYBOX_METHODS = [
 	"toybox.initialize",
-	"delegation.list",
-	"delegation.start",
-	"delegation.resume",
-	"delegation.send",
-	"delegation.read",
-	"delegation.setPolicy",
-	"delegation.flushResults",
-	"delegation.listGroups",
 	"feed.doctor",
 	"feed.source.list",
 	"feed.poll",

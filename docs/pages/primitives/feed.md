@@ -51,12 +51,12 @@ codex-toys feed dispatch --source project-releases --cursor radar --target workb
 codex-toys feed prune --older-than-days 90 --dry-run
 ```
 
-With `--ssh`, the local CLI starts the remote toybox and calls the same feed
+With `--ssh`, the local CLI starts the remote runtime and calls the same feed
 methods in the remote root selected by `--cwd`.
 
 ```bash
-codex-toys --ssh <target> --cwd <remote-workbench> feed poll --json
-codex-toys --ssh <target> --cwd <remote-workbench> feed collect --cursor radar --json
+codex-toys --ssh <target> --cwd <remote-workspace> feed poll --json
+codex-toys --ssh <target> --cwd <remote-workspace> feed collect --cursor radar --json
 ```
 
 ## State

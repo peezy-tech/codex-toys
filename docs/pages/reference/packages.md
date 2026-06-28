@@ -26,11 +26,6 @@ import { v2 } from "codex-toys/bridge/generated";
 import { parseJsonText } from "codex-toys/bridge/json";
 ```
 
-## `codex-toys/toybox`
-
-Stdio JSON-RPC protocol, client, and server primitives for local and SSH-backed
-toyboxes. Use it when another process needs to host or call a toybox directly.
-
 ## `codex-toys/feed`
 
 Feed intake helpers:
@@ -42,7 +37,7 @@ Feed intake helpers:
 - durable feed item storage
 - collection cursors
 - dispatch and pruning
-- toybox method factories and metadata
+- runtime method factories and metadata
 
 ```ts
 import {
@@ -59,10 +54,9 @@ import {
 Workbench runtime and policy helpers:
 
 - workflow script execution and workflow host helpers
-- remote workflow toybox methods
+- remote workflow runtime methods
 - workbench doctor, task execution, dispatch drains, and Actions scaffolding
 - dispatch runs, prompt queue, and local handoff queue
-- delegation methods and state
 - workbench functions
 - workbench and host overview
 - thread presentation helpers and request descriptors
@@ -100,22 +94,21 @@ system packages. The generated Actions-mode workflow uses
 release feed publishes `codex-<codex-version>` tags that bake native Codex into
 the image before the bindings workflow runs.
 
-## `codex-toys/remote`
+## `codex-toys/runtime`
 
-SSH-backed transport and preflight helpers. This package creates toybox
-transports over SSH stdio, resolves remote options, performs remote preflight,
-and supports remote-control status helpers without exposing remote HTTP ports.
+Runtime/connect helpers for local stdio, SSH stdio, browser clients, and the
+optional HTTP edge. This is the public surface for all codex-toys transport
+paths.
 
-## `codex-toys/proxy`
-
-Optional HTTP edge for dashboards. Public entry points include:
-
-- `codex-toys/proxy`
-- `codex-toys/proxy/browser`
-- `codex-toys/proxy/vite`
-- `codex-toys-proxy`
-
-The proxy forwards generic app and workbench methods to a toybox.
+```ts
+import {
+  CodexRuntimeClient,
+  createSshRuntimeTransport,
+  createCodexToysRuntimeHttpHandler,
+  createCodexToysBrowserClient,
+  codexToysRuntime
+} from "codex-toys/runtime";
+```
 
 ## `codex-toys/kits`
 
@@ -126,6 +119,6 @@ workflow templates. Kits read optional `codex-kit.toml` manifests, write
 
 ## `codex-toys`
 
-The CLI package and umbrella runtime export. It publishes the `codex-toys` and
-`codex-toys-proxy` binaries, re-exports the focused runtime surfaces, and
-ships a version-matched Markdown docs snapshot under `docs/pages`.
+The CLI package and umbrella runtime export. It publishes the `codex-toys`
+binary, re-exports the focused runtime surfaces, and ships a version-matched
+Markdown docs snapshot under `docs/pages`.

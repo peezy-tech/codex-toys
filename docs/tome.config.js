@@ -14,7 +14,6 @@ export default {
 			pages: [
 				"primitives/workflow",
 				"primitives/workbench",
-				"primitives/delegation",
 				"primitives/dispatch-queues",
 				"primitives/feed",
 			],
@@ -22,8 +21,7 @@ export default {
 		{
 			group: "Components",
 			pages: [
-				"components/toybox",
-				"components/proxy",
+				"components/runtime",
 				"components/kits",
 				"components/cli",
 			],
@@ -32,12 +30,11 @@ export default {
 			group: "Guides",
 			pages: [
 				"guides/repository-autonomy",
-				"guides/remote-codex-workbench",
+				"guides/remote-runtime",
 				"guides/local-scheduled-workbench",
-				"guides/dashboard-over-toybox",
+				"guides/dashboard-over-runtime",
 				"guides/feed-to-workflow",
 				"guides/capability-kit-setup",
-				"guides/delegated-repo-work",
 			],
 		},
 		{

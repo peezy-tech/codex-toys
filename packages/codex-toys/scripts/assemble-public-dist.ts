@@ -1,4 +1,4 @@
-import { chmod, cp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,7 +46,6 @@ async function main(): Promise<void> {
 	}
 
 	await writeInternalPackageManifest();
-	await chmod(path.join(publicInternalDistDir, "proxy", "bin", "codex-toys-proxy.js"), 0o755);
 }
 
 async function listEmittedFiles(dir: string): Promise<string[]> {

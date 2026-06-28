@@ -8,14 +8,13 @@ description: The codex-toys primitive for running script code before composing n
 Workflow is the pre-turn orchestration primitive. A workflow runs a JavaScript or
 TypeScript module, gives it a JSON context, and records the JSON object returned
 by the module. The script can decide to skip, return data, start a Codex turn,
-wait on several turns, or delegate work through the toybox.
+or wait on several native Codex turns.
 
 ```text
 event, schedule, or operator command
   -> workflow script
      -> return JSON
      -> optionally call context.turn.*
-     -> optionally call context.delegate.*
 ```
 
 The CLI does not interpret returned `action` fields. The script owns its own
@@ -63,7 +62,7 @@ codex-toys workflow run --script ./check.ts --event event.json
 printf '%s\n' 'export default () => ({ status: "ok" })' | codex-toys workflow run --script-stdin
 ```
 
-By default, workflow turns use the workbench toybox surface. Use `--via app`
+By default, workflow turns use the workbench runtime surface. Use `--via app`
 only when deliberately targeting direct app-server calls without workbench
 helpers.
 
@@ -75,8 +74,8 @@ codex-toys workflow run release-check --event event.json --via app
 Run the workflow on a remote host through SSH stdio:
 
 ```bash
-codex-toys --ssh <target> --cwd <remote-workbench> workflow list --json
-codex-toys --ssh <target> --cwd <remote-workbench> workflow run release-check --event event.json
+codex-toys --ssh <target> --cwd <remote-workspace> workflow list --json
+codex-toys --ssh <target> --cwd <remote-workspace> workflow run release-check --event event.json
 ```
 
 With `--ssh`, discovery, named resolution, event loading, and script execution
@@ -114,14 +113,11 @@ The context includes:
 Host helpers include:
 
 - `context.app.call(method, params)`
-- `context.workbench.call(method, params)`, only through the toybox surface
+- `context.workbench.call(method, params)`, only through the runtime surface
 - `context.turn.start(params)`
 - `context.turn.read(turn)`
 - `context.turn.wait(turn, options)`
 - `context.turn.waitAll(turns, options)`
-- `context.delegate.start(params)`, only through the toybox surface
-- `context.delegate.read(delegation)`
-- `context.delegate.wait(delegation, options)`
 
 ## Turn Fields
 
@@ -143,25 +139,30 @@ Host helpers include:
 Do not combine a sandbox mode with a permissions profile unless the target Codex
 host explicitly supports that combination.
 
-## Delegated Work
+## Background Work
 
-Use delegation when the work belongs in another checkout under the same
-workbench root.
+Workflow does not create a second thread registry. When background work belongs
+in another checkout, start or resume native Codex turns directly through
+`context.turn.*`, dispatch queues, or explicit app-server calls, then return the
+thread id and `codex://thread/<id>` link from the script result.
 
 ```ts
 export default async function run(context) {
-  const delegation = await context.delegate.start({
+  const turn = await context.turn.start({
     cwd: "@/repos/example",
-    prompt: "Inspect this repository and summarize risks.",
-    returnMode: "wake_on_done"
+    prompt: "Inspect this repository and summarize risks."
   });
 
-  return { status: "delegated", delegation };
+  return {
+    status: "started",
+    threadId: turn.threadId,
+    threadUrl: turn.threadId ? `codex://thread/${turn.threadId}` : undefined
+  };
 }
 ```
 
-`context.delegate.*` requires `--via workbench`, because delegation is a toybox
-method, not a direct app-server method.
+Native Codex owns thread discovery, open links, archive/delete, fork, resume,
+and app UI control.
 
 ## Workbench Tasks
 

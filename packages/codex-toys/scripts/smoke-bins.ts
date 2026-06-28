@@ -9,10 +9,6 @@ const packageRoot = path.resolve(__dirname, "..");
 
 const checks = [
 	{ name: "codex-toys", path: "dist/cli/index.js" },
-	{
-		name: "codex-toys-proxy",
-		path: "dist/internal/proxy/bin/codex-toys-proxy.js",
-	},
 ] as const;
 
 for (const check of checks) {

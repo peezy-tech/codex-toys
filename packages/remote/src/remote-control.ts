@@ -24,7 +24,7 @@ export type RemoteProbeResult = {
 };
 
 export type RemoteStatusInfo = {
-	toybox: RemoteProbeResult;
+	runtime: RemoteProbeResult;
 	appServer: RemoteProbeResult;
 	recommendation: {
 		preferred: "workbench" | "app-server" | "none";
@@ -53,17 +53,17 @@ type AppServerRequest = <T = unknown>(method: string, params?: unknown) => Promi
 export async function collectRemoteStatusInfo(
 	options: { timeoutMs: number } & SshRemoteProviderOptions,
 ): Promise<RemoteStatusInfo> {
-	const toybox = await probeToybox(options);
+	const runtime = await probeToybox(options);
 	return {
-		toybox,
+		runtime,
 		appServer: {
 			mode: "app-server",
-			status: toybox.status,
-			url: toybox.url,
-			remoteControl: toybox.remoteControl,
-			error: toybox.error,
+			status: runtime.status,
+			url: runtime.url,
+			remoteControl: runtime.remoteControl,
+			error: runtime.error,
 		},
-		recommendation: remoteRecommendation(toybox),
+		recommendation: remoteRecommendation(runtime),
 	};
 }
 
@@ -97,7 +97,7 @@ export async function startRemoteTurn(options: {
 
 export function formatRemoteStatusInfo(info: RemoteStatusInfo): string {
 	const lines = [
-		`toybox             ${probeLabel(info.toybox)}`,
+		`runtime            ${probeLabel(info.runtime)}`,
 		`remote control     ${remoteControlLabel(info)}`,
 		`next               ${info.recommendation.nextCommand}`,
 	];
@@ -132,7 +132,7 @@ async function probeToybox(
 					transport,
 					"remoteControl/status/read",
 				);
-			}, options.timeoutMs, `toybox remote control probe timed out after ${
+			}, options.timeoutMs, `runtime remote control probe timed out after ${
 				options.timeoutMs
 			}ms`);
 			return {
@@ -146,7 +146,7 @@ async function probeToybox(
 		return {
 			mode: "workbench",
 			status: "unavailable",
-			url: toyboxUrl(options),
+			url: runtimeUrl(options),
 			error: errorMessage(error),
 		};
 	}
@@ -158,13 +158,13 @@ async function withToyboxTransport<T>(
 ): Promise<T> {
 	if (hasSshRemote(options)) {
 		return await withSshRemoteToyboxTransport(options, async (transport) =>
-			await callback(transport, "ssh://toybox")
+			await callback(transport, "ssh://runtime")
 		);
 	}
 	const transport = createLocalToyboxTransport(options);
 	try {
 		transport.start();
-		return await callback(transport, "toybox://local");
+		return await callback(transport, "runtime://local");
 	} finally {
 		transport.close();
 	}
@@ -193,7 +193,6 @@ function threadStartParams(options: {
 		approvalPolicy: options.approvalPolicy,
 		permissions: options.permissions,
 		experimentalRawEvents: false,
-		persistExtendedHistory: false,
 	});
 }
 
@@ -462,12 +461,12 @@ function remoteRecommendation(
 	}
 	return {
 		preferred: "none",
-		nextCommand: "codex-toys --ssh <target> --cwd <remote-workbench> remote preflight",
+		nextCommand: "codex-toys --ssh <target> --cwd <remote-workspace> runtime preflight",
 	};
 }
 
 function remoteControlLabel(info: RemoteStatusInfo): string {
-	const remote = info.toybox.remoteControl ?? info.appServer.remoteControl;
+	const remote = info.runtime.remoteControl ?? info.appServer.remoteControl;
 	if (!remote) {
 		return "unavailable";
 	}
@@ -539,8 +538,8 @@ function compactUndefined<T extends Record<string, unknown>>(value: T): T {
 	return result as T;
 }
 
-function toyboxUrl(options: Pick<SshRemoteProviderOptions, "sshTarget" | "env">): string {
-	return hasSshRemote(options) ? "ssh://toybox" : "toybox://local";
+function runtimeUrl(options: Pick<SshRemoteProviderOptions, "sshTarget" | "env">): string {
+	return hasSshRemote(options) ? "ssh://runtime" : "runtime://local";
 }
 
 function errorMessage(error: unknown): string {

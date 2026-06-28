@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/remote",
-	"version": "0.140.14",
+	"version": "0.140.15",
 	"private": true,
 	"description": "SSH-backed Codex toybox transport and remote control helpers.",
 	"type": "module",

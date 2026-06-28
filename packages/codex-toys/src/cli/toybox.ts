@@ -11,9 +11,7 @@ import {
 } from "@codex-toys/toybox";
 import {
 	createWorkbenchDispatchRunMethods,
-	createWorkbenchDelegationMethods,
 	workbenchDispatchRunMethodMetadata,
-	workbenchDelegationMethodMetadata,
 } from "@codex-toys/workbench";
 import {
 	createRemoteWorkflowMethods,
@@ -32,7 +30,7 @@ import {
 	runWorkbenchTaskById,
 } from "@codex-toys/workbench";
 
-export const TOYBOX_STATUS_METHOD = "toybox.status";
+export const RUNTIME_STATUS_METHOD = "runtime.status";
 
 export type ToyboxServeOptions = {
 	cwd?: string;
@@ -41,12 +39,12 @@ export type ToyboxServeOptions = {
 	codexArgs?: string[];
 };
 
-const toyboxStatusMethodMetadata: ToyboxMethodMetadata[] = [
+const runtimeStatusMethodMetadata: ToyboxMethodMetadata[] = [
 	{
-		name: TOYBOX_STATUS_METHOD,
-		description: "Read process and workbench status for the active codex-toys toybox.",
+		name: RUNTIME_STATUS_METHOD,
+		description: "Read process and workbench status for the active codex-toys runtime.",
 		sideEffects: "read-only",
-		category: "toybox",
+		category: "runtime",
 	},
 ];
 
@@ -68,8 +66,8 @@ export async function serveToybox(
 			cwd: workbenchRoot,
 			requestTimeoutMs: options.timeoutMs,
 		}),
-		clientName: "codex-toys-toybox",
-		clientTitle: "Codex Toys Toybox",
+		clientName: "codex-toys-runtime",
+		clientTitle: "Codex Toys Runtime",
 		clientVersion: "0.1.0",
 	});
 	client.on("stderr", (line) => process.stderr.write(`${line}\n`));
@@ -79,16 +77,16 @@ export async function serveToybox(
 	const workbenchRequest = async (method: string, params: unknown) => {
 		const handler = methods[method];
 		if (!handler) {
-			throw new Error(`Unknown toybox method: ${method}`);
+			throw new Error(`Unknown runtime method: ${method}`);
 		}
 		return await handler(params, {
 			jsonrpc: "2.0",
-			id: "toybox-internal",
+			id: "runtime-internal",
 			method,
 			params,
 		});
 	};
-	methods[TOYBOX_STATUS_METHOD] = () => ({
+	methods[RUNTIME_STATUS_METHOD] = () => ({
 		ok: true,
 		cwd: workbenchRoot,
 		pid: process.pid,
@@ -98,8 +96,8 @@ export async function serveToybox(
 	});
 	Object.assign(methods, createHostOverviewMethods({
 		codexCommand: options.codexCommand,
-		toyboxServerInfo: {
-			name: "codex-toys-toybox",
+		runtimeServerInfo: {
+			name: "codex-toys-runtime",
 			version: "0.1.0",
 		},
 	}));
@@ -131,10 +129,6 @@ export async function serveToybox(
 			return { workbenchRun: run };
 		},
 	}));
-	Object.assign(methods, createWorkbenchDelegationMethods({
-		appServer: client,
-		workbenchRoot,
-	}));
 	Object.assign(methods, createWorkbenchDispatchRunMethods({
 		appRequest: async (method, params) => await client.request(method, params),
 		workbenchRequest,
@@ -143,12 +137,12 @@ export async function serveToybox(
 	Object.assign(methods, createWorkbenchOverviewMethods({
 		workbenchRoot,
 		appRequest: async (method, params) => await client.request(method, params),
-		toybox: {
+		runtimeTransport: {
 			transport: "local",
 			status: "connected",
-			url: "toybox://local",
+			url: "runtime://local",
 			server: {
-				name: "codex-toys-toybox",
+				name: "codex-toys-runtime",
 				version: "0.1.0",
 			},
 		},
@@ -162,15 +156,14 @@ export async function serveToybox(
 
 	const toybox = new CodexToyboxProtocolServer({
 		appServer: client,
-		serverName: "codex-toys-toybox",
+		serverName: "codex-toys-runtime",
 		serverVersion: "0.1.0",
 		methods,
 		toyboxMethodMetadata: [
-				...toyboxStatusMethodMetadata,
+				...runtimeStatusMethodMetadata,
 				...hostOverviewMethodMetadata,
 				...feedMethodMetadata,
 				...workbenchFunctionMethodMetadata,
-				...workbenchDelegationMethodMetadata,
 				...workbenchDispatchRunMethodMetadata,
 				...workbenchOverviewMethodMetadata,
 				...remoteWorkflowMethodMetadata,

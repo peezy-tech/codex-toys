@@ -60,7 +60,7 @@ export type HostOverview = {
 	};
 	versions: HostOverviewSection & {
 		packages: HostOverviewVersion[];
-		toybox?: {
+		runtime?: {
 			name: string;
 			version: string;
 		};
@@ -103,7 +103,7 @@ export type HostOverviewOptions = {
 	codexCommand?: string;
 	commandTimeoutMs?: number;
 	now?: () => Date;
-	toyboxServerInfo?: {
+	runtimeServerInfo?: {
 		name: string;
 		version: string;
 	};
@@ -395,7 +395,7 @@ async function collectVersions(
 			.map((entry) => `${entry.name} ${entry.version}`)
 			.join("; "),
 		packages,
-		...(options.toyboxServerInfo ? { toybox: options.toyboxServerInfo } : {}),
+		...(options.runtimeServerInfo ? { runtime: options.runtimeServerInfo } : {}),
 	};
 }
 

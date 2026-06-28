@@ -6,11 +6,15 @@ const checks = [
 	["codex-toys/bridge/json", ["parseJsonText"]],
 	["codex-toys/feed", ["createFeedContext", "pollFeedSources", "collectFeedItems"]],
 	["codex-toys/kits", ["inspectKitSource", "applyKitAdd"]],
-	["codex-toys/proxy", ["createCodexToysProxyHandler"]],
-	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],
-	["codex-toys/proxy/vite", ["codexToysRemote"]],
-	["codex-toys/remote", ["createSshToyboxTransport", "collectRemotePreflight"]],
-	["codex-toys/toybox", ["CodexToyboxClient", "CodexToyboxProtocolServer"]],
+	["codex-toys/runtime", [
+		"CodexRuntimeClient",
+		"CodexRuntimeProtocolServer",
+		"createCodexToysBrowserClient",
+		"createCodexToysRuntimeHttpHandler",
+		"codexToysRuntime",
+		"createSshRuntimeTransport",
+		"collectRuntimePreflight",
+	]],
 	["codex-toys/workbench", ["collectHostOverview", "collectWorkbenchOverview", "createThreadSnapshot", "defineFunctions"]],
 ] as const;
 

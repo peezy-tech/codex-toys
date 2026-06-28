@@ -167,10 +167,12 @@ class FakeAuthTransport implements CodexAuthClientTransport {
 					},
 					secondary: null,
 					credits: null,
+					individualLimit: null,
 					planType: "plus",
 					rateLimitReachedType: null,
 				},
 				rateLimitsByLimitId: null,
+				rateLimitResetCredits: null,
 			} satisfies v2.GetAccountRateLimitsResponse as T;
 		}
 		if (method === "account/login/start") {
@@ -236,6 +238,7 @@ function usageSnapshot() {
 		},
 		secondary: null,
 		credits: null,
+		individualLimit: null,
 		planType: "plus",
 		rateLimitReachedType: null,
 	} satisfies v2.RateLimitSnapshot;

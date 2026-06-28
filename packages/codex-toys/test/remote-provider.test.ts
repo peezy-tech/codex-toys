@@ -17,7 +17,7 @@ describe("SSH remote provider", () => {
 			cwd: "/work/it's here",
 			timeoutMs: 1_000,
 			env: {
-				CODEX_TOYS_TOYBOX_COMMAND: "/opt/codex-toys",
+				CODEX_TOYS_RUNTIME_COMMAND: "/opt/codex-toys",
 				CODEX_TOYS_REMOTE_CODEX_COMMAND: "/opt/codex",
 				CODEX_TOYS_REMOTE_CODEX_ARGS: "[\"-s\",\"danger-full-access\"]",
 				CODEX_TOYS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/bun/bin",
@@ -29,10 +29,10 @@ describe("SSH remote provider", () => {
 				"ssh",
 				"-T",
 				"devbox",
-				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-toys' 'toybox' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--codex-command' '/opt/codex' '--codex-arg' '-s' '--codex-arg' 'danger-full-access'",
+				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-toys' 'runtime' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--codex-command' '/opt/codex' '--codex-arg' '-s' '--codex-arg' 'danger-full-access'",
 			],
 			remoteCommand:
-				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-toys' 'toybox' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--codex-command' '/opt/codex' '--codex-arg' '-s' '--codex-arg' 'danger-full-access'",
+				"cd '/work/it'\\''s here' && export PATH='/opt/node/bin:/opt/bun/bin'${PATH:+\":$PATH\"} && exec '/opt/codex-toys' 'runtime' 'serve' '--timeout-ms' '1000' '--cwd' '/work/it'\\''s here' '--codex-command' '/opt/codex' '--codex-arg' '-s' '--codex-arg' 'danger-full-access'",
 		});
 	});
 
@@ -43,7 +43,7 @@ describe("SSH remote provider", () => {
 				CODEX_TOYS_REMOTE_SSH_TARGET: "envbox",
 				CODEX_TOYS_REMOTE_CWD: "/env/repo",
 				CODEX_TOYS_REMOTE_PATH_PREPEND: "/env/node/bin:/env/npm/bin",
-				CODEX_TOYS_TOYBOX_COMMAND: "/env/codex-toys",
+				CODEX_TOYS_RUNTIME_COMMAND: "/env/codex-toys",
 				CODEX_TOYS_REMOTE_CODEX_COMMAND: "/env/codex",
 				CODEX_TOYS_REMOTE_CODEX_ARGS: "[\"-s\",\"danger-full-access\"]",
 			},
@@ -72,13 +72,13 @@ describe("SSH remote provider", () => {
 			sshTarget: "devbox",
 			timeoutMs: 1_000,
 			env: {
-				CODEX_TOYS_TOYBOX_COMMAND:
+				CODEX_TOYS_RUNTIME_COMMAND:
 					"PATH=/opt/node/bin:$PATH /opt/codex-toys",
 			},
-		})).toThrow("CODEX_TOYS_TOYBOX_COMMAND must be a command");
+		})).toThrow("CODEX_TOYS_RUNTIME_COMMAND must be a command");
 	});
 
-	test("starts a toybox workbench transport over fake SSH", async () => {
+	test("starts a runtime workbench transport over fake SSH", async () => {
 		const fakeSsh = await createFakeSshCommand();
 		const transport = createSshToyboxTransport({
 			sshTarget: "devbox",
@@ -87,7 +87,7 @@ describe("SSH remote provider", () => {
 			env: { CODEX_TOYS_SSH_COMMAND: fakeSsh.command },
 		});
 		try {
-			const status = await transport.request("toybox.status", {});
+			const status = await transport.request("runtime.status", {});
 			expect(status).toMatchObject({ ok: true, cwd: "/repo" });
 			const initialized = await transport.request("toybox.initialize", {
 				clientInfo: { name: "test", title: "Test", version: "0.1.0" },
@@ -95,7 +95,7 @@ describe("SSH remote provider", () => {
 			});
 			expect(initialized).toMatchObject({
 				ok: true,
-				serverInfo: { name: "fake-toybox" },
+				serverInfo: { name: "fake-runtime" },
 			});
 			const threads = await transport.request("app.call", {
 				method: "thread/list",
@@ -148,7 +148,7 @@ describe("SSH remote provider", () => {
 			timeoutMs: 1_000,
 			env: { CODEX_TOYS_SSH_COMMAND: fakeSsh.command },
 		}, async (transport) => {
-			await transport.request("toybox.status", {});
+			await transport.request("runtime.status", {});
 			throw new Error("boom");
 		})).rejects.toThrow("boom");
 		await waitForLog(fakeSsh, (entries) =>
@@ -213,14 +213,14 @@ function handle(line) {
 }
 
 function resultFor(method, params) {
-	if (method === "toybox.status") {
+	if (method === "runtime.status") {
 		return { ok: true, cwd: "/repo", node: "v24.15.0", codexCommand: "codex", codexArgs: [] };
 	}
 	if (method === "toybox.initialize") {
 		return {
 			ok: true,
-			serverInfo: { name: "fake-toybox", version: "0.1.0" },
-			capabilities: { appPassThrough: true, toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call"], toyboxMethodMetadata: [] },
+			serverInfo: { name: "fake-runtime", version: "0.1.0" },
+			capabilities: { appPassThrough: true, toyboxMethods: ["runtime.status", "functions.list", "functions.describe", "functions.call"], toyboxMethodMetadata: [] },
 		};
 	}
 	if (method === "app.call" && params.method === "thread/list") {

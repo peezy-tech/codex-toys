@@ -1,7 +1,7 @@
 {
 	"name": "codex-toys",
-	"version": "0.140.14",
-	"description": "Codex CLI and umbrella runtime export for bridge, toybox, feed, remote, workbench, actions, proxy, and kits.",
+	"version": "0.140.15",
+	"description": "Codex CLI and umbrella runtime export for bridge, runtime, feed, workbench, actions, and kits.",
 	"type": "module",
 	"license": "Apache-2.0",
 	"repository": {
@@ -18,8 +18,7 @@
 	"sideEffects": false,
 	"types": "./dist/index.d.ts",
 	"bin": {
-		"codex-toys": "dist/cli/index.js",
-		"codex-toys-proxy": "dist/internal/proxy/bin/codex-toys-proxy.js"
+		"codex-toys": "dist/cli/index.js"
 	},
 	"files": [
 		"dist",
@@ -74,25 +73,9 @@
 			"types": "./dist/kits.d.ts",
 			"import": "./dist/kits.js"
 		},
-		"./proxy": {
-			"types": "./dist/proxy/index.d.ts",
-			"import": "./dist/proxy/index.js"
-		},
-		"./proxy/browser": {
-			"types": "./dist/proxy/browser.d.ts",
-			"import": "./dist/proxy/browser.js"
-		},
-		"./proxy/vite": {
-			"types": "./dist/proxy/vite.d.ts",
-			"import": "./dist/proxy/vite.js"
-		},
-		"./remote": {
-			"types": "./dist/remote.d.ts",
-			"import": "./dist/remote.js"
-		},
-		"./toybox": {
-			"types": "./dist/toybox.d.ts",
-			"import": "./dist/toybox.js"
+		"./runtime": {
+			"types": "./dist/runtime.d.ts",
+			"import": "./dist/runtime.js"
 		},
 		"./workbench": {
 			"types": "./dist/workbench.d.ts",

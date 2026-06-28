@@ -23,13 +23,6 @@ export type RemoteTurnSandbox =
 	| "read-only"
 	| "workspace-write";
 
-export type DelegationReturnMode =
-	| "detached"
-	| "record_only"
-	| "wake_on_done"
-	| "wake_on_group"
-	| "manual";
-
 type ParsedCliBase =
 	| { type: "help" }
 	| {
@@ -45,7 +38,7 @@ type ParsedCliBase =
 			json: boolean;
 	  }
 	| {
-			type: "remote-preflight";
+			type: "runtime-preflight";
 			cwd?: string;
 			timeoutMs: number;
 			json: boolean;
@@ -59,8 +52,16 @@ type ParsedCliBase =
 			pretty: boolean;
 	  }
 	| {
-			type: "toybox-serve";
+			type: "runtime-serve";
 			cwd?: string;
+			timeoutMs: number;
+	  }
+	| {
+			type: "runtime-http";
+			cwd?: string;
+			staticDir?: string;
+			host: string;
+			port: number;
 			timeoutMs: number;
 	  }
 	| {
@@ -259,31 +260,6 @@ type ParsedCliBase =
 			workbenchRoot?: string;
 			url: string;
 			timeoutMs: number;
-			json: boolean;
-			pretty: boolean;
-	  }
-	| {
-			type: "workbench-delegate-list";
-			url: string;
-			timeoutMs: number;
-			json: boolean;
-			pretty: boolean;
-	  }
-	| {
-			type: "workbench-delegate-start";
-			targetCwd: string;
-			prompt?: string;
-			title?: string;
-			groupId?: string;
-			returnMode?: DelegationReturnMode;
-			wait: boolean;
-			allowAbsoluteCwd: boolean;
-			url: string;
-			timeoutMs: number;
-			sandbox?: RemoteTurnSandbox;
-			approvalPolicy?: RemoteTurnApprovalPolicy;
-			permissions?: string;
-			model?: string;
 			json: boolean;
 			pretty: boolean;
 	  }
@@ -695,8 +671,8 @@ type ParsedCliBase =
 
 export type ParsedCli = ParsedCliBase & ParsedRemoteOptions;
 
-export const LOCAL_TOYBOX_URL = "toybox://local";
-export const SSH_TOYBOX_URL = "ssh://toybox";
+export const LOCAL_RUNTIME_URL = "runtime://local";
+export const SSH_RUNTIME_URL = "ssh://runtime";
 const defaultTimeoutMs = 90_000;
 const defaultLongRunningTurnTimeoutMs = 30 * 60 * 1000;
 
@@ -705,8 +681,8 @@ export function parseArgs(
 	env: Record<string, string | undefined> = process.env,
 ): ParsedCli {
 	const positionals: string[] = [];
-	let appUrl = LOCAL_TOYBOX_URL;
-	let workbenchUrl = LOCAL_TOYBOX_URL;
+	let appUrl = LOCAL_RUNTIME_URL;
+	let workbenchUrl = LOCAL_RUNTIME_URL;
 	let timeoutMs = defaultTimeoutMs;
 	let pretty = true;
 	let color = true;
@@ -735,12 +711,9 @@ export function parseArgs(
 	let runnerImage: string | null | undefined;
 	let prompt: string | undefined;
 	let title: string | undefined;
-	let groupId: string | undefined;
-	let returnMode: DelegationReturnMode | undefined;
 	let targetCwd: string | undefined;
 	let threadId: string | undefined;
 	let wait = false;
-	let allowAbsoluteCwd = false;
 	let dryRun = false;
 	let includeOutput = false;
 	let olderThanDays: number | undefined;
@@ -758,6 +731,9 @@ export function parseArgs(
 	let sourceId: string | undefined;
 	let limit: number | undefined;
 	let itemId: string | undefined;
+	let staticDir: string | undefined;
+	let httpHost = "127.0.0.1";
+	let httpPort = 3587;
 	let targetHost: string | undefined;
 	let hostId: string | undefined;
 	let requesterHost: string | undefined;
@@ -774,7 +750,7 @@ export function parseArgs(
 	let via: "workbench" | "app" = "workbench";
 	let sshTarget: string | undefined = env.CODEX_TOYS_REMOTE_SSH_TARGET;
 	let remotePathPrepend: string | undefined = env.CODEX_TOYS_REMOTE_PATH_PREPEND;
-	let toyboxCommand: string | undefined = env.CODEX_TOYS_TOYBOX_COMMAND;
+	let toyboxCommand: string | undefined = env.CODEX_TOYS_RUNTIME_COMMAND;
 	let remoteCodexCommand: string | undefined;
 	const remoteCodexArgs: string[] = [];
 	let sandbox: RemoteTurnSandbox | undefined;
@@ -1052,22 +1028,6 @@ export function parseArgs(
 				title = arg.slice("--title=".length);
 				continue;
 			}
-			if (arg === "--group-id") {
-				groupId = required(argv, ++index, arg);
-				continue;
-			}
-			if (arg.startsWith("--group-id=")) {
-				groupId = arg.slice("--group-id=".length);
-				continue;
-			}
-			if (arg === "--return-mode") {
-				returnMode = parseDelegationReturnMode(required(argv, ++index, arg));
-				continue;
-			}
-			if (arg.startsWith("--return-mode=")) {
-				returnMode = parseDelegationReturnMode(arg.slice("--return-mode=".length));
-				continue;
-			}
 			if (arg === "--thread-id") {
 				threadId = required(argv, ++index, arg);
 				continue;
@@ -1228,6 +1188,30 @@ export function parseArgs(
 				itemId = arg.slice("--item=".length);
 				continue;
 			}
+			if (arg === "--static") {
+				staticDir = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--static=")) {
+				staticDir = arg.slice("--static=".length);
+				continue;
+			}
+			if (arg === "--host") {
+				httpHost = required(argv, ++index, arg);
+				continue;
+			}
+			if (arg.startsWith("--host=")) {
+				httpHost = arg.slice("--host=".length);
+				continue;
+			}
+			if (arg === "--port") {
+				httpPort = positiveInteger(required(argv, ++index, arg), arg);
+				continue;
+			}
+			if (arg.startsWith("--port=")) {
+				httpPort = positiveInteger(arg.slice("--port=".length), "--port");
+				continue;
+			}
 			if (arg === "--target") {
 				dispatchTarget = required(argv, ++index, arg);
 				continue;
@@ -1254,10 +1238,6 @@ export function parseArgs(
 			}
 			if (arg.startsWith("--limit=")) {
 				limit = positiveInteger(arg.slice("--limit=".length), "--limit");
-				continue;
-			}
-			if (arg === "--allow-absolute-cwd") {
-				allowAbsoluteCwd = true;
 				continue;
 			}
 			if (arg === "--model") {
@@ -1338,12 +1318,12 @@ export function parseArgs(
 			remotePathPrepend = arg.slice("--remote-path-prepend=".length);
 			continue;
 		}
-		if (arg === "--toybox-command") {
+		if (arg === "--runtime-command") {
 			toyboxCommand = required(argv, ++index, arg);
 			continue;
 		}
-		if (arg.startsWith("--toybox-command=")) {
-			toyboxCommand = arg.slice("--toybox-command=".length);
+		if (arg.startsWith("--runtime-command=")) {
+			toyboxCommand = arg.slice("--runtime-command=".length);
 			continue;
 		}
 		if (arg === "--codex-command" || arg === "--remote-codex-command") {
@@ -1428,23 +1408,30 @@ export function parseArgs(
 			...remoteFields(),
 		};
 	}
-	if (command === "toybox") {
-		const subcommand = requiredPositional(positionals, 1, "toybox requires serve");
-		if (subcommand !== "serve") {
-			throw new Error("toybox currently supports only serve");
-		}
-		return {
-			type: "toybox-serve",
-			cwd,
-			timeoutMs,
-			...remoteFields(),
-		};
-	}
-	if (command === "remote") {
+	if (command === "runtime") {
 			const subcommand = positionals[1];
+			if (subcommand === "serve") {
+				return {
+					type: "runtime-serve",
+					cwd,
+					timeoutMs,
+					...remoteFields(),
+				};
+			}
+			if (subcommand === "http") {
+				return {
+					type: "runtime-http",
+					cwd,
+					staticDir,
+					host: httpHost,
+					port: httpPort,
+					timeoutMs,
+					...remoteFields(),
+				};
+			}
 			if (subcommand === "preflight") {
 				return {
-					type: "remote-preflight",
+					type: "runtime-preflight",
 					cwd,
 					timeoutMs,
 					json,
@@ -1462,7 +1449,7 @@ export function parseArgs(
 					...remoteFields(),
 				};
 			}
-			throw new Error("remote supports only preflight or host-overview; use --ssh with fetch, app, workbench, workflow, functions, or turn run");
+			throw new Error("runtime requires serve, http, preflight, or host-overview");
 		}
 	if (command === "host") {
 		const subcommand = positionals[1];
@@ -1485,7 +1472,7 @@ export function parseArgs(
 			}
 			if (sshTarget && !wait) {
 				throw new Error(
-					"SSH turn run requires --wait. Fire-and-forget turns over SSH are not durable because the remote toybox is closed when the command exits; use --wait or workbench delegate start for supervised background work.",
+					"SSH turn run requires --wait. Fire-and-forget turns over SSH are not durable because the remote runtime is closed when the command exits.",
 				);
 			}
 			return {
@@ -1807,49 +1794,6 @@ export function parseArgs(
 				pretty,
 				...remoteFields(),
 			};
-		}
-		if (subcommand === "delegate" || subcommand === "delegation") {
-			const action = positionals[2] ?? "list";
-			if (action === "list" || action === "ls") {
-				return {
-					type: "workbench-delegate-list",
-					url: workbenchUrl,
-					timeoutMs,
-					json,
-					pretty,
-					...remoteFields(),
-				};
-			}
-			if (action === "start") {
-				const resolvedTargetCwd = targetCwd ?? (!sshTarget ? cwd : undefined) ??
-					requiredPositional(
-						positionals,
-						3,
-						"workbench delegate start requires --cwd <target> or --target-cwd <target>",
-					);
-				const promptPosition = (targetCwd ?? (!sshTarget ? cwd : undefined)) ? 3 : 4;
-				const positionalPrompt = positionals.slice(promptPosition).join(" ");
-				return {
-					...remoteFields(),
-					type: "workbench-delegate-start",
-					targetCwd: resolvedTargetCwd,
-					prompt: prompt ?? (positionalPrompt || undefined),
-					title,
-					groupId,
-					returnMode,
-					wait,
-					allowAbsoluteCwd,
-					url: workbenchUrl,
-					timeoutMs: wait ? turnWaitTimeoutMs(timeoutMs) : timeoutMs,
-					sandbox,
-					approvalPolicy,
-					permissions,
-					model,
-					json,
-					pretty,
-				};
-			}
-			throw new Error("workbench delegate requires list or start");
 		}
 		if (subcommand === "tick") {
 			throw new Error("workbench tick has been removed; run explicit codex-toys commands from systemd or Actions schedules");
@@ -2233,7 +2177,7 @@ export function parseArgs(
 			};
 		}
 		if (subcommand === "backend") {
-			throw new Error("toybox service commands have been removed; use codex-toys toybox serve or codex-toys-proxy serve");
+			throw new Error("workbench backend commands have been removed; use codex-toys runtime serve or the HTTP runtime edge");
 		}
 		if (subcommand === "deferred" || subcommand === "defer") {
 			throw new Error("workbench deferred commands have been removed; use workbench dispatch");
@@ -2547,19 +2491,6 @@ function parseFeedItemStatusMaybe(value: string): FeedItemStatus | undefined {
 		return undefined;
 	}
 	throw new Error("--status must be pending, running, completed, failed, canceled, or new");
-}
-
-function parseDelegationReturnMode(value: string): DelegationReturnMode {
-	if (
-		value === "detached" ||
-		value === "record_only" ||
-		value === "wake_on_done" ||
-		value === "wake_on_group" ||
-		value === "manual"
-	) {
-		return value;
-	}
-	throw new Error("--return-mode must be detached, record_only, wake_on_done, wake_on_group, or manual");
 }
 
 function turnWaitTimeoutMs(timeoutMs: number): number {

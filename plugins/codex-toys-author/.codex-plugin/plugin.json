@@ -1,6 +1,6 @@
 {
   "name": "codex-toys-author",
-  "version": "0.140.12",
+  "version": "0.140.15",
   "description": "Codex workflow authoring guidance.",
   "author": {
     "name": "Peezy",
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "codex-toys author",
     "shortDescription": "Author workflow scripts.",
-    "longDescription": "codex-toys author installs Codex-facing guidance for workflow scripts. It does not install local hooks or start a toybox process.",
+    "longDescription": "codex-toys author installs Codex-facing guidance for workflow scripts. It does not install local hooks or start a runtime process.",
     "developerName": "Peezy",
     "category": "Coding",
     "capabilities": [

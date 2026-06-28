@@ -40,6 +40,7 @@ const removedRemoteEnvVars = [
 	"CODEX_TOYS_REMOTE_TUNNEL_PORT",
 	"CODEX_TOYS_REMOTE_BACKEND_HOST",
 	"CODEX_TOYS_REMOTE_BACKEND_PORT",
+	"CODEX_TOYS_TOYBOX_COMMAND",
 	"CODEX_TOYS_REMOTE_TOYBOX_COMMAND",
 	"CODEX_TOYS_REMOTE_TOYBOX_ARGS",
 ];
@@ -62,13 +63,13 @@ export function resolveSshRemoteOptions(
 		);
 	}
 	const toyboxCommand = options.toyboxCommand ??
-		env.CODEX_TOYS_TOYBOX_COMMAND ??
+		env.CODEX_TOYS_RUNTIME_COMMAND ??
 		"codex-toys";
 	const remoteCodexCommand = options.remoteCodexCommand ??
 		env.CODEX_TOYS_REMOTE_CODEX_COMMAND ??
 		"codex";
 	rejectInlineEnvCommand(
-		"CODEX_TOYS_TOYBOX_COMMAND",
+		"CODEX_TOYS_RUNTIME_COMMAND",
 		toyboxCommand,
 	);
 	rejectInlineEnvCommand(
@@ -98,7 +99,7 @@ export function createSshToyboxPlan(
 ): ToyboxPlan {
 	const resolved = resolveSshRemoteOptions(options);
 	const toyboxArgs = [
-		"toybox",
+		"runtime",
 		"serve",
 		"--timeout-ms",
 		String(resolved.timeoutMs),
@@ -147,7 +148,7 @@ export function createLocalToyboxTransport(
 ): ToyboxTransport {
 	const env = options.env ?? process.env;
 	const toyboxCommand = options.toyboxCommand ??
-		env.CODEX_TOYS_TOYBOX_COMMAND ??
+		env.CODEX_TOYS_RUNTIME_COMMAND ??
 		"codex-toys";
 	const codexCommand = options.remoteCodexCommand ??
 		env.CODEX_TOYS_CODEX_COMMAND ??
@@ -159,7 +160,7 @@ export function createLocalToyboxTransport(
 		[];
 	const command = [
 		toyboxCommand,
-		"toybox",
+		"runtime",
 		"serve",
 		"--timeout-ms",
 		String(options.timeoutMs),
@@ -235,11 +236,11 @@ function remoteProviderError(
 	const remoteOutput = stderr.join("\n").trim();
 	return new Error(
 		[
-			"SSH remote provider could not use the CodexToys remote toybox.",
+			"SSH remote provider could not use the CodexToys remote runtime.",
 			`target: ${resolved.sshTarget}`,
 			`cwd: ${resolved.cwd ?? "(not set)"}`,
 			`remote path prepend: ${resolved.remotePathPrepend ?? "(not set)"}`,
-			`toybox command: ${resolved.toyboxCommand}`,
+			`runtime command: ${resolved.toyboxCommand}`,
 			`remote codex command: ${
 				[resolved.remoteCodexCommand, ...resolved.remoteCodexArgs].join(" ")
 			}`,
@@ -247,7 +248,7 @@ function remoteProviderError(
 			...(remoteOutput
 				? [`remote stderr:\n${redact(remoteOutput).split(/\r?\n/).slice(0, 20).join("\n")}`]
 				: []),
-			"Install codex-toys on the SSH target, ensure node and codex are available in the non-interactive SSH PATH, or set CODEX_TOYS_REMOTE_PATH_PREPEND / CODEX_TOYS_TOYBOX_COMMAND / CODEX_TOYS_REMOTE_CODEX_COMMAND.",
+			"Install codex-toys on the SSH target, ensure node and codex are available in the non-interactive SSH PATH, or set CODEX_TOYS_REMOTE_PATH_PREPEND / CODEX_TOYS_RUNTIME_COMMAND / CODEX_TOYS_REMOTE_CODEX_COMMAND.",
 		].join("\n"),
 	);
 }

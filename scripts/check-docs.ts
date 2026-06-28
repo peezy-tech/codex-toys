@@ -53,8 +53,12 @@ async function main(): Promise<void> {
 	const cliDoc = await read("docs/pages/components/cli.md");
 	const requiredCliLines = [
 		"codex-toys fetch [--json] [--no-color]",
-		"codex-toys toybox serve [--cwd <path>]",
+		"codex-toys runtime serve [--cwd <path>]",
+		"codex-toys runtime http [--cwd <path>] [--static <dir>] [--host <host>] [--port <port>]",
 		"codex-toys mcp serve",
+		"codex-toys --ssh <target> --cwd <remote-workspace> runtime preflight [--json]",
+		"codex-toys runtime host-overview --json",
+		"codex-toys --ssh <target> --cwd <remote-workspace> runtime host-overview --json",
 		"codex-toys workflow list [--json]",
 		"codex-toys workflow run <name> [--event <event.json>] [--prompt <text>] [--via workbench|app]",
 		"codex-toys workflow run --script <path> [--event <event.json>] [--prompt <text>] [--via workbench|app]",
@@ -63,8 +67,6 @@ async function main(): Promise<void> {
 		"codex-toys functions list [--json]",
 		"codex-toys feed dispatch --source <source-id> --cursor <name> --target workbench-task:<task-id> [--limit <n>] [--no-poll] [--json]",
 		"codex-toys workbench doctor [--mode auto|local|actions] [--json]",
-		"codex-toys workbench delegate list [--json]",
-		"codex-toys workbench delegate start --cwd @/workbenches/name --prompt <text> [--wait]",
 		"codex-toys workbench dispatch create --params-json <json>",
 		"codex-toys workbench dispatch read <intent-id> [--include-output] [--json]",
 		"codex-toys workbench dispatch prune --older-than-days <days> [--dry-run]",
@@ -88,20 +90,17 @@ async function main(): Promise<void> {
 		"docs/pages/index.md",
 		"docs/pages/primitives/workflow.md",
 		"docs/pages/primitives/workbench.md",
-		"docs/pages/primitives/delegation.md",
 		"docs/pages/primitives/dispatch-queues.md",
 		"docs/pages/primitives/feed.md",
-		"docs/pages/components/toybox.md",
-		"docs/pages/components/proxy.md",
+		"docs/pages/components/runtime.md",
 		"docs/pages/components/kits.md",
 		"docs/pages/components/cli.md",
 		"docs/pages/guides/repository-autonomy.md",
-		"docs/pages/guides/remote-codex-workbench.md",
+		"docs/pages/guides/remote-runtime.md",
 		"docs/pages/guides/local-scheduled-workbench.md",
-		"docs/pages/guides/dashboard-over-toybox.md",
+		"docs/pages/guides/dashboard-over-runtime.md",
 		"docs/pages/guides/feed-to-workflow.md",
 		"docs/pages/guides/capability-kit-setup.md",
-		"docs/pages/guides/delegated-repo-work.md",
 		"docs/pages/operations/codex-state.md",
 		"docs/pages/operations/plugins.md",
 		"docs/pages/reference/packages.md",
@@ -113,40 +112,40 @@ async function main(): Promise<void> {
 
 	await expectIncludes("docs/tome.config.js", "\"primitives/workflow\"");
 	await expectIncludes("docs/tome.config.js", "\"primitives/dispatch-queues\"");
-	await expectIncludes("docs/tome.config.js", "\"components/toybox\"");
+	await expectIncludes("docs/tome.config.js", "\"components/runtime\"");
 	await expectIncludes("docs/tome.config.js", "\"components/cli\"");
 	await expectIncludes("docs/tome.config.js", "\"guides/repository-autonomy\"");
-	await expectIncludes("docs/tome.config.js", "\"guides/remote-codex-workbench\"");
-	await expectIncludes("docs/tome.config.js", "\"guides/delegated-repo-work\"");
+	await expectIncludes("docs/tome.config.js", "\"guides/remote-runtime\"");
+	await expectIncludes("docs/tome.config.js", "\"guides/dashboard-over-runtime\"");
 	await expectIncludes("docs/tome.config.js", "\"operations/codex-state\"");
 	await expectIncludes("docs/tome.config.js", "\"/codex-toys\"");
 	await expectIncludes("README.md", "docs/pages/primitives/workflow.md");
 	await expectIncludes("README.md", "docs/pages/components/cli.md");
 	await expectIncludes("README.md", "docs/pages/guides/repository-autonomy.md");
-	await expectIncludes("README.md", "docs/pages/guides/remote-codex-workbench.md");
+	await expectIncludes("README.md", "docs/pages/guides/remote-runtime.md");
 	await expectIncludes("README.md", "docs/pages/operations/codex-state.md");
 	await expectIncludes("packages/codex-toys/README.md", "docs/pages/primitives/workflow.md");
 	await expectIncludes("packages/codex-toys/README.md", "docs/pages/components/cli.md");
-	await expectIncludes("packages/codex-toys/README.md", "docs/pages/guides/delegated-repo-work.md");
-	await expectIncludes("packages/codex-toys/README.md", "codex-toys/proxy/browser");
+	await expectIncludes("packages/codex-toys/README.md", "docs/pages/guides/remote-runtime.md");
+	await expectIncludes("packages/codex-toys/README.md", "codex-toys/runtime");
 	await expectIncludes("docs/pages/index.md", "Primitive Map");
 	await expectIncludes("docs/pages/primitives/workflow.md", "export default async function run");
 	await expectIncludes("docs/pages/primitives/workbench.md", ".codex/workbench/actions");
 	await expectIncludes("docs/pages/primitives/dispatch-queues.md", "source.kind = \"prompt-queue\"");
 	await expectIncludes("docs/pages/primitives/dispatch-queues.md", "source.kind = \"local-handoff\"");
-	await expectIncludes("docs/pages/components/proxy.md", "POST /api/workbench/overview");
+	await expectIncludes("docs/pages/components/runtime.md", "POST /api/workbench/overview");
 	await expectIncludes("docs/pages/components/kits.md", "codex-kit.toml");
 	await expectIncludes("docs/pages/guides/repository-autonomy.md", "codex-toys workbench init actions --github");
 	await expectIncludes("docs/pages/guides/repository-autonomy.md", "CODEX_AUTH_JSON_B64");
-	await expectIncludes("docs/pages/guides/remote-codex-workbench.md", "CODEX_TOYS_REMOTE_PATH_PREPEND");
+	await expectIncludes("docs/pages/guides/remote-runtime.md", "CODEX_TOYS_REMOTE_PATH_PREPEND");
 	await expectIncludes("docs/pages/guides/local-scheduled-workbench.md", "systemctl --user");
-	await expectIncludes("docs/pages/guides/dashboard-over-toybox.md", "codexToysRemote");
+	await expectIncludes("docs/pages/guides/dashboard-over-runtime.md", "codexToysRuntime");
 	await expectIncludes("docs/pages/guides/feed-to-workflow.md", "feed.dispatch");
 	await expectIncludes("docs/pages/guides/capability-kit-setup.md", "codex-toys kit add ./capability-kit --apply");
-	await expectIncludes("docs/pages/guides/delegated-repo-work.md", "--target-cwd @/repos/example");
 	await expectIncludes("docs/pages/operations/codex-state.md", "MEMORY.md");
 	await expectIncludes("docs/pages/operations/codex-state.md", "sessions/<YYYY>/<MM>/<DD>/<rollout-file>.jsonl");
 	await expectIncludes("docs/pages/reference/packages.md", "codex-toys/workbench");
+	await expectIncludes("docs/pages/reference/packages.md", "codex-toys/runtime");
 
 	const docs = await markdownFiles("docs/pages");
 	const retiredTurnScript = ["auto", "mation"].join("");
@@ -158,6 +157,21 @@ async function main(): Promise<void> {
 		"codex-pack",
 		"codex-workspace",
 		"workspace delegate",
+		"workbench delegate",
+		"context.delegate",
+		"delegation.",
+		"codex-toys-proxy",
+		"codex-toys toybox",
+		"codex-toys remote",
+		"codex-toys/proxy",
+		"codex-toys/remote",
+		"codex-toys/toybox",
+		"components/proxy",
+		"components/toybox",
+		"guides/remote-codex-workbench",
+		"guides/dashboard-over-toybox",
+		"guides/delegated-repo-work",
+		"primitives/delegation",
 		"workspace prompt",
 		"workspace handoff",
 		"workspace dispatch",

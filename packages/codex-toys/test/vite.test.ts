@@ -23,12 +23,12 @@ describe("codexToysRemote Vite plugin", () => {
 			const baseUrl = serverBaseUrl(server);
 
 			const status = await fetchJson(`${baseUrl}/__codex_toys/api/status`);
-			expect(status).toMatchObject({ ok: true, toybox: { ok: true, cwd: "/remote" } });
+			expect(status).toMatchObject({ ok: true, runtime: { ok: true, cwd: "/remote" } });
 
 			const schema = await fetchJson(`${baseUrl}/__codex_toys/api/schema`);
 			expect(schema).toMatchObject({
 				capabilities: {
-					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workbench.overview", "host.overview"],
+					toyboxMethods: ["runtime.status", "functions.list", "functions.describe", "functions.call", "workbench.overview", "host.overview"],
 				},
 			});
 
@@ -72,7 +72,7 @@ describe("codexToysRemote Vite plugin", () => {
 			});
 			expect(transport.requests.map((request) => request.method)).toEqual([
 				"toybox.initialize",
-				"toybox.status",
+				"runtime.status",
 				"functions.list",
 				"functions.describe",
 				"functions.call",
@@ -139,12 +139,12 @@ class FakeWorkbenchTransport extends CodexEventEmitter implements CodexToyboxTra
 				serverInfo: { name: "fake", version: "0.1.0" },
 				capabilities: {
 					appPassThrough: true,
-					toyboxMethods: ["toybox.status", "functions.list", "functions.describe", "functions.call", "workbench.overview", "host.overview"],
+					toyboxMethods: ["runtime.status", "functions.list", "functions.describe", "functions.call", "workbench.overview", "host.overview"],
 					toyboxMethodMetadata: [],
 				},
 			} as T;
 		}
-		if (method === "toybox.status") {
+		if (method === "runtime.status") {
 			return { ok: true, cwd: "/remote" } as T;
 		}
 		if (method === "functions.list") {

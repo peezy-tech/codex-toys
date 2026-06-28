@@ -183,9 +183,9 @@ describe("workbench autonomy", () => {
 		expect(parseArgs(["workbench", "dispatch", "prune", "--older-than-days", "30", "--dry-run"], {}))
 			.toMatchObject({ type: "workbench-dispatch-prune", olderThanDays: 30, dryRun: true });
 		expect(() => parseArgs(["workbench", "backend", "start"], {}))
-			.toThrow("toybox service commands have been removed");
-		expect(parseArgs(["workbench", "call", "delegation.list"], {}))
-			.toMatchObject({ type: "workbench-call", method: "delegation.list" });
+			.toThrow("workbench backend commands have been removed");
+		expect(parseArgs(["workbench", "call", "functions.list"], {}))
+			.toMatchObject({ type: "workbench-call", method: "functions.list" });
 		expect(parseArgs(["memories", "transplant", "global-to-workbench", "--apply"], {}))
 			.toMatchObject({ type: "memories-transplant", direction: "global-to-workbench", apply: true });
 	});

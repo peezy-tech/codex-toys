@@ -5,7 +5,7 @@ import path from "node:path";
 import { collectRemotePreflight } from "@codex-toys/remote";
 
 describe("remote preflight", () => {
-	test("checks SSH setup and the toybox bridge", async () => {
+	test("checks SSH setup and the runtime bridge", async () => {
 		const fakeSsh = await createPreflightSsh();
 		const result = await collectRemotePreflight({
 			sshTarget: "devbox",
@@ -13,7 +13,7 @@ describe("remote preflight", () => {
 			timeoutMs: 1_000,
 			env: {
 				CODEX_TOYS_SSH_COMMAND: fakeSsh.command,
-				CODEX_TOYS_TOYBOX_COMMAND: "/opt/codex-toys",
+				CODEX_TOYS_RUNTIME_COMMAND: "/opt/codex-toys",
 				CODEX_TOYS_REMOTE_CODEX_COMMAND: "/opt/codex",
 				CODEX_TOYS_REMOTE_PATH_PREPEND: "/opt/node/bin:/opt/npm/bin",
 			},
@@ -25,12 +25,12 @@ describe("remote preflight", () => {
 			expect.objectContaining({ name: "node", status: "ok", version: "v24.15.0" }),
 			expect.objectContaining({ name: "codex-toys", status: "ok" }),
 			expect.objectContaining({ name: "codex", status: "ok" }),
-			expect.objectContaining({ name: "SSH toybox", status: "ok" }),
+			expect.objectContaining({ name: "SSH runtime", status: "ok" }),
 			expect.objectContaining({ name: "app-server initialize", status: "ok" }),
 		]));
 		expect(await fakeSsh.readLog()).toEqual(expect.arrayContaining([
 			expect.objectContaining({ mode: "shell", command: "true" }),
-			expect.objectContaining({ mode: "toybox-request", method: "toybox.status" }),
+			expect.objectContaining({ mode: "runtime-request", method: "runtime.status" }),
 			expect.objectContaining({ mode: "toybox-request", method: "app.call" }),
 		]));
 	});
@@ -69,8 +69,8 @@ const LOG_PATH = ${JSON.stringify(logPath)};
 const args = process.argv.slice(2);
 const remoteCommand = args.at(-1) ?? "";
 
-if (remoteCommand.includes("'toybox' 'serve'")) {
-  log({ mode: "toybox", command: remoteCommand });
+if (remoteCommand.includes("'runtime' 'serve'")) {
+  log({ mode: "runtime", command: remoteCommand });
   serveToybox();
 } else {
   log({ mode: "shell", command: remoteCommand });
@@ -86,7 +86,7 @@ if (remoteCommand.includes("'toybox' 'serve'")) {
   }
   if (remoteCommand.includes("'/opt/codex-toys'")) {
     console.log("/opt/codex-toys");
-    console.log("codex-toys controls Codex workbench toybox surfaces.");
+    console.log("codex-toys controls Codex workspace runtime surfaces.");
     process.exit(0);
   }
   if (remoteCommand.includes("'/opt/codex'")) {
@@ -120,7 +120,7 @@ function serveToybox() {
 
 function handleAgentLine(line) {
   const message = JSON.parse(line);
-  log({ mode: "toybox-request", method: message.method });
+  log({ mode: message.method === "runtime.status" ? "runtime-request" : "toybox-request", method: message.method });
   stdout.write(JSON.stringify({
     jsonrpc: "2.0",
     id: message.id,
@@ -129,14 +129,14 @@ function handleAgentLine(line) {
 }
 
 function resultFor(method, params) {
-  if (method === "toybox.status") {
+  if (method === "runtime.status") {
     return { ok: true, cwd: "/repo", node: "v24.15.0" };
   }
   if (method === "toybox.initialize") {
     return {
       ok: true,
-      serverInfo: { name: "fake-toybox", version: "0.1.0" },
-      capabilities: { appPassThrough: true, toyboxMethods: ["toybox.status"], toyboxMethodMetadata: [] },
+      serverInfo: { name: "fake-runtime", version: "0.1.0" },
+      capabilities: { appPassThrough: true, toyboxMethods: ["runtime.status"], toyboxMethodMetadata: [] },
     };
   }
   if (method === "app.call" && params.method === "thread/list") {

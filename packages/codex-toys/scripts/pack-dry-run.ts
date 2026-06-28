@@ -12,14 +12,13 @@ const requiredTarEntries = [
 	"package/dist/index.js",
 	"package/dist/feed.js",
 	"package/dist/workbench.js",
-	"package/dist/proxy/browser.js",
+	"package/dist/runtime.js",
 	"package/dist/bridge/json.js",
 	"package/dist/internal/actions/index.js",
 	"package/dist/internal/bridge/index.js",
 	"package/dist/internal/feed/index.js",
 	"package/dist/internal/kits/index.js",
 	"package/dist/internal/proxy/index.js",
-	"package/dist/internal/proxy/bin/codex-toys-proxy.js",
 	"package/dist/internal/remote/index.js",
 	"package/dist/internal/toybox/index.js",
 	"package/dist/internal/workbench/index.js",
@@ -28,17 +27,14 @@ const requiredTarEntries = [
 	"package/docs/pages/operations/plugins.md",
 	"package/docs/pages/components/cli.md",
 	"package/docs/pages/components/kits.md",
-	"package/docs/pages/components/proxy.md",
-	"package/docs/pages/components/toybox.md",
+	"package/docs/pages/components/runtime.md",
 	"package/docs/pages/guides/repository-autonomy.md",
-	"package/docs/pages/guides/remote-codex-workbench.md",
+	"package/docs/pages/guides/remote-runtime.md",
 	"package/docs/pages/guides/local-scheduled-workbench.md",
-	"package/docs/pages/guides/dashboard-over-toybox.md",
+	"package/docs/pages/guides/dashboard-over-runtime.md",
 	"package/docs/pages/guides/feed-to-workflow.md",
 	"package/docs/pages/guides/capability-kit-setup.md",
-	"package/docs/pages/guides/delegated-repo-work.md",
 	"package/docs/pages/primitives/dispatch-queues.md",
-	"package/docs/pages/primitives/delegation.md",
 	"package/docs/pages/primitives/feed.md",
 	"package/docs/pages/primitives/workbench.md",
 	"package/docs/pages/primitives/workflow.md",
@@ -92,9 +88,6 @@ try {
 		peerDependencies?: Record<string, string>;
 		optionalDependencies?: Record<string, string>;
 	};
-	if (packedManifest.bin?.["codex-toys-proxy"] !== "dist/internal/proxy/bin/codex-toys-proxy.js") {
-		throw new Error("packed codex-toys-proxy bin must point at dist/internal/proxy/bin");
-	}
 	for (const dependencies of [
 		packedManifest.dependencies,
 		packedManifest.devDependencies,
@@ -128,11 +121,7 @@ const checks = [
 	["codex-toys/bridge/json", ["parseJsonText"]],
 	["codex-toys/feed", ["createFeedContext", "pollFeedSources", "collectFeedItems"]],
 	["codex-toys/kits", ["inspectKitSource", "applyKitAdd"]],
-	["codex-toys/proxy", ["createCodexToysProxyHandler"]],
-	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],
-	["codex-toys/proxy/vite", ["codexToysRemote"]],
-	["codex-toys/remote", ["createSshToyboxTransport", "collectRemotePreflight"]],
-	["codex-toys/toybox", ["CodexToyboxClient", "CodexToyboxProtocolServer"]],
+	["codex-toys/runtime", ["CodexRuntimeClient", "CodexRuntimeProtocolServer", "createCodexToysBrowserClient", "createCodexToysRuntimeHttpHandler", "codexToysRuntime", "createSshRuntimeTransport", "collectRuntimePreflight"]],
 	["codex-toys/workbench", ["collectHostOverview", "collectWorkbenchOverview", "defineFunctions"]],
 ];
 for (const [specifier, expectedExports] of checks) {
@@ -147,9 +136,6 @@ for (const [specifier, expectedExports] of checks) {
 	], { cwd: installDir });
 
 	await run(path.join(installDir, "node_modules", ".bin", "codex-toys"), ["--help"], {
-		cwd: installDir,
-	});
-	await run(path.join(installDir, "node_modules", ".bin", "codex-toys-proxy"), ["--help"], {
 		cwd: installDir,
 	});
 
@@ -174,8 +160,7 @@ const checks = [
 	["codex-toys", ["CodexAppServerClient", "collectWorkbenchOverview"]],
 	["codex-toys/bridge", ["CodexAppServerClient", "JsonRpcError"]],
 	["codex-toys/workbench", ["collectHostOverview", "collectWorkbenchOverview", "defineFunctions"]],
-	["codex-toys/proxy/browser", ["createCodexToysBrowserClient", "codexToys"]],
-	["codex-toys/toybox", ["CodexToyboxClient", "CodexToyboxProtocolServer"]],
+	["codex-toys/runtime", ["createCodexToysBrowserClient", "codexToys", "CodexRuntimeClient", "CodexRuntimeProtocolServer"]],
 ];
 for (const [specifier, expectedExports] of checks) {
 	const module = await import(specifier);
@@ -198,7 +183,6 @@ for (const [specifier, expectedExports] of checks) {
 		tarballPath,
 	]);
 	await run(path.join(globalInstallDir, "bin", "codex-toys"), ["--help"]);
-	await run(path.join(globalInstallDir, "bin", "codex-toys-proxy"), ["--help"]);
 
 	await run("npm", [
 		"install",
@@ -211,7 +195,6 @@ for (const [specifier, expectedExports] of checks) {
 		tarballPath,
 	]);
 	await run(path.join(globalIgnoreScriptsInstallDir, "bin", "codex-toys"), ["--help"]);
-	await run(path.join(globalIgnoreScriptsInstallDir, "bin", "codex-toys-proxy"), ["--help"]);
 
 	const byTopLevel = new Map<string, number>();
 	for (const entry of tarEntries) {

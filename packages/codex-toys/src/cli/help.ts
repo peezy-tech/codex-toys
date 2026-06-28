@@ -1,26 +1,26 @@
 export function helpText(): string {
-	return `codex-toys controls Codex workbench local and SSH toybox surfaces.
+	return `codex-toys controls Codex workspace runtime surfaces.
 
 Usage:
   codex-toys fetch [--json] [--no-color]
   codex-toys neofetch [--json] [--no-color]
-  codex-toys --ssh <target> --cwd <remote-workbench> fetch
-  codex-toys toybox serve [--cwd <path>]
+  codex-toys runtime serve [--cwd <path>]
+  codex-toys runtime http [--cwd <path>] [--static <dir>] [--host <host>] [--port <port>]
   codex-toys mcp serve
 
-  codex-toys --ssh <target> --cwd <remote-workbench> remote preflight [--json]
-  codex-toys host overview --json
-  codex-toys --ssh <target> --cwd <remote-workbench> remote host-overview --json
+  codex-toys --ssh <target> --cwd <remote-workspace> runtime preflight [--json]
+  codex-toys runtime host-overview --json
+  codex-toys --ssh <target> --cwd <remote-workspace> runtime host-overview --json
 
   codex-toys turn run <prompt> [--wait] [--thread-id <id>]
-  codex-toys --ssh <target> --cwd <remote-workbench> turn run <prompt> --wait
+  codex-toys --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 
   codex-toys workflow list [--json]
   codex-toys workflow run <name> [--event <event.json>] [--prompt <text>] [--via workbench|app]
   codex-toys workflow run --script <path> [--event <event.json>] [--prompt <text>] [--via workbench|app]
   codex-toys workflow run --script-stdin [--event <event.json>] [--prompt <text>] [--via workbench|app]
-  codex-toys --ssh <target> --cwd <remote-workbench> workflow list [--json]
-  codex-toys --ssh <target> --cwd <remote-workbench> workflow run <name> [--event <event.json>]
+  codex-toys --ssh <target> --cwd <remote-workspace> workflow list [--json]
+  codex-toys --ssh <target> --cwd <remote-workspace> workflow run <name> [--event <event.json>]
 
   codex-toys app <method> [params-json]
   codex-toys app <method> --params-json <json>
@@ -32,7 +32,7 @@ Usage:
   codex-toys functions list [--json]
   codex-toys functions describe <name> [--json]
   codex-toys functions call <name> [--params-json <json>] [--json]
-  codex-toys --ssh <target> --cwd <remote-workbench> functions list [--json]
+  codex-toys --ssh <target> --cwd <remote-workspace> functions list [--json]
 
   codex-toys feed doctor [--mode auto|local|actions] [--json]
   codex-toys feed source list [--json]
@@ -52,19 +52,17 @@ Usage:
   codex-toys workbench app <method> [params-json]
   codex-toys workbench methods
   codex-toys workbench overview [--json]
-  codex-toys workbench delegate list [--json]
-  codex-toys workbench delegate start --cwd @/workbenches/name --prompt <text> [--wait]
-	  codex-toys workbench doctor [--mode auto|local|actions] [--json]
-	  codex-toys workbench run <task-id> [--mode auto|local|actions]
-	  codex-toys workbench prompt enqueue <prompt> [--run-at <iso>] [--after <intent-id>]
-	  codex-toys workbench prompt list [--queue <name>] [--status <status>] [--json]
-	  codex-toys workbench prompt pull <intent-id> [--json]
-	  codex-toys workbench prompt collect [--cursor <name>] [--queue <name>] [--json]
-	  codex-toys workbench prompt run-due [--queue <name>] [--limit <n>]
-	  codex-toys workbench handoff enqueue <prompt> [--target-host <host>] [--capability <name>]
-	  codex-toys workbench handoff list [--queue <name>] [--status <status>] [--json]
-	  codex-toys workbench handoff drain [--host-id <host>] [--capability <name>] [--materialize]
-	  codex-toys workbench dispatch create --params-json <json>
+  codex-toys workbench doctor [--mode auto|local|actions] [--json]
+  codex-toys workbench run <task-id> [--mode auto|local|actions]
+  codex-toys workbench prompt enqueue <prompt> [--run-at <iso>] [--after <intent-id>]
+  codex-toys workbench prompt list [--queue <name>] [--status <status>] [--json]
+  codex-toys workbench prompt pull <intent-id> [--json]
+  codex-toys workbench prompt collect [--cursor <name>] [--queue <name>] [--json]
+  codex-toys workbench prompt run-due [--queue <name>] [--limit <n>]
+  codex-toys workbench handoff enqueue <prompt> [--target-host <host>] [--capability <name>]
+  codex-toys workbench handoff list [--queue <name>] [--status <status>] [--json]
+  codex-toys workbench handoff drain [--host-id <host>] [--capability <name>] [--materialize]
+  codex-toys workbench dispatch create --params-json <json>
   codex-toys workbench dispatch list [--mode auto|local|actions] [--json]
   codex-toys workbench dispatch read <intent-id> [--include-output] [--json]
   codex-toys workbench dispatch collect [--cursor <name>] [--json]
@@ -108,7 +106,8 @@ Options:
   --codex-home <path>                        Codex home for thread transplant.
   --from-codex-home <path>                   Source Codex home for direct thread transplant.
   --to-codex-home <path>                     Target Codex home for direct thread transplant.
-  --cwd <path>                               Project cwd written into transplanted thread metadata.
+  --cwd <path>                               Runtime cwd, remote workspace cwd,
+                                             or project cwd for thread state moves.
   --preserve-cwd                             Keep original thread cwd during transplant.
   --apply                                    Apply memory transplant changes.
   --overwrite                                Replace destination memory files after backup.
@@ -128,29 +127,21 @@ Options:
   --github                                   Generate a GitHub Actions workflow.
   --image <ref>                              Use an Actions runner container image.
   --no-image                                 Generate setup-node/vp dlx Actions workflow.
-	  --prompt <text>                            Prompt text for workflow script context.
-	  --title <text>                             Delegation thread title or queued prompt title.
-	  --queue <name>                             Prompt queue name.
-	  --label <label>                            Prompt queue label. Repeatable.
-	  --after <intent-id>                        Hold queued prompt until another intent finishes.
-	  --after-status <status>                    Dependency status: completed, failed,
-	                                             canceled, or terminal.
-	  --status <status>                          Dispatch/prompt status filter.
+  --prompt <text>                            Prompt text for workflow script context.
+  --title <text>                             Queued prompt title.
+  --queue <name>                             Prompt queue name.
+  --label <label>                            Prompt queue label. Repeatable.
+  --after <intent-id>                        Hold queued prompt until another intent finishes.
+  --after-status <status>                    Dependency status: completed, failed,
+                                             canceled, or terminal.
+  --status <status>                          Dispatch/prompt status filter.
                                              Feed item list/collect supports new.
-	  --limit <n>                                Limit listed or due queued work.
-	  --run-at <iso>                             Future run time for dispatch or queued work.
-	  --service-tier <tier>                      Turn service tier for queued prompts.
-	  --effort <effort>                          Reasoning effort: none, minimal, low,
-	                                             medium, high, or xhigh.
-	  --group-id <id>                            Delegation group id.
-  --return-mode <mode>                       Delegation return mode: detached,
-                                             record_only, wake_on_done,
-                                             wake_on_group, or manual.
-  --allow-absolute-cwd                       Allow workbench delegation to target
-                                             an absolute cwd.
-  --target-cwd <path>                        Delegation target cwd. Useful with
-                                             --ssh, where --cwd selects the
-                                             remote workbench root.
+  --limit <n>                                Limit listed or due queued work.
+  --run-at <iso>                             Future run time for dispatch or queued work.
+  --service-tier <tier>                      Turn service tier for queued prompts.
+  --effort <effort>                          Reasoning effort: none, minimal, low,
+                                             medium, high, or xhigh.
+  --target-cwd <path>                        Target cwd for queued prompt or handoff turns.
   --dry-run                                  Preview supported write operations.
   --older-than-days <days>                   Retention window for dispatch prune.
   --cursor <name>                            Dispatch collect cursor name.
@@ -158,6 +149,11 @@ Options:
   --source <source-id>                       Feed source filter.
   --target <target>                          Feed dispatch target.
   --item <item-id>                           Feed item id for cursor advance.
+  --static <dir>                             Static files for runtime http.
+  --host <host>                              HTTP host for runtime http.
+                                             Defaults to 127.0.0.1.
+  --port <port>                              HTTP port for runtime http.
+                                             Defaults to 3587.
   --no-advance                               Collect feed items without advancing cursor.
   --no-poll                                  Dispatch existing feed items without polling first.
   --via <workbench|app>                      Turn surface. Defaults to workbench.
@@ -166,29 +162,27 @@ Options:
   --approval-policy <policy>                 Turn approval policy: never,
                                              on-failure, on-request, or untrusted.
   --permissions <profile>                    Turn permissions profile.
-  --ssh, --ssh-target <target>               SSH target for remote CodexToys operation
+  --ssh, --ssh-target <target>               SSH target for runtime operation.
                                              Defaults to CODEX_TOYS_REMOTE_SSH_TARGET.
   --remote-path-prepend <paths>              Colon-separated remote PATH entries for
                                              non-interactive SSH commands.
-  --toybox-command <command>                  codex-toys command/path for spawned toyboxes.
-                                             Defaults to CODEX_TOYS_TOYBOX_COMMAND
+  --runtime-command <command>                codex-toys command/path for spawned runtimes.
+                                             Defaults to CODEX_TOYS_RUNTIME_COMMAND
                                              or codex-toys.
-  --codex-command <command>                  Codex command used by the toybox.
+  --codex-command <command>                  Codex command used by the runtime.
                                              Defaults to CODEX_TOYS_REMOTE_CODEX_COMMAND or codex.
   --codex-arg <arg>                          Extra Codex argument. Repeatable.
-  --cwd <path>                               Remote workbench cwd for SSH operation.
-                                             For local workbench delegate, also
-                                             accepts @/path relative to the
-                                             workbench root.
   -h, --help                                 Show this help.
 
 Examples:
   codex-toys fetch
   codex-toys mcp serve
-  codex-toys toybox serve --cwd /repo
+  codex-toys runtime serve --cwd /repo
+  codex-toys runtime http --cwd /repo --static ./dashboard
   codex-toys --ssh devbox --cwd /repo fetch
-  codex-toys host overview --json
-  codex-toys --ssh devbox --cwd /repo remote host-overview --json
+  codex-toys runtime host-overview --json
+  codex-toys --ssh devbox --cwd /repo runtime host-overview --json
+  codex-toys --ssh devbox --cwd /repo runtime preflight --json
   codex-toys --ssh devbox --cwd /repo turn run "Scan current folder" --wait
   codex-toys workflow list
   codex-toys workflow run check-release --event event.json
@@ -197,18 +191,15 @@ Examples:
   codex-toys --ssh devbox --cwd /repo workflow list --json
   codex-toys --ssh devbox --cwd /repo workflow run check-release --event event.json
   codex-toys --ssh devbox --cwd /repo functions list --json
-  codex-toys --ssh devbox --cwd /repo functions call portfolioSnapshot --json
+  codex-toys --ssh devbox --cwd /repo functions call accountSnapshot --json
   codex-toys feed poll --source openai-blog --json
   codex-toys feed item append --source hq-dispatch-results --params-json '{"externalId":"run-123","title":"Dispatch result","raw":{"status":"completed"}}' --json
   codex-toys feed collect --cursor radar --json
   codex-toys feed dispatch --source cli-utility-releases --cursor cli-toys-bindings-refresh --target workbench-task:cli-toys-bindings-refresh --json
   codex-toys --ssh devbox --cwd /repo app thread/list '{"limit":20,"sourceKinds":[]}'
-  codex-toys --ssh devbox --cwd /repo workbench delegation.list
   codex-toys app thread/list '{"limit":20,"sourceKinds":[]}'
   codex-toys workbench app thread/list '{"limit":20,"sourceKinds":[]}'
-  codex-toys workbench delegation.list
   codex-toys workbench overview --json
-  codex-toys workbench delegate start --cwd @/workbenches/trading --prompt "Inspect status"
   codex-toys workbench doctor --mode actions
   codex-toys workbench dispatch create --params-json '{"runAt":"2026-01-01T14:00:00.000Z","target":{"kind":"turn","prompt":"Review the workbench."}}'
   codex-toys workbench init actions --forgejo

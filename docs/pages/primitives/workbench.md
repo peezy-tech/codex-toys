@@ -131,6 +131,7 @@ where that history belongs in git.
 - functions
 - recent cwd threads
 - git state
-- health checks for Node, codex-toys, Codex, toybox, app-server, and config
+- health checks for Node, codex-toys, Codex, runtime transport, app-server, and config
 
-The proxy exposes the same data through `POST /api/workbench/overview`.
+The runtime HTTP edge exposes the same data through
+`POST /api/workbench/overview`.

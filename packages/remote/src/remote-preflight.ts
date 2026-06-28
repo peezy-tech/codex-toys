@@ -109,7 +109,7 @@ export async function collectRemotePreflight(
 		options.timeoutMs,
 		{
 			suggestion:
-				"Install codex-toys on the SSH target or set CODEX_TOYS_TOYBOX_COMMAND to its remote path.",
+				"Install codex-toys on the SSH target or set CODEX_TOYS_RUNTIME_COMMAND to its remote path.",
 		},
 	));
 	checks.push(await commandCheck(
@@ -157,7 +157,7 @@ async function probeSshToybox(
 	const transport = createSshToyboxTransport(options);
 	try {
 		transport.start();
-		const status = await transport.request("toybox.status", {});
+		const status = await transport.request("runtime.status", {});
 		const detail = statusDetail(status);
 		await initializeWorkbenchTransport(transport);
 		await transport.request(APP_CALL_METHOD, {
@@ -165,17 +165,17 @@ async function probeSshToybox(
 			params: { limit: 1, sourceKinds: [] },
 		});
 		return [
-			{ name: "SSH toybox", status: "ok", detail },
+			{ name: "SSH runtime", status: "ok", detail },
 			{ name: "app-server initialize", status: "ok" },
 		];
 	} catch (error) {
 		const stderr = transport.toyboxStderr.join("\n").trim();
 		return [{
-			name: "SSH toybox",
+			name: "SSH runtime",
 			status: "fail",
 			error: errorMessage(error),
 			suggestion:
-				"Inspect remote stderr, ensure codex-toys and codex run from non-interactive SSH, and adjust CODEX_TOYS_REMOTE_PATH_PREPEND if needed.",
+			"Inspect remote stderr, ensure codex-toys and codex run from non-interactive SSH, and adjust CODEX_TOYS_REMOTE_PATH_PREPEND if needed.",
 			...(stderr ? { stderr: redact(stderr) } : {}),
 		}];
 	} finally {

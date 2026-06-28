@@ -13,7 +13,6 @@ import {
 	collectHostOverview,
 	createHostOverviewMethods,
 	createWorkbenchDispatchRunMethods,
-	createWorkbenchDelegationMethods,
 	createWorkbenchOverviewMethods,
 	type HostOverviewCommandResult,
 	WORKBENCH_OVERVIEW_METHOD,
@@ -52,24 +51,24 @@ describe("Codex toybox protocol", () => {
 
 	test("server handles registered workbench methods without forwarding them", async () => {
 		const appServer = new FakeAppServer();
-		const server = new CodexToyboxProtocolServer({
-			appServer,
-			methods: {
-				"delegation.list": () => ({ delegations: [] }),
-			},
-		});
-		const peer = new MemoryPeer();
-		server.addPeer(peer);
+	const server = new CodexToyboxProtocolServer({
+		appServer,
+		methods: {
+			"functions.list": () => ({ functions: [] }),
+		},
+	});
+	const peer = new MemoryPeer();
+	server.addPeer(peer);
 
-		await server.handleMessage(peer, JSON.stringify({
-			jsonrpc: "2.0",
-			id: "delegation",
-			method: "delegation.list",
-			params: {},
-		}));
+	await server.handleMessage(peer, JSON.stringify({
+		jsonrpc: "2.0",
+		id: "functions",
+		method: "functions.list",
+		params: {},
+	}));
 
-		expect(appServer.requests).toEqual([]);
-		expect(peer.response("delegation")?.result).toEqual({ delegations: [] });
+	expect(appServer.requests).toEqual([]);
+	expect(peer.response("functions")?.result).toEqual({ functions: [] });
 	});
 
 	test("host overview method returns bounded dashboard sections", async () => {
@@ -116,7 +115,7 @@ describe("Codex toybox protocol", () => {
 				}
 				return shellResult({ code: 127, error: `${command} not found` });
 			},
-			toyboxServerInfo: { name: "codex-toys-toybox", version: "0.1.0" },
+			runtimeServerInfo: { name: "codex-toys-runtime", version: "0.1.0" },
 		});
 
 		expect(result).toMatchObject({
@@ -156,7 +155,7 @@ describe("Codex toybox protocol", () => {
 				online: true,
 			},
 			versions: {
-				toybox: { name: "codex-toys-toybox", version: "0.1.0" },
+				runtime: { name: "codex-toys-runtime", version: "0.1.0" },
 				packages: expect.arrayContaining([
 					expect.objectContaining({ name: "codex-toys", version: "0.140.2" }),
 					expect.objectContaining({ name: "codex-cli", version: "codex-cli 1.2.3" }),
@@ -178,25 +177,25 @@ describe("Codex toybox protocol", () => {
 		const peer = new MemoryPeer();
 		server.addPeer(peer);
 
-		await server.handleMessage(peer, JSON.stringify({
-			jsonrpc: "2.0",
-			id: "delegation",
-			method: "delegation.start",
-			params: { prompt: "do work" },
-		}));
+	await server.handleMessage(peer, JSON.stringify({
+		jsonrpc: "2.0",
+		id: "functions",
+		method: "functions.call",
+		params: { name: "missing" },
+	}));
 
-		expect(appServer.requests).toEqual([]);
-		expect(peer.response("delegation")?.error?.code).toBe(-32601);
-		expect(peer.notifications("toybox.event")).toContainEqual(
-			expect.objectContaining({
-				method: "toybox.event",
-				params: {
-					event: expect.objectContaining({
-						type: "unsupportedToyboxMethod",
-						method: "delegation.start",
-					}),
-				},
-			}),
+	expect(appServer.requests).toEqual([]);
+	expect(peer.response("functions")?.error?.code).toBe(-32601);
+	expect(peer.notifications("toybox.event")).toContainEqual(
+		expect.objectContaining({
+			method: "toybox.event",
+			params: {
+				event: expect.objectContaining({
+					type: "unsupportedToyboxMethod",
+					method: "functions.call",
+				}),
+			},
+		}),
 		);
 	});
 
@@ -282,120 +281,6 @@ describe("Codex toybox protocol", () => {
 				params: { threadId: "thread-1" },
 			},
 		]);
-	});
-
-	test("delegation methods resolve @ targets and persist records", async () => {
-		const workbenchRoot = await mkdtemp(path.join(os.tmpdir(), "codex-toys-delegation-"));
-		const target = path.join(workbenchRoot, "workbenches", "trading");
-		await mkdir(target, { recursive: true });
-		const statePath = path.join(workbenchRoot, ".codex", "workbench", "local", "delegations.json");
-		const appServer = new FakeDelegationAppServer();
-		const methods = createWorkbenchDelegationMethods({
-			appServer,
-			workbenchRoot,
-			statePath,
-			now: () => new Date("2026-05-29T00:00:00.000Z"),
-		});
-
-		const start = await methods["delegation.start"]!({
-			cwd: "@/workbenches/trading",
-			prompt: "inspect trading workbench",
-			title: "Trading check",
-			sandbox: "danger-full-access",
-		}, jsonRpcRequest("start", "delegation.start")) as {
-			delegation: {
-				id: string;
-				codexUrl?: string;
-				cwd: string;
-				workbenchKey?: string;
-				metadata?: Record<string, unknown>;
-			};
-			turnId: string;
-		};
-
-		expect(start.turnId).toBe("turn-1");
-		expect(start.delegation.codexUrl).toBe("codex://threads/thread-1");
-		expect(start.delegation.cwd).toBe(target);
-		expect(start.delegation.workbenchKey).toBe("@/workbenches/trading");
-		expect(start.delegation.metadata).toMatchObject({
-			workbenchRoot,
-			requestedCwd: "@/workbenches/trading",
-		});
-		expect(appServer.requests.map((entry) => entry.method)).toEqual([
-			"thread/start",
-			"thread/name/set",
-			"turn/start",
-		]);
-		expect(appServer.requests[0]?.params).toMatchObject({
-			cwd: target,
-			sandbox: "danger-full-access",
-		});
-
-		const list = await methods["delegation.list"]!(
-			{},
-			jsonRpcRequest("list", "delegation.list"),
-		) as {
-			delegations: unknown[];
-			targets: Array<{ id: string; cwd: string; kind: string }>;
-		};
-		expect(list.delegations).toHaveLength(1);
-		expect(list.delegations[0]).toMatchObject({
-			codexThreadId: "thread-1",
-			codexUrl: "codex://threads/thread-1",
-		});
-		expect(list.targets).toContainEqual({
-			id: "@/workbenches/trading",
-			cwd: target,
-			label: "trading",
-			kind: "workbench",
-			source: "discovered",
-			exists: true,
-		});
-
-		const reloaded = createWorkbenchDelegationMethods({
-			appServer: new FakeDelegationAppServer(),
-			workbenchRoot,
-			statePath,
-		});
-		const persisted = await reloaded["delegation.list"]!(
-			{ includeTargets: false },
-			jsonRpcRequest("persisted", "delegation.list"),
-		) as { delegations: unknown[]; targets?: unknown[] };
-		expect(persisted.delegations).toHaveLength(1);
-		expect(persisted.delegations[0]).toMatchObject({
-			codexThreadId: "thread-1",
-			codexUrl: "codex://threads/thread-1",
-		});
-		expect(persisted.targets).toBeUndefined();
-
-		const legacyStatePath = path.join(workbenchRoot, ".codex", "workbench", "local", "legacy-delegations.json");
-		await writeFile(legacyStatePath, JSON.stringify({
-			delegations: [{
-				id: "delegation-legacy",
-				codexThreadId: "legacy-thread",
-				title: "Legacy check",
-				status: "idle",
-				createdAt: "2026-05-29T00:00:00.000Z",
-				updatedAt: "2026-05-29T00:00:00.000Z",
-			}],
-		}));
-		const legacy = await createWorkbenchDelegationMethods({
-			appServer: new FakeDelegationAppServer(),
-			workbenchRoot,
-			statePath: legacyStatePath,
-		})["delegation.list"]!(
-			{ includeTargets: false },
-			jsonRpcRequest("legacy", "delegation.list"),
-		) as { delegations: unknown[] };
-		expect(legacy.delegations[0]).toMatchObject({
-			codexThreadId: "legacy-thread",
-			codexUrl: "codex://threads/legacy-thread",
-		});
-
-		await expect(methods["delegation.start"]!(
-			{ cwd: target, prompt: "absolute path without gate" },
-			jsonRpcRequest("absolute", "delegation.start"),
-		)).rejects.toThrow(/Absolute delegation cwd requires/);
 	});
 
 	test("dispatch run methods persist mode-scoped intents", async () => {
@@ -614,11 +499,11 @@ describe("Codex toybox protocol", () => {
 		const methods = createWorkbenchOverviewMethods({
 			workbenchRoot,
 			appRequest: async (method, params) => await appServer.request(method, params),
-			toybox: {
+			runtimeTransport: {
 				transport: "local",
 				status: "connected",
-				url: "toybox://local",
-				server: { name: "test-toybox", version: "0.1.0" },
+				url: "runtime://local",
+				server: { name: "test-runtime", version: "0.1.0" },
 			},
 			now: () => new Date("2026-05-30T12:00:00.000Z"),
 		});
@@ -629,7 +514,7 @@ describe("Codex toybox protocol", () => {
 		) as {
 			generatedAt: string;
 			workbench: { repoRoot: string; config: { exists: boolean } };
-			fetch: { package: string; toybox: { status: string } };
+			fetch: { package: string; runtimeTransport: { status: string } };
 			dispatch: { summary: { total: number }; intents: unknown[] };
 			threads: { ok: boolean; total: number };
 			health: { checks: Array<{ name: string; ok: boolean }> };
@@ -639,7 +524,7 @@ describe("Codex toybox protocol", () => {
 		expect(overview.workbench.repoRoot).toBe(workbenchRoot);
 		expect(overview.workbench.config.exists).toBe(true);
 		expect(overview.fetch.package).toBe("codex-toys");
-		expect(overview.fetch.toybox.status).toBe("connected");
+		expect(overview.fetch.runtimeTransport.status).toBe("connected");
 		expect(overview.dispatch.summary.total).toBe(0);
 		expect(overview.dispatch.intents).toEqual([]);
 		expect(overview.threads).toMatchObject({ ok: true, total: 0 });
@@ -735,43 +620,6 @@ class FakeToyboxTransport extends CodexEventEmitter {
 
 	notify(method: string, params?: unknown): void {
 		this.requests.push({ method, params });
-	}
-}
-
-class FakeDelegationAppServer {
-	requests: Array<{ method: string; params?: Record<string, unknown> }> = [];
-
-	async request<T = unknown>(method: string, params?: unknown): Promise<T> {
-		this.requests.push({ method, params: isRecord(params) ? params : undefined });
-		if (method === "thread/start") {
-			return { thread: { id: "thread-1", cwd: isRecord(params) ? params.cwd : undefined } } as T;
-		}
-		if (method === "thread/name/set") {
-			return {} as T;
-		}
-		if (method === "turn/start") {
-			return { turn: { id: "turn-1", status: "inProgress" } } as T;
-		}
-		if (method === "thread/read") {
-			return {
-				thread: {
-					turns: [
-						{
-							id: "turn-1",
-							status: "completed",
-							items: [
-								{
-									type: "agentMessage",
-									phase: "final_answer",
-									text: "done",
-								},
-							],
-						},
-					],
-				},
-			} as T;
-		}
-		throw new Error(`Unexpected app-server method: ${method}`);
 	}
 }
 

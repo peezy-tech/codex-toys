@@ -1,35 +1,37 @@
 ---
 title: CLI Reference
-description: Command porcelain over codex-toys primitives and components.
+description: Command porcelain over codex-toys primitives and runtime transports.
 ---
 
 # CLI Reference
 
-`codex-toys` is stdio-first workbench porcelain. Local commands spawn a toybox
-when needed. SSH commands run the toybox on the remote host over SSH stdio.
+`codex-toys` is stdio-first workspace porcelain. Local commands spawn the
+runtime when needed. SSH commands run the same runtime on the target host over
+SSH stdio.
 
 ## Fetch And Runtime
 
 ```bash
 codex-toys fetch [--json] [--no-color]
 codex-toys neofetch [--json] [--no-color]
-codex-toys toybox serve [--cwd <path>]
+codex-toys runtime serve [--cwd <path>]
+codex-toys runtime http [--cwd <path>] [--static <dir>] [--host <host>] [--port <port>]
 codex-toys mcp serve
-codex-toys host overview --json
-codex-toys --ssh <target> --cwd <remote-workbench> fetch
-codex-toys --ssh <target> --cwd <remote-workbench> remote preflight [--json]
-codex-toys --ssh <target> --cwd <remote-workbench> remote host-overview --json
+codex-toys runtime host-overview --json
+codex-toys --ssh <target> --cwd <remote-workspace> fetch
+codex-toys --ssh <target> --cwd <remote-workspace> runtime preflight [--json]
+codex-toys --ssh <target> --cwd <remote-workspace> runtime host-overview --json
 ```
 
 ## Turn
 
 ```bash
 codex-toys turn run <prompt> [--wait] [--thread-id <id>]
-codex-toys --ssh <target> --cwd <remote-workbench> turn run <prompt> --wait
+codex-toys --ssh <target> --cwd <remote-workspace> turn run <prompt> --wait
 ```
 
-SSH-backed `turn run` requires `--wait`. Use delegation or dispatch queues for
-supervised background work.
+SSH-backed `turn run` requires `--wait`. Use native Codex threads, prompt
+queues, dispatch queues, or workflows for supervised background work.
 
 ## Workflow
 
@@ -38,8 +40,8 @@ codex-toys workflow list [--json]
 codex-toys workflow run <name> [--event <event.json>] [--prompt <text>] [--via workbench|app]
 codex-toys workflow run --script <path> [--event <event.json>] [--prompt <text>] [--via workbench|app]
 codex-toys workflow run --script-stdin [--event <event.json>] [--prompt <text>] [--via workbench|app]
-codex-toys --ssh <target> --cwd <remote-workbench> workflow list [--json]
-codex-toys --ssh <target> --cwd <remote-workbench> workflow run <name> [--event <event.json>]
+codex-toys --ssh <target> --cwd <remote-workspace> workflow list [--json]
+codex-toys --ssh <target> --cwd <remote-workspace> workflow run <name> [--event <event.json>]
 ```
 
 ## App-Server Calls
@@ -59,7 +61,7 @@ codex-toys app actions
 codex-toys functions list [--json]
 codex-toys functions describe <name> [--json]
 codex-toys functions call <name> [--params-json <json>] [--json]
-codex-toys --ssh <target> --cwd <remote-workbench> functions list [--json]
+codex-toys --ssh <target> --cwd <remote-workspace> functions list [--json]
 ```
 
 ## Feed
@@ -90,15 +92,6 @@ codex-toys workbench overview [--json]
 codex-toys workbench doctor [--mode auto|local|actions] [--json]
 codex-toys workbench run <task-id> [--mode auto|local|actions]
 codex-toys workbench init actions [--forgejo|--github] [--image <ref>|--no-image]
-```
-
-## Delegation
-
-```bash
-codex-toys workbench delegate list [--json]
-codex-toys workbench delegate start --cwd @/workbenches/name --prompt <text> [--wait]
-codex-toys workbench delegate start --cwd @/repos/name --prompt <text> --return-mode record_only
-codex-toys --ssh <target> --cwd <remote-root> workbench delegate start --target-cwd @/repos/name --prompt <text>
 ```
 
 ## Dispatch Queues
@@ -168,11 +161,11 @@ codex-toys actions prepare-auth
 codex-toys actions cleanup
 ```
 
-## Proxy
+## Runtime HTTP
 
 ```bash
-codex-toys-proxy serve --cwd <workbench> [--static <dir>]
-codex-toys-proxy serve --ssh <target> --cwd <remote-workbench> [--static <dir>]
+codex-toys runtime http --cwd <workspace> [--static <dir>]
+codex-toys runtime http --ssh <target> --cwd <remote-workspace> [--static <dir>]
 ```
 
 Routes:
@@ -200,7 +193,7 @@ POST /api/workbench/overview
 --cwd <path>
 --ssh <target>
 --remote-path-prepend <paths>
---toybox-command <command>
+--runtime-command <command>
 --codex-command <command>
 --codex-arg <arg>
 --event <path>
@@ -213,11 +206,12 @@ POST /api/workbench/overview
 --after-status <status>
 --limit <n>
 --run-at <iso>
+--static <dir>
+--host <host>
+--port <port>
 --sandbox <mode>
 --approval-policy <policy>
 --permissions <profile>
 --apply
 --overwrite
---replace
---dry-run
 ```
