@@ -71,6 +71,7 @@ export default async function run(ctx) {
 				turn: {
 					via: "workbench",
 					threadId: "thread-1",
+					codexUrl: "codex://threads/thread-1",
 					turnId: "turn-1",
 					status: "completed",
 					outputText: "remote gm done",

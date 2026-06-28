@@ -4,6 +4,7 @@ import type {
 	WorkbenchDelegationReturnMode,
 	WorkbenchDelegationStatus,
 } from "./delegation.ts";
+import { withDelegationCodexUrl } from "./delegation.ts";
 import type { WorkbenchDelegationTarget } from "./delegation-methods.ts";
 
 export type WorkbenchDelegationRequest = <T = unknown>(
@@ -117,15 +118,17 @@ export async function waitForWorkbenchDelegationWithRequest(
 export function formatWorkbenchDelegationStartResult(
 	result: WorkbenchDelegationStartResult,
 ): string {
+	const delegation = withDelegationCodexUrl(result.delegation);
 	const lines = [
 		"delegation          started",
-		`delegation id       ${result.delegation.id}`,
-		`thread id           ${result.delegation.codexThreadId}`,
+		`delegation id       ${delegation.id}`,
+		`thread id           ${delegation.codexThreadId}`,
+		`open thread         [Codex](${delegation.codexUrl})`,
 		result.turnId ? `turn id             ${result.turnId}` : undefined,
-		`cwd                 ${result.delegation.cwd ?? "unknown"}`,
-		`status              ${result.wait?.status ?? result.delegation.status}`,
-		result.delegation.returnMode
-			? `return mode         ${result.delegation.returnMode}`
+		`cwd                 ${delegation.cwd ?? "unknown"}`,
+		`status              ${result.wait?.status ?? delegation.status}`,
+		delegation.returnMode
+			? `return mode         ${delegation.returnMode}`
 			: undefined,
 	];
 	const finalText = result.wait?.lastFinal?.text?.trim();
@@ -150,8 +153,9 @@ export function formatWorkbenchDelegationListResult(
 			lines.push("");
 		}
 		lines.push("delegations");
-		for (const delegation of result.delegations) {
-			lines.push(`  ${delegation.id.padEnd(20)} ${delegation.status.padEnd(8)} ${delegation.cwd ?? "unknown"} ${delegation.title}`);
+		for (const rawDelegation of result.delegations) {
+			const delegation = withDelegationCodexUrl(rawDelegation);
+			lines.push(`  ${delegation.id.padEnd(20)} ${delegation.status.padEnd(8)} ${delegation.cwd ?? "unknown"} ${delegation.title} [Codex](${delegation.codexUrl})`);
 		}
 	}
 	if (lines.length === 0) {

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { v2 } from "@codex-toys/bridge/generated";
+import { codexThreadUrl } from "@codex-toys/bridge";
 import type { ReasoningEffort } from "@codex-toys/bridge/generated/ReasoningEffort";
 import type {
 	WorkbenchDelegation,
@@ -162,6 +163,7 @@ export function formatWorkflowRun(run: WorkflowRun & {
 		`result              ${previewJson(run.result)}`,
 		run.turn ? `turn surface        ${run.turn.via}` : undefined,
 		run.turn ? `thread id           ${run.turn.threadId}` : undefined,
+		run.turn ? `open thread         [Codex](${run.turn.codexUrl})` : undefined,
 		run.turn ? `turn id             ${run.turn.turnId}` : undefined,
 	].filter(Boolean).join("\n") + "\n";
 }
@@ -170,6 +172,7 @@ export type WorkflowStartedTurn = {
 	id?: string;
 	via: "workbench" | "app-server";
 	threadId: string;
+	codexUrl: string;
 	turnId: string;
 	thread: unknown;
 	turn: unknown;
@@ -496,6 +499,7 @@ export async function startWorkflowTurnWithRequest(
 		id,
 		via,
 		threadId,
+		codexUrl: codexThreadUrl(threadId),
 		turnId: nestedId(turnResponse, "turn", "turn/start"),
 		thread,
 		turn: record(turnResponse).turn ?? turnResponse,
@@ -522,6 +526,7 @@ export async function readWorkflowTurnWithRequest(
 		id: ref.id,
 		via,
 		threadId: ref.threadId,
+		codexUrl: codexThreadUrl(ref.threadId),
 		turnId: ref.turnId,
 		status: optionalString(turn.status) ?? "unknown",
 		outputText: finalTextFromTurn(turn),

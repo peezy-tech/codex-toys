@@ -1,3 +1,4 @@
+import { codexThreadUrl } from "@codex-toys/bridge";
 import type { v2 } from "@codex-toys/bridge/generated";
 
 export type WorkbenchDelegationReturnMode =
@@ -17,6 +18,7 @@ export type WorkbenchDelegationStatus =
 export type WorkbenchDelegation = {
 	id: string;
 	codexThreadId: string;
+	codexUrl?: string;
 	title: string;
 	status: WorkbenchDelegationStatus;
 	cwd?: string;
@@ -105,7 +107,7 @@ export class WorkbenchDelegationCapability {
 	}
 
 	list(): { delegations: WorkbenchDelegation[] } {
-		return { delegations: this.#delegations() };
+		return { delegations: this.#delegations().map(withDelegationCodexUrl) };
 	}
 
 	async start(args: Record<string, unknown>): Promise<{
@@ -339,16 +341,17 @@ export class WorkbenchDelegationCapability {
 
 	upsert(input: WorkbenchDelegation): WorkbenchDelegation {
 		const delegations = this.#delegations();
+		const updated = withDelegationCodexUrl(input);
 		const index = delegations.findIndex((delegation) =>
-			delegation.id === input.id ||
-			delegation.codexThreadId === input.codexThreadId
+			delegation.id === updated.id ||
+			delegation.codexThreadId === updated.codexThreadId
 		);
 		if (index >= 0) {
-			delegations[index] = { ...delegations[index], ...input };
+			delegations[index] = withDelegationCodexUrl({ ...delegations[index], ...updated });
 			return delegations[index] as WorkbenchDelegation;
 		}
-		delegations.push(input);
-		return input;
+		delegations.push(updated);
+		return updated;
 	}
 
 	requireDelegation(args: Record<string, unknown>): WorkbenchDelegation {
@@ -372,6 +375,9 @@ export class WorkbenchDelegationCapability {
 
 	#delegations(): WorkbenchDelegation[] {
 		this.#state.delegations ??= [];
+		for (const delegation of this.#state.delegations) {
+			delegation.codexUrl = codexThreadUrl(delegation.codexThreadId);
+		}
 		return this.#state.delegations;
 	}
 }
@@ -386,6 +392,13 @@ type ThreadSnapshot = {
 
 export function workbenchDelegationId(threadId: string): string {
 	return delegationId(threadId);
+}
+
+export function withDelegationCodexUrl(delegation: WorkbenchDelegation): WorkbenchDelegation {
+	return {
+		...delegation,
+		codexUrl: codexThreadUrl(delegation.codexThreadId),
+	};
 }
 
 export function returnModeFromArgs(

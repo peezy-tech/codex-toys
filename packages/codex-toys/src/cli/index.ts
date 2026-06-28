@@ -586,6 +586,7 @@ async function main(): Promise<void> {
 		write(parsed.json
 			? `${JSON.stringify({
 				threadId: result.threadId,
+				codexUrl: result.codexUrl,
 				turnId: result.turnId,
 				status: result.status,
 				cwd: result.cwd ?? parsed.cwd ?? null,
@@ -1380,6 +1381,7 @@ async function main(): Promise<void> {
 				prompt: setupPrompt,
 				turn: {
 					threadId: turn.threadId,
+					codexUrl: turn.codexUrl,
 					turnId: turn.turnId,
 					status: turn.status,
 					cwd: turn.cwd ?? plan.workbenchRoot,

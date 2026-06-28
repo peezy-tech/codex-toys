@@ -303,11 +303,18 @@ describe("Codex toybox protocol", () => {
 			title: "Trading check",
 			sandbox: "danger-full-access",
 		}, jsonRpcRequest("start", "delegation.start")) as {
-			delegation: { id: string; cwd: string; workbenchKey?: string; metadata?: Record<string, unknown> };
+			delegation: {
+				id: string;
+				codexUrl?: string;
+				cwd: string;
+				workbenchKey?: string;
+				metadata?: Record<string, unknown>;
+			};
 			turnId: string;
 		};
 
 		expect(start.turnId).toBe("turn-1");
+		expect(start.delegation.codexUrl).toBe("codex://threads/thread-1");
 		expect(start.delegation.cwd).toBe(target);
 		expect(start.delegation.workbenchKey).toBe("@/workbenches/trading");
 		expect(start.delegation.metadata).toMatchObject({
@@ -332,6 +339,10 @@ describe("Codex toybox protocol", () => {
 			targets: Array<{ id: string; cwd: string; kind: string }>;
 		};
 		expect(list.delegations).toHaveLength(1);
+		expect(list.delegations[0]).toMatchObject({
+			codexThreadId: "thread-1",
+			codexUrl: "codex://threads/thread-1",
+		});
 		expect(list.targets).toContainEqual({
 			id: "@/workbenches/trading",
 			cwd: target,
@@ -351,7 +362,35 @@ describe("Codex toybox protocol", () => {
 			jsonRpcRequest("persisted", "delegation.list"),
 		) as { delegations: unknown[]; targets?: unknown[] };
 		expect(persisted.delegations).toHaveLength(1);
+		expect(persisted.delegations[0]).toMatchObject({
+			codexThreadId: "thread-1",
+			codexUrl: "codex://threads/thread-1",
+		});
 		expect(persisted.targets).toBeUndefined();
+
+		const legacyStatePath = path.join(workbenchRoot, ".codex", "workbench", "local", "legacy-delegations.json");
+		await writeFile(legacyStatePath, JSON.stringify({
+			delegations: [{
+				id: "delegation-legacy",
+				codexThreadId: "legacy-thread",
+				title: "Legacy check",
+				status: "idle",
+				createdAt: "2026-05-29T00:00:00.000Z",
+				updatedAt: "2026-05-29T00:00:00.000Z",
+			}],
+		}));
+		const legacy = await createWorkbenchDelegationMethods({
+			appServer: new FakeDelegationAppServer(),
+			workbenchRoot,
+			statePath: legacyStatePath,
+		})["delegation.list"]!(
+			{ includeTargets: false },
+			jsonRpcRequest("legacy", "delegation.list"),
+		) as { delegations: unknown[] };
+		expect(legacy.delegations[0]).toMatchObject({
+			codexThreadId: "legacy-thread",
+			codexUrl: "codex://threads/legacy-thread",
+		});
 
 		await expect(methods["delegation.start"]!(
 			{ cwd: target, prompt: "absolute path without gate" },

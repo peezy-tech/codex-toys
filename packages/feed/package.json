@@ -1,6 +1,6 @@
 {
 	"name": "@codex-toys/feed",
-	"version": "0.140.13",
+	"version": "0.140.14",
 	"private": true,
 	"description": "Durable RSS/Atom polling, manual feed item append, checkpoints, and collection cursors.",
 	"type": "module",

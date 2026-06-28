@@ -92,6 +92,14 @@ type CandidateRollout = ThreadRolloutLocation;
 const rolloutFilenamePattern = /^rollout-.+-([0-9a-fA-F-]{36})\.jsonl$/;
 const rolloutFilenameDatePattern = /^rollout-(\d{4})-(\d{2})-(\d{2})T.+-[0-9a-fA-F-]{36}\.jsonl$/;
 
+export function codexThreadUrl(threadId: string): string {
+	return `codex://threads/${encodeURIComponent(threadId)}`;
+}
+
+export function codexThreadMarkdownLink(threadId: string, label = "Open in Codex"): string {
+	return `[${label}](${codexThreadUrl(threadId)})`;
+}
+
 export async function locateThreadRollout(
 	options: LocateThreadRolloutOptions,
 ): Promise<ThreadRolloutLocation> {

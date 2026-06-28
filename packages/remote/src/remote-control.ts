@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { codexThreadUrl } from "@codex-toys/bridge";
 import type { v2 } from "@codex-toys/bridge/generated";
 import type { CodexToyboxTransport } from "@codex-toys/toybox";
 import {
@@ -36,6 +37,7 @@ export type RemoteTurnStartResult = {
 	surface: "workbench" | "app-server";
 	url: string;
 	threadId: string;
+	codexUrl: string;
 	turnId: string;
 	cwd?: string;
 	status: v2.TurnStatus | "accepted" | "timed_out";
@@ -106,6 +108,7 @@ export function formatRemoteTurnStartResult(result: RemoteTurnStartResult): stri
 	const lines = [
 		`turn surface        ${result.via} (${result.url})`,
 		`thread id           ${result.threadId}`,
+		`open thread         [Codex](${result.codexUrl})`,
 		`turn id             ${result.turnId}`,
 		`status              ${result.status}`,
 	];
@@ -282,6 +285,7 @@ async function startTurnWithRequest(
 		surface,
 		url,
 		threadId,
+		codexUrl: codexThreadUrl(threadId),
 		turnId,
 		...(options.cwd ? { cwd: options.cwd } : {}),
 		status,
