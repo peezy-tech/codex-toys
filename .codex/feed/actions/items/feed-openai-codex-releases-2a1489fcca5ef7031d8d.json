@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-2a1489fcca5ef7031d8d",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.142.5",
+  "title": "0.142.5",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.142.5",
+  "updatedAt": "2026-07-01T01:17:02.000Z",
+  "contentText": "Bug Fixes Prevented full Responses WebSocket request payloads from being written to trace logs. ( #30771 ) Changelog Full Changelog: rust-v0.142.4...rust-v0.142.5 #30771 [codex] Backport websocket trace fix to release/0.142 @dylan-hurd-oai",
+  "observedAt": "2026-07-01T16:03:09.913Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.142.5",
+    "updated": "2026-07-01T01:17:02Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.142.5",
+        "type": "text/html"
+      }
+    ]
+  }
+}
