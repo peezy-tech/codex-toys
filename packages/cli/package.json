@@ -1,0 +1,35 @@
+{
+	"name": "codex-appkit",
+	"version": "0.1.0",
+	"description": "Tiny CLI for the Codex app-server starter kit.",
+	"type": "module",
+	"private": true,
+	"license": "Apache-2.0",
+	"bin": {
+		"codex-appkit": "dist/index.js"
+	},
+	"types": "./dist/index.d.ts",
+	"files": ["dist", "README.md"],
+	"exports": {
+		".": {
+			"types": "./dist/library.d.ts",
+			"import": "./dist/library.js"
+		}
+	},
+	"engines": {
+		"node": ">=24.0.0 <25"
+	},
+	"scripts": {
+		"build": "pnpm run clean && tsc -p tsconfig.build.json && chmod 755 dist/index.js",
+		"check:types": "tsc --noEmit",
+		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"@codex-appkit/app-server": "workspace:*",
+		"@codex-appkit/http": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"typescript": "catalog:"
+	}
+}

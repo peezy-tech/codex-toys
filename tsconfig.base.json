@@ -1,0 +1,36 @@
+{
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"allowArbitraryExtensions": true,
+		"allowImportingTsExtensions": true,
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"target": "ES2022",
+		"lib": ["ESNext", "DOM"],
+		"strict": true,
+		"skipLibCheck": true,
+		"noUncheckedIndexedAccess": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true,
+		"types": ["node"],
+		"baseUrl": ".",
+		"paths": {
+			"@codex-appkit/app-server": ["packages/app-server/src/index.ts"],
+			"@codex-appkit/app-server/auth": ["packages/app-server/src/app-server/auth.ts"],
+			"@codex-appkit/app-server/client": ["packages/app-server/src/app-server/client.ts"],
+			"@codex-appkit/app-server/events": ["packages/app-server/src/app-server/events.ts"],
+			"@codex-appkit/app-server/generated": ["packages/app-server/src/app-server/generated/index.ts"],
+			"@codex-appkit/app-server/generated/*": ["packages/app-server/src/app-server/generated/*"],
+			"@codex-appkit/app-server/json": ["packages/app-server/src/json.ts"],
+			"@codex-appkit/app-server/rpc": ["packages/app-server/src/app-server/rpc.ts"],
+			"@codex-appkit/app-server/stdio": ["packages/app-server/src/app-server/stdio-transport.ts"],
+			"@codex-appkit/http": ["packages/http/src/index.ts"],
+			"@codex-appkit/http/browser": ["packages/http/src/browser.ts"],
+			"@codex-appkit/http/vite": ["packages/http/src/vite.ts"],
+			"@codex-appkit/microbridge": ["packages/microbridge/src/index.ts"]
+		}
+	}
+}
