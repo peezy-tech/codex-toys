@@ -1,21 +1,19 @@
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { expect, test } from "vite-plus/test";
-import {
-	ClaudeCodeClient,
-	type ClaudeCodeQuery,
-} from "@codex-appkit/claude-code";
-import { createCodexAppkitHttpHandler } from "@codex-appkit/http";
+import type {
+	AgentHarnessRunner,
+	HarnessEvent,
+	InstallPluginInput,
+	PluginInstallResult,
+	UnattendedRun,
+	UnattendedRunInput,
+} from "@codex-appkit/harness";
+import { createAgentHarnessHttpHandler } from "@codex-appkit/http";
 
-test("starts and feeds a local Claude session through the HTTP bridge", async () => {
-	let prompt: AsyncIterable<unknown> | undefined;
-	const claude = new ClaudeCodeClient({
-		createQuery: (input) => {
-			prompt = input.prompt;
-			return new IdleQuery() as ClaudeCodeQuery;
-		},
-	});
-	const handler = createCodexAppkitHttpHandler({ claudeClient: claude });
+test("starts a fixed-directory harness run and exposes its native events", async () => {
+	const harness = new FakeHarness();
+	const handler = createAgentHarnessHttpHandler({ harness, cwd: "/sandbox" });
 	const server = createServer((request, response) => {
 		void handler(request, response);
 	});
@@ -28,42 +26,58 @@ test("starts and feeds a local Claude session through the HTTP bridge", async ()
 	const baseUrl = `http://127.0.0.1:${address.port}/api`;
 
 	try {
-		const started = await fetch(`${baseUrl}/claude/sessions`, {
+		const started = await fetch(`${baseUrl}/runs`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ cwd: "/workspace" }),
+			body: JSON.stringify({ provider: "claude", prompt: "inspect the repository", model: "sonnet", cwd: "/ignored" }),
 		});
 		expect(started.status).toBe(201);
-		const { sessionId } = await started.json() as { sessionId: string };
-
-		const input = await fetch(`${baseUrl}/claude/sessions/${sessionId}/input`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ text: "inspect the repository" }),
+		const run = await started.json() as { id: string; provider: string; sessionId: string };
+		expect(run).toMatchObject({ provider: "claude", sessionId: "session-1" });
+		expect(harness.input).toMatchObject({
+			provider: "claude",
+			prompt: "inspect the repository",
+			model: "sonnet",
+			cwd: "/sandbox",
 		});
-		expect(input.status).toBe(202);
-		const message = await prompt?.[Symbol.asyncIterator]().next();
-		expect(message?.value).toMatchObject({
-			type: "user",
-			message: { role: "user", content: "inspect the repository" },
-		});
+		const eventResponse = await fetch(`${baseUrl}/runs/${run.id}/events`);
+		expect(eventResponse.status).toBe(200);
+		const reader = eventResponse.body?.getReader();
+		const firstChunk = await reader?.read();
+		expect(new TextDecoder().decode(firstChunk?.value)).toContain('"type":"started"');
+		await reader?.cancel();
 	} finally {
-		claude.close();
 		server.close();
 		await once(server, "close");
 	}
 });
 
-class IdleQuery {
-	#close = Promise.withResolvers<void>();
+class FakeHarness implements AgentHarnessRunner {
+	input: UnattendedRunInput | undefined;
+
+	async run(input: UnattendedRunInput): Promise<UnattendedRun> {
+		this.input = input;
+		input.onEvent?.({ provider: input.provider, event: { type: "started" } });
+		return new FakeRun(input.provider);
+	}
+
+	async installPlugin(_input: InstallPluginInput): Promise<PluginInstallResult> {
+		return { provider: "claude", stdout: "", stderr: "" };
+	}
+}
+
+class FakeRun implements UnattendedRun {
+	readonly sessionId = "session-1";
+	readonly runId = null;
+	#listeners = new Set<(event: HarnessEvent) => void>();
+
+	constructor(readonly provider: "codex" | "claude") {}
+
+	onEvent(listener: (event: HarnessEvent) => void): () => void {
+		this.#listeners.add(listener);
+		return () => this.#listeners.delete(listener);
+	}
 
 	async interrupt(): Promise<void> {}
-
-	close(): void {
-		this.#close.resolve();
-	}
-
-	async *[Symbol.asyncIterator](): AsyncIterator<never> {
-		await this.#close.promise;
-	}
+	close(): void {}
 }

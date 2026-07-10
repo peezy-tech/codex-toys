@@ -57,11 +57,11 @@ importers:
         specifier: 'catalog:'
         version: 0.1.24(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.0)(typescript@5.9.3)(vite@8.1.3(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.0))
 
-  examples/node-thread-list:
+  examples/node-run:
     dependencies:
-      '@codex-appkit/app-server':
+      '@codex-appkit/harness':
         specifier: workspace:*
-        version: link:../../packages/app-server
+        version: link:../../packages/harness
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -73,7 +73,7 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
-  examples/vite-thread-dashboard:
+  examples/vite-runner:
     dependencies:
       '@codex-appkit/http':
         specifier: workspace:*
@@ -104,16 +104,7 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
-  packages/app-server:
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.13.3
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-
-  packages/claude-code:
+  packages/claude:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.206
@@ -128,9 +119,9 @@ importers:
 
   packages/cli:
     dependencies:
-      '@codex-appkit/app-server':
+      '@codex-appkit/harness':
         specifier: workspace:*
-        version: link:../app-server
+        version: link:../harness
       '@codex-appkit/http':
         specifier: workspace:*
         version: link:../http
@@ -142,14 +133,36 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
+  packages/codex:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/harness:
+    dependencies:
+      '@codex-appkit/claude':
+        specifier: workspace:*
+        version: link:../claude
+      '@codex-appkit/codex':
+        specifier: workspace:*
+        version: link:../codex
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
   packages/http:
     dependencies:
-      '@codex-appkit/app-server':
+      '@codex-appkit/harness':
         specifier: workspace:*
-        version: link:../app-server
-      '@codex-appkit/claude-code':
-        specifier: workspace:*
-        version: link:../claude-code
+        version: link:../harness
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -160,19 +173,6 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.1.3(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.0)
-
-  packages/microbridge:
-    dependencies:
-      '@codex-appkit/app-server':
-        specifier: workspace:*
-        version: link:../app-server
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.13.3
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
 
 packages:
 

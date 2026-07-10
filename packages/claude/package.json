@@ -1,7 +1,7 @@
 {
-	"name": "@codex-appkit/http",
+	"name": "@codex-appkit/claude",
 	"version": "0.1.0",
-	"description": "Optional local HTTP, browser, and Vite bridge for Agent Harness runs.",
+	"description": "Local Claude Code adapter backed by the Claude Agent SDK.",
 	"type": "module",
 	"private": true,
 	"license": "Apache-2.0",
@@ -12,14 +12,6 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
-		},
-		"./browser": {
-			"types": "./dist/browser.d.ts",
-			"import": "./dist/browser.js"
-		},
-		"./vite": {
-			"types": "./dist/vite.d.ts",
-			"import": "./dist/vite.js"
 		}
 	},
 	"engines": {
@@ -31,11 +23,10 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"@codex-appkit/harness": "workspace:*"
+		"@anthropic-ai/claude-agent-sdk": "^0.3.206"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
-		"typescript": "catalog:",
-		"vite": "catalog:"
+		"typescript": "catalog:"
 	}
 }

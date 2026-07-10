@@ -1,12 +1,12 @@
 {
-	"name": "codex-appkit",
+	"name": "@codex-appkit/cli",
 	"version": "0.1.0",
-	"description": "Tiny CLI for the Codex app-server starter kit.",
+	"description": "CLI for unattended local Codex and Claude Code runs.",
 	"type": "module",
 	"private": true,
 	"license": "Apache-2.0",
 	"bin": {
-		"codex-appkit": "dist/index.js"
+		"agent-harness": "dist/index.js"
 	},
 	"types": "./dist/index.d.ts",
 	"files": ["dist", "README.md"],
@@ -25,7 +25,7 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"@codex-appkit/app-server": "workspace:*",
+		"@codex-appkit/harness": "workspace:*",
 		"@codex-appkit/http": "workspace:*"
 	},
 	"devDependencies": {

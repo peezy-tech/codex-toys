@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = path.join(root, "packages/app-server/src/app-server/generated");
+const outDir = path.join(root, "packages/codex/src/app-server/generated");
 const codexCommand = process.env.CODEX_APP_SERVER_CODEX_COMMAND ?? "codex";
 const args = [
 	"app-server",

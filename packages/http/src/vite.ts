@@ -1,21 +1,21 @@
 import type { Plugin } from "vite";
 import {
-	createCodexAppkitHttpHandler,
-	type CodexAppkitHttpOptions,
+	createAgentHarnessHttpHandler,
+	type AgentHarnessHttpOptions,
 } from "./server.ts";
 
-export type CodexAppkitVitePluginOptions = CodexAppkitHttpOptions & {
+export type AgentHarnessVitePluginOptions = AgentHarnessHttpOptions & {
 	basePath?: string;
 };
 
-export function codexAppkit(options: CodexAppkitVitePluginOptions = {}): Plugin {
-	const basePath = normalizeBasePath(options.basePath ?? "/__codex_appkit");
-	const handler = createCodexAppkitHttpHandler({
+export function agentHarness(options: AgentHarnessVitePluginOptions = {}): Plugin {
+	const basePath = normalizeBasePath(options.basePath ?? "/__agent_harness");
+	const handler = createAgentHarnessHttpHandler({
 		...options,
 		apiBasePath: `${basePath}/api`,
 	});
 	return {
-		name: "codex-appkit",
+		name: "agent-harness",
 		configureServer(server) {
 			server.middlewares.use(async (request, response, next) => {
 				if (!request.url) {
@@ -35,5 +35,5 @@ export function codexAppkit(options: CodexAppkitVitePluginOptions = {}): Plugin 
 
 function normalizeBasePath(value: string): string {
 	const path = value.startsWith("/") ? value : `/${value}`;
-	return path.replace(/\/+$/, "") || "/__codex_appkit";
+	return path.replace(/\/+$/, "") || "/__agent_harness";
 }

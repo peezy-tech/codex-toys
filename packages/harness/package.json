@@ -1,7 +1,7 @@
 {
-	"name": "@codex-appkit/http",
+	"name": "@codex-appkit/harness",
 	"version": "0.1.0",
-	"description": "Optional local HTTP, browser, and Vite bridge for Agent Harness runs.",
+	"description": "Thin unattended runner for local Codex and Claude Code.",
 	"type": "module",
 	"private": true,
 	"license": "Apache-2.0",
@@ -12,14 +12,6 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
-		},
-		"./browser": {
-			"types": "./dist/browser.d.ts",
-			"import": "./dist/browser.js"
-		},
-		"./vite": {
-			"types": "./dist/vite.d.ts",
-			"import": "./dist/vite.js"
 		}
 	},
 	"engines": {
@@ -31,11 +23,11 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"@codex-appkit/harness": "workspace:*"
+		"@codex-appkit/claude": "workspace:*",
+		"@codex-appkit/codex": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
-		"typescript": "catalog:",
-		"vite": "catalog:"
+		"typescript": "catalog:"
 	}
 }

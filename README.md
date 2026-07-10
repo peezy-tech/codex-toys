@@ -1,125 +1,93 @@
-# Codex App-Server Starter
+# Agent Harness Starter
 
-This orphan branch is a small TypeScript starter kit for building utilities on
-top of the native Codex app-server.
+A compact TypeScript starter for unattended local Codex and Claude Code runs.
+It preserves each provider's existing local authentication, threads/sessions,
+plugins, skills, hooks, and configuration. The common layer intentionally
+normalizes only starting a run, interrupting it, closing it, and installing a
+provider-native plugin; provider events remain native.
 
-It keeps the strongest parts of `codex-toys` and leaves the product-specific
-layers behind:
+```text
+harness
+├── codex    native app-server adapter, including generated bindings
+├── claude   Claude Agent SDK adapter
+├── cli      generic run and plugin-install commands
+└── http     optional loopback bridge with a fixed workspace
+```
 
-- `packages/app-server`: typed app-server client, stdio transport, auth helpers,
-  JSON-RPC helpers, and generated protocol bindings.
-- `packages/microbridge`: optional `app.call` pass-through protocol for local
-  sidecars.
-- `packages/http`: local-only HTTP, browser, and Vite helpers.
-- `packages/claude-code`: local Claude Code sessions, streaming events, and
-  approval handling through the Claude Agent SDK.
-- `packages/cli`: tiny command porcelain over common app-server methods.
-- `examples/node-thread-list`: direct Node usage.
-- `examples/vite-thread-dashboard`: browser UI through the Vite HTTP bridge.
+`packages/microbridge` is deliberately absent: there is no second Codex-only
+RPC protocol to maintain.
 
-## Install
+## Install and validate
 
 ```bash
 pnpm install
-```
-
-## Validate
-
-```bash
 pnpm run check:types
-pnpm run test
+pnpm test
 pnpm run build
 ```
 
-## Regenerate App-Server Bindings
+## Run either provider
 
-After installing a new Codex release:
+```ts
+import { AgentHarness } from "@codex-appkit/harness";
+
+const harness = new AgentHarness();
+const run = await harness.run({
+	provider: "claude", // or "codex"
+	prompt: "Inspect this repository and fix the failing test.",
+	cwd: process.cwd(),
+	onEvent: console.log,
+});
+```
+
+Every run disables interactive approval. Codex uses `approvalPolicy: "never"`
+and `danger-full-access`; Claude Code uses `bypassPermissions` and
+`allowDangerouslySkipPermissions`. Run only inside an external sandbox or
+equivalent containment that you control.
+
+## Install provider-native plugins
+
+Plugins are the shared installation unit: a plugin can contain provider-owned
+skills, hooks, MCP servers, and configuration.
+
+```ts
+await harness.installPlugin({
+	provider: "claude",
+	plugin: "my-plugin",
+	scope: "project",
+	cwd: process.cwd(),
+});
+
+await harness.installPlugin({
+	provider: "codex",
+	plugin: "my-plugin",
+	remoteMarketplaceName: "internal",
+});
+```
+
+## CLI and HTTP bridge
 
 ```bash
-pnpm run bindings:generate
-git diff -- packages/app-server/src/app-server/generated
+agent-harness run "summarize this repo" --provider codex --cwd "$PWD"
+agent-harness plugin install my-plugin --provider claude --scope project
+agent-harness http serve --cwd "$PWD" --static ./dist
+```
+
+The HTTP bridge is loopback-only and fixes its working directory at server
+startup. It exposes runs, Server-Sent native events, interrupts, closes, and
+plugin installation—never arbitrary Codex RPC calls.
+
+The examples are [`examples/node-run`](/home/peezy/repos/codex-effects/examples/node-run)
+and [`examples/vite-runner`](/home/peezy/repos/codex-effects/examples/vite-runner).
+
+## Regenerate Codex bindings
+
+The Codex adapter keeps generated app-server bindings because they follow the
+installed Codex protocol exactly.
+
+```bash
+pnpm bindings:generate
+git diff -- packages/codex/src/app-server/generated
 pnpm run check:types
-pnpm run test
+pnpm test
 ```
-
-The generated bindings live in
-`packages/app-server/src/app-server/generated`.
-
-## Use The App-Server Client
-
-```ts
-import { CodexAppServerClient } from "@codex-appkit/app-server";
-
-const client = new CodexAppServerClient({
-	transportOptions: { cwd: process.cwd() },
-});
-
-await client.connect();
-const threads = await client.listThreads({ limit: 20, sourceKinds: [] });
-client.close();
-```
-
-## Use The CLI
-
-```bash
-codex-appkit app actions
-codex-appkit app thread/list '{"limit":20,"sourceKinds":[]}'
-codex-appkit auth status
-codex-appkit thread list
-codex-appkit turn run "summarize this repo" --wait
-codex-appkit http serve --static ./dist
-```
-
-## Use The Vite Bridge
-
-```ts
-import { codexAppkit } from "@codex-appkit/http/vite";
-
-export default {
-	plugins: [
-		codexAppkit({
-			transportOptions: { cwd: process.cwd() },
-		}),
-	],
-};
-```
-
-Browser code can then call:
-
-```ts
-import { createCodexAppkitBrowserClient } from "@codex-appkit/http/browser";
-
-const codex = createCodexAppkitBrowserClient({
-	basePath: "/__codex_appkit/api",
-});
-
-const threads = await codex.app.call("thread/list", {
-	limit: 20,
-	sourceKinds: [],
-});
-```
-
-The HTTP edge is local-first and only allows loopback browser origins.
-
-## Use Claude Code Locally
-
-Claude support deliberately runs the `claude` command found on `PATH`, without
-changing `HOME`, `CLAUDE_CONFIG_DIR`, credentials, or any remote application
-configuration. It therefore uses the same local authentication, sessions,
-plugins, skills, and MCP connectors as normal Claude Code.
-
-```ts
-import { ClaudeCodeClient } from "@codex-appkit/claude-code";
-
-const claude = new ClaudeCodeClient();
-const sessions = await claude.listSessions({ limit: 20 });
-const session = claude.startSession({ cwd: process.cwd() });
-
-session.on("event", console.log);
-session.sendText("Summarize this repository");
-```
-
-The Vite/browser bridge exposes the same local-only runtime at
-`/api/claude/sessions`. Start a session, connect to its SSE `events` route,
-send input, and resolve emitted approvals through the browser client’s
-`claude` methods.

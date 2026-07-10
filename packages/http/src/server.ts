@@ -1,48 +1,54 @@
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import {
-	ClaudeCodeClient,
-	type ClaudeCodeClientOptions,
-	type ClaudeCodeEvent,
-	type ClaudeCodeSessionStartOptions,
-} from "@codex-appkit/claude-code";
-import {
-	CodexAppServerClient,
-	COMMON_APP_SERVER_METHODS,
-	validateAppServerMethodName,
-	type CodexAppServerClientOptions,
-} from "@codex-appkit/app-server";
+	AgentHarness,
+	type AgentHarnessRunner,
+	type HarnessEvent,
+	type HarnessProvider,
+	type InstallPluginInput,
+	type UnattendedRun,
+} from "@codex-appkit/harness";
 
-export type CodexAppkitHttpOptions = CodexAppServerClientOptions & {
+export type AgentHarnessHttpOptions = {
+	/** Fixed working directory for every run started by this server. */
+	cwd?: string;
 	staticDir?: string;
 	apiBasePath?: string;
-	client?: CodexAppServerClient;
-	claudeClient?: ClaudeCodeClient;
-	claudeOptions?: ClaudeCodeClientOptions;
+	harness?: AgentHarnessRunner;
 };
 
-type AppServerRequester = {
-	request<T = unknown>(method: string, params?: unknown): Promise<T>;
-	close(): void;
+export type AgentHarnessHttpRun = {
+	id: string;
+	provider: HarnessProvider;
+	sessionId: string;
+	runId: string | null;
 };
 
-export function createCodexAppkitHttpHandler(
-	options: CodexAppkitHttpOptions = {},
+type ActiveRun = {
+	run: UnattendedRun;
+	events: HarnessEvent[];
+	subscribers: Set<(event: HarnessEvent) => void>;
+};
+
+const MAX_BUFFERED_EVENTS = 500;
+
+/**
+ * Loopback-only HTTP bridge for a fixed external sandbox. Requests select a
+ * provider and prompt, while the server owns the working directory and the
+ * full-permission containment boundary.
+ */
+export function createAgentHarnessHttpHandler(
+	options: AgentHarnessHttpOptions = {},
 ): (request: IncomingMessage, response: ServerResponse, next?: () => void) => Promise<void> {
 	const apiBasePath = normalizeBasePath(options.apiBasePath ?? "/api");
-	let requester: AppServerRequester | undefined;
-	const getRequester = (): AppServerRequester => {
-		requester ??= createRequester(options);
-		return requester;
-	};
-	let claude: ClaudeCodeClient | undefined;
-	const getClaude = (): ClaudeCodeClient => {
-		claude ??= options.claudeClient ?? new ClaudeCodeClient(options.claudeOptions);
-		return claude;
-	};
+	const harness = options.harness ?? new AgentHarness();
+	const cwd = options.cwd ?? process.cwd();
+	const runs = new Map<string, ActiveRun>();
+
 	return async (request, response, next) => {
-		const url = new URL(request.url ?? "/", "http://codex-appkit.local");
+		const url = new URL(request.url ?? "/", "http://agent-harness.local");
 		const cors = corsPolicyForRequest(request);
 		if (url.pathname === apiBasePath || url.pathname.startsWith(`${apiBasePath}/`)) {
 			applyCorsHeaders(response, cors);
@@ -56,17 +62,14 @@ export function createCodexAppkitHttpHandler(
 				return;
 			}
 			try {
-				await handleApiRequest(getRequester(), getClaude(), apiBasePath, request, response);
+				await handleApiRequest({ harness, runs, cwd, apiBasePath, request, response });
 			} catch (error) {
 				writeJson(response, 500, { error: errorMessage(error) });
 			}
 			return;
 		}
-		if (options.staticDir) {
-			const served = await serveStatic(options.staticDir, url.pathname, response);
-			if (served) {
-				return;
-			}
+		if (options.staticDir && await serveStatic(options.staticDir, url.pathname, response)) {
+			return;
 		}
 		if (next) {
 			next();
@@ -76,167 +79,102 @@ export function createCodexAppkitHttpHandler(
 	};
 }
 
-export function createRequester(options: CodexAppkitHttpOptions = {}): AppServerRequester {
-	const client = options.client ?? new CodexAppServerClient(options);
-	let connected: Promise<void> | undefined;
-	const connect = async () => {
-		connected ??= client.connect();
-		return await connected;
-	};
-	return {
-		request: async (method, params) => {
-			await connect();
-			return await client.request(method, params);
-		},
-		close: () => {
-			client.close();
-			connected = undefined;
-		},
-	};
-}
-
-async function handleApiRequest(
-	requester: AppServerRequester,
-	claude: ClaudeCodeClient,
-	apiBasePath: string,
-	request: IncomingMessage,
-	response: ServerResponse,
-): Promise<void> {
-	const url = new URL(request.url ?? "/", "http://codex-appkit.local");
-	const apiPath = url.pathname.slice(apiBasePath.length) || "/";
-	if (apiPath === "/claude/sessions" || apiPath.startsWith("/claude/sessions/")) {
-		await handleClaudeRequest(claude, apiPath, url, request, response);
-		return;
-	}
-	if (request.method === "GET" && apiPath === "/status") {
-		let account: unknown = null;
-		try {
-			account = await requester.request("account/read", { refreshToken: false });
-		} catch {
-			account = null;
-		}
-		writeJson(response, 200, {
+async function handleApiRequest(options: {
+	harness: AgentHarnessRunner;
+	runs: Map<string, ActiveRun>;
+	cwd: string;
+	apiBasePath: string;
+	request: IncomingMessage;
+	response: ServerResponse;
+}): Promise<void> {
+	const url = new URL(options.request.url ?? "/", "http://agent-harness.local");
+	const apiPath = url.pathname.slice(options.apiBasePath.length) || "/";
+	if (options.request.method === "GET" && apiPath === "/status") {
+		writeJson(options.response, 200, {
 			ok: true,
-			account,
-			methods: COMMON_APP_SERVER_METHODS,
-		});
-		return;
-	}
-	if (request.method === "GET" && apiPath === "/schema") {
-		writeJson(response, 200, {
-			ok: true,
-			methods: COMMON_APP_SERVER_METHODS,
+			cwd: options.cwd,
+			providers: ["codex", "claude"],
 			routes: [
 				"GET /api/status",
-				"GET /api/schema",
-				"POST /api/rpc",
-				"POST /api/app/:method",
-				"GET /api/claude/sessions",
-				"GET /api/claude/sessions/:sessionId/messages",
-				"POST /api/claude/sessions",
-				"POST /api/claude/sessions/:sessionId/input",
-				"POST /api/claude/sessions/:sessionId/interrupt",
-				"POST /api/claude/sessions/:sessionId/approvals/:requestId",
-				"GET /api/claude/sessions/:sessionId/events",
+				"POST /api/runs",
+				"GET /api/runs/:id/events",
+				"POST /api/runs/:id/interrupt",
+				"POST /api/runs/:id/close",
+				"POST /api/plugins",
 			],
 		});
 		return;
 	}
-	if (request.method === "POST" && apiPath === "/rpc") {
-		const body = record(await readJsonBody(request));
-		const method = validateAppServerMethodName(requiredString(body.method, "method"));
-		writeJson(response, 200, await requester.request(method, body.params));
-		return;
-	}
-	if (request.method === "POST" && apiPath.startsWith("/app/")) {
-		const method = validateAppServerMethodName(
-			decodeURIComponent(apiPath.slice("/app/".length)),
-		);
-		writeJson(response, 200, await requester.request(method, await readJsonBody(request)));
-		return;
-	}
-	writeJson(response, 404, { error: "Unknown Codex AppKit HTTP endpoint" });
-}
-
-async function handleClaudeRequest(
-	claude: ClaudeCodeClient,
-	apiPath: string,
-	url: URL,
-	request: IncomingMessage,
-	response: ServerResponse,
-): Promise<void> {
-	const segments = apiPath.split("/").filter(Boolean).map(decodeURIComponent);
-	if (segments.length === 2 && request.method === "GET") {
-		writeJson(response, 200, await claude.listSessions({
-			...(optionalSearchParam(url, "dir") ? { dir: optionalSearchParam(url, "dir") } : {}),
-			...(optionalPositiveInteger(url.searchParams.get("limit")) !== undefined
-				? { limit: optionalPositiveInteger(url.searchParams.get("limit")) }
-				: {}),
-		}));
-		return;
-	}
-	if (segments.length === 2 && request.method === "POST") {
-		const session = claude.startSession(claudeSessionStartOptions(await readJsonBody(request)));
-		writeJson(response, 201, { sessionId: session.id });
-		return;
-	}
-	const sessionId = segments[2];
-	if (!sessionId) {
-		writeJson(response, 404, { error: "Claude session ID is required" });
-		return;
-	}
-	if (segments.length === 4 && segments[3] === "messages" && request.method === "GET") {
-		writeJson(response, 200, await claude.getSessionMessages(sessionId, {
-			...(optionalSearchParam(url, "dir") ? { dir: optionalSearchParam(url, "dir") } : {}),
-			...(optionalNonNegativeInteger(url.searchParams.get("limit")) !== undefined
-				? { limit: optionalNonNegativeInteger(url.searchParams.get("limit")) }
-				: {}),
-			...(optionalNonNegativeInteger(url.searchParams.get("offset")) !== undefined
-				? { offset: optionalNonNegativeInteger(url.searchParams.get("offset")) }
-				: {}),
-		}));
-		return;
-	}
-	if (segments.length === 4 && segments[3] === "events" && request.method === "GET") {
-		await streamClaudeEvents(claude.requireActiveSession(sessionId), request, response);
-		return;
-	}
-	if (segments.length === 4 && segments[3] === "input" && request.method === "POST") {
-		const body = record(await readJsonBody(request));
-		claude.requireActiveSession(sessionId).sendText(requiredString(body.text, "text"));
-		writeJson(response, 202, { ok: true });
-		return;
-	}
-	if (segments.length === 4 && segments[3] === "interrupt" && request.method === "POST") {
-		await claude.requireActiveSession(sessionId).interrupt();
-		writeJson(response, 200, { ok: true });
-		return;
-	}
-	if (segments.length === 5 && segments[3] === "approvals" && request.method === "POST") {
-		const requestId = segments[4];
-		if (!requestId) {
-			writeJson(response, 404, { error: "Claude approval ID is required" });
-			return;
-		}
-		const body = record(await readJsonBody(request));
-		const behavior = requiredString(body.behavior, "behavior");
-		if (behavior !== "allow" && behavior !== "deny") {
-			throw new Error("behavior must be allow or deny");
-		}
-		claude.requireActiveSession(sessionId).resolveApproval(requestId, {
-			behavior,
-			...(typeof body.message === "string" ? { message: body.message } : {}),
-			...(typeof body.interrupt === "boolean" ? { interrupt: body.interrupt } : {}),
-			...(recordOrUndefined(body.updatedInput) ? { updatedInput: recordOrUndefined(body.updatedInput) } : {}),
+	if (options.request.method === "POST" && apiPath === "/runs") {
+		const body = record(await readJsonBody(options.request));
+		const provider = providerFrom(body.provider);
+		const entry: ActiveRun = { run: undefined as never, events: [], subscribers: new Set() };
+		const run = await options.harness.run({
+			provider,
+			prompt: requiredString(body.prompt, "prompt"),
+			cwd: options.cwd,
+			...(optionalString(body.model) ? { model: optionalString(body.model) } : {}),
+			onEvent: (event) => publishEvent(entry, event),
 		});
-		writeJson(response, 200, { ok: true });
+		entry.run = run;
+		const id = randomUUID();
+		options.runs.set(id, entry);
+		writeJson(options.response, 201, runResponse(id, run));
 		return;
 	}
-	writeJson(response, 404, { error: "Unknown Claude AppKit HTTP endpoint" });
+	if (options.request.method === "POST" && apiPath === "/plugins") {
+		const result = await options.harness.installPlugin(
+			pluginInput(record(await readJsonBody(options.request)), options.cwd),
+		);
+		writeJson(options.response, 201, result);
+		return;
+	}
+
+	const segments = apiPath.split("/").filter(Boolean).map(decodeURIComponent);
+	if (segments[0] !== "runs" || !segments[1]) {
+		writeJson(options.response, 404, { error: "Unknown Agent Harness endpoint" });
+		return;
+	}
+	const id = segments[1];
+	const entry = options.runs.get(id);
+	if (!entry) {
+		writeJson(options.response, 404, { error: "Run not found" });
+		return;
+	}
+	if (segments.length === 3 && segments[2] === "events" && options.request.method === "GET") {
+		await streamEvents(entry, options.request, options.response);
+		return;
+	}
+	if (segments.length === 3 && segments[2] === "interrupt" && options.request.method === "POST") {
+		await entry.run.interrupt();
+		writeJson(options.response, 200, { ok: true });
+		return;
+	}
+	if (segments.length === 3 && segments[2] === "close" && options.request.method === "POST") {
+		entry.run.close();
+		options.runs.delete(id);
+		writeJson(options.response, 200, { ok: true });
+		return;
+	}
+	writeJson(options.response, 404, { error: "Unknown Agent Harness run endpoint" });
 }
 
-async function streamClaudeEvents(
-	session: ReturnType<ClaudeCodeClient["requireActiveSession"]>,
+function runResponse(id: string, run: UnattendedRun): AgentHarnessHttpRun {
+	return { id, provider: run.provider, sessionId: run.sessionId, runId: run.runId };
+}
+
+function publishEvent(entry: ActiveRun, event: HarnessEvent): void {
+	entry.events.push(event);
+	if (entry.events.length > MAX_BUFFERED_EVENTS) {
+		entry.events.splice(0, entry.events.length - MAX_BUFFERED_EVENTS);
+	}
+	for (const subscriber of [...entry.subscribers]) {
+		subscriber(event);
+	}
+}
+
+async function streamEvents(
+	entry: ActiveRun,
 	request: IncomingMessage,
 	response: ServerResponse,
 ): Promise<void> {
@@ -244,24 +182,63 @@ async function streamClaudeEvents(
 	response.setHeader("content-type", "text/event-stream; charset=utf-8");
 	response.setHeader("cache-control", "no-cache, no-transform");
 	response.setHeader("connection", "keep-alive");
-	response.write(": claude appkit event stream\n\n");
+	response.write(": agent harness event stream\n\n");
+	for (const event of entry.events) {
+		writeSseEvent(response, event);
+	}
 	await new Promise<void>((resolve) => {
 		let finished = false;
-		const onEvent = (event: ClaudeCodeEvent) => {
-			response.write(`data: ${JSON.stringify(event)}\n\n`);
-		};
+		const onEvent = (event: HarnessEvent) => writeSseEvent(response, event);
 		const cleanup = () => {
 			if (finished) {
 				return;
 			}
 			finished = true;
-			session.off("event", onEvent);
+			entry.subscribers.delete(onEvent);
 			resolve();
 		};
-		session.on("event", onEvent);
+		entry.subscribers.add(onEvent);
 		request.once("close", cleanup);
 		response.once("close", cleanup);
 	});
+}
+
+function writeSseEvent(response: ServerResponse, event: HarnessEvent): void {
+	response.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+function pluginInput(body: Record<string, unknown>, cwd: string): InstallPluginInput {
+	const provider = providerFrom(body.provider);
+	const plugin = requiredString(body.plugin, "plugin");
+	if (provider === "codex") {
+		return {
+			provider,
+			plugin,
+			...(optionalString(body.marketplacePath) ? { marketplacePath: optionalString(body.marketplacePath) } : {}),
+			...(optionalString(body.remoteMarketplaceName)
+				? { remoteMarketplaceName: optionalString(body.remoteMarketplaceName) }
+				: {}),
+		};
+	}
+	const scope = claudeScope(optionalString(body.scope));
+	return { provider, plugin, cwd, ...(scope ? { scope } : {}) };
+}
+
+function claudeScope(value: string | undefined): "user" | "project" | "local" | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (value === "user" || value === "project" || value === "local") {
+		return value;
+	}
+	throw new Error("scope must be user, project, or local");
+}
+
+function providerFrom(value: unknown): HarnessProvider {
+	if (value === "codex" || value === "claude") {
+		return value;
+	}
+	throw new Error("provider must be codex or claude");
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
@@ -275,11 +252,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 	return body.trim() ? JSON.parse(body) as unknown : {};
 }
 
-async function serveStatic(
-	staticDir: string,
-	urlPath: string,
-	response: ServerResponse,
-): Promise<boolean> {
+async function serveStatic(staticDir: string, urlPath: string, response: ServerResponse): Promise<boolean> {
 	const root = path.resolve(staticDir);
 	const decoded = decodeURIComponent(urlPath.split("?")[0] ?? "/");
 	const candidate = path.resolve(root, `.${decoded === "/" ? "/index.html" : decoded}`);
@@ -314,10 +287,7 @@ function corsPolicyForRequest(request: IncomingMessage): { allowed: boolean; ori
 	return isLoopbackOrigin(origin) ? { allowed: true, origin } : { allowed: false };
 }
 
-function applyCorsHeaders(
-	response: ServerResponse,
-	cors: { allowed: boolean; origin?: string },
-): void {
+function applyCorsHeaders(response: ServerResponse, cors: { allowed: boolean; origin?: string }): void {
 	response.setHeader("vary", "Origin");
 	if (!cors.allowed || !cors.origin) {
 		return;
@@ -335,11 +305,8 @@ function isLoopbackOrigin(origin: string): boolean {
 			return false;
 		}
 		const hostname = url.hostname.toLowerCase();
-		return hostname === "localhost" ||
-			hostname === "127.0.0.1" ||
-			hostname === "::1" ||
-			hostname === "[::1]" ||
-			hostname.endsWith(".localhost");
+		return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" ||
+			hostname === "[::1]" || hostname.endsWith(".localhost");
 	} catch {
 		return false;
 	}
@@ -352,86 +319,31 @@ function normalizeBasePath(value: string): string {
 
 function contentType(filePath: string): string {
 	switch (path.extname(filePath).toLowerCase()) {
-		case ".html":
-			return "text/html; charset=utf-8";
-		case ".js":
-			return "text/javascript; charset=utf-8";
-		case ".css":
-			return "text/css; charset=utf-8";
-		case ".json":
-			return "application/json; charset=utf-8";
-		case ".svg":
-			return "image/svg+xml";
-		default:
-			return "application/octet-stream";
+		case ".html": return "text/html; charset=utf-8";
+		case ".js": return "text/javascript; charset=utf-8";
+		case ".css": return "text/css; charset=utf-8";
+		case ".json": return "application/json; charset=utf-8";
+		case ".svg": return "image/svg+xml";
+		default: return "application/octet-stream";
 	}
 }
 
+function record(value: unknown): Record<string, unknown> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("Request body must be a JSON object");
+	}
+	return value as Record<string, unknown>;
+}
+
 function requiredString(value: unknown, label: string): string {
-	if (typeof value !== "string" || value.length === 0) {
+	if (typeof value !== "string" || value.trim().length === 0) {
 		throw new Error(`${label} is required`);
 	}
 	return value;
 }
 
-function record(value: unknown): Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-		? value as Record<string, unknown>
-		: {};
-}
-
-function recordOrUndefined(value: unknown): Record<string, unknown> | undefined {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-		? value as Record<string, unknown>
-		: undefined;
-}
-
-function optionalSearchParam(url: URL, key: string): string | undefined {
-	const value = url.searchParams.get(key);
-	return value && value.length > 0 ? value : undefined;
-}
-
-function optionalNonNegativeInteger(value: string | null): number | undefined {
-	if (!value || !/^\d+$/.test(value)) {
-		return undefined;
-	}
-	const parsed = Number(value);
-	return Number.isSafeInteger(parsed) ? parsed : undefined;
-}
-
-function optionalPositiveInteger(value: string | null): number | undefined {
-	const parsed = optionalNonNegativeInteger(value);
-	return parsed && parsed > 0 ? parsed : undefined;
-}
-
-function claudeSessionStartOptions(value: unknown): ClaudeCodeSessionStartOptions {
-	const body = record(value);
-	const start: ClaudeCodeSessionStartOptions = {};
-	if (typeof body.cwd === "string" && body.cwd.length > 0) start.cwd = body.cwd;
-	if (typeof body.resume === "string" && body.resume.length > 0) start.resume = body.resume;
-	if (typeof body.forkSession === "boolean") start.forkSession = body.forkSession;
-	if (typeof body.model === "string" && body.model.length > 0) start.model = body.model;
-	if (body.permissionMode === "default" || body.permissionMode === "acceptEdits" ||
-		body.permissionMode === "bypassPermissions" || body.permissionMode === "plan" ||
-		body.permissionMode === "dontAsk" || body.permissionMode === "auto") {
-		start.permissionMode = body.permissionMode;
-	}
-	if (Array.isArray(body.allowedTools) && body.allowedTools.every((item) => typeof item === "string")) {
-		start.allowedTools = body.allowedTools;
-	}
-	if (Array.isArray(body.disallowedTools) && body.disallowedTools.every((item) => typeof item === "string")) {
-		start.disallowedTools = body.disallowedTools;
-	}
-	if (Array.isArray(body.additionalDirectories) && body.additionalDirectories.every((item) => typeof item === "string")) {
-		start.additionalDirectories = body.additionalDirectories;
-	}
-	if (typeof body.maxTurns === "number" && Number.isSafeInteger(body.maxTurns) && body.maxTurns > 0) {
-		start.maxTurns = body.maxTurns;
-	}
-	if (body.effort === "low" || body.effort === "medium" || body.effort === "high" || body.effort === "max") {
-		start.effort = body.effort;
-	}
-	return start;
+function optionalString(value: unknown): string | undefined {
+	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function errorMessage(error: unknown): string {

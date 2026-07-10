@@ -1,28 +1,31 @@
 # @codex-appkit/http
 
-Local-first HTTP and Vite helpers for browser UIs that talk to the Codex
-app-server.
+Optional loopback HTTP and Vite bridge for `@codex-appkit/harness`. It is not a
+general Codex RPC proxy: callers can choose a provider, prompt, model, or
+provider-native plugin, while the server fixes the working directory and owns
+the outer sandbox boundary.
 
 Routes:
 
 ```text
 GET  /api/status
-GET  /api/schema
-POST /api/rpc
-POST /api/app/:method
-GET  /api/claude/sessions
-GET  /api/claude/sessions/:sessionId/messages
-POST /api/claude/sessions
-POST /api/claude/sessions/:sessionId/input
-POST /api/claude/sessions/:sessionId/interrupt
-POST /api/claude/sessions/:sessionId/approvals/:requestId
-GET  /api/claude/sessions/:sessionId/events
+POST /api/runs
+GET  /api/runs/:id/events
+POST /api/runs/:id/interrupt
+POST /api/runs/:id/close
+POST /api/plugins
 ```
 
-The HTTP edge allows CORS only from loopback origins.
+`events` is Server-Sent Events containing the provider-native event wrapped
+with its provider name. The bridge accepts browser CORS only from loopback
+origins.
 
-Claude routes use the normal `claude` binary found on `PATH` by default and do
-not set a Claude home or remote endpoint. They therefore preserve the user’s
-normal local Claude Code state. The `events` route is a Server-Sent Events
-stream; send approval decisions to the approval route so the paused Claude
-session can continue.
+```ts
+import { agentHarness } from "@codex-appkit/http/vite";
+
+export default {
+	plugins: [agentHarness({ cwd: process.cwd() })],
+};
+```
+
+Use this only where its host is already the intended external sandbox.
