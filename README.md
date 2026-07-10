@@ -1,93 +1,211 @@
-# Agent Harness Starter
+# Meka
 
-A compact TypeScript starter for unattended local Codex and Claude Code runs.
-It preserves each provider's existing local authentication, threads/sessions,
-plugins, skills, hooks, and configuration. The common layer intentionally
-normalizes only starting a run, interrupting it, closing it, and installing a
-provider-native plugin; provider events remain native.
+Meka is a small, private control plane above local coding harnesses. Codex and
+Claude Code still own the agent loop, authentication, configuration, sessions,
+skills, hooks, MCP servers, and provider-specific behavior. Meka supplies one
+stable way for an application or sandbox supervisor to start either harness,
+observe its native events, interrupt it, and install provider-native plugins.
 
 ```text
-harness
-├── codex    native app-server adapter, including generated bindings
-├── claude   Claude Agent SDK adapter
-├── cli      generic run and plugin-install commands
-└── http     optional loopback bridge with a fixed workspace
+application or sandbox supervisor
+                 │
+       private Unix socket
+                 │
+          Meka service
+                 │
+          @meka/sdk
+          ┌──────┴──────┐
+          │             │
+   Codex app-server  Claude Agent SDK
 ```
 
-`packages/microbridge` is deliberately absent: there is no second Codex-only
-RPC protocol to maintain.
+The project deliberately has only two product surfaces:
+
+- [`@meka/sdk`](./packages/sdk) is the in-process TypeScript API and contains
+  the private Codex and Claude adapters.
+- [`@meka/app`](./apps/meka) is the `meka` executable, private-socket service,
+  JSON-RPC client, and CLI.
+
+There is no HTTP server, browser client, second microbridge protocol, or example
+application to keep in sync. An application can embed the SDK when it shares a
+process with the harness, or speak the socket protocol when it needs lifecycle
+isolation.
+
+## Why a service above the harnesses?
+
+The service is intentionally thinner than another agent framework. It gives a
+supervisor a provider-neutral lifecycle without flattening the useful native
+details:
+
+- runs continue if a client disconnects;
+- clients can reconnect and replay a bounded event history;
+- Codex app-server notifications and Claude Agent SDK messages pass through as
+  opaque provider events;
+- one daemon owns a fixed working directory and a bounded number of runs;
+- plugin installation is serialized per provider; and
+- the daemon has one private, uniquely named local endpoint rather than a
+  network listener.
+
+Meka does not invent its own thread model. Provider session and run identifiers
+are returned alongside the Meka run identifier so consumers can correlate work
+with the underlying harness.
+
+Codex stays app-server-native. By default the SDK launches the installed
+`codex app-server` over stdio. When `CODEX_WORKSPACE_APP_SERVER_SOCK` is set, it
+uses `codex app-server proxy --sock ...` instead, so a sandbox supervisor can
+attach Meka to an existing local Codex app-server rather than creating a second
+state plane. Claude Code is driven through the Agent SDK and the normally
+installed `claude` executable.
+
+Version 1 intentionally does not add provider-specific thread browsing/resume,
+a generic hook router, HTTP, or durable run storage. Native IDs and events are
+preserved so those capabilities can be added later without replacing the
+common run and plugin surface.
+
+## Security model
+
+Meka is built for unattended execution inside sandboxes. Every run receives
+full harness permissions:
+
+- Codex: `approvalPolicy: "never"` and `danger-full-access`
+- Claude Code: `bypassPermissions` and
+  `allowDangerouslySkipPermissions: true`
+
+There is no interactive approval path or reduced-permission mode. The external
+sandbox is the security boundary; do not run the service around untrusted input
+on an unsandboxed workstation.
+
+Meka resolves Codex command, file-change, and permission server requests in the
+permissive direction. User-input requests receive an empty answer, MCP
+elicitations are cancelled, current-time requests are handled locally, and
+unsupported provider requests receive an immediate JSON-RPC error instead of
+stalling an unattended run.
+
+The daemon creates a unique instance directory with mode `0700`, a Unix socket
+with mode `0600`, and a small instance metadata file. It never binds TCP. These
+filesystem permissions isolate OS users, but any process running as the same
+user and able to reach the socket can exercise the daemon's full authority.
+Meka currently supports POSIX hosts only.
+
+No cloud-side provider configuration is required. Meka launches the normal
+local harnesses with the daemon's environment and home directory, so existing
+Codex and Claude Code authentication, configuration, plugins, skills, and hooks
+remain in effect.
 
 ## Install and validate
+
+Node.js 24 and pnpm are required.
 
 ```bash
 pnpm install
 pnpm run check:types
 pnpm test
-pnpm run build
+pnpm run check:dist
 ```
 
-## Run either provider
+## In-process SDK
 
 ```ts
-import { AgentHarness } from "@codex-appkit/harness";
+import { Meka } from "@meka/sdk";
 
-const harness = new AgentHarness();
-const run = await harness.run({
-	provider: "claude", // or "codex"
-	prompt: "Inspect this repository and fix the failing test.",
-	cwd: process.cwd(),
-	onEvent: console.log,
+const meka = new Meka();
+const run = await meka.startRun({
+  provider: "codex", // or "claude"
+  prompt: "Inspect this repository and fix the failing test.",
+  cwd: process.cwd(),
+  onEvent: ({ provider, event }) => {
+    console.log(provider, event);
+  },
 });
+
+console.log(run.providerSessionId, await run.done);
+await meka.close();
 ```
 
-Every run disables interactive approval. Codex uses `approvalPolicy: "never"`
-and `danger-full-access`; Claude Code uses `bypassPermissions` and
-`allowDangerouslySkipPermissions`. Run only inside an external sandbox or
-equivalent containment that you control.
+The common event envelope contains only `provider` and the opaque native
+`event`. Provider-specific data is not translated into a lowest-common-
+denominator schema.
 
-## Install provider-native plugins
-
-Plugins are the shared installation unit: a plugin can contain provider-owned
-skills, hooks, MCP servers, and configuration.
+Plugins are the shared installation unit. A provider plugin may contain the
+skills, hooks, MCP servers, agents, or configuration understood by that
+provider:
 
 ```ts
-await harness.installPlugin({
-	provider: "claude",
-	plugin: "my-plugin",
-	scope: "project",
-	cwd: process.cwd(),
+await meka.installPlugin({
+  provider: "claude",
+  plugin: "my-plugin",
+  scope: "project",
+  cwd: process.cwd(),
 });
 
-await harness.installPlugin({
-	provider: "codex",
-	plugin: "my-plugin",
-	remoteMarketplaceName: "internal",
+await meka.installPlugin({
+  provider: "codex",
+  plugin: "my-plugin",
+  remoteMarketplaceName: "internal",
 });
 ```
 
-## CLI and HTTP bridge
+## Private-socket service
+
+Start one daemon for one trusted workspace:
 
 ```bash
-agent-harness run "summarize this repo" --provider codex --cwd "$PWD"
-agent-harness plugin install my-plugin --provider claude --scope project
-agent-harness http serve --cwd "$PWD" --static ./dist
+meka serve --cwd "$PWD"
 ```
 
-The HTTP bridge is loopback-only and fixes its working directory at server
-startup. It exposes runs, Server-Sent native events, interrupts, closes, and
-plugin installation—never arbitrary Codex RPC calls.
+Once listening, `meka serve` writes exactly one JSON readiness object to
+standard output. It includes `socketPath`, `instanceId`, `pid`, and
+`protocolVersion`. A supervisor should capture `socketPath` and pass it to
+clients through `MEKA_SOCKET`.
 
-The examples are [`examples/node-run`](/home/peezy/repos/codex-effects/examples/node-run)
-and [`examples/vite-runner`](/home/peezy/repos/codex-effects/examples/vite-runner).
+```bash
+export MEKA_SOCKET=/path/from/the/readiness/object/m.sock
+meka status
+meka run --provider codex --model gpt-5 "Summarize this repository"
+meka subscribe <run-id> --after 42
+meka interrupt <run-id>
+meka close <run-id>
+meka plugin install --provider claude --scope project my-plugin
+```
+
+Every client command also accepts `--socket PATH` instead of `MEKA_SOCKET`.
+`meka run` accepts `--provider codex|claude`, an optional `--model`, and the
+prompt. `meka subscribe` can resume after an observed event sequence with
+`--after N`. Plugin installation exposes only the relevant provider flags:
+Claude's `--scope user|project|local`, and Codex's marketplace path or remote
+marketplace name.
+
+The socket carries newline-delimited JSON-RPC 2.0. A client must call
+`meka.initialize` first. The version 1 method set is:
+
+- `meka.initialize` and `meka.status`
+- `run.start`, `run.subscribe`, and `run.unsubscribe`
+- `run.interrupt` and `run.close`
+- `plugin.install`
+
+Subscribed clients receive `run.event` notifications with a monotonically
+increasing sequence number and `run.state` notifications for lifecycle
+changes. Replay is bounded; a subscription response reports a gap when the
+requested sequence predates retained history. The protocol also bounds frame
+size, clients, active runs, in-flight requests, event history, command output,
+and client write buffering.
+
+The daemon starting directory is fixed at startup, so socket clients cannot
+select a different starting `cwd` for runs or Claude plugin installation.
+Codex marketplace paths remain an explicit plugin-install input, and a
+full-permission agent can access any path allowed by the daemon process. The
+external sandbox—not `cwd`—is the filesystem boundary. State is intentionally
+in-memory: stopping the daemon closes its runs and removes its owned runtime
+directory.
 
 ## Regenerate Codex bindings
 
-The Codex adapter keeps generated app-server bindings because they follow the
-installed Codex protocol exactly.
+The SDK vendors generated TypeScript definitions for the installed Codex
+app-server protocol:
 
 ```bash
 pnpm bindings:generate
-git diff -- packages/codex/src/app-server/generated
+git diff -- packages/sdk/src/providers/codex/app-server/generated
 pnpm run check:types
 pnpm test
 ```

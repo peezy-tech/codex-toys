@@ -1,37 +1,25 @@
 {
-	"compilerOptions": {
-		"module": "ESNext",
-		"moduleResolution": "Bundler",
-		"allowArbitraryExtensions": true,
-		"allowImportingTsExtensions": true,
-		"esModuleInterop": true,
-		"resolveJsonModule": true,
-		"target": "ES2022",
-		"lib": ["ESNext", "DOM"],
-		"strict": true,
-		"skipLibCheck": true,
-		"noUncheckedIndexedAccess": true,
-		"isolatedModules": true,
-		"verbatimModuleSyntax": true,
-		"forceConsistentCasingInFileNames": true,
-		"noEmit": true,
-		"types": ["node"],
-		"baseUrl": ".",
-		"paths": {
-			"@codex-appkit/claude": ["packages/claude/src/index.ts"],
-			"@codex-appkit/codex": ["packages/codex/src/index.ts"],
-			"@codex-appkit/codex/auth": ["packages/codex/src/app-server/auth.ts"],
-			"@codex-appkit/codex/client": ["packages/codex/src/app-server/client.ts"],
-			"@codex-appkit/codex/events": ["packages/codex/src/app-server/events.ts"],
-			"@codex-appkit/codex/generated": ["packages/codex/src/app-server/generated/index.ts"],
-			"@codex-appkit/codex/generated/*": ["packages/codex/src/app-server/generated/*"],
-			"@codex-appkit/codex/json": ["packages/codex/src/json.ts"],
-			"@codex-appkit/codex/rpc": ["packages/codex/src/app-server/rpc.ts"],
-			"@codex-appkit/codex/stdio": ["packages/codex/src/app-server/stdio-transport.ts"],
-			"@codex-appkit/harness": ["packages/harness/src/index.ts"],
-			"@codex-appkit/http": ["packages/http/src/index.ts"],
-			"@codex-appkit/http/browser": ["packages/http/src/browser.ts"],
-			"@codex-appkit/http/vite": ["packages/http/src/vite.ts"],
-		}
-	}
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowArbitraryExtensions": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "target": "ES2022",
+    "lib": ["ESNext", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@meka/sdk": ["packages/sdk/src/index.ts"],
+      "@meka/app": ["apps/meka/src/library.ts"]
+    }
+  }
 }

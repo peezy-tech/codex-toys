@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ESNext", "DOM"],
+    "strict": true,
+    "skipLibCheck": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["test/package-consumer.mts"]
+}

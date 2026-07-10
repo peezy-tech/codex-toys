@@ -1,25 +1,27 @@
 {
-	"name": "agent-harness-starter",
-	"version": "0.1.0",
-	"description": "Starter monorepo for unattended local Codex and Claude Code runners.",
-	"private": true,
-	"license": "Apache-2.0",
-	"packageManager": "pnpm@11.1.3",
-	"engines": {
-		"node": ">=24.0.0 <25"
-	},
-	"scripts": {
-		"build": "pnpm -r --filter @codex-appkit/codex --filter @codex-appkit/claude --filter @codex-appkit/harness --filter @codex-appkit/http --filter @codex-appkit/cli --filter @codex-appkit/example-node-run --filter @codex-appkit/example-vite-runner run build",
-		"check:types": "pnpm -r --filter @codex-appkit/codex --filter @codex-appkit/claude --filter @codex-appkit/harness --filter @codex-appkit/http --filter @codex-appkit/cli --filter @codex-appkit/example-node-run --filter @codex-appkit/example-vite-runner run check:types",
-		"test": "vp test run",
-		"bindings:generate": "tsx scripts/generate-bindings.ts",
-		"dev:runner": "pnpm --filter @codex-appkit/example-vite-runner dev"
-	},
-	"devDependencies": {
-		"@types/node": "catalog:",
-		"tsx": "catalog:",
-		"typescript": "catalog:",
-		"vite": "catalog:",
-		"vite-plus": "catalog:"
-	}
+  "name": "meka",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A private local control plane above Codex and Claude Code.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "pnpm --filter @meka/sdk run build && pnpm --filter @meka/app run build",
+    "check:dist": "pnpm run build && tsc -p tsconfig.package-consumer.json",
+    "check:types": "pnpm --filter @meka/sdk run check:types && pnpm --filter @meka/app run check:types",
+    "clean": "pnpm -r --filter @meka/sdk --filter @meka/app run clean",
+    "test": "vp test run",
+    "bindings:generate": "tsx scripts/generate-bindings.ts"
+  },
+  "devDependencies": {
+    "@meka/app": "workspace:*",
+    "@meka/sdk": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "packageManager": "pnpm@11.1.3"
 }
