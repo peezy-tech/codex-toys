@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-27599df21428ca9c2de0",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.144.1",
+  "title": "0.144.1",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.144.1",
+  "updatedAt": "2026-07-09T23:04:05.000Z",
+  "contentText": "Bug Fixes Fixed standalone installs failing when GitHub returns compact or reordered release metadata. ( #31913 ) Ensured macOS package installs expose the code-mode host alongside the codex executable. ( #31913 ) Kept code mode working when the companion host binary is unavailable by falling back to the embedded runtime. ( #31913 ) Changelog Full Changelog: rust-v0.144.0...rust-v0.144.1 #31913 [0.144] Backport installer and code-mode reliability fixes @bolinfest",
+  "observedAt": "2026-07-10T15:44:56.650Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.144.1",
+    "updated": "2026-07-09T23:04:05Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.144.1",
+        "type": "text/html"
+      }
+    ]
+  }
+}
