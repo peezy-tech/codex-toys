@@ -11,6 +11,8 @@ layers behind:
 - `packages/microbridge`: optional `app.call` pass-through protocol for local
   sidecars.
 - `packages/http`: local-only HTTP, browser, and Vite helpers.
+- `packages/claude-code`: local Claude Code sessions, streaming events, and
+  approval handling through the Claude Agent SDK.
 - `packages/cli`: tiny command porcelain over common app-server methods.
 - `examples/node-thread-list`: direct Node usage.
 - `examples/vite-thread-dashboard`: browser UI through the Vite HTTP bridge.
@@ -98,3 +100,26 @@ const threads = await codex.app.call("thread/list", {
 ```
 
 The HTTP edge is local-first and only allows loopback browser origins.
+
+## Use Claude Code Locally
+
+Claude support deliberately runs the `claude` command found on `PATH`, without
+changing `HOME`, `CLAUDE_CONFIG_DIR`, credentials, or any remote application
+configuration. It therefore uses the same local authentication, sessions,
+plugins, skills, and MCP connectors as normal Claude Code.
+
+```ts
+import { ClaudeCodeClient } from "@codex-appkit/claude-code";
+
+const claude = new ClaudeCodeClient();
+const sessions = await claude.listSessions({ limit: 20 });
+const session = claude.startSession({ cwd: process.cwd() });
+
+session.on("event", console.log);
+session.sendText("Summarize this repository");
+```
+
+The Vite/browser bridge exposes the same local-only runtime at
+`/api/claude/sessions`. Start a session, connect to its SSE `events` route,
+send input, and resolve emitted approvals through the browser client’s
+`claude` methods.

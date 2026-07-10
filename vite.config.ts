@@ -29,7 +29,7 @@ export default defineConfig({
 				replacement: path.join(packageSrc("app-server"), "json.ts"),
 			},
 			{
-				find: /^@codex-appkit\/(app-server|http|microbridge)$/,
+				find: /^@codex-appkit\/(app-server|claude-code|http|microbridge)$/,
 				replacement: path.resolve(root, "packages/$1/src/index.ts"),
 			},
 			{

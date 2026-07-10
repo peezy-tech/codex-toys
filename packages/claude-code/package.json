@@ -1,7 +1,7 @@
 {
-	"name": "@codex-appkit/http",
+	"name": "@codex-appkit/claude-code",
 	"version": "0.1.0",
-	"description": "Local HTTP, browser, and Vite helpers for Codex app-server utilities.",
+	"description": "Local Claude Code session, event, and approval primitives for appkit utilities.",
 	"type": "module",
 	"private": true,
 	"license": "Apache-2.0",
@@ -12,14 +12,6 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
-		},
-		"./browser": {
-			"types": "./dist/browser.d.ts",
-			"import": "./dist/browser.js"
-		},
-		"./vite": {
-			"types": "./dist/vite.d.ts",
-			"import": "./dist/vite.js"
 		}
 	},
 	"engines": {
@@ -31,12 +23,10 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"@codex-appkit/app-server": "workspace:*",
-		"@codex-appkit/claude-code": "workspace:*"
+		"@anthropic-ai/claude-agent-sdk": "^0.3.206"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
-		"typescript": "catalog:",
-		"vite": "catalog:"
+		"typescript": "catalog:"
 	}
 }

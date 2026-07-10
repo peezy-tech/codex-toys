@@ -9,8 +9,8 @@
 		"node": ">=24.0.0 <25"
 	},
 	"scripts": {
-		"build": "pnpm -r --filter @codex-appkit/app-server --filter @codex-appkit/microbridge --filter @codex-appkit/http --filter codex-appkit --filter @codex-appkit/example-node-thread-list --filter @codex-appkit/example-vite-thread-dashboard run build",
-		"check:types": "pnpm -r --filter @codex-appkit/app-server --filter @codex-appkit/microbridge --filter @codex-appkit/http --filter codex-appkit --filter @codex-appkit/example-node-thread-list --filter @codex-appkit/example-vite-thread-dashboard run check:types",
+		"build": "pnpm -r --filter @codex-appkit/app-server --filter @codex-appkit/claude-code --filter @codex-appkit/microbridge --filter @codex-appkit/http --filter codex-appkit --filter @codex-appkit/example-node-thread-list --filter @codex-appkit/example-vite-thread-dashboard run build",
+		"check:types": "pnpm -r --filter @codex-appkit/app-server --filter @codex-appkit/claude-code --filter @codex-appkit/microbridge --filter @codex-appkit/http --filter codex-appkit --filter @codex-appkit/example-node-thread-list --filter @codex-appkit/example-vite-thread-dashboard run check:types",
 		"test": "vp test run",
 		"bindings:generate": "tsx scripts/generate-bindings.ts",
 		"dev:dashboard": "pnpm --filter @codex-appkit/example-vite-thread-dashboard dev"
