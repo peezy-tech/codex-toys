@@ -1,5 +1,6 @@
 import type { MekaProvider, MekaRunState } from "@meka/sdk";
 import { MekaClient } from "./client.ts";
+import { runMekaDoctor } from "./doctor.ts";
 import type { MekaRunSummary } from "./protocol.ts";
 import { MekaServer } from "./server.ts";
 
@@ -11,6 +12,9 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
   }
   if (command === "serve") {
     return await serve(rest);
+  }
+  if (command === "doctor") {
+    return await doctor(rest);
   }
   if (command === "plugin") {
     const [subcommand, ...pluginArgs] = rest;
@@ -115,6 +119,17 @@ async function serve(args: string[]): Promise<number> {
     await server.close();
   }
   return 0;
+}
+
+async function doctor(args: string[]): Promise<number> {
+  const parsed = parseArgs(args, new Set(["cwd", "runtime-root"]));
+  assertNoArguments(parsed.positionals);
+  const report = await runMekaDoctor({
+    ...(parsed.options.cwd ? { cwd: parsed.options.cwd } : {}),
+    ...(parsed.options["runtime-root"] ? { runtimeRoot: parsed.options["runtime-root"] } : {}),
+  });
+  print(report);
+  return report.ready ? 0 : 1;
 }
 
 async function withClient(
@@ -307,6 +322,7 @@ const HELP = `Meka — a private local control plane for coding harnesses
 
 Usage:
   meka serve [--cwd DIR] [--runtime-root DIR]
+  meka doctor [--cwd DIR] [--runtime-root DIR]
   meka status [--socket PATH]
   meka run --provider codex|claude [--model MODEL] [--socket PATH] <prompt>
   meka subscribe [--after SEQUENCE] [--socket PATH] <run-id>
@@ -315,4 +331,5 @@ Usage:
   meka plugin install --provider codex|claude [options] [--socket PATH] <plugin>
 
 Client commands also read MEKA_SOCKET. All run events are emitted as NDJSON.
+Doctor emits one redacted JSON report and does not start a provider run.
 `;

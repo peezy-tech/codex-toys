@@ -95,6 +95,47 @@ export type MekaOptions = {
   ) => Promise<CommandResult>;
 };
 
+/** A non-mutating readiness probe for the locally configured Codex app-server. */
+export type CodexReadiness = {
+  accountType: "apiKey" | "chatgpt" | "amazonBedrock" | null;
+  requiresOpenaiAuth: boolean;
+};
+
+export type CodexReadinessClient = Pick<
+  CodexAppServerClient,
+  "connect" | "close" | "getAccount"
+>;
+
+export type CodexReadinessOptions = {
+  createClient?: () => CodexReadinessClient;
+};
+
+/**
+ * Initializes the normal local Codex app-server and reads its configured account
+ * without refreshing credentials or starting a thread/turn.
+ */
+export async function probeCodexReadiness(
+  options: CodexReadinessOptions = {},
+): Promise<CodexReadiness> {
+  const client =
+    options.createClient?.() ??
+    new CodexAppServerClient({
+      clientName: "meka-doctor",
+      clientTitle: "Meka doctor",
+      clientVersion: "0.1.0",
+    });
+  try {
+    await client.connect();
+    const account = await client.getAccount({ refreshToken: false });
+    return {
+      accountType: account.account?.type ?? null,
+      requiresOpenaiAuth: account.requiresOpenaiAuth,
+    };
+  } finally {
+    client.close();
+  }
+}
+
 /**
  * Thin access to locally configured coding harnesses. Full permissions are an
  * invariant: Codex runs with `never` + `danger-full-access`; Claude runs with

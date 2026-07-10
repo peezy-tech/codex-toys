@@ -20,7 +20,8 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "check:types": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "pnpm run build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.206"

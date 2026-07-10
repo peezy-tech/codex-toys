@@ -92,16 +92,57 @@ local harnesses with the daemon's environment and home directory, so existing
 Codex and Claude Code authentication, configuration, plugins, skills, and hooks
 remain in effect.
 
-## Install and validate
+## Source install and validate
 
-Node.js 24 and pnpm are required.
+Meka is currently a private, source-first project rather than a
+registry-published package. It requires a POSIX host, Node.js 24, pnpm, and at
+least one locally installed and authenticated provider harness.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
+pnpm run meka -- doctor --cwd "$PWD"
+```
+
+`pnpm run meka -- ...` is the supported launcher from this checkout. It builds
+the SDK and CLI automatically when their ignored `dist` directories are absent,
+so it works in a fresh clone without relying on a stale `node_modules/.bin`
+shim. `doctor` starts no provider thread and sends no model prompt; it validates
+the local private-socket path, performs a Codex app-server handshake, and checks
+Claude's local authentication status. Its JSON report intentionally redacts
+account metadata.
+
+For repository validation:
+
+```bash
 pnpm run check:types
 pnpm test
 pnpm run check:dist
+pnpm run check:source-install
+pnpm run check:package-install
 ```
+
+`check:package-install` starts with clean build artifacts, packs the SDK and
+CLI, installs both archives into an empty temporary consumer, and invokes the
+installed `meka --help`. It validates the paired-package artifact without
+implying that the private packages are published to a registry.
+
+## Private local archive install
+
+When a source checkout is available but a global command is more convenient,
+pack and install both private archives together with npm:
+
+```bash
+archive_dir=$(mktemp -d)
+pnpm --filter @meka/sdk pack --pack-destination "$archive_dir"
+pnpm --filter @meka/app pack --pack-destination "$archive_dir"
+npm install --global "$archive_dir"/meka-sdk-*.tgz "$archive_dir"/meka-app-*.tgz
+
+meka doctor --cwd "$PWD"
+```
+
+The paired install is deliberate: `@meka/app` depends on the private SDK and
+neither package is published to a registry. It gives the installed CLI its
+normal `meka` command without changing the project into a public package.
 
 ## In-process SDK
 
@@ -147,10 +188,10 @@ await meka.installPlugin({
 
 ## Private-socket service
 
-Start one daemon for one trusted workspace:
+Start one daemon for one trusted workspace from this source checkout:
 
 ```bash
-meka serve --cwd "$PWD"
+pnpm run meka -- serve --cwd "$PWD"
 ```
 
 Once listening, `meka serve` writes exactly one JSON readiness object to
@@ -160,12 +201,12 @@ clients through `MEKA_SOCKET`.
 
 ```bash
 export MEKA_SOCKET=/path/from/the/readiness/object/m.sock
-meka status
-meka run --provider codex --model gpt-5 "Summarize this repository"
-meka subscribe <run-id> --after 42
-meka interrupt <run-id>
-meka close <run-id>
-meka plugin install --provider claude --scope project my-plugin
+pnpm run meka -- status
+pnpm run meka -- run --provider codex --model gpt-5 "Summarize this repository"
+pnpm run meka -- subscribe <run-id> --after 42
+pnpm run meka -- interrupt <run-id>
+pnpm run meka -- close <run-id>
+pnpm run meka -- plugin install --provider claude --scope project my-plugin
 ```
 
 Every client command also accepts `--socket PATH` instead of `MEKA_SOCKET`.

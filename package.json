@@ -7,9 +7,12 @@
   "scripts": {
     "build": "pnpm --filter @meka/sdk run build && pnpm --filter @meka/app run build",
     "check:dist": "pnpm run build && tsc -p tsconfig.package-consumer.json",
+    "check:package-install": "node scripts/check-package-install.mjs",
+    "check:source-install": "node scripts/check-source-install.mjs",
     "check:types": "pnpm --filter @meka/sdk run check:types && pnpm --filter @meka/app run check:types",
     "clean": "pnpm -r --filter @meka/sdk --filter @meka/app run clean",
     "test": "vp test run",
+    "meka": "node scripts/meka.mjs",
     "bindings:generate": "tsx scripts/generate-bindings.ts"
   },
   "devDependencies": {

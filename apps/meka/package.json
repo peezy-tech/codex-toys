@@ -5,9 +5,10 @@
   "description": "Meka private-socket runtime for local coding harnesses.",
   "license": "Apache-2.0",
   "bin": {
-    "meka": "dist/main.js"
+    "meka": "bin/meka.js"
   },
   "files": [
+    "bin",
     "dist",
     "README.md"
   ],
@@ -22,7 +23,8 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json && chmod 755 dist/main.js",
     "check:types": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "pnpm --filter @meka/sdk run build && pnpm run build"
   },
   "dependencies": {
     "@meka/sdk": "workspace:*"
