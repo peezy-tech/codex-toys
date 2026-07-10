@@ -64,6 +64,20 @@ test("routes an event through a TypeScript workflow into a managed run queue", a
     expect(duplicate.inserted).toBe(false);
     expect(duplicate.jobIds).toEqual(ingress.jobIds);
 
+    await configureQueue(runtime, "moved-workflows");
+    await runtime.registerWorkflow(workflowPath, "moved-workflows");
+    const replayAfterMove = await runtime.ingestEvent({
+      type: "github.pull_request",
+      source: "github:test",
+      deliveryId: "delivery-1",
+      verified: true,
+      payload: { action: "opened", number: 42 },
+    });
+    expect(replayAfterMove.jobIds).toEqual(ingress.jobIds);
+    await expect(Effect.runPromise(runtime.store.listJobs())).resolves.toMatchObject([
+      { id: ingress.jobIds[0], queueName: "workflows" },
+    ]);
+
     const workflowJob = await runtime.claim("workflows");
     if (!workflowJob) throw new Error("Workflow job was not claimed");
     const execution = await runtime.executeInternalJob(workflowJob);
@@ -425,6 +439,45 @@ test("rejects unsupported and malformed command jobs before durable admission or
       provider: null,
       externalDispatchStartedAt: null,
     });
+  } finally {
+    await runtime.close();
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test("settles a damaged durable envelope and continues to the next queued job", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-damaged-envelope-test-"));
+  const runtime = await AutomationRuntime.open({
+    cwd: temporary,
+    stateRoot: path.join(temporary, "state"),
+  });
+  try {
+    await configureQueue(runtime, "commands");
+    const damaged = await Effect.runPromise(
+      runtime.store.enqueueJob({
+        queueName: "commands",
+        payload: { version: 99, kind: "command", payload: { argv: [process.execPath] } },
+      }),
+    );
+    const valid = await runtime.enqueueJob({
+      queue: "commands",
+      kind: "command",
+      payload: { argv: [process.execPath, "-e", "process.exit(0)"] },
+    });
+
+    const claimed = await runtime.claim("commands");
+    expect(claimed?.claim.job.id).toBe(valid.id);
+    await expect(
+      Effect.runPromise(runtime.store.getJobDetail(damaged.job.id)),
+    ).resolves.toMatchObject({
+      status: "failed",
+      attemptCount: 1,
+      externalDispatchStartedAt: null,
+      error: { type: "meka.invalid_job_envelope" },
+    });
+    await expect(
+      Effect.runPromise(runtime.store.getJobAttempts(damaged.job.id)),
+    ).resolves.toMatchObject([{ attemptNumber: 1, status: "failed" }]);
   } finally {
     await runtime.close();
     await rm(temporary, { recursive: true, force: true });

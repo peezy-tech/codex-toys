@@ -258,6 +258,41 @@ test("aborts internal workers before daemon shutdown waits and records uncertain
   }
 });
 
+test("records a post-dispatch internal executor exception as uncertain", async () => {
+  const fixture = await createServerFixture("internal-executor-error", new SingleRunEngine());
+  const runtime = await AutomationRuntime.open({
+    cwd: fixture.workspace,
+    stateRoot: fixture.stateRoot,
+  });
+  try {
+    await runtime.configureQueue({
+      queueName: "commands",
+      concurrency: 1,
+      startWindowMs: 60_000,
+      maxStartsPerWindow: 60,
+      leaseMs: 5_000,
+    });
+    const queued = await runtime.enqueueJob({
+      queue: "commands",
+      kind: "command",
+      payload: { argv: [path.join(fixture.workspace, "missing-command")] },
+    });
+
+    await waitForJobStatus(runtime.store, queued.id, "uncertain");
+    await expect(Effect.runPromise(runtime.store.getJobDetail(queued.id))).resolves.toMatchObject({
+      status: "uncertain",
+      provider: "command",
+      error: { type: "execution.exception_after_external_dispatch" },
+    });
+    await expect(Effect.runPromise(runtime.store.getJobAttempts(queued.id))).resolves.toMatchObject([
+      { attemptNumber: 1, status: "uncertain", provider: "command" },
+    ]);
+  } finally {
+    await runtime.close();
+    await fixture.cleanup();
+  }
+});
+
 test("leaves managed backlog pending when active run capacity is full", async () => {
   const engine = new CapacityEngine();
   const fixture = await createServerFixture("managed-capacity", engine);

@@ -31,9 +31,11 @@ export type DoctorCommandResult = {
 export type MekaDoctorOptions = {
   cwd?: string;
   runtimeRoot?: string;
+  /** Overrides global hook state for deterministic probes and tests. */
+  stateHome?: string;
   platform?: NodeJS.Platform;
   nodeVersion?: string;
-  checkRuntime?: (options: { cwd?: string; runtimeRoot?: string }) => Promise<void>;
+  checkRuntime?: (options: { cwd?: string; runtimeRoot?: string; stateHome?: string }) => Promise<void>;
   checkCodex?: () => Promise<CodexReadiness>;
   runCommand?: (command: string, args: string[]) => Promise<DoctorCommandResult>;
 };
@@ -80,6 +82,7 @@ async function checkRuntime(options: MekaDoctorOptions): Promise<MekaDoctorCheck
     await (options.checkRuntime ?? probeRuntime)({
       ...(options.cwd ? { cwd: options.cwd } : {}),
       ...(options.runtimeRoot ? { runtimeRoot: options.runtimeRoot } : {}),
+      ...(options.stateHome ? { stateHome: options.stateHome } : {}),
     });
     return passed("runtime", "Private Unix socket creation and cleanup succeeded");
   } catch {
@@ -123,9 +126,17 @@ async function checkClaude(options: MekaDoctorOptions): Promise<MekaDoctorCheck>
   }
 }
 
-async function probeRuntime(options: { cwd?: string; runtimeRoot?: string }): Promise<void> {
+async function probeRuntime(options: {
+  cwd?: string;
+  runtimeRoot?: string;
+  stateHome?: string;
+}): Promise<void> {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-doctor-"));
-  const server = new MekaServer({ ...options, stateRoot: path.join(temporary, "state") });
+  const server = new MekaServer({
+    ...options,
+    stateRoot: path.join(temporary, "state"),
+    observeExternalAgents: false,
+  });
   try {
     await server.start();
   } finally {

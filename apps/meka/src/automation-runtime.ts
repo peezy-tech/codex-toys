@@ -187,10 +187,15 @@ export class AutomationRuntime {
     for (const workflow of workflows) {
       if (!workflow.enabled) continue;
       if (!targetWorkflowId && !workflow.triggerTypes.includes(event.type)) continue;
+      const routingIdentity = `workflow:${workflow.id}:${workflow.revisionHash}:${event.id}`;
       const result = await Effect.runPromise(
         this.store.enqueueJob({
+          // Workflow routing is globally identified independently of the
+          // current queue. Moving an unchanged registration to another queue
+          // must not execute an already-routed event a second time.
+          id: `job-workflow-${createHash("sha256").update(routingIdentity).digest("hex")}`,
           queueName: workflow.queueName,
-          idempotencyKey: `workflow:${workflow.id}:${workflow.revisionHash}:${event.id}`,
+          idempotencyKey: routingIdentity,
           payload: envelope(WORKFLOW_JOB_KIND, {
             workflowId: workflow.id,
             revisionHash: workflow.revisionHash,
@@ -293,14 +298,32 @@ export class AutomationRuntime {
     queueName: string,
     options: { allowManagedRuns?: boolean } = {},
   ): Promise<ClaimedAutomationJob | undefined> {
-    const result = await Effect.runPromise(
-      this.store.claimNextJob({
-        queueName,
-        ...(options.allowManagedRuns === false ? { excludePayloadKinds: [RUN_JOB_KIND] } : {}),
-      }),
-    );
-    if (result.kind !== "claimed") return undefined;
-    return { claim: result.claim, envelope: parseEnvelope(result.claim.payload) };
+    for (;;) {
+      const result = await Effect.runPromise(
+        this.store.claimNextJob({
+          queueName,
+          ...(options.allowManagedRuns === false ? { excludePayloadKinds: [RUN_JOB_KIND] } : {}),
+        }),
+      );
+      if (result.kind !== "claimed") return undefined;
+      try {
+        return { claim: result.claim, envelope: parseEnvelope(result.claim.payload) };
+      } catch (error) {
+        // A damaged or legacy envelope has already consumed one admitted
+        // attempt. Settle it before looking for the next candidate so it
+        // cannot expire, requeue forever, and starve the queue.
+        await Effect.runPromise(
+          this.store.failJob({
+            jobId: result.claim.job.id,
+            leaseToken: result.claim.leaseToken,
+            error: {
+              type: "meka.invalid_job_envelope",
+              message: error instanceof Error ? error.message : String(error),
+            },
+          }),
+        );
+      }
+    }
   }
 
   async executeInternalJob(

@@ -1414,6 +1414,13 @@ export class AutomationStore {
     }
     const sameId = this.#jobById(id);
     if (sameId) {
+      if (
+        idempotencyKey !== null &&
+        sameId.idempotency_key === idempotencyKey &&
+        sameId.idempotency_hash === idempotencyHash
+      ) {
+        return { created: false, job: toJob(sameId) };
+      }
       throw new AutomationConflictError(`Durable job already exists: ${id}`);
     }
     this.#database

@@ -63,7 +63,10 @@ export type MekaServerOptions = {
   cwd?: string;
   runtimeRoot?: string;
   stateRoot?: string;
+  stateHome?: string;
   instanceId?: string;
+  /** Disable global Codex/Claude hook claiming for disposable probes. */
+  observeExternalAgents?: boolean;
 };
 
 type StoredEvent = {
@@ -118,6 +121,8 @@ export class MekaServer {
   #engine: MekaEngine;
   #runtimeRoot: string | undefined;
   #stateRoot: string | undefined;
+  #stateHome: string | undefined;
+  #observeExternalAgents: boolean;
   #requestedInstanceId: string | undefined;
   #runtime: MekaRuntimeLocation | undefined;
   #server: Server | undefined;
@@ -145,6 +150,8 @@ export class MekaServer {
     this.#engine = options.engine ?? new Meka();
     this.#runtimeRoot = options.runtimeRoot;
     this.#stateRoot = options.stateRoot;
+    this.#stateHome = options.stateHome;
+    this.#observeExternalAgents = options.observeExternalAgents ?? true;
     this.#requestedInstanceId = options.instanceId;
   }
 
@@ -190,6 +197,7 @@ export class MekaServer {
     const automation = await AutomationRuntime.open({
       cwd: this.cwd,
       ...(this.#stateRoot ? { stateRoot: this.#stateRoot } : {}),
+      ...(this.#stateHome ? { stateHome: this.#stateHome } : {}),
     });
     this.cwd = automation.cwd;
     this.#automation = automation;
@@ -197,10 +205,14 @@ export class MekaServer {
     try {
       daemonLock = await acquireWorkspaceDaemonLock(automation.store.location.root, this.cwd);
       this.#daemonLock = daemonLock;
-      await automation.activateHookIngressConsumer();
+      if (this.#observeExternalAgents) {
+        await automation.activateHookIngressConsumer();
+      }
       await Effect.runPromise(automation.store.recoverExpiredLeases());
       await Effect.runPromise(automation.store.recoverExpiredExternalAgentSessions());
-      await automation.drainHookSpool();
+      if (this.#observeExternalAgents) {
+        await automation.drainHookSpool();
+      }
       this.#assertStarting();
       const runtime = await createRuntimeLocation({
         ...(this.#runtimeRoot ? { runtimeRoot: this.#runtimeRoot } : {}),
@@ -703,7 +715,9 @@ export class MekaServer {
 
   async #drainAutomation(): Promise<void> {
     const automation = this.#requireAutomation();
-    await automation.drainHookSpool();
+    if (this.#observeExternalAgents) {
+      await automation.drainHookSpool();
+    }
     // Recovery must run even when no queue currently has a pending row. A
     // crashed external worker can otherwise leave the last job in a queue
     // looking active until another job happens to arrive or the daemon restarts.
@@ -758,18 +772,21 @@ export class MekaServer {
         async (error: unknown) => {
           try {
             const store = this.#requireAutomation().store;
-            if (controller.signal.aborted) {
-              const detail = await Effect.runPromise(store.getJobDetail(job.claim.job.id));
-              if (detail && detail.externalDispatchStartedAt !== null) {
-                await Effect.runPromise(
-                  store.markJobUncertain({
-                    jobId: job.claim.job.id,
-                    leaseToken: job.claim.leaseToken,
-                    reason: { message: errorMessage(error), type: "daemon.shutdown" },
-                  }),
-                );
-              }
-            } else {
+            const detail = await Effect.runPromise(store.getJobDetail(job.claim.job.id));
+            if (detail && detail.externalDispatchStartedAt !== null) {
+              await Effect.runPromise(
+                store.markJobUncertain({
+                  jobId: job.claim.job.id,
+                  leaseToken: job.claim.leaseToken,
+                  reason: {
+                    message: errorMessage(error),
+                    type: controller.signal.aborted
+                      ? "daemon.shutdown"
+                      : "execution.exception_after_external_dispatch",
+                  },
+                }),
+              );
+            } else if (!controller.signal.aborted) {
               await Effect.runPromise(
                 store.failJob({
                   jobId: job.claim.job.id,
