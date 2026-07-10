@@ -1,0 +1,10 @@
+{
+  "id": "engineering-feed",
+  "kind": "rss",
+  "workflowId": "release-notes",
+  "config": {
+    "url": "https://example.com/engineering/feed.xml",
+    "eventType": "rss.item",
+    "timeoutMs": 30000
+  }
+}

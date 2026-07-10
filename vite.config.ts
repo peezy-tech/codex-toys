@@ -15,6 +15,10 @@ export default defineConfig({
         find: /^@meka\/app$/,
         replacement: path.resolve(root, "apps/meka/src/library.ts"),
       },
+      {
+        find: /^@meka\/workflow$/,
+        replacement: path.resolve(root, "packages/workflow/src/index.ts"),
+      },
     ],
   },
   test: {

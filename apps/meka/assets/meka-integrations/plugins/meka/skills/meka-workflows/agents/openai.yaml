@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meka Workflows"
+  short_description: "Author and validate Effect workflows"
+  default_prompt: "Use $meka-workflows to create and validate a Meka Effect workflow."

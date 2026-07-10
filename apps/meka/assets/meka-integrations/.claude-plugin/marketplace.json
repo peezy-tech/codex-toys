@@ -1,0 +1,15 @@
+{
+  "name": "meka-local",
+  "owner": {
+    "name": "Meka contributors"
+  },
+  "description": "Local Meka integration for Claude Code lifecycle hooks and workflow skills.",
+  "plugins": [
+    {
+      "name": "meka",
+      "source": "./plugins/meka",
+      "description": "Observe local agent activity and operate Effect-based Meka workflows.",
+      "version": "0.1.0"
+    }
+  ]
+}

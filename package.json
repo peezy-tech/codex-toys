@@ -5,12 +5,12 @@
   "description": "A private local control plane above Codex and Claude Code.",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "pnpm --filter @meka/sdk run build && pnpm --filter @meka/app run build",
+    "build": "pnpm --filter @meka/workflow run build && pnpm --filter @meka/sdk run build && pnpm --filter @meka/app run build",
     "check:dist": "pnpm run build && tsc -p tsconfig.package-consumer.json",
     "check:package-install": "node scripts/check-package-install.mjs",
     "check:source-install": "node scripts/check-source-install.mjs",
-    "check:types": "pnpm --filter @meka/sdk run check:types && pnpm --filter @meka/app run check:types",
-    "clean": "pnpm -r --filter @meka/sdk --filter @meka/app run clean",
+    "check:types": "pnpm --filter @meka/workflow run check:types && pnpm --filter @meka/sdk run check:types && pnpm --filter @meka/app run check:types",
+    "clean": "pnpm -r --filter @meka/workflow --filter @meka/sdk --filter @meka/app run clean",
     "test": "vp test run",
     "meka": "node scripts/meka.mjs",
     "bindings:generate": "tsx scripts/generate-bindings.ts"
@@ -18,6 +18,7 @@
   "devDependencies": {
     "@meka/app": "workspace:*",
     "@meka/sdk": "workspace:*",
+    "@meka/workflow": "workspace:*",
     "@types/node": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

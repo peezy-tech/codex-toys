@@ -1,0 +1,20 @@
+{
+  "name": "meka",
+  "version": "0.1.0",
+  "description": "Observe local agent activity and operate Meka workflows from Codex.",
+  "author": {
+    "name": "Meka contributors"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["agents", "automation", "effect", "workflows"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Meka",
+    "shortDescription": "Operate the local Meka runtime",
+    "longDescription": "Inspect Meka, run controlled agent work, and author Effect-based workflows while local Codex activity is observed through lifecycle hooks.",
+    "developerName": "Meka contributors",
+    "category": "Productivity",
+    "capabilities": ["Local automation", "Workflow authoring"],
+    "defaultPrompt": ["Inspect the local Meka runtime.", "Help me author a Meka workflow."]
+  }
+}

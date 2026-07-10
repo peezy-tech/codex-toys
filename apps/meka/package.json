@@ -8,6 +8,7 @@
     "meka": "bin/meka.js"
   },
   "files": [
+    "assets",
     "bin",
     "dist",
     "README.md"
@@ -24,10 +25,15 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json && chmod 755 dist/main.js",
     "check:types": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "prepack": "pnpm --filter @meka/sdk run build && pnpm run build"
+    "prepack": "pnpm --filter @meka/workflow run build && pnpm --filter @meka/sdk run build && pnpm run build"
   },
   "dependencies": {
-    "@meka/sdk": "workspace:*"
+    "@meka/sdk": "workspace:*",
+    "@meka/workflow": "workspace:*",
+    "effect": "catalog:",
+    "esbuild": "catalog:",
+    "fast-xml-parser": "catalog:",
+    "tsx": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

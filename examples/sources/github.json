@@ -1,0 +1,9 @@
+{
+  "id": "github-prs",
+  "kind": "github",
+  "workflowId": "trusted-github-pr-review",
+  "config": {
+    "secretEnv": "GITHUB_WEBHOOK_SECRET",
+    "eventNames": ["pull_request"]
+  }
+}

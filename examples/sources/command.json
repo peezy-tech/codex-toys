@@ -1,0 +1,10 @@
+{
+  "id": "repository-status",
+  "kind": "command",
+  "workflowId": "repository-status-command",
+  "config": {
+    "argv": ["node", "./examples/sources/repository-status.mjs"],
+    "eventType": "repository.status",
+    "timeoutMs": 30000
+  }
+}

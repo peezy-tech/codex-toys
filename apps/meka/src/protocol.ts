@@ -41,8 +41,10 @@ export type JsonRpcMessage = JsonRpcRequest | JsonRpcSuccess | JsonRpcFailure | 
 
 export type MekaRunSummary = {
   id: string;
+  jobId: string;
+  queue: string;
   provider: MekaProvider;
-  state: MekaRunState | "starting";
+  state: MekaRunState | "queued" | "starting";
   providerSessionId: string | null;
   providerRunId: string | null;
   startedAt: string;
@@ -80,6 +82,26 @@ export type MekaStatusResult = MekaInitializeResult & {
   startedAt: string;
   cwd: string;
   runs: MekaRunSummary[];
+  automation: {
+    stateRoot: string;
+    schemaVersion: number;
+    queues: Array<{
+      queueName: string;
+      concurrency: number;
+      startWindowMs: number;
+      maxStartsPerWindow: number;
+      leaseMs: number;
+      pending: number;
+      active: number;
+      concurrencyRemaining: number;
+      startsUsed: number;
+      startsRemaining: number;
+      nextStartAt: string | null;
+    }>;
+    jobs: Record<string, number>;
+    activeExternalSessions: number;
+    lastError?: string;
+  };
 };
 
 export type MekaSubscribeResult = {

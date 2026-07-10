@@ -2,6 +2,7 @@ import { expect, test } from "vite-plus/test";
 import { lstat, mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Effect } from "effect";
 import type {
   InstallPluginInput,
   MekaEngine,
@@ -20,6 +21,7 @@ import {
   type MekaRunStateEvent,
 } from "../src/protocol.ts";
 import { MekaServer } from "../src/server.ts";
+import { openAutomationStore } from "../src/automation/store.ts";
 
 test("serves a complete run lifecycle over a private Unix socket", async () => {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-socket-test-"));
@@ -30,6 +32,7 @@ test("serves a complete run lifecycle over a private Unix socket", async () => {
     engine,
     cwd: workspace,
     runtimeRoot: path.join(temporaryDirectory, "runtime"),
+    stateRoot: path.join(temporaryDirectory, "state"),
     instanceId: "11111111-1111-4111-8111-111111111111",
   });
   const ready = await server.start();
@@ -64,35 +67,44 @@ test("serves a complete run lifecycle over a private Unix socket", async () => {
     });
     expect(run).toMatchObject({
       provider: "codex",
-      providerSessionId: "provider-session-1",
-      providerRunId: "provider-run-1",
-      state: "running",
-    });
-    expect(engine.startInput).toMatchObject({
-      provider: "codex",
-      prompt: "inspect this repository",
-      model: "gpt-5",
-      cwd: workspace,
+      providerSessionId: null,
+      providerRunId: null,
+      queue: "default",
+      state: "queued",
     });
 
     const replayed = nextNotification<MekaRunEvent>(
       client,
       (message) => message.method === "run.event" && message.params?.runId === run.id,
     );
+    const running = nextNotification<{ run: { state: string; providerRunId: string | null } }>(
+      client,
+      (message) =>
+        message.method === "run.state" &&
+        (message.params?.run as { id?: unknown; state?: unknown } | undefined)?.id === run.id &&
+        (message.params?.run as { state?: unknown } | undefined)?.state === "running",
+    );
     const subscription = await client.request<{
       replay: { gap: boolean; oldestAvailable: number; latestAvailable: number };
     }>("run.subscribe", { runId: run.id, afterSequence: 0 });
-    expect(subscription.replay).toEqual({
+    expect(subscription.replay).toMatchObject({
       requestedAfter: 0,
-      oldestAvailable: 1,
-      latestAvailable: 1,
       gap: false,
+    });
+    await expect(running).resolves.toMatchObject({
+      run: { state: "running", providerRunId: "provider-run-1" },
     });
     await expect(replayed).resolves.toMatchObject({
       runId: run.id,
       sequence: 1,
       provider: "codex",
       event: { type: "provider.started" },
+    });
+    expect(engine.startInput).toMatchObject({
+      provider: "codex",
+      prompt: "inspect this repository",
+      model: "gpt-5",
+      cwd: workspace,
     });
 
     const liveEvent = nextNotification<MekaRunEvent>(
@@ -190,6 +202,7 @@ test("does not orphan a provider run when the daemon closes during startup", asy
     engine,
     cwd: workspace,
     runtimeRoot: path.join(temporaryDirectory, "runtime"),
+    stateRoot: path.join(temporaryDirectory, "state"),
   });
   const ready = await server.start();
   const first = new MekaClient({ socketPath: ready.socketPath });
@@ -197,9 +210,11 @@ test("does not orphan a provider run when the daemon closes during startup", asy
 
   try {
     await Promise.all([first.connect(), second.connect()]);
-    const starting = first
-      .request("run.start", { provider: "codex", prompt: "wait" })
-      .catch((error: unknown) => error);
+    const queued = await first.request<{ id: string; jobId: string; state: string }>("run.start", {
+      provider: "codex",
+      prompt: "wait",
+    });
+    expect(queued.state).toBe("queued");
     await engine.started.promise;
     const status = await second.status();
     const run = status.runs[0];
@@ -211,12 +226,47 @@ test("does not orphan a provider run when the daemon closes during startup", asy
     const closing = server.close();
     engine.release.resolve(engine.run);
     await closing;
-    await expect(starting).resolves.toBeInstanceOf(Error);
     expect(engine.run.closeCalls).toBe(1);
+    const store = await Effect.runPromise(
+      openAutomationStore({ cwd: workspace, stateRoot: path.join(temporaryDirectory, "state") }),
+    );
+    try {
+      await expect(Effect.runPromise(store.getJob(queued.jobId))).resolves.toMatchObject({
+        status: "uncertain",
+      });
+    } finally {
+      await Effect.runPromise(store.close());
+    }
   } finally {
     first.close();
     second.close();
     await server.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("allows only one daemon to drain an automation state root", async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-daemon-lock-test-"));
+  const workspace = path.join(temporaryDirectory, "workspace");
+  const stateRoot = path.join(temporaryDirectory, "state");
+  await mkdir(workspace);
+  const first = new MekaServer({
+    engine: new FakeEngine(),
+    cwd: workspace,
+    stateRoot,
+    runtimeRoot: path.join(temporaryDirectory, "runtime-a"),
+  });
+  const second = new MekaServer({
+    engine: new FakeEngine(),
+    cwd: workspace,
+    stateRoot,
+    runtimeRoot: path.join(temporaryDirectory, "runtime-b"),
+  });
+  try {
+    await first.start();
+    await expect(second.start()).rejects.toThrow("already owns this automation state");
+  } finally {
+    await Promise.all([first.close(), second.close()]);
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 });

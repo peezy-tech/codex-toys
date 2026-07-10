@@ -12,6 +12,7 @@ try {
   await cp(root, checkout, { recursive: true, filter: shouldCopy });
   await run("pnpm", ["install", "--frozen-lockfile"], checkout);
   await run("pnpm", ["run", "meka", "--", "--help"], checkout);
+  await run("pnpm", ["run", "build"], checkout);
   await run("pnpm", ["exec", "meka", "--help"], checkout);
   process.stdout.write("Clean source-install check passed.\n");
 } finally {
@@ -23,9 +24,9 @@ function shouldCopy(source) {
   if (!relative) {
     return true;
   }
-  return !relative.split(path.sep).some((part) =>
-    [".git", "node_modules", "dist", ".turbo"].includes(part),
-  );
+  return !relative
+    .split(path.sep)
+    .some((part) => [".git", "node_modules", "dist", ".turbo"].includes(part));
 }
 
 function run(command, args, cwd) {

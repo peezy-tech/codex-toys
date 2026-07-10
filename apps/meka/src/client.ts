@@ -127,6 +127,7 @@ export class MekaClient {
     provider: MekaProvider;
     prompt: string;
     model?: string;
+    queue?: string;
   }): Promise<MekaRunSummary> {
     return this.request("run.start", input);
   }

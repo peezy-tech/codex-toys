@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { probeCodexReadiness, type CodexReadiness } from "@meka/sdk";
 import { MekaServer } from "./server.ts";
 
@@ -56,7 +59,9 @@ export async function runMekaDoctor(options: MekaDoctorOptions = {}): Promise<Me
       : await checkRuntime(options);
   const [codexCheck, claudeCheck] = await Promise.all([checkCodex(options), checkClaude(options)]);
   const checks = [nodeCheck, platformCheck, runtimeCheck, codexCheck, claudeCheck];
-  const baseReady = [nodeCheck, platformCheck, runtimeCheck].every((check) => check.status === "pass");
+  const baseReady = [nodeCheck, platformCheck, runtimeCheck].every(
+    (check) => check.status === "pass",
+  );
   const providerReady = [codexCheck, claudeCheck].some((check) => check.status === "pass");
 
   return {
@@ -86,9 +91,15 @@ async function checkCodex(options: MekaDoctorOptions): Promise<MekaDoctorCheck> 
   try {
     const readiness = await (options.checkCodex ?? probeCodexReadiness)();
     if (!readiness.accountType) {
-      return failed("codex", "Codex app-server initialized, but no authenticated account is configured");
+      return failed(
+        "codex",
+        "Codex app-server initialized, but no authenticated account is configured",
+      );
     }
-    return passed("codex", `Codex app-server initialized with ${readiness.accountType} authentication`);
+    return passed(
+      "codex",
+      `Codex app-server initialized with ${readiness.accountType} authentication`,
+    );
   } catch {
     return failed("codex", "Codex app-server could not be initialized or authenticated");
   }
@@ -113,15 +124,19 @@ async function checkClaude(options: MekaDoctorOptions): Promise<MekaDoctorCheck>
 }
 
 async function probeRuntime(options: { cwd?: string; runtimeRoot?: string }): Promise<void> {
-  const server = new MekaServer(options);
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-doctor-"));
+  const server = new MekaServer({ ...options, stateRoot: path.join(temporary, "state") });
   try {
     await server.start();
   } finally {
     await server.close();
+    await rm(temporary, { recursive: true, force: true });
   }
 }
 
-function parseClaudeStatus(value: string): { loggedIn?: unknown; authMethod?: unknown } | undefined {
+function parseClaudeStatus(
+  value: string,
+): { loggedIn?: unknown; authMethod?: unknown } | undefined {
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -148,15 +163,16 @@ function failed(id: MekaDoctorCheckId, detail: string): MekaDoctorCheck {
 
 function runCommand(command: string, args: string[]): Promise<DoctorCommandResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "ignore"] });
+    const child = spawn(command, args, {
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     const stdout = new CappedOutput(MAX_COMMAND_OUTPUT_BYTES);
     let killTimer: NodeJS.Timeout | undefined;
     const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
+      signalTree("SIGTERM");
       killTimer = setTimeout(() => {
-        if (child.exitCode === null) {
-          child.kill("SIGKILL");
-        }
+        signalTree("SIGKILL");
       }, 1_000);
       killTimer.unref();
     }, COMMAND_TIMEOUT_MS);
@@ -176,6 +192,18 @@ function runCommand(command: string, args: string[]): Promise<DoctorCommandResul
       }
       resolve({ code, stdout: stdout.text });
     });
+
+    function signalTree(signal: NodeJS.Signals): void {
+      if (process.platform !== "win32" && child.pid) {
+        try {
+          process.kill(-child.pid, signal);
+          return;
+        } catch {
+          // The process group may already have exited; try the direct child.
+        }
+      }
+      child.kill(signal);
+    }
   });
 }
 

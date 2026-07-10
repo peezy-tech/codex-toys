@@ -101,10 +101,7 @@ export type CodexReadiness = {
   requiresOpenaiAuth: boolean;
 };
 
-export type CodexReadinessClient = Pick<
-  CodexAppServerClient,
-  "connect" | "close" | "getAccount"
->;
+export type CodexReadinessClient = Pick<CodexAppServerClient, "connect" | "close" | "getAccount">;
 
 export type CodexReadinessOptions = {
   createClient?: () => CodexReadinessClient;

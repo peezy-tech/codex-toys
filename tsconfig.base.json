@@ -19,7 +19,8 @@
     "baseUrl": ".",
     "paths": {
       "@meka/sdk": ["packages/sdk/src/index.ts"],
-      "@meka/app": ["apps/meka/src/library.ts"]
+      "@meka/app": ["apps/meka/src/library.ts"],
+      "@meka/workflow": ["packages/workflow/src/index.ts"]
     }
   }
 }

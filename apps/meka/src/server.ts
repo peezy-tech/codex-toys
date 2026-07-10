@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, stat } from "node:fs/promises";
 import net, { type Server, type Socket } from "node:net";
 import path from "node:path";
+import { Effect } from "effect";
 import {
   Meka,
   type InstallPluginInput,
@@ -11,6 +12,14 @@ import {
   type MekaRun,
   type MekaRunOutcome,
 } from "@meka/sdk";
+import {
+  AutomationRuntime,
+  isManagedRunJob,
+  managedRunPayload,
+  type ClaimedAutomationJob,
+} from "./automation-runtime.ts";
+import { MIN_QUEUE_LEASE_MS } from "./automation/constants.ts";
+import { acquireWorkspaceDaemonLock, type WorkspaceDaemonLock } from "./daemon-lock.ts";
 import {
   MEKA_PROTOCOL_VERSION,
   MekaRpcError,
@@ -40,7 +49,8 @@ import {
 
 const MAX_CLIENTS = 64;
 const MAX_INFLIGHT_REQUESTS = 32;
-const MAX_RUNS = 32;
+const MAX_ACTIVE_RUNS = 32;
+const MAX_RUN_RECORDS = 4_096;
 const MAX_EVENTS_PER_RUN = 1_000;
 const MAX_EVENT_HISTORY_BYTES = 4 * 1024 * 1024;
 const MAX_EVENT_BYTES = 1024 * 1024;
@@ -52,6 +62,7 @@ export type MekaServerOptions = {
   engine?: MekaEngine;
   cwd?: string;
   runtimeRoot?: string;
+  stateRoot?: string;
   instanceId?: string;
 };
 
@@ -62,6 +73,8 @@ type StoredEvent = {
 
 type RunRecord = {
   id: string;
+  jobId: string;
+  queue: string;
   provider: MekaProvider;
   state: MekaRunSummary["state"];
   providerSessionId: string | null;
@@ -70,6 +83,9 @@ type RunRecord = {
   outcome?: MekaRunOutcome;
   run?: MekaRun;
   startup?: Promise<MekaRun>;
+  completion?: Promise<void>;
+  leaseToken?: string;
+  stopLeaseHeartbeat?: () => void;
   nextSequence: number;
   events: StoredEvent[];
   eventBytes: number;
@@ -97,10 +113,11 @@ type Client = {
  * the cwd, is the filesystem boundary; every provider run uses full permissions.
  */
 export class MekaServer {
-  readonly cwd: string;
+  cwd: string;
   readonly startedAt = new Date().toISOString();
   #engine: MekaEngine;
   #runtimeRoot: string | undefined;
+  #stateRoot: string | undefined;
   #requestedInstanceId: string | undefined;
   #runtime: MekaRuntimeLocation | undefined;
   #server: Server | undefined;
@@ -110,6 +127,14 @@ export class MekaServer {
   #starting: Promise<MekaReadyInfo> | undefined;
   #closing: Promise<void> | undefined;
   #isClosing = false;
+  #automation: AutomationRuntime | undefined;
+  #drainTimer: NodeJS.Timeout | undefined;
+  #draining: Promise<void> | undefined;
+  #drainRequested = false;
+  #activeJobTasks = new Set<Promise<void>>();
+  #internalJobControllers = new Map<Promise<void>, AbortController>();
+  #lastAutomationError: string | undefined;
+  #daemonLock: WorkspaceDaemonLock | undefined;
   #pluginQueues: Record<MekaProvider, Promise<unknown>> = {
     codex: Promise.resolve(),
     claude: Promise.resolve(),
@@ -119,6 +144,7 @@ export class MekaServer {
     this.cwd = path.resolve(options.cwd ?? process.cwd());
     this.#engine = options.engine ?? new Meka();
     this.#runtimeRoot = options.runtimeRoot;
+    this.#stateRoot = options.stateRoot;
     this.#requestedInstanceId = options.instanceId;
   }
 
@@ -161,45 +187,74 @@ export class MekaServer {
       throw new Error(`Meka working directory is not a directory: ${this.cwd}`);
     }
     this.#assertStarting();
-    const runtime = await createRuntimeLocation({
-      ...(this.#runtimeRoot ? { runtimeRoot: this.#runtimeRoot } : {}),
-      ...(this.#requestedInstanceId ? { instanceId: this.#requestedInstanceId } : {}),
+    const automation = await AutomationRuntime.open({
+      cwd: this.cwd,
+      ...(this.#stateRoot ? { stateRoot: this.#stateRoot } : {}),
     });
-    if (this.#isClosing) {
-      await removeRuntimeLocation(runtime);
-      throw new Error("Meka server is closing");
-    }
-    const server = net.createServer((socket) => this.#accept(socket));
-    this.#runtime = runtime;
-    this.#server = server;
+    this.cwd = automation.cwd;
+    this.#automation = automation;
+    let daemonLock: WorkspaceDaemonLock | undefined;
     try {
-      await listen(server, runtime.socketPath);
+      daemonLock = await acquireWorkspaceDaemonLock(automation.store.location.root, this.cwd);
+      this.#daemonLock = daemonLock;
+      await automation.activateHookIngressConsumer();
+      await Effect.runPromise(automation.store.recoverExpiredLeases());
+      await Effect.runPromise(automation.store.recoverExpiredExternalAgentSessions());
+      await automation.drainHookSpool();
       this.#assertStarting();
-      await chmod(runtime.socketPath, 0o600);
-      this.#assertStarting();
-      const ready: MekaReadyInfo = {
-        socketPath: runtime.socketPath,
-        instanceId: runtime.instanceId,
-        pid: process.pid,
-        protocolVersion: MEKA_PROTOCOL_VERSION,
-      };
-      await writeRuntimeMetadata(runtime, {
-        ...ready,
-        cwd: this.cwd,
-        startedAt: this.startedAt,
+      const runtime = await createRuntimeLocation({
+        ...(this.#runtimeRoot ? { runtimeRoot: this.#runtimeRoot } : {}),
+        ...(this.#requestedInstanceId ? { instanceId: this.#requestedInstanceId } : {}),
       });
-      this.#assertStarting();
-      this.#ready = ready;
-      return ready;
+      if (this.#isClosing) {
+        await removeRuntimeLocation(runtime);
+        throw new Error("Meka server is closing");
+      }
+      const server = net.createServer((socket) => this.#accept(socket));
+      this.#runtime = runtime;
+      this.#server = server;
+      try {
+        await listen(server, runtime.socketPath);
+        this.#assertStarting();
+        await chmod(runtime.socketPath, 0o600);
+        this.#assertStarting();
+        const ready: MekaReadyInfo = {
+          socketPath: runtime.socketPath,
+          instanceId: runtime.instanceId,
+          pid: process.pid,
+          protocolVersion: MEKA_PROTOCOL_VERSION,
+        };
+        await writeRuntimeMetadata(runtime, {
+          ...ready,
+          cwd: this.cwd,
+          startedAt: this.startedAt,
+        });
+        this.#assertStarting();
+        this.#ready = ready;
+        this.#drainTimer = setInterval(() => this.#kickDrain(), 500);
+        this.#drainTimer.unref();
+        this.#kickDrain();
+        return ready;
+      } catch (error) {
+        await closeServer(server);
+        if (this.#server === server) {
+          this.#server = undefined;
+        }
+        if (this.#runtime === runtime) {
+          this.#runtime = undefined;
+        }
+        await removeRuntimeLocation(runtime);
+        throw error;
+      }
     } catch (error) {
-      await closeServer(server);
-      if (this.#server === server) {
-        this.#server = undefined;
+      if (daemonLock && this.#daemonLock === daemonLock) {
+        this.#daemonLock = undefined;
+        await daemonLock.release();
       }
-      if (this.#runtime === runtime) {
-        this.#runtime = undefined;
+      if (this.#automation === automation) {
+        this.#automation = undefined;
+        await automation.close();
       }
-      await removeRuntimeLocation(runtime);
       throw error;
     }
   }
@@ -214,6 +269,10 @@ export class MekaServer {
   }
 
   async #close(): Promise<void> {
+    if (this.#drainTimer) {
+      clearInterval(this.#drainTimer);
+      this.#drainTimer = undefined;
+    }
     const starting = this.#starting;
     const server = this.#server;
     this.#server = undefined;
@@ -224,6 +283,9 @@ export class MekaServer {
     if (server) {
       await closeServer(server);
     }
+    for (const controller of this.#internalJobControllers.values()) {
+      controller.abort(new Error("Meka server is closing"));
+    }
     await Promise.allSettled([
       this.#engine.close(),
       ...[...this.#runs.values()].map(async (entry) => await entry.run?.close()),
@@ -233,12 +295,42 @@ export class MekaServer {
       ...[...this.#runs.values()].flatMap((entry) => (entry.startup ? [entry.startup] : [])),
       this.#pluginQueues.codex,
       this.#pluginQueues.claude,
+      ...(this.#draining ? [this.#draining] : []),
+      ...this.#activeJobTasks,
+      ...[...this.#runs.values()].flatMap((entry) => (entry.completion ? [entry.completion] : [])),
     ]);
+    for (const entry of this.#runs.values()) {
+      entry.stopLeaseHeartbeat?.();
+    }
     this.#runs.clear();
+    const cleanupErrors: unknown[] = [];
+    const automation = this.#automation;
+    this.#automation = undefined;
+    if (automation) {
+      try {
+        await automation.close();
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    const daemonLock = this.#daemonLock;
+    this.#daemonLock = undefined;
+    try {
+      await daemonLock?.release();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     const runtime = this.#runtime;
     this.#runtime = undefined;
     if (runtime) {
-      await removeRuntimeLocation(runtime);
+      try {
+        await removeRuntimeLocation(runtime);
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(cleanupErrors, "Meka server cleanup did not complete cleanly");
     }
   }
 
@@ -361,7 +453,7 @@ export class MekaServer {
 
     switch (request.method) {
       case "meka.status":
-        return this.#status();
+        return await this.#status();
       case "run.start":
         return await this.#startRun(record(request.params ?? {}, "params"));
       case "run.subscribe":
@@ -383,16 +475,41 @@ export class MekaServer {
     const ready = this.#requireReady();
     return {
       ...ready,
-      capabilities: ["status", "runs", "event-replay", "interrupt", "plugin-install"],
+      capabilities: [
+        "status",
+        "durable-queues",
+        "runs",
+        "event-replay",
+        "interrupt",
+        "plugin-install",
+        "effect-workflows",
+        "source-ingress",
+        "external-agent-observation",
+      ],
     };
   }
 
-  #status(): MekaStatusResult {
+  async #status(): Promise<MekaStatusResult> {
+    const automation = this.#requireAutomation();
+    const [info, queues, jobCounts, activeExternalSessions] = await Promise.all([
+      Effect.runPromise(automation.store.info()),
+      Effect.runPromise(automation.store.listQueueUsage()),
+      Effect.runPromise(automation.store.countJobsByStatus()),
+      Effect.runPromise(automation.store.countExternalAgentSessions({ states: ["active"] })),
+    ]);
     return {
       ...this.#initializeResult(),
       startedAt: this.startedAt,
       cwd: this.cwd,
       runs: [...this.#runs.values()].map((entry) => summary(entry)),
+      automation: {
+        stateRoot: info.location.root,
+        schemaVersion: info.schemaVersion,
+        queues,
+        jobs: jobCounts,
+        activeExternalSessions,
+        ...(this.#lastAutomationError ? { lastError: this.#lastAutomationError } : {}),
+      },
     };
   }
 
@@ -400,16 +517,36 @@ export class MekaServer {
     if (this.#isClosing) {
       throw new MekaRpcError("Meka server is closing", -32000);
     }
-    if (this.#runs.size >= MAX_RUNS) {
-      throw new MekaRpcError(`Run limit reached (${MAX_RUNS}); close a retained run`, -32010);
+    if (!this.#makeRunRoom()) {
+      throw new MekaRpcError(
+        `Run record limit reached (${MAX_RUN_RECORDS}); close retained runs`,
+        -32010,
+      );
     }
     const selectedProvider = provider(params.provider);
     const prompt = requiredString(params.prompt, "prompt");
     const model = optionalString(params.model, "model");
+    const queue = optionalString(params.queue, "queue") ?? "default";
+    const automation = this.#requireAutomation();
+    const id = randomUUID();
+    const job = await automation.enqueueRun(
+      {
+        queue,
+        intent: {
+          _tag: "meka.run",
+          provider: selectedProvider,
+          prompt,
+          ...(model ? { model } : {}),
+        },
+      },
+      id,
+    );
     const entry: RunRecord = {
-      id: randomUUID(),
+      id,
+      jobId: job.id,
+      queue,
       provider: selectedProvider,
-      state: "starting",
+      state: "queued",
       providerSessionId: null,
       providerRunId: null,
       startedAt: new Date().toISOString(),
@@ -418,41 +555,8 @@ export class MekaServer {
       eventBytes: 0,
     };
     this.#runs.set(entry.id, entry);
-    try {
-      const startup = this.#engine.startRun({
-        provider: selectedProvider,
-        prompt,
-        cwd: this.cwd,
-        ...(model ? { model } : {}),
-        onEvent: (event) => this.#publishRunEvent(entry, event),
-      });
-      entry.startup = startup;
-      const run = await startup;
-      entry.startup = undefined;
-      if (this.#isClosing || this.#runs.get(entry.id) !== entry) {
-        await run.close();
-        throw new MekaRpcError("Run was closed while starting", -32012);
-      }
-      entry.run = run;
-      entry.state = run.state;
-      entry.providerSessionId = run.providerSessionId;
-      entry.providerRunId = run.providerRunId;
-      void run.done.then(
-        (outcome) => this.#finishRun(entry, outcome),
-        (error: unknown) =>
-          this.#finishRun(entry, {
-            state: "failed",
-            error: errorMessage(error),
-          }),
-      );
-      return summary(entry);
-    } catch (error) {
-      entry.startup = undefined;
-      if (this.#runs.get(entry.id) === entry) {
-        this.#runs.delete(entry.id);
-      }
-      throw error;
-    }
+    this.#kickDrain();
+    return summary(entry);
   }
 
   #subscribe(
@@ -501,6 +605,16 @@ export class MekaServer {
 
   async #interrupt(params: Record<string, unknown>) {
     const entry = this.#requireRun(requiredString(params.runId, "runId"));
+    if (entry.state === "queued") {
+      await Effect.runPromise(
+        this.#requireAutomation().store.cancelJob({
+          jobId: entry.jobId,
+          reason: "Interrupted before provider dispatch",
+        }),
+      );
+      await this.#finishRun(entry, { state: "interrupted" }, false);
+      return { interrupted: true, run: summary(entry) };
+    }
     if (!entry.run || entry.state !== "running") {
       throw new MekaRpcError(`Run is not active: ${entry.id}`, -32011);
     }
@@ -510,12 +624,21 @@ export class MekaServer {
 
   async #closeRun(params: Record<string, unknown>) {
     const entry = this.#requireRun(requiredString(params.runId, "runId"));
+    if (entry.state === "queued") {
+      await Effect.runPromise(
+        this.#requireAutomation().store.cancelJob({
+          jobId: entry.jobId,
+          reason: "Closed before provider dispatch",
+        }),
+      );
+      await this.#finishRun(entry, { state: "closed" }, false);
+    }
     if (entry.state === "starting") {
       throw new MekaRpcError(`Run is still starting: ${entry.id}`, -32012);
     }
     await entry.run?.close();
     if (!entry.outcome) {
-      this.#finishRun(entry, { state: "closed" });
+      await this.#finishRun(entry, { state: "closed" });
     }
     this.#runs.delete(entry.id);
     for (const client of this.#clients) {
@@ -560,6 +683,323 @@ export class MekaServer {
     return await task;
   }
 
+  #kickDrain(): void {
+    if (this.#isClosing) return;
+    if (this.#draining) {
+      this.#drainRequested = true;
+      return;
+    }
+    this.#drainRequested = false;
+    const task = this.#drainAutomation()
+      .catch((error: unknown) => {
+        this.#lastAutomationError = errorMessage(error);
+      })
+      .finally(() => {
+        if (this.#draining === task) this.#draining = undefined;
+        if (this.#drainRequested && !this.#isClosing) this.#kickDrain();
+      });
+    this.#draining = task;
+  }
+
+  async #drainAutomation(): Promise<void> {
+    const automation = this.#requireAutomation();
+    await automation.drainHookSpool();
+    // Recovery must run even when no queue currently has a pending row. A
+    // crashed external worker can otherwise leave the last job in a queue
+    // looking active until another job happens to arrive or the daemon restarts.
+    await Effect.runPromise(automation.store.recoverExpiredLeases());
+    await Effect.runPromise(automation.store.recoverExpiredExternalAgentSessions());
+    const pendingQueues = await Effect.runPromise(automation.store.listPendingQueueNames());
+    for (const queueName of pendingQueues) {
+      while (!this.#isClosing) {
+        const job = await automation.claim(queueName, {
+          allowManagedRuns: this.#activeRunCount() < MAX_ACTIVE_RUNS,
+        });
+        if (!job) break;
+        if (isManagedRunJob(job)) {
+          this.#startManagedRunJob(job);
+        } else {
+          this.#startInternalJob(job);
+        }
+      }
+    }
+  }
+
+  #startManagedRunJob(job: ClaimedAutomationJob): void {
+    const task = this.#startClaimedRun(job)
+      .catch(async (error: unknown) => {
+        this.#lastAutomationError = errorMessage(error);
+        try {
+          await Effect.runPromise(
+            this.#requireAutomation().store.failJob({
+              jobId: job.claim.job.id,
+              leaseToken: job.claim.leaseToken,
+              error: { message: errorMessage(error) },
+            }),
+          );
+        } catch {
+          // The start path may already have settled the durable attempt.
+        }
+      })
+      .finally(() => {
+        this.#activeJobTasks.delete(task);
+        this.#kickDrain();
+      });
+    this.#activeJobTasks.add(task);
+  }
+
+  #startInternalJob(job: ClaimedAutomationJob): void {
+    const stopHeartbeat = this.#startLeaseHeartbeat(job);
+    const controller = new AbortController();
+    const task = this.#requireAutomation()
+      .executeInternalJob(job, { signal: controller.signal })
+      .then(
+        () => undefined,
+        async (error: unknown) => {
+          try {
+            const store = this.#requireAutomation().store;
+            if (controller.signal.aborted) {
+              const detail = await Effect.runPromise(store.getJobDetail(job.claim.job.id));
+              if (detail && detail.externalDispatchStartedAt !== null) {
+                await Effect.runPromise(
+                  store.markJobUncertain({
+                    jobId: job.claim.job.id,
+                    leaseToken: job.claim.leaseToken,
+                    reason: { message: errorMessage(error), type: "daemon.shutdown" },
+                  }),
+                );
+              }
+            } else {
+              await Effect.runPromise(
+                store.failJob({
+                  jobId: job.claim.job.id,
+                  leaseToken: job.claim.leaseToken,
+                  error: { message: errorMessage(error) },
+                }),
+              );
+            }
+          } catch (settleError) {
+            this.#lastAutomationError = errorMessage(settleError);
+          }
+        },
+      )
+      .finally(() => {
+        stopHeartbeat();
+        this.#activeJobTasks.delete(task);
+        this.#internalJobControllers.delete(task);
+        this.#kickDrain();
+      });
+    this.#activeJobTasks.add(task);
+    this.#internalJobControllers.set(task, controller);
+  }
+
+  async #startClaimedRun(job: ClaimedAutomationJob): Promise<void> {
+    const automation = this.#requireAutomation();
+    let payload: ReturnType<typeof managedRunPayload>;
+    try {
+      payload = managedRunPayload(job);
+      if (payload.cwd && path.resolve(payload.cwd) !== this.cwd) {
+        throw new Error(`Managed run cwd must match the daemon workspace: ${this.cwd}`);
+      }
+    } catch (error) {
+      await Effect.runPromise(
+        automation.store.failJob({
+          jobId: job.claim.job.id,
+          leaseToken: job.claim.leaseToken,
+          error: { message: errorMessage(error) },
+        }),
+      );
+      return;
+    }
+
+    let entry = this.#runs.get(payload.runId);
+    if (!entry) {
+      if (!this.#makeRunRoom(true)) {
+        throw new Error(`Run record capacity is unavailable (${MAX_RUN_RECORDS})`);
+      }
+      entry = {
+        id: payload.runId,
+        jobId: job.claim.job.id,
+        queue: job.claim.job.queueName,
+        provider: payload.provider,
+        state: "queued",
+        providerSessionId: null,
+        providerRunId: null,
+        startedAt: job.claim.job.createdAt,
+        nextSequence: 1,
+        events: [],
+        eventBytes: 0,
+      };
+      this.#runs.set(entry.id, entry);
+    } else if (entry.outcome) {
+      entry.stopLeaseHeartbeat?.();
+      entry.state = "queued";
+      entry.providerSessionId = null;
+      entry.providerRunId = null;
+      entry.startedAt = new Date().toISOString();
+      entry.run = undefined;
+      entry.startup = undefined;
+      entry.completion = undefined;
+      entry.leaseToken = undefined;
+      entry.stopLeaseHeartbeat = undefined;
+      delete entry.outcome;
+    }
+    entry.leaseToken = job.claim.leaseToken;
+    entry.stopLeaseHeartbeat = this.#startLeaseHeartbeat(job);
+    entry.state = "starting";
+    this.#publishRunState(entry);
+
+    let dispatched = false;
+    try {
+      await Effect.runPromise(
+        automation.store.markExternalDispatch({
+          jobId: entry.jobId,
+          leaseToken: job.claim.leaseToken,
+          provider: payload.provider,
+        }),
+      );
+      dispatched = true;
+      const startup = this.#engine.startRun({
+        provider: payload.provider,
+        prompt: payload.prompt,
+        cwd: this.cwd,
+        ...(payload.model ? { model: payload.model } : {}),
+        onEvent: (event) => this.#publishRunEvent(entry as RunRecord, event),
+      });
+      entry.startup = startup;
+      const run = await startup;
+      entry.startup = undefined;
+      if (this.#isClosing || this.#runs.get(entry.id) !== entry) {
+        await run.close();
+        throw new Error("Run was closed while starting");
+      }
+      entry.run = run;
+      entry.state = run.state;
+      entry.providerSessionId = run.providerSessionId;
+      entry.providerRunId = run.providerRunId;
+      await Effect.runPromise(
+        automation.store.markProviderAccepted({
+          jobId: entry.jobId,
+          leaseToken: job.claim.leaseToken,
+          provider: payload.provider,
+          providerReference: run.providerRunId ?? run.providerSessionId ?? undefined,
+        }),
+      );
+      this.#publishRunState(entry);
+      const completion = run.done
+        .then(
+          async (outcome) => await this.#finishRun(entry as RunRecord, outcome),
+          async (error: unknown) =>
+            await this.#finishRun(entry as RunRecord, {
+              state: "failed",
+              error: errorMessage(error),
+            }),
+        )
+        .catch((error: unknown) => {
+          this.#lastAutomationError = errorMessage(error);
+        });
+      entry.completion = completion;
+    } catch (error) {
+      entry.startup = undefined;
+      this.#lastAutomationError = errorMessage(error);
+      if (dispatched) {
+        try {
+          await Effect.runPromise(
+            automation.store.markJobUncertain({
+              jobId: entry.jobId,
+              leaseToken: job.claim.leaseToken,
+              reason: { message: errorMessage(error) },
+            }),
+          );
+        } catch (settleError) {
+          this.#lastAutomationError = errorMessage(settleError);
+        }
+        if (entry.run) {
+          const liveRun = entry.run;
+          const completion = liveRun.done
+            .then(
+              async (outcome) => await this.#finishRun(entry, outcome, false),
+              async (runError: unknown) =>
+                await this.#finishRun(
+                  entry,
+                  { state: "failed", error: errorMessage(runError) },
+                  false,
+                ),
+            )
+            .catch((completionError: unknown) => {
+              this.#lastAutomationError = errorMessage(completionError);
+            });
+          entry.completion = completion;
+          try {
+            await liveRun.close();
+          } catch (closeError) {
+            entry.state = liveRun.state;
+            this.#lastAutomationError = `Provider acceptance persistence failed and the live run could not be closed: ${errorMessage(closeError)}`;
+            this.#publishRunState(entry);
+          }
+        } else {
+          await this.#finishRun(
+            entry,
+            { state: "failed", error: `Provider acceptance is uncertain: ${errorMessage(error)}` },
+            false,
+          );
+        }
+      } else {
+        await Effect.runPromise(
+          automation.store.failJob({
+            jobId: entry.jobId,
+            leaseToken: job.claim.leaseToken,
+            error: { message: errorMessage(error) },
+          }),
+        );
+        await this.#finishRun(entry, { state: "failed", error: errorMessage(error) }, false);
+      }
+    }
+  }
+
+  #startLeaseHeartbeat(job: ClaimedAutomationJob): () => void {
+    const claimedAt = Date.parse(job.claim.attempt.leasedAt);
+    const expiresAt = Date.parse(job.claim.leaseExpiresAt);
+    const claimedDuration = expiresAt - claimedAt;
+    const leaseMs =
+      Number.isFinite(claimedDuration) && claimedDuration >= MIN_QUEUE_LEASE_MS
+        ? claimedDuration
+        : MIN_QUEUE_LEASE_MS;
+    const intervalMs = Math.max(500, Math.min(30_000, Math.floor(leaseMs / 2)));
+    let stopped = false;
+    let timer: NodeJS.Timeout | undefined;
+    const schedule = (delayMs: number) => {
+      if (stopped || this.#isClosing) return;
+      timer = setTimeout(() => void renew(), delayMs);
+      timer.unref();
+    };
+    const renew = async () => {
+      const automation = this.#automation;
+      if (!automation || stopped || this.#isClosing) return;
+      try {
+        await Effect.runPromise(
+          automation.store.renewJobLease({
+            jobId: job.claim.job.id,
+            leaseToken: job.claim.leaseToken,
+            // Preserve the duration granted to this attempt. Reconfiguring a
+            // queue cannot shorten an in-flight lease beneath its heartbeat
+            // cadence and cause a false expiration.
+            leaseMs,
+          }),
+        );
+        schedule(intervalMs);
+      } catch (error) {
+        this.#lastAutomationError = errorMessage(error);
+        schedule(Math.min(1_000, intervalMs));
+      }
+    };
+    schedule(intervalMs);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }
+
   #publishRunEvent(run: RunRecord, event: MekaEvent): void {
     if (this.#runs.get(run.id) !== run) {
       return;
@@ -596,7 +1036,7 @@ export class MekaServer {
     }
   }
 
-  #finishRun(run: RunRecord, outcome: MekaRunOutcome): void {
+  async #finishRun(run: RunRecord, outcome: MekaRunOutcome, persist = true): Promise<void> {
     if (this.#runs.get(run.id) !== run || run.outcome) {
       return;
     }
@@ -609,6 +1049,32 @@ export class MekaServer {
       run.providerSessionId = run.run.providerSessionId;
       run.providerRunId = run.run.providerRunId;
     }
+    run.stopLeaseHeartbeat?.();
+    run.stopLeaseHeartbeat = undefined;
+    this.#publishRunState(run);
+    if (persist && run.leaseToken && this.#automation) {
+      const lease = { jobId: run.jobId, leaseToken: run.leaseToken };
+      if (boundedOutcome.state === "completed") {
+        await Effect.runPromise(
+          this.#automation.store.succeedJob({ ...lease, result: boundedOutcome }),
+        );
+      } else if (boundedOutcome.state === "interrupted" || boundedOutcome.state === "closed") {
+        await Effect.runPromise(
+          this.#automation.store.cancelJob({
+            ...lease,
+            reason: { state: boundedOutcome.state, error: boundedOutcome.error },
+          }),
+        );
+      } else {
+        await Effect.runPromise(
+          this.#automation.store.failJob({ ...lease, error: boundedOutcome }),
+        );
+      }
+    }
+    this.#kickDrain();
+  }
+
+  #publishRunState(run: RunRecord): void {
     for (const client of this.#clients) {
       if (client.subscriptions.has(run.id)) {
         this.#send(client, notification("run.state", { run: summary(run) }));
@@ -644,11 +1110,45 @@ export class MekaServer {
     return run;
   }
 
+  #makeRunRoom(evictQueued = false): boolean {
+    if (this.#runs.size < MAX_RUN_RECORDS) return true;
+    const terminal = [...this.#runs.values()]
+      .filter((run) => run.outcome !== undefined)
+      .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+    const candidates = evictQueued
+      ? [
+          ...terminal,
+          ...[...this.#runs.values()]
+            .filter((run) => run.state === "queued" && run.outcome === undefined)
+            .sort((left, right) => left.startedAt.localeCompare(right.startedAt)),
+        ]
+      : terminal;
+    for (const run of candidates) {
+      this.#runs.delete(run.id);
+      for (const client of this.#clients) client.subscriptions.delete(run.id);
+      if (this.#runs.size < MAX_RUN_RECORDS) return true;
+    }
+    return false;
+  }
+
+  #activeRunCount(): number {
+    return [...this.#runs.values()].filter(
+      (run) => run.outcome === undefined && run.state !== "queued",
+    ).length;
+  }
+
   #requireReady(): MekaReadyInfo {
     if (!this.#ready) {
       throw new MekaRpcError("Meka server is not ready", -32000);
     }
     return this.#ready;
+  }
+
+  #requireAutomation(): AutomationRuntime {
+    if (!this.#automation) {
+      throw new MekaRpcError("Meka automation state is not ready", -32000);
+    }
+    return this.#automation;
   }
 }
 
@@ -657,6 +1157,8 @@ const RESPONSE_ALREADY_SENT = Symbol("response already sent");
 function summary(run: RunRecord): MekaRunSummary {
   return {
     id: run.id,
+    jobId: run.jobId,
+    queue: run.queue,
     provider: run.provider,
     state: run.state,
     providerSessionId: run.providerSessionId,

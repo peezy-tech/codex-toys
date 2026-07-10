@@ -1,0 +1,20 @@
+{
+  "name": "meka-local",
+  "interface": {
+    "displayName": "Meka Local"
+  },
+  "plugins": [
+    {
+      "name": "meka",
+      "source": {
+        "source": "local",
+        "path": "./plugins/meka"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

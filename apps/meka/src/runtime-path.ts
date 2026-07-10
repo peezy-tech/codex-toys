@@ -1,4 +1,14 @@
-import { chmod, lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -11,6 +21,15 @@ export type MekaRuntimeLocation = {
   instanceDir: string;
   socketPath: string;
   metadataPath: string;
+};
+
+export type MekaRuntimeMetadata = {
+  instanceId: string;
+  socketPath: string;
+  pid: number;
+  protocolVersion: number;
+  cwd: string;
+  startedAt: string;
 };
 
 export async function createRuntimeLocation(
@@ -58,7 +77,51 @@ export async function removeRuntimeLocation(location: MekaRuntimeLocation): Prom
   await rm(location.instanceDir, { recursive: true, force: true });
 }
 
-function defaultRuntimeRoot(): string {
+/**
+ * Finds the live Meka instance whose fixed workspace most specifically contains
+ * `cwd`. Discovery reads only private, same-user runtime records created by
+ * Meka itself; callers can still provide an explicit socket to avoid discovery.
+ */
+export async function discoverRuntimeMetadata(
+  options: { runtimeRoot?: string; cwd?: string } = {},
+): Promise<MekaRuntimeMetadata> {
+  const runtimeRoot = path.resolve(options.runtimeRoot ?? defaultRuntimeRoot());
+  const requestedCwd = path.resolve(options.cwd ?? process.cwd());
+  const cwd = await realpath(requestedCwd).catch(() => requestedCwd);
+  let entries;
+  try {
+    await assertPrivateDirectory(runtimeRoot, "Meka runtime root");
+    entries = await readdir(runtimeRoot, { withFileTypes: true });
+  } catch (error) {
+    if (isMissing(error)) {
+      throw new Error(`No live Meka instance contains ${cwd}`);
+    }
+    throw error;
+  }
+
+  const matches: MekaRuntimeMetadata[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith("i-")) {
+      continue;
+    }
+    const instanceDir = path.join(runtimeRoot, entry.name);
+    const metadata = await readOwnedRuntimeMetadata(instanceDir);
+    if (metadata && containsPath(metadata.cwd, cwd)) {
+      matches.push(metadata);
+    }
+  }
+  matches.sort(
+    (left, right) =>
+      right.cwd.length - left.cwd.length || right.startedAt.localeCompare(left.startedAt),
+  );
+  const selected = matches[0];
+  if (!selected) {
+    throw new Error(`No live Meka instance contains ${cwd}`);
+  }
+  return selected;
+}
+
+export function defaultRuntimeRoot(): string {
   const xdg = process.env.XDG_RUNTIME_DIR;
   return xdg && path.isAbsolute(xdg) ? path.join(xdg, "meka") : fallbackRuntimeRoot();
 }
@@ -89,4 +152,100 @@ async function ensurePrivateRoot(runtimeRoot: string): Promise<void> {
     throw new Error(`Meka runtime root is not owned by the current user: ${runtimeRoot}`);
   }
   await chmod(runtimeRoot, 0o700);
+}
+
+async function readOwnedRuntimeMetadata(
+  instanceDir: string,
+): Promise<MekaRuntimeMetadata | undefined> {
+  try {
+    await assertPrivateDirectory(instanceDir, "Meka instance directory");
+    const metadataPath = path.join(instanceDir, "instance.json");
+    const metadataFile = await lstat(metadataPath);
+    if (
+      !metadataFile.isFile() ||
+      metadataFile.isSymbolicLink() ||
+      metadataFile.size > 64 * 1024 ||
+      !ownedByCurrentUser(metadataFile.uid) ||
+      (metadataFile.mode & 0o077) !== 0
+    ) {
+      return undefined;
+    }
+    const value = JSON.parse(await readFile(metadataPath, "utf8")) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    const record = value as Record<string, unknown>;
+    if (
+      typeof record.instanceId !== "string" ||
+      typeof record.socketPath !== "string" ||
+      !path.isAbsolute(record.socketPath) ||
+      path.dirname(record.socketPath) !== instanceDir ||
+      typeof record.pid !== "number" ||
+      !Number.isSafeInteger(record.pid) ||
+      record.pid <= 0 ||
+      typeof record.protocolVersion !== "number" ||
+      typeof record.cwd !== "string" ||
+      !path.isAbsolute(record.cwd) ||
+      typeof record.startedAt !== "string"
+    ) {
+      return undefined;
+    }
+    if (!processAlive(record.pid)) {
+      return undefined;
+    }
+    const socket = await lstat(record.socketPath);
+    if (
+      !socket.isSocket() ||
+      socket.isSymbolicLink() ||
+      !ownedByCurrentUser(socket.uid) ||
+      (socket.mode & 0o077) !== 0
+    ) {
+      return undefined;
+    }
+    return {
+      instanceId: record.instanceId,
+      socketPath: record.socketPath,
+      pid: record.pid,
+      protocolVersion: record.protocolVersion,
+      cwd: path.resolve(record.cwd),
+      startedAt: record.startedAt,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function assertPrivateDirectory(directory: string, label: string): Promise<void> {
+  const metadata = await lstat(directory);
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+    throw new Error(`${label} must be a real directory: ${directory}`);
+  }
+  if (!ownedByCurrentUser(metadata.uid)) {
+    throw new Error(`${label} is not owned by the current user: ${directory}`);
+  }
+  if ((metadata.mode & 0o077) !== 0) {
+    throw new Error(`${label} is not private: ${directory}`);
+  }
+}
+
+function ownedByCurrentUser(uid: number): boolean {
+  return typeof process.getuid !== "function" || uid === process.getuid();
+}
+
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return Boolean(error && typeof error === "object" && "code" in error && error.code === "EPERM");
+  }
+}
+
+function containsPath(root: string, candidate: string): boolean {
+  const relative = path.relative(path.resolve(root), candidate);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
+}
+
+function isMissing(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
 }

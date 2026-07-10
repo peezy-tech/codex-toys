@@ -1,0 +1,13 @@
+{
+  "name": "meka",
+  "displayName": "Meka",
+  "version": "0.1.0",
+  "description": "Observe local agent activity and operate Meka workflows from Claude Code.",
+  "author": {
+    "name": "Meka contributors"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["agents", "automation", "effect", "workflows"],
+  "skills": "./skills/",
+  "hooks": "./hooks/claude.json"
+}

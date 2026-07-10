@@ -1,13 +1,59 @@
 import { expect, test } from "vite-plus/test";
-import { lstat, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import {
   MAX_UNIX_SOCKET_PATH_BYTES,
   createRuntimeLocation,
+  discoverRuntimeMetadata,
   removeRuntimeLocation,
   writeRuntimeMetadata,
 } from "../src/runtime-path.ts";
+
+test("discovers the live private instance containing the current workspace", async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-discovery-test-"));
+  const runtimeRoot = path.join(temporaryDirectory, "runtime");
+  const workspace = path.join(temporaryDirectory, "workspace");
+  const workspaceAlias = path.join(temporaryDirectory, "workspace-alias");
+  const nested = path.join(workspace, "packages", "demo");
+  await mkdir(nested, { recursive: true });
+  await symlink(workspace, workspaceAlias);
+  const location = await createRuntimeLocation({ runtimeRoot });
+  const server = net.createServer();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(location.socketPath, resolve);
+    });
+    await chmod(location.socketPath, 0o600);
+    await writeRuntimeMetadata(location, {
+      instanceId: location.instanceId,
+      socketPath: location.socketPath,
+      pid: process.pid,
+      protocolVersion: 1,
+      cwd: workspace,
+      startedAt: "2026-07-10T00:00:00.000Z",
+    });
+
+    await expect(discoverRuntimeMetadata({ runtimeRoot, cwd: nested })).resolves.toEqual({
+      instanceId: location.instanceId,
+      socketPath: location.socketPath,
+      pid: process.pid,
+      protocolVersion: 1,
+      cwd: workspace,
+      startedAt: "2026-07-10T00:00:00.000Z",
+    });
+    await expect(
+      discoverRuntimeMetadata({ runtimeRoot, cwd: path.join(workspaceAlias, "packages", "demo") }),
+    ).resolves.toMatchObject({ cwd: workspace });
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await removeRuntimeLocation(location);
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
 
 test("creates a unique private instance and exclusive private metadata", async () => {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-runtime-test-"));

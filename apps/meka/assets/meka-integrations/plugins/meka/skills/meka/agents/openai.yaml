@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meka Operator"
+  short_description: "Operate the local Meka agent runtime"
+  default_prompt: "Use $meka to inspect the local Meka runtime and operate queued agent work."

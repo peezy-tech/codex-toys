@@ -1,0 +1,15 @@
+{
+  "action": "opened",
+  "number": 42,
+  "repository": {
+    "full_name": "acme/widgets"
+  },
+  "pull_request": {
+    "user": {
+      "login": "octocat"
+    },
+    "head": {
+      "sha": "0123456789abcdef0123456789abcdef01234567"
+    }
+  }
+}
