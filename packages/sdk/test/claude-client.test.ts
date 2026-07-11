@@ -30,6 +30,28 @@ test("uses the local Claude command and preserved settings by default", async ()
   session.close();
 });
 
+test("preserves per-session working directories without a client default", () => {
+  const captured: Options[] = [];
+  const client = new ClaudeCodeClient({
+    createQuery: ({ options }) => {
+      captured.push(options);
+      return new FakeQuery();
+    },
+  });
+
+  const first = client.startSession({ cwd: "/workspace/first" });
+  const second = client.startSession({ cwd: "/workspace/second" });
+
+  expect(client.cwd).toBeUndefined();
+  expect(captured.map((options) => options.cwd)).toEqual([
+    "/workspace/first",
+    "/workspace/second",
+  ]);
+
+  first.close();
+  second.close();
+});
+
 test("streams input, deltas, and browser-resolved approvals", async () => {
   let captured: { prompt: AsyncIterable<SDKUserMessage>; options: Options } | undefined;
   const events: ClaudeCodeEvent[] = [];

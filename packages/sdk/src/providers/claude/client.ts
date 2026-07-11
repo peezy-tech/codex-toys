@@ -142,12 +142,13 @@ export class ClaudeCodeClient extends ClaudeCodeEventEmitter {
 
   startSession(options: ClaudeCodeSessionStartOptions = {}): ClaudeCodeSession {
     const sessionId = options.resume && !options.forkSession ? options.resume : randomUUID();
+    const cwd = options.cwd ?? this.cwd;
     const session = new ClaudeCodeSession({
       ...options,
       sessionId,
       command: this.command,
       settingSources: this.settingSources,
-      ...(this.cwd ? { cwd: options.cwd ?? this.cwd } : {}),
+      ...(cwd === undefined ? {} : { cwd }),
       ...(this.environment ? { environment: this.environment } : {}),
       createQuery: this.#createQuery,
     });
