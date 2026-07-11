@@ -1165,6 +1165,28 @@ export class AutomationStore {
     });
   }
 
+  /** Returns every enabled workflow that exactly matches an event type for routing. */
+  listEnabledWorkflowRegistrationsForTrigger(
+    triggerType: string,
+  ): Effect.Effect<WorkflowRegistration[], ReturnType<typeof asAutomationError>> {
+    return this.#effect("list routable workflow registrations", () => {
+      const normalizedTriggerType = assertName(triggerType, "trigger type");
+      // Event fan-out must not inherit the bounded operator-list default. JSON
+      // membership is still verified in application code for portability across
+      // the Node SQLite builds Meka supports.
+      const rows = this.#database
+        .prepare(
+          `SELECT * FROM automation_workflows
+           WHERE enabled = 1 AND trigger_types_json LIKE ?
+           ORDER BY id ASC`,
+        )
+        .all(`%${JSON.stringify(normalizedTriggerType).slice(1, -1)}%`) as DbWorkflowRow[];
+      return rows
+        .map(toWorkflowRegistration)
+        .filter((workflow) => workflow.triggerTypes.includes(normalizedTriggerType));
+    });
+  }
+
   updateWorkflowRegistration(
     input: UpdateWorkflowRegistrationInput,
   ): Effect.Effect<WorkflowRegistration, ReturnType<typeof asAutomationError>> {

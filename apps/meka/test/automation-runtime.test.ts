@@ -119,6 +119,58 @@ test("routes an event through a TypeScript workflow into a managed run queue", a
   }
 });
 
+test("routes an event to every matching workflow beyond the operator list cap", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-routing-page-test-"));
+  const workflowPath = path.join(temporary, "workflow.ts");
+  await writeFile(
+    workflowPath,
+    `
+      import { Effect, MekaWorkflow, Schema, WorkflowDecision } from "@meka/workflow";
+      export default MekaWorkflow.make({
+        id: "routing-template",
+        on: "test.fanout",
+        input: Schema.Unknown,
+        handler: () => Effect.succeed(WorkflowDecision.completed()),
+      });
+    `,
+    "utf8",
+  );
+  const runtime = await AutomationRuntime.open({
+    cwd: temporary,
+    stateRoot: path.join(temporary, "state"),
+  });
+  try {
+    await configureQueue(runtime, "fanout");
+    for (let index = 0; index < 105; index += 1) {
+      await Effect.runPromise(
+        runtime.store.createWorkflowRegistration({
+          id: `fanout-${index.toString().padStart(3, "0")}`,
+          modulePath: workflowPath,
+          revisionHash: "sha256:fanout",
+          triggerTypes: ["test.fanout"],
+          queueName: "fanout",
+        }),
+      );
+    }
+
+    const ingress = await runtime.ingestEvent({
+      type: "test.fanout",
+      source: "test",
+      deliveryId: "fanout-1",
+      payload: {},
+    });
+
+    expect(ingress.jobIds).toHaveLength(105);
+    expect(new Set(ingress.jobIds)).toHaveLength(105);
+    await expect(
+      Effect.runPromise(runtime.store.listJobs({ queueName: "fanout", limit: 200 })),
+    ).resolves.toHaveLength(105);
+  } finally {
+    await runtime.close();
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
 test("makes an aborted trusted workflow uncertain after its lease expires", async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-workflow-dispatch-test-"));
   const workflowPath = path.join(temporary, "blocking.ts");

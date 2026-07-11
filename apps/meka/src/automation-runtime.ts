@@ -181,7 +181,7 @@ export class AutomationRuntime {
           (workflow): workflow is WorkflowRegistration => Boolean(workflow),
         )
       : await Effect.runPromise(
-          this.store.listWorkflowRegistrations({ enabled: true, triggerType: event.type }),
+          this.store.listEnabledWorkflowRegistrationsForTrigger(event.type),
         );
     const jobIds: string[] = [];
     for (const workflow of workflows) {
