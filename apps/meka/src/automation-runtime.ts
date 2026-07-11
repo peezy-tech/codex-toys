@@ -133,7 +133,7 @@ export class AutomationRuntime {
     queueName = DEFAULT_QUEUE,
   ): Promise<WorkflowRegistration> {
     const absolutePath = path.resolve(this.cwd, filePath);
-    const module = await inspectWorkflowModule(absolutePath);
+    const module = await inspectWorkflowModule(absolutePath, { cwd: this.cwd });
     const revisionHash = await hashWorkflowRevision(absolutePath);
     const existing = await Effect.runPromise(this.store.getWorkflowRegistration(module.id));
     if (existing) {

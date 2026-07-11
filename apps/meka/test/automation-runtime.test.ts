@@ -13,6 +13,52 @@ import {
 } from "../src/automation-runtime.ts";
 import { claimHookIngress, resolveHookIngressLocation } from "../src/hook-ingress.ts";
 
+test("registers workflow modules from the configured workspace cwd", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-registration-cwd-test-"));
+  const workspace = path.join(temporary, "workspace");
+  await mkdir(workspace);
+  await writeFile(
+    path.join(workspace, "policy.json"),
+    JSON.stringify({ workflowId: "policy-workflow", trigger: "policy.changed" }),
+    "utf8",
+  );
+  await writeFile(
+    path.join(workspace, "policy-workflow.ts"),
+    `
+      import { readFileSync } from "node:fs";
+      import { Effect, MekaWorkflow, Schema, WorkflowDecision } from "@meka/workflow";
+
+      const policy = JSON.parse(readFileSync("./policy.json", "utf8")) as {
+        workflowId: string;
+        trigger: string;
+      };
+
+      export default MekaWorkflow.make({
+        id: policy.workflowId,
+        on: policy.trigger,
+        input: Schema.Unknown,
+        handler: () => Effect.succeed(WorkflowDecision.completed()),
+      });
+    `,
+    "utf8",
+  );
+  expect(path.resolve(process.cwd())).not.toBe(workspace);
+
+  const runtime = await AutomationRuntime.open({
+    cwd: workspace,
+    stateRoot: path.join(temporary, "state"),
+  });
+  try {
+    await expect(runtime.registerWorkflow("policy-workflow.ts")).resolves.toMatchObject({
+      id: "policy-workflow",
+      triggerTypes: ["policy.changed"],
+    });
+  } finally {
+    await runtime.close();
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
 test("routes an event through a TypeScript workflow into a managed run queue", async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-runtime-test-"));
   const workspace = path.join(temporary, "workspace");

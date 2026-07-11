@@ -21,6 +21,11 @@ export type WorkflowModuleInfo = {
   on: string[];
 };
 
+export type InspectWorkflowModuleOptions = {
+  cwd?: string;
+  timeoutMs?: number;
+};
+
 export type WorkflowIdentity = WorkflowModuleInfo & {
   revision: string;
   hash: string;
@@ -66,13 +71,19 @@ type ChildMessage =
 /** Imports a trusted TypeScript workflow in a one-shot child process. */
 export async function inspectWorkflowModule(
   filePath: string,
-  timeoutMs = 30_000,
+  timeoutOrOptions: number | InspectWorkflowModuleOptions = {},
 ): Promise<WorkflowModuleInfo> {
+  const options =
+    typeof timeoutOrOptions === "number"
+      ? { timeoutMs: timeoutOrOptions }
+      : timeoutOrOptions;
   const resolved = await realpath(filePath);
+  const resolvedCwd = options.cwd === undefined ? undefined : await realpath(options.cwd);
   const outcome = await runChild<WorkflowModuleInfo>({
     initial: { type: "inspect", filePath: resolved },
-    timeoutMs,
+    timeoutMs: options.timeoutMs ?? 30_000,
     terminalType: "inspect.result",
+    ...(resolvedCwd === undefined ? {} : { cwd: resolvedCwd }),
   });
   return outcome.value;
 }
