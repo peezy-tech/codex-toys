@@ -39,6 +39,7 @@ import type {
   DurableJobStatusCounts,
   EnqueueJobResult,
   ExternalAgentSessionLease,
+  IngestAndRouteWorkflowEventResult,
   IngestAgentEventResult,
   IngestWorkflowEventResult,
   JobCompletionInput,
@@ -801,6 +802,31 @@ export class AutomationStore {
     );
   }
 
+  /** Atomically persists an event and every workflow route selected for it. */
+  ingestWorkflowEventAndEnqueueRoutes(
+    input: WorkflowEventInput,
+    targetWorkflowId?: string,
+  ): Effect.Effect<IngestAndRouteWorkflowEventResult, ReturnType<typeof asAutomationError>> {
+    return this.#effect("ingest and route workflow event", () =>
+      this.#transaction(() => {
+        const ingested = this.#ingestWorkflowEvent(input);
+        const event = this.#requireWorkflowEventDetail(ingested.event.id);
+        const jobIds = this.#enqueueWorkflowEventRoutes(event, targetWorkflowId);
+        return { inserted: ingested.inserted, event, jobIds };
+      }),
+    );
+  }
+
+  /** Replays routing for an already-persisted event using deterministic job identities. */
+  enqueueWorkflowEventRoutes(
+    event: WorkflowEventDetail,
+    targetWorkflowId?: string,
+  ): Effect.Effect<string[], ReturnType<typeof asAutomationError>> {
+    return this.#effect("route persisted workflow event", () =>
+      this.#transaction(() => this.#enqueueWorkflowEventRoutes(event, targetWorkflowId)),
+    );
+  }
+
   getWorkflowEvent(
     eventId: string,
   ): Effect.Effect<WorkflowEventDetail | undefined, ReturnType<typeof asAutomationError>> {
@@ -1169,22 +1195,9 @@ export class AutomationStore {
   listEnabledWorkflowRegistrationsForTrigger(
     triggerType: string,
   ): Effect.Effect<WorkflowRegistration[], ReturnType<typeof asAutomationError>> {
-    return this.#effect("list routable workflow registrations", () => {
-      const normalizedTriggerType = assertName(triggerType, "trigger type");
-      // Event fan-out must not inherit the bounded operator-list default. JSON
-      // membership is still verified in application code for portability across
-      // the Node SQLite builds Meka supports.
-      const rows = this.#database
-        .prepare(
-          `SELECT * FROM automation_workflows
-           WHERE enabled = 1 AND trigger_types_json LIKE ?
-           ORDER BY id ASC`,
-        )
-        .all(`%${JSON.stringify(normalizedTriggerType).slice(1, -1)}%`) as DbWorkflowRow[];
-      return rows
-        .map(toWorkflowRegistration)
-        .filter((workflow) => workflow.triggerTypes.includes(normalizedTriggerType));
-    });
+    return this.#effect("list routable workflow registrations", () =>
+      this.#listEnabledWorkflowRegistrationsForTrigger(triggerType),
+    );
   }
 
   updateWorkflowRegistration(
@@ -1464,6 +1477,55 @@ export class AutomationStore {
         now,
       );
     return { created: true, job: toJob(this.#requireJob(id)) };
+  }
+
+  #enqueueWorkflowEventRoutes(event: WorkflowEventDetail, targetWorkflowId?: string): string[] {
+    const workflows = targetWorkflowId
+      ? [this.#workflowById(assertName(targetWorkflowId, "workflow id"))]
+          .filter((row): row is DbWorkflowRow => Boolean(row))
+          .map(toWorkflowRegistration)
+      : this.#listEnabledWorkflowRegistrationsForTrigger(event.type);
+    const jobIds: string[] = [];
+    for (const workflow of workflows) {
+      if (!workflow.enabled) continue;
+      if (!targetWorkflowId && !workflow.triggerTypes.includes(event.type)) continue;
+      const routingIdentity = `workflow:${workflow.id}:${workflow.revisionHash}:${event.id}`;
+      const result = this.#enqueueJob({
+        // The stable id keeps a route globally unique even if an unchanged
+        // workflow registration moves to a different queue before replay.
+        id: `job-workflow-${hash(routingIdentity)}`,
+        queueName: workflow.queueName,
+        idempotencyKey: routingIdentity,
+        payload: {
+          version: 1,
+          kind: "meka.workflow",
+          payload: {
+            workflowId: workflow.id,
+            revisionHash: workflow.revisionHash,
+            eventId: event.id,
+          },
+        },
+      });
+      jobIds.push(result.job.id);
+    }
+    return jobIds;
+  }
+
+  #listEnabledWorkflowRegistrationsForTrigger(triggerType: string): WorkflowRegistration[] {
+    const normalizedTriggerType = assertName(triggerType, "trigger type");
+    // Event fan-out must not inherit the bounded operator-list default. JSON
+    // membership is still verified in application code for portability across
+    // the Node SQLite builds Meka supports.
+    const rows = this.#database
+      .prepare(
+        `SELECT * FROM automation_workflows
+         WHERE enabled = 1 AND trigger_types_json LIKE ?
+         ORDER BY id ASC`,
+      )
+      .all(`%${JSON.stringify(normalizedTriggerType).slice(1, -1)}%`) as DbWorkflowRow[];
+    return rows
+      .map(toWorkflowRegistration)
+      .filter((workflow) => workflow.triggerTypes.includes(normalizedTriggerType));
   }
 
   #claimNextJob(input: ClaimNextJobInput): ClaimNextJobResult {
@@ -1925,6 +1987,16 @@ export class AutomationStore {
     return this.#database.prepare("SELECT * FROM automation_workflows WHERE id = ?").get(id) as
       | DbWorkflowRow
       | undefined;
+  }
+
+  #requireWorkflowEventDetail(id: string): WorkflowEventDetail {
+    const row = this.#database
+      .prepare("SELECT * FROM automation_workflow_events WHERE id = ?")
+      .get(id) as DbWorkflowEventRow | undefined;
+    if (!row) {
+      throw new AutomationConflictError(`Workflow event not found: ${id}`);
+    }
+    return toWorkflowEventDetail(row);
   }
 
   #requireWorkflow(id: string): DbWorkflowRow {

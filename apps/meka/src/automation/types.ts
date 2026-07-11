@@ -303,6 +303,12 @@ export type IngestWorkflowEventResult = {
   event: WorkflowEvent;
 };
 
+export type IngestAndRouteWorkflowEventResult = {
+  inserted: boolean;
+  event: WorkflowEventDetail;
+  jobIds: string[];
+};
+
 export type ListWorkflowEventsOptions = {
   source?: string;
   type?: string;

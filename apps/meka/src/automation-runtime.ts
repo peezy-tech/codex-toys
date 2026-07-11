@@ -163,49 +163,16 @@ export class AutomationRuntime {
     input: WorkflowEventInput,
     targetWorkflowId?: string,
   ): Promise<{ inserted: boolean; event: WorkflowEventDetail; jobIds: string[] }> {
-    const ingested = await Effect.runPromise(this.store.ingestWorkflowEvent(input));
-    const event = await Effect.runPromise(this.store.getWorkflowEvent(ingested.event.id));
-    if (!event) throw new Error(`Ingested event disappeared: ${ingested.event.id}`);
-    // Routing is intentionally replayable. Queue-scoped idempotency keys make
-    // this safe and close the crash window between event commit and job commit.
-    const jobIds = await this.enqueueEventWorkflows(event, targetWorkflowId);
-    return { inserted: ingested.inserted, event, jobIds };
+    return await Effect.runPromise(
+      this.store.ingestWorkflowEventAndEnqueueRoutes(input, targetWorkflowId),
+    );
   }
 
   async enqueueEventWorkflows(
     event: WorkflowEventDetail,
     targetWorkflowId?: string,
   ): Promise<string[]> {
-    const workflows = targetWorkflowId
-      ? [await Effect.runPromise(this.store.getWorkflowRegistration(targetWorkflowId))].filter(
-          (workflow): workflow is WorkflowRegistration => Boolean(workflow),
-        )
-      : await Effect.runPromise(
-          this.store.listEnabledWorkflowRegistrationsForTrigger(event.type),
-        );
-    const jobIds: string[] = [];
-    for (const workflow of workflows) {
-      if (!workflow.enabled) continue;
-      if (!targetWorkflowId && !workflow.triggerTypes.includes(event.type)) continue;
-      const routingIdentity = `workflow:${workflow.id}:${workflow.revisionHash}:${event.id}`;
-      const result = await Effect.runPromise(
-        this.store.enqueueJob({
-          // Workflow routing is globally identified independently of the
-          // current queue. Moving an unchanged registration to another queue
-          // must not execute an already-routed event a second time.
-          id: `job-workflow-${createHash("sha256").update(routingIdentity).digest("hex")}`,
-          queueName: workflow.queueName,
-          idempotencyKey: routingIdentity,
-          payload: envelope(WORKFLOW_JOB_KIND, {
-            workflowId: workflow.id,
-            revisionHash: workflow.revisionHash,
-            eventId: event.id,
-          }),
-        }),
-      );
-      jobIds.push(result.job.id);
-    }
-    return jobIds;
+    return await Effect.runPromise(this.store.enqueueWorkflowEventRoutes(event, targetWorkflowId));
   }
 
   async runWorkflow(

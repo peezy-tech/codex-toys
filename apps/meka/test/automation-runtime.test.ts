@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
@@ -113,6 +114,82 @@ test("routes an event through a TypeScript workflow into a managed run queue", a
       intent: { _tag: "meka.run", provider: "codex", prompt: "Stable" },
     });
     expect(secondIdempotent.id).toBe(firstIdempotent.id);
+  } finally {
+    await runtime.close();
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test("rolls back a new event when deterministic workflow routing fails", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-routing-atomicity-test-"));
+  const workflowPath = path.join(temporary, "atomic.ts");
+  const stateRoot = path.join(temporary, "state");
+  const source = "test:atomic";
+  const deliveryId = "atomic-delivery";
+  await writeFile(
+    workflowPath,
+    `
+      import { Effect, MekaWorkflow, Schema, WorkflowDecision } from "@meka/workflow";
+      export default MekaWorkflow.make({
+        id: "atomic-route-a",
+        on: "test.atomic",
+        input: Schema.Unknown,
+        handler: () => Effect.succeed(WorkflowDecision.completed()),
+      });
+    `,
+    "utf8",
+  );
+
+  let runtime = await AutomationRuntime.open({ cwd: temporary, stateRoot });
+  const eventId = `wfe_${sha256(`${source}\0${deliveryId}`)}`;
+  try {
+    await configureQueue(runtime, "atomic");
+    const firstWorkflow = await runtime.registerWorkflow(workflowPath, "atomic");
+    const failingWorkflow = await Effect.runPromise(
+      runtime.store.createWorkflowRegistration({
+        id: "atomic-route-z",
+        modulePath: workflowPath,
+        revisionHash: firstWorkflow.revisionHash,
+        triggerTypes: ["test.atomic"],
+        queueName: "atomic",
+      }),
+    );
+    const firstRouteJobId = routeJobId(firstWorkflow.id, firstWorkflow.revisionHash, eventId);
+    const failingRouteJobId = routeJobId(failingWorkflow.id, failingWorkflow.revisionHash, eventId);
+    await Effect.runPromise(
+      runtime.store.enqueueJob({
+        id: failingRouteJobId,
+        queueName: "atomic",
+        payload: { kind: "fault-injection" },
+      }),
+    );
+
+    await expect(
+      runtime.ingestEvent({
+        type: "test.atomic",
+        source,
+        deliveryId,
+        payload: {},
+      }),
+    ).rejects.toThrow(`Durable job already exists: ${failingRouteJobId}`);
+
+    await runtime.close();
+    runtime = await AutomationRuntime.open({ cwd: temporary, stateRoot });
+    await expect(
+      Effect.runPromise(runtime.store.getWorkflowEvent(eventId)),
+    ).resolves.toBeUndefined();
+    await expect(
+      Effect.runPromise(runtime.store.listWorkflowEvents({ type: "test.atomic" })),
+    ).resolves.toEqual([]);
+    await expect(
+      Effect.runPromise(runtime.store.getJobDetail(firstRouteJobId)),
+    ).resolves.toBeUndefined();
+    await expect(
+      Effect.runPromise(runtime.store.getJobDetail(failingRouteJobId)),
+    ).resolves.toMatchObject({
+      id: failingRouteJobId,
+      payload: { kind: "fault-injection" },
+    });
   } finally {
     await runtime.close();
     await rm(temporary, { recursive: true, force: true });
@@ -544,6 +621,14 @@ async function configureQueue(runtime: AutomationRuntime, queueName: string): Pr
     maxStartsPerWindow: 60,
     leaseMs: 60_000,
   });
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function routeJobId(workflowId: string, revisionHash: string, eventId: string): string {
+  return `job-workflow-${sha256(`workflow:${workflowId}:${revisionHash}:${eventId}`)}`;
 }
 
 async function waitUntil(predicate: () => boolean | Promise<boolean>): Promise<void> {
