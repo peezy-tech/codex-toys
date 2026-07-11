@@ -58,6 +58,27 @@ test("runs exact argv without a shell and bounds subprocess output", async () =>
   }
 });
 
+test("fingerprints the complete integration asset tree deterministically", async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-assets-test-"));
+  const nested = path.join(temporaryDirectory, "plugins", "meka");
+  const platform = makeNodeIntegrationPlatform();
+  try {
+    await mkdir(nested, { recursive: true });
+    await writeFile(path.join(temporaryDirectory, "marketplace.json"), "marketplace-v1");
+    await writeFile(path.join(nested, "hook.mjs"), "hook-v1", { mode: 0o755 });
+    const first = await Effect.runPromise(platform.fingerprintTree(temporaryDirectory));
+    const repeated = await Effect.runPromise(platform.fingerprintTree(temporaryDirectory));
+    expect(repeated).toBe(first);
+
+    await writeFile(path.join(nested, "hook.mjs"), "hook-v2", { mode: 0o755 });
+    const changed = await Effect.runPromise(platform.fingerprintTree(temporaryDirectory));
+    expect(changed).not.toBe(first);
+    expect(changed).toMatch(/^sha256:[0-9a-f]{64}$/u);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("cleans integration subprocess trees on timeout and normal completion", async () => {
   if (process.platform === "win32") return;
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-platform-tree-test-"));

@@ -71,6 +71,7 @@ export function statusIntegrations(
     const platform = yield* IntegrationPlatform;
     const resolved = yield* resolveOptionsEffect(options);
     const assetRoot = yield* platform.canonicalPath(resolved.assetRoot);
+    const assetFingerprint = yield* platform.fingerprintTree(assetRoot);
     const receipt = yield* readReceipt(platform, resolved.receiptPath);
     const hosts: IntegrationHostStatus[] = [];
     for (const provider of resolved.providers) {
@@ -78,11 +79,25 @@ export function statusIntegrations(
       const expectedSource = owned?.source ?? assetRoot;
       const status = yield* inspectHost(platform, provider, expectedSource, resolved).pipe(
         Effect.map((inspection) =>
-          statusFromInspection(provider, expectedSource, resolved, inspection, owned),
+          statusFromInspection(
+            provider,
+            expectedSource,
+            assetFingerprint,
+            resolved,
+            inspection,
+            owned,
+          ),
         ),
         Effect.catchAll((error) =>
           Effect.succeed(
-            unavailableStatus(provider, expectedSource, resolved, error.message, owned),
+            unavailableStatus(
+              provider,
+              expectedSource,
+              assetFingerprint,
+              resolved,
+              error.message,
+              owned,
+            ),
           ),
         ),
       );
@@ -99,6 +114,7 @@ export function uninstallIntegrations(
     const platform = yield* IntegrationPlatform;
     const resolved = yield* resolveOptionsEffect(options);
     const assetRoot = yield* platform.canonicalPath(resolved.assetRoot);
+    const assetFingerprint = yield* platform.fingerprintTree(assetRoot);
     return yield* withMutationLock(platform, resolved, () =>
       Effect.gen(function* () {
         let receipt = yield* readReceipt(platform, resolved.receiptPath);
@@ -125,13 +141,21 @@ export function uninstallIntegrations(
                     ...statusFromInspection(
                       provider,
                       assetRoot,
+                      assetFingerprint,
                       resolved,
                       observed.inspection,
                       undefined,
                     ),
                     message: observed.message,
                   }
-                : unavailableStatus(provider, assetRoot, resolved, observed.message, undefined),
+                : unavailableStatus(
+                    provider,
+                    assetRoot,
+                    assetFingerprint,
+                    resolved,
+                    observed.message,
+                    undefined,
+                  ),
             );
             continue;
           }
@@ -160,7 +184,14 @@ export function uninstallIntegrations(
           yield* writeReceipt(platform, resolved.receiptPath, receipt);
           const finalInspection = yield* inspectHost(platform, provider, owned.source, resolved);
           hosts.push({
-            ...statusFromInspection(provider, owned.source, resolved, finalInspection, undefined),
+            ...statusFromInspection(
+              provider,
+              owned.source,
+              assetFingerprint,
+              resolved,
+              finalInspection,
+              undefined,
+            ),
             marketplaceOwned: false,
             pluginOwned: false,
           });
@@ -180,6 +211,7 @@ function reconcileIntegrations(
     const platform = yield* IntegrationPlatform;
     const resolved = yield* resolveOptionsEffect(options);
     const assetRoot = yield* platform.canonicalPath(resolved.assetRoot);
+    const assetFingerprint = yield* platform.fingerprintTree(assetRoot);
     return yield* withMutationLock(platform, resolved, () =>
       Effect.gen(function* () {
         let receipt =
@@ -206,8 +238,10 @@ function reconcileIntegrations(
             platform,
             provider,
             assetRoot,
+            assetFingerprint,
             resolved,
             existingOwned,
+            operation === "repair",
           );
           const updatedReceipt = withHost(receipt, provider, reconciled.receipt, platform.now());
           yield* writeReceipt(platform, resolved.receiptPath, updatedReceipt).pipe(
@@ -251,8 +285,10 @@ function reconcileHost(
   platform: IntegrationPlatformService,
   provider: IntegrationProvider,
   expectedSource: string,
+  assetFingerprint: string,
   options: ResolvedOptions,
   existingOwned: IntegrationHostReceipt | undefined,
+  forceRefresh: boolean,
 ): Effect.Effect<
   {
     status: IntegrationHostStatus;
@@ -264,6 +300,7 @@ function reconcileHost(
 > {
   let marketplaceAdded = false;
   let pluginAdded = false;
+  let pluginRefreshed = false;
   const work = Effect.gen(function* () {
     let inspection = yield* inspectHost(platform, provider, expectedSource, options);
     const initialConflict = conflictFailure(provider, expectedSource, inspection);
@@ -292,7 +329,33 @@ function reconcileHost(
         );
       }
     }
-    if (!inspection.pluginInstalled) {
+    if (forceRefresh && existingOwned?.pluginOwned === true && inspection.pluginInstalled) {
+      yield* runChecked(
+        platform,
+        commandFor(provider, "remove-plugin", expectedSource, options),
+        provider,
+      );
+      const removedInspection = yield* inspectHost(platform, provider, expectedSource, options);
+      const removedConflict = conflictFailure(provider, expectedSource, removedInspection);
+      if (removedConflict) {
+        return yield* Effect.fail(removedConflict);
+      }
+      if (removedInspection.pluginInstalled) {
+        return yield* Effect.fail(
+          new IntegrationFailure(
+            "invalid-response",
+            `${provider} still reported ${pluginId(options)} after uninstalling it for refresh`,
+            provider,
+          ),
+        );
+      }
+      yield* runChecked(
+        platform,
+        commandFor(provider, "install-plugin", expectedSource, options),
+        provider,
+      );
+      pluginRefreshed = true;
+    } else if (!inspection.pluginInstalled) {
       yield* runChecked(
         platform,
         commandFor(provider, "install-plugin", expectedSource, options),
@@ -318,10 +381,23 @@ function reconcileHost(
       source: expectedSource,
       marketplaceOwned: existingOwned?.marketplaceOwned === true || marketplaceAdded,
       pluginOwned: existingOwned?.pluginOwned === true || pluginAdded,
+      ...((pluginAdded || pluginRefreshed) && {
+        assetFingerprint,
+      }),
+      ...(!pluginAdded && !pluginRefreshed && existingOwned?.assetFingerprint
+        ? { assetFingerprint: existingOwned.assetFingerprint }
+        : {}),
     };
     return {
       receipt: owned,
-      status: statusFromInspection(provider, expectedSource, options, finalInspection, owned),
+      status: statusFromInspection(
+        provider,
+        expectedSource,
+        assetFingerprint,
+        options,
+        finalInspection,
+        owned,
+      ),
       marketplaceAdded,
       pluginAdded,
     };
@@ -488,16 +564,19 @@ function runChecked(
 function statusFromInspection(
   provider: IntegrationProvider,
   expectedSource: string,
+  assetFingerprint: string,
   options: ResolvedOptions,
   inspection: InspectedHost,
   owned: IntegrationHostReceipt | undefined,
 ): IntegrationHostStatus {
   const conflict = inspection.marketplaceInstalled && !inspection.sourceMatches;
   const complete = inspection.sourceMatches && inspection.pluginInstalled;
-  const drifted = owned !== undefined && !complete && !conflict;
+  const assetsCurrent =
+    owned?.pluginOwned === true ? owned.assetFingerprint === assetFingerprint : undefined;
+  const drifted = owned !== undefined && (!complete || assetsCurrent === false) && !conflict;
   return {
     provider,
-    state: conflict ? "conflict" : complete ? "installed" : drifted ? "drifted" : "not-installed",
+    state: conflict ? "conflict" : drifted ? "drifted" : complete ? "installed" : "not-installed",
     executable: options.executables[provider],
     marketplaceName: options.marketplaceName,
     pluginId: pluginId(options),
@@ -507,11 +586,21 @@ function statusFromInspection(
     pluginInstalled: inspection.pluginInstalled,
     marketplaceOwned: owned?.marketplaceOwned === true,
     pluginOwned: owned?.pluginOwned === true,
+    assetFingerprint,
+    ...(owned?.assetFingerprint
+      ? { installedAssetFingerprint: owned.assetFingerprint }
+      : {}),
+    ...(assetsCurrent === undefined ? {} : { assetsCurrent }),
     ...(conflict
       ? {
           message: `Marketplace ${options.marketplaceName} points to ${inspection.actualSource ?? "an unknown source"}`,
         }
-      : complete && provider === "codex"
+      : assetsCurrent === false
+        ? {
+            message:
+              "Installed plugin assets differ from this Meka package; run meka integration repair to refresh them",
+          }
+        : complete && provider === "codex"
         ? {
             message:
               "If these hooks are new or changed, review and trust them from Codex /hooks before expecting events",
@@ -523,6 +612,7 @@ function statusFromInspection(
 function unavailableStatus(
   provider: IntegrationProvider,
   expectedSource: string,
+  assetFingerprint: string,
   options: ResolvedOptions,
   message: string,
   owned: IntegrationHostReceipt | undefined,
@@ -538,6 +628,13 @@ function unavailableStatus(
     pluginInstalled: false,
     marketplaceOwned: owned?.marketplaceOwned === true,
     pluginOwned: owned?.pluginOwned === true,
+    assetFingerprint,
+    ...(owned?.assetFingerprint
+      ? { installedAssetFingerprint: owned.assetFingerprint }
+      : {}),
+    ...(owned?.pluginOwned === true
+      ? { assetsCurrent: owned.assetFingerprint === assetFingerprint }
+      : {}),
     message,
   };
 }
@@ -803,7 +900,8 @@ function isReceipt(value: unknown): value is IntegrationReceipt {
       (isRecord(host) &&
         typeof host.source === "string" &&
         typeof host.marketplaceOwned === "boolean" &&
-        typeof host.pluginOwned === "boolean")
+        typeof host.pluginOwned === "boolean" &&
+        (host.assetFingerprint === undefined || typeof host.assetFingerprint === "string"))
     );
   });
 }

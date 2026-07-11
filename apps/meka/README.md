@@ -21,7 +21,10 @@ reconcile only the host state recorded as Meka-owned. Setup and repair refuse
 to overwrite an unowned or modified launcher. Uninstalling all providers
 removes it only when its receipt and content still match; provider-specific
 uninstall leaves the shared launcher in place. Codex may require an explicit
-hook trust review. Add `~/.local/bin` to `PATH` when `cliShim.onPath` is false.
+hook trust review. Integration status reports when the packaged plugin assets
+differ from the last installed fingerprint; explicit repair refreshes only
+provider plugins recorded as Meka-owned. Add `~/.local/bin` to `PATH` when
+`cliShim.onPath` is false.
 Without `--provider`, setup installs every available host and reports skipped
 CLIs; use `--provider all` when both hosts are required.
 

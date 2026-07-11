@@ -85,7 +85,10 @@ outside the checkout. Add `~/.local/bin` to `PATH` if the setup report says
 The plugin gives Codex and Claude a Meka operator skill, an Effect workflow
 authoring skill, and local hooks that relay bounded activity events. The
 integration manager records what it owns, refuses to overwrite conflicting
-marketplace or launcher files, and supports explicit repair and uninstall:
+marketplace or launcher files, fingerprints the installed plugin assets, and
+supports explicit repair and uninstall. `status` reports changed same-path
+assets without mutating either host; `repair` refreshes only plugins recorded
+as Meka-owned:
 
 ```bash
 pnpm run meka -- integration repair

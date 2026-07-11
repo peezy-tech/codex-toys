@@ -21,6 +21,9 @@ export type IntegrationHostStatus = {
   pluginInstalled: boolean;
   marketplaceOwned: boolean;
   pluginOwned: boolean;
+  assetFingerprint: string;
+  installedAssetFingerprint?: string;
+  assetsCurrent?: boolean;
   message?: string;
 };
 
@@ -36,6 +39,8 @@ export type IntegrationHostReceipt = {
   source: string;
   marketplaceOwned: boolean;
   pluginOwned: boolean;
+  /** Fingerprint of the asset tree copied into the provider plugin cache. */
+  assetFingerprint?: string;
 };
 
 export type IntegrationReceipt = {

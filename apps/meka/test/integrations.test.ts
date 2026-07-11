@@ -44,6 +44,7 @@ test("installs, reports, repairs, and uninstalls owned integrations", async () =
     }),
   ]);
   expect(fake.files.get(RECEIPT_PATH)).toContain('"marketplaceOwned": true');
+  expect(fake.files.get(RECEIPT_PATH)).toContain('"assetFingerprint": "assets-v1"');
   expect(fake.commands.every((command) => Array.isArray(command.args))).toBe(true);
 
   const mutationCount = fake.commands.filter(isMutation).length;
@@ -66,6 +67,60 @@ test("installs, reports, repairs, and uninstalls owned integrations", async () =
   expect(fake.files.has(RECEIPT_PATH)).toBe(false);
 });
 
+test("refreshes changed same-root assets only during explicit repair", async () => {
+  const fake = new FakeIntegrationPlatform();
+  const options = integrationOptions();
+  await run(fake, installIntegrations(options));
+  expect(fake.hosts.codex.installedAssetFingerprint).toBe("assets-v1");
+  expect(fake.hosts.claude.installedAssetFingerprint).toBe("assets-v1");
+
+  fake.assetFingerprint = "assets-v2";
+  const mutationsBeforeInspection = fake.commands.filter(isMutation).length;
+  const status = await run(fake, statusIntegrations(options));
+  expect(
+    status.hosts.every(
+      (host) =>
+        host.state === "drifted" &&
+        host.assetFingerprint === "assets-v2" &&
+        host.installedAssetFingerprint === "assets-v1" &&
+        host.assetsCurrent === false &&
+        host.pluginOwned,
+    ),
+  ).toBe(true);
+  expect(fake.commands.filter(isMutation)).toHaveLength(mutationsBeforeInspection);
+
+  const installedAgain = await run(fake, installIntegrations(options));
+  expect(installedAgain).toMatchObject({
+    ready: false,
+  });
+  expect(
+    installedAgain.hosts.every(
+      (host) => host.state === "drifted" && host.assetsCurrent === false,
+    ),
+  ).toBe(true);
+  expect(fake.hosts.codex.installedAssetFingerprint).toBe("assets-v1");
+  expect(fake.hosts.claude.installedAssetFingerprint).toBe("assets-v1");
+  expect(fake.commands.filter(isMutation)).toHaveLength(mutationsBeforeInspection);
+
+  const repaired = await run(fake, repairIntegrations(options));
+  expect(repaired).toMatchObject({
+    ready: true,
+  });
+  expect(
+    repaired.hosts.every(
+      (host) => host.state === "installed" && host.assetsCurrent === true,
+    ),
+  ).toBe(true);
+  expect(fake.hosts.codex.installedAssetFingerprint).toBe("assets-v2");
+  expect(fake.hosts.claude.installedAssetFingerprint).toBe("assets-v2");
+  expect(fake.commands.filter(isMutation)).toHaveLength(mutationsBeforeInspection + 4);
+  expect(fake.files.get(RECEIPT_PATH)).toContain('"assetFingerprint": "assets-v2"');
+
+  const mutationsBeforeForcedRepair = fake.commands.filter(isMutation).length;
+  await run(fake, repairIntegrations(options));
+  expect(fake.commands.filter(isMutation)).toHaveLength(mutationsBeforeForcedRepair + 4);
+});
+
 test("preserves exact pre-existing state that Meka does not own", async () => {
   const fake = new FakeIntegrationPlatform();
   fake.hosts.codex = { source: ASSET_ROOT, pluginInstalled: true };
@@ -77,6 +132,15 @@ test("preserves exact pre-existing state that Meka does not own", async () => {
     marketplaceOwned: false,
     pluginOwned: false,
   });
+
+  const mutationCount = fake.commands.filter(isMutation).length;
+  const repaired = await run(fake, repairIntegrations(options));
+  expect(repaired.hosts[0]).toMatchObject({
+    state: "installed",
+    marketplaceOwned: false,
+    pluginOwned: false,
+  });
+  expect(fake.commands.filter(isMutation)).toHaveLength(mutationCount);
 
   const removed = await run(fake, uninstallIntegrations(options));
   expect(removed.ready).toBe(true);
@@ -170,11 +234,15 @@ async function run<A, E>(
 class FakeIntegrationPlatform implements IntegrationPlatformService {
   readonly files = new Map<string, string>();
   readonly commands: IntegrationCommand[] = [];
-  readonly hosts: Record<IntegrationProvider, { source?: string; pluginInstalled: boolean }> = {
+  readonly hosts: Record<
+    IntegrationProvider,
+    { source?: string; pluginInstalled: boolean; installedAssetFingerprint?: string }
+  > = {
     codex: { pluginInstalled: false },
     claude: { pluginInstalled: false },
   };
   failNextWrite = false;
+  assetFingerprint = "assets-v1";
   lockAcquisitions = 0;
   maximumConcurrentLocks = 0;
   private activeLock: IntegrationLock | undefined;
@@ -234,10 +302,12 @@ class FakeIntegrationPlatform implements IntegrationPlatformService {
       }
       if (matches(args, "plugin", "add") || matches(args, "plugin", "install")) {
         state.pluginInstalled = true;
+        state.installedAssetFingerprint = this.assetFingerprint;
         return result("{}");
       }
       if (matches(args, "plugin", "remove") || matches(args, "plugin", "uninstall")) {
         state.pluginInstalled = false;
+        delete state.installedAssetFingerprint;
         return result("{}");
       }
       throw new Error(`Unexpected command: ${command.executable} ${args.join(" ")}`);
@@ -264,6 +334,8 @@ class FakeIntegrationPlatform implements IntegrationPlatformService {
     });
 
   canonicalPath = (filePath: string) => Effect.succeed(path.resolve(filePath));
+
+  fingerprintTree = (_directory: string) => Effect.succeed(this.assetFingerprint);
 
   acquireLock = (lockPath: string, options: IntegrationLockOptions) =>
     Effect.tryPromise({

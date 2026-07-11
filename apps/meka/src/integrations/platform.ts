@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
   chmod,
@@ -29,6 +29,7 @@ export type IntegrationPlatformService = {
   writeTextAtomic(filePath: string, contents: string): Effect.Effect<void, IntegrationFailure>;
   removeFile(filePath: string): Effect.Effect<void, IntegrationFailure>;
   canonicalPath(filePath: string): Effect.Effect<string, IntegrationFailure>;
+  fingerprintTree(directory: string): Effect.Effect<string, IntegrationFailure>;
   acquireLock(
     lockPath: string,
     options: IntegrationLockOptions,
@@ -124,6 +125,17 @@ export function makeNodeIntegrationPlatform(): IntegrationPlatformService {
             { cause },
           ),
       }),
+    fingerprintTree: (directory) =>
+      Effect.tryPromise({
+        try: () => fingerprintDirectory(directory),
+        catch: (cause) =>
+          new IntegrationFailure(
+            "filesystem",
+            `Unable to fingerprint integration assets ${directory}: ${errorMessage(cause)}`,
+            undefined,
+            { cause },
+          ),
+      }),
     acquireLock: (lockPath, options) =>
       Effect.tryPromise({
         try: () => acquireFileLock(lockPath, options),
@@ -150,6 +162,40 @@ export function makeNodeIntegrationPlatform(): IntegrationPlatformService {
       }),
     now: () => new Date().toISOString(),
   };
+}
+
+async function fingerprintDirectory(directory: string): Promise<string> {
+  const hash = createHash("sha256");
+
+  async function visit(current: string, relative: string): Promise<void> {
+    const entries = await readdir(current, { withFileTypes: true });
+    entries.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+    for (const entry of entries) {
+      const entryPath = path.join(current, entry.name);
+      const entryRelative = relative ? path.posix.join(relative, entry.name) : entry.name;
+      const metadata = await lstat(entryPath);
+      if (metadata.isSymbolicLink()) {
+        throw new Error(`Integration asset tree cannot contain symbolic links: ${entryPath}`);
+      }
+      if (metadata.isDirectory()) {
+        hash.update(`${JSON.stringify(["directory", entryRelative])}\n`);
+        await visit(entryPath, entryRelative);
+        continue;
+      }
+      if (!metadata.isFile()) {
+        throw new Error(`Integration asset tree contains an unsupported entry: ${entryPath}`);
+      }
+      const contents = await readFile(entryPath);
+      hash.update(
+        `${JSON.stringify(["file", entryRelative, metadata.mode & 0o777, contents.length])}\n`,
+      );
+      hash.update(contents);
+      hash.update("\n");
+    }
+  }
+
+  await visit(directory, "");
+  return `sha256:${hash.digest("hex")}`;
 }
 
 export const NodeIntegrationPlatformLive = Layer.succeed(
