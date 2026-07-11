@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Effect } from "effect";
@@ -293,6 +293,36 @@ test("records a post-dispatch internal executor exception as uncertain", async (
   }
 });
 
+test("accepts a managed run cwd symlinked to the daemon workspace", async () => {
+  const engine = new CapturingEngine();
+  const fixture = await createServerFixture("managed-cwd-symlink", engine);
+  const runtime = await AutomationRuntime.open({
+    cwd: fixture.workspace,
+    stateRoot: fixture.stateRoot,
+  });
+  try {
+    const workspaceAlias = path.join(fixture.root, "workspace-alias");
+    await symlink(fixture.workspace, workspaceAlias, "dir");
+    const queued = await runtime.enqueueRun({
+      queue: "default",
+      intent: {
+        _tag: "meka.run",
+        provider: "codex",
+        prompt: "follow the canonical workspace",
+        cwd: workspaceAlias,
+      },
+    });
+
+    await withTimeout(engine.started.promise, 3_000, "symlinked managed run startup");
+    expect(engine.startInput).toMatchObject({ cwd: fixture.server.cwd });
+    engine.run.finish({ state: "completed" });
+    await waitForJobStatus(runtime.store, queued.id, "succeeded");
+  } finally {
+    await runtime.close();
+    await fixture.cleanup();
+  }
+});
+
 test("leaves managed backlog pending when active run capacity is full", async () => {
   const engine = new CapacityEngine();
   const fixture = await createServerFixture("managed-capacity", engine);
@@ -488,6 +518,22 @@ class SingleRunEngine extends TestEngine {
   readonly run = new TestRun("provider-session-1", "provider-run-1");
 
   async startRun(): Promise<MekaRun> {
+    return this.run;
+  }
+
+  async close(): Promise<void> {
+    await this.run.close();
+  }
+}
+
+class CapturingEngine extends TestEngine {
+  readonly run = new TestRun("provider-session-cwd", "provider-run-cwd");
+  readonly started = Promise.withResolvers<void>();
+  startInput: MekaRunInput | undefined;
+
+  async startRun(input: MekaRunInput): Promise<MekaRun> {
+    this.startInput = input;
+    this.started.resolve();
     return this.run;
   }
 

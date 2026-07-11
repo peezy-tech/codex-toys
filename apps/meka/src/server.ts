@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmod, stat } from "node:fs/promises";
+import { chmod, realpath, stat } from "node:fs/promises";
 import net, { type Server, type Socket } from "node:net";
 import path from "node:path";
 import { Effect } from "effect";
@@ -815,7 +815,7 @@ export class MekaServer {
     let payload: ReturnType<typeof managedRunPayload>;
     try {
       payload = managedRunPayload(job);
-      if (payload.cwd && path.resolve(payload.cwd) !== this.cwd) {
+      if (payload.cwd && (await realpath(path.resolve(payload.cwd))) !== this.cwd) {
         throw new Error(`Managed run cwd must match the daemon workspace: ${this.cwd}`);
       }
     } catch (error) {
