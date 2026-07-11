@@ -128,7 +128,7 @@ async function runChild<T>(options: {
   const workflowModuleUrl =
     extension === "ts"
       ? new URL("../../../packages/workflow/src/index.ts", import.meta.url).href
-      : new URL("../../workflow/dist/index.js", import.meta.url).href;
+      : import.meta.resolve("@meka/workflow");
   const tsxImport = import.meta.resolve("tsx");
   const child = fork(childPath, [], {
     cwd: options.cwd,

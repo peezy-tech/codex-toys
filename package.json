@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "pnpm --filter @meka/workflow run build && pnpm --filter @meka/sdk run build && pnpm --filter @meka/app run build",
-    "check:dist": "pnpm run build && tsc -p tsconfig.package-consumer.json",
+    "check:dist": "pnpm run build && tsc -p tsconfig.package-consumer.json && node scripts/check-built-workflow-runtime.mjs",
     "check:package-install": "node scripts/check-package-install.mjs",
     "check:source-install": "node scripts/check-source-install.mjs",
     "check:types": "pnpm --filter @meka/workflow run check:types && pnpm --filter @meka/sdk run check:types && pnpm --filter @meka/app run check:types",
