@@ -31,7 +31,7 @@ export class CodexAppServerClient extends CodexEventEmitter {
   constructor(options: CodexAppServerClientOptions = {}) {
     super();
     this.transport = options.transport ?? defaultTransport(options);
-    this.#clientName = options.clientName ?? "codex-toys";
+    this.#clientName = options.clientName ?? "meka";
     this.#clientTitle = options.clientTitle ?? "Codex Client";
     this.#clientVersion = options.clientVersion ?? "0.1.0";
 
