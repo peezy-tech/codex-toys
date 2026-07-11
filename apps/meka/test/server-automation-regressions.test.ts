@@ -1,5 +1,15 @@
 import { DatabaseSync } from "node:sqlite";
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Effect } from "effect";
@@ -17,7 +27,12 @@ import { expect, test } from "vite-plus/test";
 import { AutomationRuntime } from "../src/automation-runtime.ts";
 import { openAutomationStore, type AutomationStore } from "../src/automation/store.ts";
 import { MekaClient } from "../src/client.ts";
-import { resolveHookIngressLocation } from "../src/hook-ingress.ts";
+import {
+  claimHookIngress,
+  registerHookIngressConsumer,
+  releaseHookIngressConsumer,
+  resolveHookIngressLocation,
+} from "../src/hook-ingress.ts";
 import { MekaServer } from "../src/server.ts";
 
 test("closes a live provider run and records uncertainty when provider acceptance cannot persist", async () => {
@@ -163,13 +178,15 @@ test("defers hook routing until managed provider identity can be correlated", as
       automation: { activeExternalSessions: 1 },
     });
 
+    const delayedManagedStartAt = new Date(Date.now() - 1).toISOString();
     engine.release.resolve(engine.run);
     engine.run.finish({ state: "completed" });
     await waitForJobStatus(activeStore, queued.jobId, "succeeded");
     await fixture.client.closeRun(queued.id);
 
-    // Closing the retained run record must not forget the provider session;
-    // late hooks can arrive after completion or capacity eviction.
+    // A delayed terminal hook from the managed turn remains suppressible after
+    // completion, but that ownership cannot cover a later external resume of
+    // the same provider session.
     await writeAgentHook(fixture, {
       entryId: "00000000-0000-4000-8000-000000000103",
       sourceEventId: "late-managed-stop",
@@ -177,10 +194,24 @@ test("defers hook routing until managed provider identity can be correlated", as
       eventType: "Stop",
     });
     await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000108",
+      sourceEventId: "delayed-managed-session-start",
+      sessionId: engine.run.providerSessionId,
+      eventType: "SessionStart",
+      occurredAt: delayedManagedStartAt,
+    });
+    await writeAgentHook(fixture, {
       entryId: "00000000-0000-4000-8000-000000000104",
       sourceEventId: "external-stop",
       sessionId: "external-side-by-side-session",
       eventType: "Stop",
+    });
+    await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000105",
+      sourceEventId: "external-resume",
+      sessionId: engine.run.providerSessionId,
+      eventType: "SessionStart",
+      turnId: "external-resume-turn",
     });
     await waitUntil(
       async () =>
@@ -194,6 +225,18 @@ test("defers hook routing until managed provider identity can be correlated", as
         ).length === 2,
       { timeoutMs: 3_000, description: "late external hook routing" },
     );
+    await waitUntil(
+      async () =>
+        (
+          await Effect.runPromise(
+            activeStore.listAgentEvents({
+              provider: "codex",
+              sessionId: engine.run.providerSessionId,
+            }),
+          )
+        ).length === 1,
+      { timeoutMs: 3_000, description: "same-session external resume routing" },
+    );
     await expect(
       Effect.runPromise(
         activeStore.listAgentEvents({
@@ -201,9 +244,127 @@ test("defers hook routing until managed provider identity can be correlated", as
           sessionId: engine.run.providerSessionId,
         }),
       ),
-    ).resolves.toEqual([]);
+    ).resolves.toMatchObject([
+      { sourceEventId: "external-resume", eventType: "SessionStart" },
+    ]);
+    await expect(fixture.client.status()).resolves.toMatchObject({
+      automation: { activeExternalSessions: 2 },
+    });
+
+    // The external lifetime now wins even if its terminal hook lands inside
+    // the short grace used for id-less late managed terminal hooks.
+    await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000106",
+      sourceEventId: "external-resume-stop",
+      sessionId: engine.run.providerSessionId,
+      eventType: "Stop",
+    });
+    await waitUntil(
+      async () =>
+        (
+          await Effect.runPromise(
+            activeStore.listAgentEvents({
+              provider: "codex",
+              sessionId: engine.run.providerSessionId,
+            }),
+          )
+        ).length === 2,
+      { timeoutMs: 3_000, description: "same-session external terminal routing" },
+    );
   } finally {
     engine.release.resolve(engine.run);
+    if (store) await Effect.runPromise(store.close());
+    await fixture.cleanup();
+  }
+});
+
+test("renews child hook routing ownership while unidentified startup defers claims", async () => {
+  const engine = new IdentityBeforeReadyEngine();
+  const fixture = await createServerFixture("startup-hook-lease", engine);
+  let parentConsumer: Awaited<ReturnType<typeof registerHookIngressConsumer>> | undefined;
+  let store: AutomationStore | undefined;
+  try {
+    store = await Effect.runPromise(
+      openAutomationStore({ cwd: fixture.workspace, stateRoot: fixture.stateRoot }),
+    );
+    const activeStore = store;
+    parentConsumer = await registerHookIngressConsumer({
+      stateHome: fixture.stateHome,
+      workspaceRoot: fixture.root,
+      consumerId: "parent-runtime",
+    });
+    await fixture.client.startRun({ provider: "codex", prompt: "slow identity" });
+    await withTimeout(engine.started.promise, 2_000, "unidentified provider startup");
+
+    const location = resolveHookIngressLocation({ stateHome: fixture.stateHome });
+    const childRegistrationPath = await findConsumerRegistration(
+      location.consumersPath,
+      fixture.workspace,
+    );
+    const original = JSON.parse(await readFile(childRegistrationPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const shortExpiry = Date.now() + 100;
+    const shortRegistrationPath = `${childRegistrationPath}.short`;
+    await writeFile(
+      shortRegistrationPath,
+      `${JSON.stringify({
+        ...original,
+        updatedAt: new Date(shortExpiry - 100).toISOString(),
+        leaseExpiresAt: new Date(shortExpiry).toISOString(),
+      })}\n`,
+      { mode: 0o600 },
+    );
+    await rename(shortRegistrationPath, childRegistrationPath);
+
+    // The daemon tick must renew or replace the near-expiry registration even
+    // though it still cannot safely claim hooks before identity correlation.
+    await waitUntil(
+      async () => {
+        const current = JSON.parse(await readFile(childRegistrationPath, "utf8")) as {
+          leaseExpiresAt?: string;
+        };
+        return Date.parse(current.leaseExpiresAt ?? "") > Date.now() + 10_000;
+      },
+      { timeoutMs: 2_000, description: "child hook consumer lease renewal" },
+    );
+
+    await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000107",
+      sourceEventId: "startup-external-hook",
+      sessionId: "startup-external-session",
+    });
+    await expect(
+      claimHookIngress({
+        stateHome: fixture.stateHome,
+        workspaceRoot: fixture.root,
+        consumerId: parentConsumer.consumerId,
+        consumerToken: parentConsumer.token,
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      Effect.runPromise(activeStore.listAgentEvents({ provider: "codex" })),
+    ).resolves.toEqual([]);
+
+    engine.reportIdentity();
+    await waitUntil(
+      async () =>
+        (
+          await Effect.runPromise(
+            activeStore.listAgentEvents({
+              provider: "codex",
+              sessionId: "startup-external-session",
+            }),
+          )
+        ).length === 1,
+      { timeoutMs: 3_000, description: "deferred child hook ingestion" },
+    );
+  } finally {
+    engine.release.resolve(engine.run);
+    if (parentConsumer) {
+      await releaseHookIngressConsumer(parentConsumer, { stateHome: fixture.stateHome });
+    }
     if (store) await Effect.runPromise(store.close());
     await fixture.cleanup();
   }
@@ -565,13 +726,15 @@ async function writeAgentHook(
     sourceEventId: string;
     sessionId: string;
     eventType?: string;
+    turnId?: string;
+    occurredAt?: string;
   },
 ): Promise<void> {
   const location = resolveHookIngressLocation({ stateHome: fixture.stateHome });
   await mkdir(location.inboxPath, { recursive: true, mode: 0o700 });
   await chmod(location.root, 0o700);
   await chmod(location.inboxPath, 0o700);
-  const occurredAt = new Date().toISOString();
+  const occurredAt = input.occurredAt ?? new Date().toISOString();
   const id = `hook-${String(Date.now()).padStart(13, "0")}-${input.entryId}`;
   await writeFile(
     path.join(location.inboxPath, `${id}.json`),
@@ -588,11 +751,26 @@ async function writeAgentHook(
         sessionId: input.sessionId,
         eventType: input.eventType ?? "SessionStart",
         occurredAt,
-        payload: { cwd: fixture.workspace },
+        payload: { cwd: fixture.workspace, ...(input.turnId ? { turnId: input.turnId } : {}) },
       },
     })}\n`,
     { mode: 0o600 },
   );
+}
+
+async function findConsumerRegistration(
+  consumersPath: string,
+  workspaceRoot: string,
+): Promise<string> {
+  for (const name of await readdir(consumersPath)) {
+    if (!name.endsWith(".json")) continue;
+    const target = path.join(consumersPath, name);
+    const registration = JSON.parse(await readFile(target, "utf8")) as {
+      workspaceRoot?: string;
+    };
+    if (registration.workspaceRoot === workspaceRoot) return target;
+  }
+  throw new Error(`Hook consumer registration not found for ${workspaceRoot}`);
 }
 
 function isProcessAlive(pid: number): boolean {

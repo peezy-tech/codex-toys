@@ -748,7 +748,15 @@ test("suppresses managed hook sessions while routing external side-by-side activ
 
     await expect(
       runtime.drainHookSpool({
-        managedSessions: [{ provider: "codex", sessionId: "meka-managed-session-1" }],
+        managedSessions: [
+          {
+            provider: "codex",
+            sessionId: "meka-managed-session-1",
+            providerRunId: "meka-managed-turn-1",
+            state: "active",
+            ownedAt: Date.parse(occurredAt) - 1,
+          },
+        ],
       }),
     ).resolves.toEqual({ ingested: 1, duplicates: 0 });
     await expect(
@@ -774,6 +782,7 @@ test("suppresses managed hook sessions while routing external side-by-side activ
     await expect(
       claimHookIngress({ stateHome, workspaceRoot: workspace, consumerId: "verification" }),
     ).resolves.toEqual([]);
+    await expect(runtime.drainHookSpool(1)).resolves.toEqual({ ingested: 0, duplicates: 0 });
   } finally {
     await runtime.close();
     await rm(temporary, { recursive: true, force: true });

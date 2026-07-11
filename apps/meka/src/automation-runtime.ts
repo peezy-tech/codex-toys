@@ -71,10 +71,23 @@ export type ClaimedAutomationJob = {
   envelope: JobEnvelope;
 };
 
-export type ManagedAgentSession = {
-  provider: "codex" | "claude";
-  sessionId: string;
-};
+export type ManagedAgentSession =
+  | {
+      provider: "codex" | "claude";
+      sessionId: string;
+      providerRunId: string | null;
+      state: "active";
+      ownedAt: number;
+    }
+  | {
+      provider: "codex" | "claude";
+      sessionId: string;
+      providerRunId: string | null;
+      state: "released";
+      ownedAt: number;
+      releasedAt: number;
+      suppressTerminalUntil: number;
+    };
 
 export type DrainHookSpoolOptions = {
   limit?: number;
@@ -132,6 +145,22 @@ export class AutomationRuntime {
       workspaceRoot: this.cwd,
       ...(this.hookStateHome ? { stateHome: this.hookStateHome } : {}),
     });
+  }
+
+  /** Renews hook routing ownership without claiming or ingesting any events. */
+  async maintainHookIngressConsumer(): Promise<void> {
+    if (!this.#hookConsumer) return;
+    try {
+      this.#hookConsumer = await renewHookIngressConsumer(
+        this.#hookConsumer,
+        this.hookStateHome ? { stateHome: this.hookStateHome } : {},
+      );
+    } catch {
+      this.#hookConsumer = await registerHookIngressConsumer({
+        workspaceRoot: this.cwd,
+        ...(this.hookStateHome ? { stateHome: this.hookStateHome } : {}),
+      });
+    }
   }
 
   async configureQueue(policy: QueuePolicy): Promise<QueuePolicy> {
@@ -326,24 +355,14 @@ export class AutomationRuntime {
   ): Promise<{ ingested: number; duplicates: number }> {
     const normalized = typeof options === "number" ? { limit: options } : options;
     const limit = normalized.limit ?? 100;
-    const managedSessions = new Set(
-      (normalized.managedSessions ?? []).map(({ provider, sessionId }) =>
-        agentSessionKey(provider, sessionId),
-      ),
-    );
-    if (this.#hookConsumer) {
-      try {
-        this.#hookConsumer = await renewHookIngressConsumer(
-          this.#hookConsumer,
-          this.hookStateHome ? { stateHome: this.hookStateHome } : {},
-        );
-      } catch {
-        this.#hookConsumer = await registerHookIngressConsumer({
-          workspaceRoot: this.cwd,
-          ...(this.hookStateHome ? { stateHome: this.hookStateHome } : {}),
-        });
-      }
+    const managedSessions = new Map<string, ManagedAgentSession[]>();
+    for (const session of normalized.managedSessions ?? []) {
+      const key = agentSessionKey(session.provider, session.sessionId);
+      const entries = managedSessions.get(key) ?? [];
+      entries.push(session);
+      managedSessions.set(key, entries);
     }
+    await this.maintainHookIngressConsumer();
     let ingested = 0;
     let duplicates = 0;
     const entries = await Effect.runPromise(this.store.listSpoolEntries(limit));
@@ -395,10 +414,9 @@ export class AutomationRuntime {
 
   private async ingestHookInput(
     payload: AgentHookEventInput,
-    managedSessions: ReadonlySet<string>,
+    managedSessions: ReadonlyMap<string, readonly ManagedAgentSession[]>,
   ): Promise<"ingested" | "duplicate" | "suppressed"> {
-    const sessionKey = agentSessionKey(payload.provider, payload.sessionId);
-    if (sessionKey && managedSessions.has(sessionKey)) {
+    if (await this.isManagedHookInput(payload, managedSessions)) {
       // Meka owns this provider session. Acknowledge its installed hook entry
       // without creating an "external" lease or recursively routing agent.*.
       return "suppressed";
@@ -417,6 +435,59 @@ export class AutomationRuntime {
       payload: payload.payload ?? {},
     });
     return hook.inserted || routed.inserted ? "ingested" : "duplicate";
+  }
+
+  private async isManagedHookInput(
+    payload: AgentHookEventInput,
+    managedSessions: ReadonlyMap<string, readonly ManagedAgentSession[]>,
+  ): Promise<boolean> {
+    const sessionKey = agentSessionKey(payload.provider, payload.sessionId);
+    if (!sessionKey || !payload.provider || !payload.sessionId) return false;
+    const ownership = managedSessions.get(sessionKey);
+    if (!ownership || ownership.length === 0) return false;
+    if (payload.source !== `${payload.provider}-hook`) return false;
+    if (ownership.some((session) => session.state === "active")) return true;
+
+    const providerRunId = agentHookRunId(payload.payload);
+    if (providerRunId) {
+      return ownership.some(
+        (session) => session.state === "released" && session.providerRunId === providerRunId,
+      );
+    }
+
+    const occurredAt = agentHookTimestamp(payload.occurredAt);
+    if (
+      ownership.some(
+        (session) =>
+          session.state === "released" &&
+          occurredAt !== undefined &&
+          occurredAt >= session.ownedAt &&
+          occurredAt <= session.releasedAt,
+      )
+    ) {
+      // A fast run can finish before its already-emitted startup/activity hooks
+      // are claimed. Their occurrence still belongs to the managed lifetime.
+      return true;
+    }
+    if (!isTerminalAgentHook(payload.eventType)) return false;
+    const candidate = ownership.find(
+      (session) =>
+        session.state === "released" &&
+        occurredAt !== undefined &&
+        occurredAt > session.releasedAt &&
+        occurredAt <= session.suppressTerminalUntil,
+    );
+    if (!candidate || candidate.state !== "released") return false;
+
+    // Once a post-release startup/activity event has made this session external,
+    // its terminal hooks belong to that external lifetime even during the brief
+    // late-managed-hook grace window.
+    const external = await Effect.runPromise(
+      this.store.getExternalAgentSession(payload.provider, payload.sessionId),
+    );
+    return !(
+      external?.state === "active" && Date.parse(external.updatedAt) >= candidate.releasedAt
+    );
   }
 
   async createSource(input: SourceRegistrationInput): Promise<SourceRegistration> {
@@ -728,6 +799,26 @@ function agentSessionKey(
 ): string | undefined;
 function agentSessionKey(provider: string | undefined, sessionId: string | undefined) {
   return provider && sessionId ? JSON.stringify([provider, sessionId]) : undefined;
+}
+
+function isTerminalAgentHook(eventType: string): boolean {
+  const normalized = eventType.toLowerCase().replace(/[^a-z]/g, "");
+  return (
+    normalized.endsWith("stop") ||
+    normalized.endsWith("stopfailure") ||
+    normalized.endsWith("sessionend")
+  );
+}
+
+function agentHookRunId(payload: unknown): string | undefined {
+  const record = asRecordOrNull(payload);
+  const candidate = record?.turnId ?? record?.turn_id;
+  return typeof candidate === "string" && candidate.length > 0 ? candidate : undefined;
+}
+
+function agentHookTimestamp(value: AgentHookEventInput["occurredAt"]): number | undefined {
+  const timestamp = value instanceof Date ? value.getTime() : new Date(value ?? Number.NaN).getTime();
+  return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
 function requiredString(value: unknown, label: string): string {

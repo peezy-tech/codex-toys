@@ -53,6 +53,7 @@ const MAX_INFLIGHT_REQUESTS = 32;
 const MAX_ACTIVE_RUNS = 32;
 const MAX_RUN_RECORDS = 4_096;
 const MAX_MANAGED_AGENT_SESSIONS = MAX_RUN_RECORDS * 2;
+const MANAGED_TERMINAL_HOOK_GRACE_MS = 5_000;
 const MAX_EVENTS_PER_RUN = 1_000;
 const MAX_EVENT_HISTORY_BYTES = 4 * 1024 * 1024;
 const MAX_EVENT_BYTES = 1024 * 1024;
@@ -85,6 +86,7 @@ type RunRecord = {
   providerSessionId: string | null;
   providerRunId: string | null;
   startedAt: string;
+  providerStartedAt?: number;
   outcome?: MekaRunOutcome;
   run?: MekaRun;
   startup?: Promise<MekaRun>;
@@ -94,6 +96,10 @@ type RunRecord = {
   nextSequence: number;
   events: StoredEvent[];
   eventBytes: number;
+};
+
+type ManagedAgentSessionRecord = ManagedAgentSession & {
+  ownerRunId: string;
 };
 
 type Subscription = {
@@ -130,9 +136,9 @@ export class MekaServer {
   #server: Server | undefined;
   #clients = new Set<Client>();
   #runs = new Map<string, RunRecord>();
-  // Session correlation is authoritative when CODEX_WORKSPACE_APP_SERVER_SOCK
-  // points at a pre-existing app-server that cannot inherit Meka's child env.
-  #managedSessions = new Map<string, ManagedAgentSession>();
+  // Active ownership and bounded completed-turn correlation are authoritative
+  // when a pre-existing app-server cannot inherit Meka's child environment.
+  #managedSessions = new Map<string, ManagedAgentSessionRecord>();
   #ready: MekaReadyInfo | undefined;
   #starting: Promise<MekaReadyInfo> | undefined;
   #closing: Promise<void> | undefined;
@@ -721,8 +727,14 @@ export class MekaServer {
 
   async #drainAutomation(): Promise<void> {
     const automation = this.#requireAutomation();
-    if (this.#observeExternalAgents && !this.#hasUnidentifiedStartingRun()) {
-      await automation.drainHookSpool({ managedSessions: this.#managedAgentSessions() });
+    if (this.#observeExternalAgents) {
+      if (this.#hasUnidentifiedStartingRun()) {
+        // Identity correlation defers claims, not routing ownership. Letting the
+        // consumer lease expire here allows a parent workspace to steal hooks.
+        await automation.maintainHookIngressConsumer();
+      } else {
+        await automation.drainHookSpool({ managedSessions: this.#managedAgentSessions() });
+      }
     }
     // Recovery must run even when no queue currently has a pending row. A
     // crashed external worker can otherwise leave the last job in a queue
@@ -860,6 +872,7 @@ export class MekaServer {
       entry.providerSessionId = null;
       entry.providerRunId = null;
       entry.startedAt = new Date().toISOString();
+      entry.providerStartedAt = undefined;
       entry.run = undefined;
       entry.startup = undefined;
       entry.completion = undefined;
@@ -870,6 +883,7 @@ export class MekaServer {
     entry.leaseToken = job.claim.leaseToken;
     entry.stopLeaseHeartbeat = this.#startLeaseHeartbeat(job);
     entry.state = "starting";
+    entry.providerStartedAt = Date.now();
     this.#publishRunState(entry);
 
     let dispatched = false;
@@ -890,7 +904,11 @@ export class MekaServer {
         onEvent: (event) => this.#publishRunEvent(entry as RunRecord, event),
         onIdentity: (identity) => {
           if (this.#runs.get(entry.id) !== entry || entry.outcome) return;
-          this.#rememberManagedAgentSession(payload.provider, identity.providerSessionId);
+          this.#rememberManagedAgentSession(
+            entry,
+            identity.providerSessionId,
+            identity.providerRunId,
+          );
           const changed =
             entry.providerSessionId !== identity.providerSessionId ||
             entry.providerRunId !== identity.providerRunId;
@@ -910,7 +928,7 @@ export class MekaServer {
       entry.state = run.state;
       entry.providerSessionId = run.providerSessionId;
       entry.providerRunId = run.providerRunId;
-      this.#rememberManagedAgentSession(payload.provider, run.providerSessionId);
+      this.#rememberManagedAgentSession(entry, run.providerSessionId, run.providerRunId);
       await Effect.runPromise(
         automation.store.markProviderAccepted({
           jobId: entry.jobId,
@@ -1083,6 +1101,7 @@ export class MekaServer {
       run.providerSessionId = run.run.providerSessionId;
       run.providerRunId = run.run.providerRunId;
     }
+    this.#releaseManagedAgentSession(run);
     run.stopLeaseHeartbeat?.();
     run.stopLeaseHeartbeat = undefined;
     this.#publishRunState(run);
@@ -1181,13 +1200,54 @@ export class MekaServer {
     return [...this.#managedSessions.values()];
   }
 
-  #rememberManagedAgentSession(provider: MekaProvider, sessionId: string): void {
+  #rememberManagedAgentSession(
+    run: RunRecord,
+    sessionId: string,
+    providerRunId: string | null,
+  ): void {
     if (!sessionId) return;
-    const key = JSON.stringify([provider, sessionId]);
+    const key = JSON.stringify([run.provider, sessionId]);
+    const previous = this.#managedSessions.get(key);
+    const ownedAt =
+      previous?.ownerRunId === run.id && previous.state === "active"
+        ? previous.ownedAt
+        : (run.providerStartedAt ?? Date.parse(run.startedAt));
     this.#managedSessions.delete(key);
-    this.#managedSessions.set(key, { provider, sessionId });
+    this.#managedSessions.set(key, {
+      provider: run.provider,
+      sessionId,
+      providerRunId,
+      state: "active",
+      ownedAt: Number.isFinite(ownedAt) ? ownedAt : Date.now(),
+      ownerRunId: run.id,
+    });
+    this.#makeManagedSessionRoom();
+  }
+
+  #releaseManagedAgentSession(run: RunRecord): void {
+    if (!run.providerSessionId) return;
+    const key = JSON.stringify([run.provider, run.providerSessionId]);
+    const current = this.#managedSessions.get(key);
+    if (!current || current.ownerRunId !== run.id) return;
+    const releasedAt = Date.now();
+    this.#managedSessions.delete(key);
+    this.#managedSessions.set(key, {
+      provider: run.provider,
+      sessionId: run.providerSessionId,
+      providerRunId: run.providerRunId,
+      state: "released",
+      ownedAt: current.ownedAt,
+      releasedAt,
+      suppressTerminalUntil: releasedAt + MANAGED_TERMINAL_HOOK_GRACE_MS,
+      ownerRunId: run.id,
+    });
+    this.#makeManagedSessionRoom();
+  }
+
+  #makeManagedSessionRoom(): void {
     while (this.#managedSessions.size > MAX_MANAGED_AGENT_SESSIONS) {
-      const oldest = this.#managedSessions.keys().next().value;
+      const oldest = [...this.#managedSessions].find(([, session]) => session.state === "released")
+        ?.[0] ?? this.#managedSessions.keys().next().value;
       if (oldest === undefined) break;
       this.#managedSessions.delete(oldest);
     }
