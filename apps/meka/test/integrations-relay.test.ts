@@ -125,6 +125,66 @@ test("derives a stable provider-native dedupe identity", async () => {
   }
 });
 
+test("keeps every id-less hook invocation unique without persisting sensitive payloads", async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-relay-fallback-test-"));
+  const stateHome = path.join(temporaryDirectory, "state");
+  const workspace = path.join(temporaryDirectory, "workspace");
+  await mkdir(workspace, { recursive: true });
+  const occurrences = [
+    {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "session-without-turns",
+      cwd: workspace,
+      prompt: "first private prompt",
+    },
+    {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "session-without-turns",
+      cwd: workspace,
+      prompt: "second private prompt",
+    },
+    {
+      hook_event_name: "Stop",
+      session_id: "session-without-turns",
+      cwd: workspace,
+      last_assistant_message: "first private response",
+    },
+    {
+      hook_event_name: "Stop",
+      session_id: "session-without-turns",
+      cwd: workspace,
+      last_assistant_message: "second private response",
+    },
+  ];
+
+  try {
+    for (const occurrence of occurrences) {
+      expect(await invokeRelay(stateHome, occurrence)).toBe(0);
+      expect(await invokeRelay(stateHome, occurrence)).toBe(0);
+    }
+    const claims = await claimHookIngress({
+      stateHome,
+      workspaceRoot: workspace,
+      consumerId: "fallback-dedupe-runtime",
+    });
+    expect(claims).toHaveLength(occurrences.length * 2);
+
+    const sourceEventIds = new Set<string>();
+    for (const claim of claims) {
+      const sourceEventId = claim.input.sourceEventId;
+      if (!sourceEventId) throw new Error("Relay claim did not include a source event id");
+      sourceEventIds.add(sourceEventId);
+      const persisted = await readFile(claim.path, "utf8");
+      expect(persisted).not.toContain("private prompt");
+      expect(persisted).not.toContain("private response");
+      await acknowledgeHookIngressClaim(claim);
+    }
+    expect(sourceEventIds.size).toBe(occurrences.length * 2);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("fails open when a host sends an unusable hook payload", async () => {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-relay-fail-open-test-"));
   try {

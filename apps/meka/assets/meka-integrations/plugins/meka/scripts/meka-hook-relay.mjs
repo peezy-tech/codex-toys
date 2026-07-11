@@ -63,6 +63,7 @@ async function normalize(provider, input) {
     turnId,
     toolUseId,
     cwd,
+    occurrenceId: eventId,
   });
   const metadata = { cwd };
   copy(metadata, "turnId", turnId, 512);
@@ -87,15 +88,25 @@ async function normalize(provider, input) {
   };
 }
 
-function stableEventId({ provider, sessionId, nativeEvent, turnId, toolUseId, cwd }) {
+function stableEventId({
+  provider,
+  sessionId,
+  nativeEvent,
+  turnId,
+  toolUseId,
+  cwd,
+  occurrenceId,
+}) {
   const identity = JSON.stringify([
     provider,
     sessionId ?? null,
     nativeEvent,
     turnId ?? null,
     toolUseId ?? null,
-    // Some host lifecycle events omit all native correlation ids. The
-    // canonical cwd prevents unrelated workspaces from collapsing together.
+    // A session id does not identify a prompt/lifecycle occurrence. Hosts that
+    // omit turn/tool ids therefore get an invocation-scoped identity so later
+    // hooks in the same session cannot be collapsed by downstream dedupe.
+    turnId || toolUseId ? null : occurrenceId,
     sessionId || turnId || toolUseId ? null : cwd,
   ]);
   return `hook_${createHash("sha256").update(identity).digest("hex")}`;
