@@ -11,16 +11,19 @@ const MAX_INBOX_ENTRIES = 4096;
 const MAX_INBOX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ENTRY_NAME = /^hook-([0-9]{13})-[0-9a-f-]{36}\.json$/i;
 const NAME = /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/;
+const MEKA_MANAGED_SESSION_ENV = "MEKA_MANAGED_SESSION";
 const source = process.argv[2] === "claude" ? "claude" : "codex";
 
 try {
   const input = await readInput();
-  const event = await normalize(source, input);
-  const location = resolveInboxLocation();
-  await ensurePrivateDirectory(location.root);
-  await ensurePrivateDirectory(location.inboxPath);
-  await writeAtomicEntry(location.inboxPath, event);
-  await pruneInbox(location.inboxPath);
+  if (process.env[MEKA_MANAGED_SESSION_ENV] !== "1") {
+    const event = await normalize(source, input);
+    const location = resolveInboxLocation();
+    await ensurePrivateDirectory(location.root);
+    await ensurePrivateDirectory(location.inboxPath);
+    await writeAtomicEntry(location.inboxPath, event);
+    await pruneInbox(location.inboxPath);
+  }
 } catch {
   // Observability is fail-open: an unavailable bridge must not block an agent session.
 }

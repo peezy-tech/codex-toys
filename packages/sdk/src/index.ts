@@ -16,12 +16,19 @@ export type MekaEvent = {
   event: unknown;
 };
 
+export type MekaRunIdentity = {
+  providerSessionId: string;
+  providerRunId: string | null;
+};
+
 export type MekaRunInput = {
   provider: MekaProvider;
   prompt: string;
   cwd?: string;
   model?: string;
   onEvent?: (event: MekaEvent) => void;
+  /** Reports provider identity as soon as it is known, before startup necessarily completes. */
+  onIdentity?: (identity: MekaRunIdentity) => void;
 };
 
 export type MekaRunOutcome = {
@@ -86,14 +93,21 @@ export type ClaudeMekaSession = Pick<
 >;
 
 export type MekaOptions = {
-  createCodexClient?: () => CodexMekaClient;
-  createClaudeClient?: () => ClaudeMekaClient;
+  createCodexClient?: (options: MekaProviderLaunchOptions) => CodexMekaClient;
+  createClaudeClient?: (options: MekaProviderLaunchOptions) => ClaudeMekaClient;
   runCommand?: (
     command: string,
     args: string[],
     options: { cwd?: string; signal?: AbortSignal },
   ) => Promise<CommandResult>;
 };
+
+export type MekaProviderLaunchOptions = {
+  /** Environment inherited by a provider process owned by this Meka instance. */
+  environment: NodeJS.ProcessEnv;
+};
+
+export const MEKA_MANAGED_SESSION_ENV = "MEKA_MANAGED_SESSION";
 
 /** A non-mutating readiness probe for the locally configured Codex app-server. */
 export type CodexReadiness = {
@@ -224,7 +238,7 @@ export class Meka {
 
   async #startCodex(input: MekaRunInput): Promise<MekaRun> {
     const client = this.#createCodexClient();
-    const run = this.#track(new ActiveRun("codex", input.onEvent));
+    const run = this.#track(new ActiveRun("codex", input.onEvent, input.onIdentity));
     let pendingTerminal: unknown;
     const onNotification = (event: unknown) => {
       run.publish({ provider: "codex", event });
@@ -281,6 +295,7 @@ export class Meka {
         approvalPolicy: "never",
         sandbox: "danger-full-access",
       });
+      run.setIdentity(thread.thread.id, null);
       const turn = await client.startTurn({
         threadId: thread.thread.id,
         ...(input.cwd ? { cwd: input.cwd } : {}),
@@ -322,7 +337,7 @@ export class Meka {
       client.close();
       throw error;
     }
-    const run = this.#track(new ActiveRun("claude", input.onEvent));
+    const run = this.#track(new ActiveRun("claude", input.onEvent, input.onIdentity));
     run.setIdentity(session.id, null);
     const onEvent = (event: unknown) => {
       run.publish({ provider: "claude", event });
@@ -356,18 +371,27 @@ export class Meka {
   }
 
   #createCodexClient(): CodexMekaClient {
+    const launch = managedProviderLaunchOptions();
     return (
-      this.#options.createCodexClient?.() ??
+      this.#options.createCodexClient?.(launch) ??
       new CodexAppServerClient({
         clientName: "meka",
         clientTitle: "Meka",
         clientVersion: "0.1.0",
+        // A direct app-server inherits this marker. When a configured workspace
+        // proxy is selected, the daemon also classifies hooks by provider
+        // session id because the existing app-server cannot inherit proxy env.
+        transportOptions: { env: launch.environment },
       })
     );
   }
 
   #createClaudeClient(): ClaudeMekaClient {
-    return this.#options.createClaudeClient?.() ?? new ClaudeCodeClient();
+    const launch = managedProviderLaunchOptions();
+    return (
+      this.#options.createClaudeClient?.(launch) ??
+      new ClaudeCodeClient({ environment: launch.environment })
+    );
   }
 
   #assertOpen(): void {
@@ -391,10 +415,16 @@ class ActiveRun implements MekaRun {
   #cleanupPromise: Promise<void> | undefined;
   #cleanedListeners = new Set<() => void>();
   #completion = Promise.withResolvers<MekaRunOutcome>();
+  #identityListener: ((identity: MekaRunIdentity) => void) | undefined;
 
-  constructor(provider: MekaProvider, listener?: (event: MekaEvent) => void) {
+  constructor(
+    provider: MekaProvider,
+    listener?: (event: MekaEvent) => void,
+    identityListener?: (identity: MekaRunIdentity) => void,
+  ) {
     this.provider = provider;
     this.done = this.#completion.promise;
+    this.#identityListener = identityListener;
     if (listener) {
       this.#listeners.add(listener);
     }
@@ -433,6 +463,11 @@ class ActiveRun implements MekaRun {
   setIdentity(sessionId: string, runId: string | null): void {
     this.providerSessionId = sessionId;
     this.providerRunId = runId;
+    try {
+      this.#identityListener?.({ providerSessionId: sessionId, providerRunId: runId });
+    } catch {
+      // Identity observers are advisory and cannot break provider startup.
+    }
   }
 
   setActions(options: {
@@ -578,6 +613,15 @@ function recordOrUndefined(value: unknown): Record<string, unknown> | undefined 
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function managedProviderLaunchOptions(): MekaProviderLaunchOptions {
+  return {
+    environment: {
+      ...process.env,
+      [MEKA_MANAGED_SESSION_ENV]: "1",
+    },
+  };
 }
 
 const MAX_COMMAND_OUTPUT_BYTES = 1_048_576;

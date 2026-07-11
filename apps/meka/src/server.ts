@@ -17,6 +17,7 @@ import {
   isManagedRunJob,
   managedRunPayload,
   type ClaimedAutomationJob,
+  type ManagedAgentSession,
 } from "./automation-runtime.ts";
 import { MIN_QUEUE_LEASE_MS } from "./automation/constants.ts";
 import { acquireWorkspaceDaemonLock, type WorkspaceDaemonLock } from "./daemon-lock.ts";
@@ -51,6 +52,7 @@ const MAX_CLIENTS = 64;
 const MAX_INFLIGHT_REQUESTS = 32;
 const MAX_ACTIVE_RUNS = 32;
 const MAX_RUN_RECORDS = 4_096;
+const MAX_MANAGED_AGENT_SESSIONS = MAX_RUN_RECORDS * 2;
 const MAX_EVENTS_PER_RUN = 1_000;
 const MAX_EVENT_HISTORY_BYTES = 4 * 1024 * 1024;
 const MAX_EVENT_BYTES = 1024 * 1024;
@@ -128,6 +130,7 @@ export class MekaServer {
   #server: Server | undefined;
   #clients = new Set<Client>();
   #runs = new Map<string, RunRecord>();
+  #managedSessions = new Map<string, ManagedAgentSession>();
   #ready: MekaReadyInfo | undefined;
   #starting: Promise<MekaReadyInfo> | undefined;
   #closing: Promise<void> | undefined;
@@ -315,6 +318,7 @@ export class MekaServer {
       entry.stopLeaseHeartbeat?.();
     }
     this.#runs.clear();
+    this.#managedSessions.clear();
     const cleanupErrors: unknown[] = [];
     const automation = this.#automation;
     this.#automation = undefined;
@@ -715,8 +719,8 @@ export class MekaServer {
 
   async #drainAutomation(): Promise<void> {
     const automation = this.#requireAutomation();
-    if (this.#observeExternalAgents) {
-      await automation.drainHookSpool();
+    if (this.#observeExternalAgents && !this.#hasUnidentifiedStartingRun()) {
+      await automation.drainHookSpool({ managedSessions: this.#managedAgentSessions() });
     }
     // Recovery must run even when no queue currently has a pending row. A
     // crashed external worker can otherwise leave the last job in a queue
@@ -882,6 +886,16 @@ export class MekaServer {
         cwd: this.cwd,
         ...(payload.model ? { model: payload.model } : {}),
         onEvent: (event) => this.#publishRunEvent(entry as RunRecord, event),
+        onIdentity: (identity) => {
+          if (this.#runs.get(entry.id) !== entry || entry.outcome) return;
+          this.#rememberManagedAgentSession(payload.provider, identity.providerSessionId);
+          const changed =
+            entry.providerSessionId !== identity.providerSessionId ||
+            entry.providerRunId !== identity.providerRunId;
+          entry.providerSessionId = identity.providerSessionId;
+          entry.providerRunId = identity.providerRunId;
+          if (changed) this.#publishRunState(entry);
+        },
       });
       entry.startup = startup;
       const run = await startup;
@@ -894,6 +908,7 @@ export class MekaServer {
       entry.state = run.state;
       entry.providerSessionId = run.providerSessionId;
       entry.providerRunId = run.providerRunId;
+      this.#rememberManagedAgentSession(payload.provider, run.providerSessionId);
       await Effect.runPromise(
         automation.store.markProviderAccepted({
           jobId: entry.jobId,
@@ -1152,6 +1167,28 @@ export class MekaServer {
     return [...this.#runs.values()].filter(
       (run) => run.outcome === undefined && run.state !== "queued",
     ).length;
+  }
+
+  #hasUnidentifiedStartingRun(): boolean {
+    return [...this.#runs.values()].some(
+      (run) => run.state === "starting" && run.providerSessionId === null,
+    );
+  }
+
+  #managedAgentSessions(): ManagedAgentSession[] {
+    return [...this.#managedSessions.values()];
+  }
+
+  #rememberManagedAgentSession(provider: MekaProvider, sessionId: string): void {
+    if (!sessionId) return;
+    const key = JSON.stringify([provider, sessionId]);
+    this.#managedSessions.delete(key);
+    this.#managedSessions.set(key, { provider, sessionId });
+    while (this.#managedSessions.size > MAX_MANAGED_AGENT_SESSIONS) {
+      const oldest = this.#managedSessions.keys().next().value;
+      if (oldest === undefined) break;
+      this.#managedSessions.delete(oldest);
+    }
   }
 
   #requireReady(): MekaReadyInfo {

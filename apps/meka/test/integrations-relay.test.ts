@@ -185,6 +185,49 @@ test("keeps every id-less hook invocation unique without persisting sensitive pa
   }
 });
 
+test("suppresses managed provider hooks while external sessions remain observable", async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-relay-managed-test-"));
+  const stateHome = path.join(temporaryDirectory, "state");
+  const workspace = path.join(temporaryDirectory, "workspace");
+  await mkdir(workspace, { recursive: true });
+
+  try {
+    expect(
+      await invokeRelay(
+        stateHome,
+        {
+          hook_event_name: "SessionStart",
+          session_id: "meka-managed-session",
+          cwd: workspace,
+        },
+        { managed: true },
+      ),
+    ).toBe(0);
+    expect(
+      await invokeRelay(stateHome, {
+        hook_event_name: "SessionStart",
+        session_id: "external-side-by-side-session",
+        cwd: workspace,
+      }),
+    ).toBe(0);
+
+    const claims = await claimHookIngress({
+      stateHome,
+      workspaceRoot: workspace,
+      consumerId: "managed-classification-runtime",
+    });
+    expect(claims).toHaveLength(1);
+    expect(claims[0]?.input).toMatchObject({
+      provider: "codex",
+      sessionId: "external-side-by-side-session",
+      eventType: "SessionStart",
+    });
+    if (claims[0]) await acknowledgeHookIngressClaim(claims[0]);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("fails open when a host sends an unusable hook payload", async () => {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-relay-fail-open-test-"));
   try {
@@ -200,10 +243,17 @@ test("fails open when a host sends an unusable hook payload", async () => {
   }
 });
 
-async function invokeRelay(stateHome: string, input: unknown): Promise<number | null> {
+async function invokeRelay(
+  stateHome: string,
+  input: unknown,
+  options: { managed?: boolean; provider?: "codex" | "claude" } = {},
+): Promise<number | null> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [RELAY_PATH, "codex"], {
-      env: { ...process.env, XDG_STATE_HOME: stateHome },
+    const environment: NodeJS.ProcessEnv = { ...process.env, XDG_STATE_HOME: stateHome };
+    delete environment.MEKA_MANAGED_SESSION;
+    if (options.managed) environment.MEKA_MANAGED_SESSION = "1";
+    const child = spawn(process.execPath, [RELAY_PATH, options.provider ?? "codex"], {
+      env: environment,
       stdio: ["pipe", "ignore", "ignore"],
       shell: false,
     });

@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Effect } from "effect";
@@ -17,6 +17,7 @@ import { expect, test } from "vite-plus/test";
 import { AutomationRuntime } from "../src/automation-runtime.ts";
 import { openAutomationStore, type AutomationStore } from "../src/automation/store.ts";
 import { MekaClient } from "../src/client.ts";
+import { resolveHookIngressLocation } from "../src/hook-ingress.ts";
 import { MekaServer } from "../src/server.ts";
 
 test("closes a live provider run and records uncertainty when provider acceptance cannot persist", async () => {
@@ -91,6 +92,118 @@ test("starts work from another queue while a provider startup remains pending", 
     engine.slowRun.finish({ state: "completed" });
   } finally {
     engine.releaseSlow.resolve(engine.slowRun);
+    if (store) await Effect.runPromise(store.close());
+    await fixture.cleanup();
+  }
+});
+
+test("defers hook routing until managed provider identity can be correlated", async () => {
+  const engine = new IdentityBeforeReadyEngine();
+  const fixture = await createServerFixture("managed-hook-correlation", engine);
+  let store: AutomationStore | undefined;
+  try {
+    store = await Effect.runPromise(
+      openAutomationStore({ cwd: fixture.workspace, stateRoot: fixture.stateRoot }),
+    );
+    const activeStore = store;
+    const queued = await fixture.client.startRun({
+      provider: "codex",
+      prompt: "managed hook source",
+    });
+    await withTimeout(engine.started.promise, 2_000, "managed provider startup");
+
+    await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000101",
+      sourceEventId: "managed-session-start",
+      sessionId: engine.run.providerSessionId,
+    });
+    await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000102",
+      sourceEventId: "external-session-start",
+      sessionId: "external-side-by-side-session",
+    });
+
+    // The 500ms daemon tick must not ingest either event while provider
+    // startup is unresolved and its final identity could still change.
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    await expect(
+      Effect.runPromise(activeStore.listAgentEvents({ provider: "codex" })),
+    ).resolves.toEqual([]);
+
+    engine.reportIdentity();
+    await waitUntil(
+      async () =>
+        (
+          await Effect.runPromise(
+            activeStore.listAgentEvents({
+              provider: "codex",
+              sessionId: "external-side-by-side-session",
+            }),
+          )
+        ).length === 1,
+      { timeoutMs: 3_000, description: "external hook routing" },
+    );
+
+    await expect(
+      Effect.runPromise(
+        activeStore.listAgentEvents({
+          provider: "codex",
+          sessionId: engine.run.providerSessionId,
+        }),
+      ),
+    ).resolves.toEqual([]);
+    await expect(
+      Effect.runPromise(activeStore.listWorkflowEvents({ source: "agent:codex" })),
+    ).resolves.toMatchObject([
+      {
+        type: "agent.codex.SessionStart",
+      },
+    ]);
+    await expect(fixture.client.status()).resolves.toMatchObject({
+      automation: { activeExternalSessions: 1 },
+    });
+
+    engine.release.resolve(engine.run);
+    engine.run.finish({ state: "completed" });
+    await waitForJobStatus(activeStore, queued.jobId, "succeeded");
+    await fixture.client.closeRun(queued.id);
+
+    // Closing the retained run record must not forget the provider session;
+    // late hooks can arrive after completion or capacity eviction.
+    await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000103",
+      sourceEventId: "late-managed-stop",
+      sessionId: engine.run.providerSessionId,
+      eventType: "Stop",
+    });
+    await writeAgentHook(fixture, {
+      entryId: "00000000-0000-4000-8000-000000000104",
+      sourceEventId: "external-stop",
+      sessionId: "external-side-by-side-session",
+      eventType: "Stop",
+    });
+    await waitUntil(
+      async () =>
+        (
+          await Effect.runPromise(
+            activeStore.listAgentEvents({
+              provider: "codex",
+              sessionId: "external-side-by-side-session",
+            }),
+          )
+        ).length === 2,
+      { timeoutMs: 3_000, description: "late external hook routing" },
+    );
+    await expect(
+      Effect.runPromise(
+        activeStore.listAgentEvents({
+          provider: "codex",
+          sessionId: engine.run.providerSessionId,
+        }),
+      ),
+    ).resolves.toEqual([]);
+  } finally {
+    engine.release.resolve(engine.run);
     if (store) await Effect.runPromise(store.close());
     await fixture.cleanup();
   }
@@ -408,6 +521,7 @@ async function createServerFixture(
   root: string;
   workspace: string;
   stateRoot: string;
+  stateHome: string;
   engine: MekaEngine;
   server: MekaServer;
   client: MekaClient;
@@ -416,11 +530,13 @@ async function createServerFixture(
   const root = await mkdtemp(path.join(os.tmpdir(), `meka-${name}-test-`));
   const workspace = path.join(root, "workspace");
   const stateRoot = path.join(root, "state");
+  const stateHome = path.join(root, "global-state");
   await mkdir(workspace);
   const server = new MekaServer({
     engine,
     cwd: workspace,
     stateRoot,
+    stateHome,
     runtimeRoot: path.join(root, "runtime"),
   });
   const ready = await server.start();
@@ -430,6 +546,7 @@ async function createServerFixture(
     root,
     workspace,
     stateRoot,
+    stateHome,
     engine,
     server,
     client,
@@ -439,6 +556,43 @@ async function createServerFixture(
       await rm(root, { recursive: true, force: true });
     },
   };
+}
+
+async function writeAgentHook(
+  fixture: { stateHome: string; workspace: string },
+  input: {
+    entryId: string;
+    sourceEventId: string;
+    sessionId: string;
+    eventType?: string;
+  },
+): Promise<void> {
+  const location = resolveHookIngressLocation({ stateHome: fixture.stateHome });
+  await mkdir(location.inboxPath, { recursive: true, mode: 0o700 });
+  await chmod(location.root, 0o700);
+  await chmod(location.inboxPath, 0o700);
+  const occurredAt = new Date().toISOString();
+  const id = `hook-${String(Date.now()).padStart(13, "0")}-${input.entryId}`;
+  await writeFile(
+    path.join(location.inboxPath, `${id}.json`),
+    `${JSON.stringify({
+      version: 1,
+      id,
+      kind: "agent.hook",
+      createdAt: occurredAt,
+      cwd: fixture.workspace,
+      payload: {
+        source: "codex-hook",
+        sourceEventId: input.sourceEventId,
+        provider: "codex",
+        sessionId: input.sessionId,
+        eventType: input.eventType ?? "SessionStart",
+        occurredAt,
+        payload: { cwd: fixture.workspace },
+      },
+    })}\n`,
+    { mode: 0o600 },
+  );
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -567,6 +721,32 @@ class CapturingEngine extends TestEngine {
   }
 
   async close(): Promise<void> {
+    await this.run.close();
+  }
+}
+
+class IdentityBeforeReadyEngine extends TestEngine {
+  readonly run = new TestRun("meka-proxy-session", "meka-proxy-turn");
+  readonly started = Promise.withResolvers<void>();
+  readonly release = Promise.withResolvers<MekaRun>();
+  #input: MekaRunInput | undefined;
+
+  async startRun(input: MekaRunInput): Promise<MekaRun> {
+    this.#input = input;
+    this.started.resolve();
+    return await this.release.promise;
+  }
+
+  reportIdentity(): void {
+    if (!this.#input) throw new Error("Provider startup has not begun");
+    this.#input.onIdentity?.({
+      providerSessionId: this.run.providerSessionId,
+      providerRunId: null,
+    });
+  }
+
+  async close(): Promise<void> {
+    this.release.resolve(this.run);
     await this.run.close();
   }
 }

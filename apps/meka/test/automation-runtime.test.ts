@@ -685,7 +685,7 @@ async function waitUntil(predicate: () => boolean | Promise<boolean>): Promise<v
   }
 }
 
-test("drains the shared hook inbox into workspace-scoped automation state", async () => {
+test("suppresses managed hook sessions while routing external side-by-side activity", async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "meka-hook-runtime-test-"));
   const workspace = path.join(temporary, "workspace");
   const child = path.join(workspace, "package");
@@ -717,7 +717,28 @@ test("drains the shared hook inbox into workspace-scoped automation state", asyn
           sourceEventId: "shared-hook-1",
           provider: "codex",
           sessionId: "external-session-1",
-          eventType: "AfterAgent",
+          eventType: "SessionStart",
+          occurredAt,
+          payload: { cwd: child },
+        },
+      })}\n`,
+      { mode: 0o600 },
+    );
+    const managedId = `hook-${String(Date.now()).padStart(13, "0")}-00000000-0000-4000-8000-000000000002`;
+    await writeFile(
+      path.join(location.inboxPath, `${managedId}.json`),
+      `${JSON.stringify({
+        version: 1,
+        id: managedId,
+        kind: "agent.hook",
+        createdAt: occurredAt,
+        cwd: child,
+        payload: {
+          source: "codex-hook",
+          sourceEventId: "managed-hook-1",
+          provider: "codex",
+          sessionId: "meka-managed-session-1",
+          eventType: "SessionStart",
           occurredAt,
           payload: { cwd: child },
         },
@@ -725,15 +746,31 @@ test("drains the shared hook inbox into workspace-scoped automation state", asyn
       { mode: 0o600 },
     );
 
-    await expect(runtime.drainHookSpool()).resolves.toEqual({ ingested: 1, duplicates: 0 });
+    await expect(
+      runtime.drainHookSpool({
+        managedSessions: [{ provider: "codex", sessionId: "meka-managed-session-1" }],
+      }),
+    ).resolves.toEqual({ ingested: 1, duplicates: 0 });
     await expect(
       Effect.runPromise(
         runtime.store.listAgentEvents({ provider: "codex", sessionId: "external-session-1" }),
       ),
-    ).resolves.toMatchObject([{ eventType: "AfterAgent" }]);
+    ).resolves.toMatchObject([{ eventType: "SessionStart" }]);
+    await expect(
+      Effect.runPromise(
+        runtime.store.listAgentEvents({ provider: "codex", sessionId: "meka-managed-session-1" }),
+      ),
+    ).resolves.toEqual([]);
+    await expect(
+      Effect.runPromise(runtime.store.countExternalAgentSessions({ states: ["active"] })),
+    ).resolves.toBe(1);
     await expect(
       Effect.runPromise(runtime.store.listWorkflowEvents({ source: "agent:codex" })),
-    ).resolves.toMatchObject([{ type: "agent.codex.AfterAgent" }]);
+    ).resolves.toMatchObject([
+      {
+        type: "agent.codex.SessionStart",
+      },
+    ]);
     await expect(
       claimHookIngress({ stateHome, workspaceRoot: workspace, consumerId: "verification" }),
     ).resolves.toEqual([]);

@@ -71,6 +71,16 @@ export type ClaimedAutomationJob = {
   envelope: JobEnvelope;
 };
 
+export type ManagedAgentSession = {
+  provider: "codex" | "claude";
+  sessionId: string;
+};
+
+export type DrainHookSpoolOptions = {
+  limit?: number;
+  managedSessions?: readonly ManagedAgentSession[];
+};
+
 /** High-level durable automation operations shared by the CLI and daemon. */
 export class AutomationRuntime {
   readonly cwd: string;
@@ -307,7 +317,20 @@ export class AutomationRuntime {
     }
   }
 
-  async drainHookSpool(limit = 100): Promise<{ ingested: number; duplicates: number }> {
+  /**
+   * Claims hook entries for this workspace. Managed-session entries are
+   * acknowledged but intentionally excluded from ingress/duplicate counts.
+   */
+  async drainHookSpool(
+    options: DrainHookSpoolOptions | number = {},
+  ): Promise<{ ingested: number; duplicates: number }> {
+    const normalized = typeof options === "number" ? { limit: options } : options;
+    const limit = normalized.limit ?? 100;
+    const managedSessions = new Set(
+      (normalized.managedSessions ?? []).map(({ provider, sessionId }) =>
+        agentSessionKey(provider, sessionId),
+      ),
+    );
     if (this.#hookConsumer) {
       try {
         this.#hookConsumer = await renewHookIngressConsumer(
@@ -330,8 +353,9 @@ export class AutomationRuntime {
       if (!detail) continue;
       const payload = detail.payload as AgentHookEventInput;
       try {
-        if (await this.ingestHookInput(payload)) ingested += 1;
-        else duplicates += 1;
+        const outcome = await this.ingestHookInput(payload, managedSessions);
+        if (outcome === "ingested") ingested += 1;
+        else if (outcome === "duplicate") duplicates += 1;
       } catch (error) {
         if (!(error instanceof AutomationValidationError)) throw error;
       }
@@ -352,9 +376,9 @@ export class AutomationRuntime {
           ...(this.hookStateHome ? { stateHome: this.hookStateHome } : {}),
         },
         async (claim) => {
-          const result = await this.ingestHookInput(claim.input);
-          if (result) ingested += 1;
-          else duplicates += 1;
+          const outcome = await this.ingestHookInput(claim.input, managedSessions);
+          if (outcome === "ingested") ingested += 1;
+          else if (outcome === "duplicate") duplicates += 1;
         },
       );
     } catch (error) {
@@ -369,7 +393,16 @@ export class AutomationRuntime {
     return { ingested, duplicates };
   }
 
-  private async ingestHookInput(payload: AgentHookEventInput): Promise<boolean> {
+  private async ingestHookInput(
+    payload: AgentHookEventInput,
+    managedSessions: ReadonlySet<string>,
+  ): Promise<"ingested" | "duplicate" | "suppressed"> {
+    const sessionKey = agentSessionKey(payload.provider, payload.sessionId);
+    if (sessionKey && managedSessions.has(sessionKey)) {
+      // Meka owns this provider session. Acknowledge its installed hook entry
+      // without creating an "external" lease or recursively routing agent.*.
+      return "suppressed";
+    }
     const hook = await Effect.runPromise(this.store.ingestAgentHookEvent(payload));
     const routed = await this.ingestEvent({
       type: `agent.${payload.provider ?? payload.source}.${payload.eventType}`,
@@ -383,7 +416,7 @@ export class AutomationRuntime {
       },
       payload: payload.payload ?? {},
     });
-    return hook.inserted || routed.inserted;
+    return hook.inserted || routed.inserted ? "ingested" : "duplicate";
   }
 
   async createSource(input: SourceRegistrationInput): Promise<SourceRegistration> {
@@ -686,6 +719,15 @@ function asRecordOrNull(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function agentSessionKey(provider: string, sessionId: string): string;
+function agentSessionKey(
+  provider: string | undefined,
+  sessionId: string | undefined,
+): string | undefined;
+function agentSessionKey(provider: string | undefined, sessionId: string | undefined) {
+  return provider && sessionId ? JSON.stringify([provider, sessionId]) : undefined;
 }
 
 function requiredString(value: unknown, label: string): string {

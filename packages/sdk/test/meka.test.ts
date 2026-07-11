@@ -1,12 +1,25 @@
 import { expect, test } from "vite-plus/test";
 import type { v2 } from "../src/providers/codex/app-server/generated/index.ts";
 import type { ClaudeCodeSessionStartOptions } from "../src/providers/claude/client.ts";
-import { Meka, type MekaEvent } from "@meka/sdk";
+import {
+  MEKA_MANAGED_SESSION_ENV,
+  Meka,
+  type MekaEvent,
+  type MekaProviderLaunchOptions,
+  type MekaRunIdentity,
+} from "@meka/sdk";
 
 test("runs Codex unattended, forwards native events, and closes on completion", async () => {
   const client = new FakeCodexClient();
   const events: MekaEvent[] = [];
-  const meka = new Meka({ createCodexClient: () => client as never });
+  const identities: MekaRunIdentity[] = [];
+  let launch: MekaProviderLaunchOptions | undefined;
+  const meka = new Meka({
+    createCodexClient: (options) => {
+      launch = options;
+      return client as never;
+    },
+  });
 
   const run = await meka.startRun({
     provider: "codex",
@@ -14,8 +27,10 @@ test("runs Codex unattended, forwards native events, and closes on completion", 
     cwd: "/workspace",
     model: "gpt-5",
     onEvent: (event) => events.push(event),
+    onIdentity: (identity) => identities.push(identity),
   });
 
+  expect(launch?.environment[MEKA_MANAGED_SESSION_ENV]).toBe("1");
   expect(client.threadParams).toMatchObject({
     cwd: "/workspace",
     model: "gpt-5",
@@ -34,6 +49,10 @@ test("runs Codex unattended, forwards native events, and closes on completion", 
     providerRunId: "turn-1",
     state: "running",
   });
+  expect(identities).toEqual([
+    { providerSessionId: "thread-1", providerRunId: null },
+    { providerSessionId: "thread-1", providerRunId: "turn-1" },
+  ]);
   expect(events).toContainEqual({ provider: "codex", event: { method: "item/started" } });
 
   await run.interrupt();
@@ -68,7 +87,13 @@ test("runs Codex unattended, forwards native events, and closes on completion", 
 test("runs Claude with bypass permissions and closes on a successful result", async () => {
   const client = new FakeClaudeClient();
   const events: MekaEvent[] = [];
-  const meka = new Meka({ createClaudeClient: () => client as never });
+  let launch: MekaProviderLaunchOptions | undefined;
+  const meka = new Meka({
+    createClaudeClient: (options) => {
+      launch = options;
+      return client as never;
+    },
+  });
   const run = await meka.startRun({
     provider: "claude",
     prompt: "inspect the repository",
@@ -77,6 +102,7 @@ test("runs Claude with bypass permissions and closes on a successful result", as
     onEvent: (event) => events.push(event),
   });
 
+  expect(launch?.environment[MEKA_MANAGED_SESSION_ENV]).toBe("1");
   expect(client.options).toMatchObject({
     cwd: "/workspace",
     model: "sonnet",
