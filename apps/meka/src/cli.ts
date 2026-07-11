@@ -733,10 +733,10 @@ async function streamRun(
     }
   });
   try {
-    const subscribed = await client.subscribe(runId, afterSequence);
-    if (isTerminal(subscribed.run.state)) {
-      terminal.resolve(subscribed.run);
-    }
+    // The subscribe response deliberately precedes replay notifications. Even
+    // when its snapshot is terminal, wait for the trailing run.state so every
+    // replayed run.event has been delivered before removing the listener.
+    await client.subscribe(runId, afterSequence);
     const run = await terminal.promise;
     return exitCode(run.state);
   } finally {
