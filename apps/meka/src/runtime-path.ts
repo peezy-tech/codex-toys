@@ -42,12 +42,8 @@ export async function createRuntimeLocation(
     throw new Error("Meka private sockets are currently supported on POSIX systems only");
   }
   const instanceId = options.instanceId ?? randomUUID();
-  let runtimeRoot = path.resolve(options.runtimeRoot ?? defaultRuntimeRoot());
-  let location = paths(runtimeRoot, instanceId);
-  if (Buffer.byteLength(location.socketPath) > MAX_UNIX_SOCKET_PATH_BYTES && !options.runtimeRoot) {
-    runtimeRoot = fallbackRuntimeRoot();
-    location = paths(runtimeRoot, instanceId);
-  }
+  const runtimeRoot = path.resolve(options.runtimeRoot ?? implicitRuntimeRoot());
+  const location = paths(runtimeRoot, instanceId);
   if (Buffer.byteLength(location.socketPath) > MAX_UNIX_SOCKET_PATH_BYTES) {
     throw new Error(`Meka socket path is too long: ${location.socketPath}`);
   }
@@ -85,7 +81,7 @@ export async function removeRuntimeLocation(location: MekaRuntimeLocation): Prom
 export async function discoverRuntimeMetadata(
   options: { runtimeRoot?: string; cwd?: string } = {},
 ): Promise<MekaRuntimeMetadata> {
-  const runtimeRoot = path.resolve(options.runtimeRoot ?? defaultRuntimeRoot());
+  const runtimeRoot = path.resolve(options.runtimeRoot ?? implicitRuntimeRoot());
   const requestedCwd = path.resolve(options.cwd ?? process.cwd());
   const cwd = await realpath(requestedCwd).catch(() => requestedCwd);
   let entries;
@@ -129,6 +125,14 @@ export function defaultRuntimeRoot(): string {
 function fallbackRuntimeRoot(): string {
   const uid = typeof process.getuid === "function" ? process.getuid() : "user";
   return path.join(os.tmpdir(), `meka-${uid}`);
+}
+
+function implicitRuntimeRoot(): string {
+  const runtimeRoot = path.resolve(defaultRuntimeRoot());
+  const location = paths(runtimeRoot, "00000000");
+  return Buffer.byteLength(location.socketPath) > MAX_UNIX_SOCKET_PATH_BYTES
+    ? fallbackRuntimeRoot()
+    : runtimeRoot;
 }
 
 function paths(runtimeRoot: string, instanceId: string) {

@@ -100,6 +100,60 @@ test("creates a unique private instance and exclusive private metadata", async (
   }
 });
 
+test("discovers a runtime that falls back from a long XDG root", async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-fallback-test-"));
+  const workspace = path.join(temporaryDirectory, "workspace");
+  const previousRuntimeDirectory = process.env.XDG_RUNTIME_DIR;
+  const previousTemporaryDirectory = process.env.TMPDIR;
+  const server = net.createServer();
+  let location: Awaited<ReturnType<typeof createRuntimeLocation>> | undefined;
+
+  try {
+    process.env.TMPDIR = temporaryDirectory;
+    process.env.XDG_RUNTIME_DIR = path.join(
+      temporaryDirectory,
+      "x".repeat(MAX_UNIX_SOCKET_PATH_BYTES),
+    );
+    await mkdir(workspace);
+    const createdLocation = await createRuntimeLocation();
+    location = createdLocation;
+
+    const uid = typeof process.getuid === "function" ? process.getuid() : "user";
+    expect(createdLocation.runtimeRoot).toBe(path.join(temporaryDirectory, `meka-${uid}`));
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(createdLocation.socketPath, resolve);
+    });
+    await chmod(createdLocation.socketPath, 0o600);
+    await writeRuntimeMetadata(createdLocation, {
+      instanceId: createdLocation.instanceId,
+      socketPath: createdLocation.socketPath,
+      pid: process.pid,
+      protocolVersion: 1,
+      cwd: workspace,
+      startedAt: "2026-07-11T00:00:00.000Z",
+    });
+
+    await expect(discoverRuntimeMetadata({ cwd: workspace })).resolves.toMatchObject({
+      instanceId: createdLocation.instanceId,
+      socketPath: createdLocation.socketPath,
+      cwd: workspace,
+    });
+  } finally {
+    if (server.listening) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+    if (location) {
+      await removeRuntimeLocation(location);
+    }
+    if (previousRuntimeDirectory === undefined) delete process.env.XDG_RUNTIME_DIR;
+    else process.env.XDG_RUNTIME_DIR = previousRuntimeDirectory;
+    if (previousTemporaryDirectory === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previousTemporaryDirectory;
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("rejects a runtime root reached through a symbolic link", async () => {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-runtime-test-"));
   const actualRoot = path.join(temporaryDirectory, "actual");
