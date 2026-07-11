@@ -130,6 +130,8 @@ export class MekaServer {
   #server: Server | undefined;
   #clients = new Set<Client>();
   #runs = new Map<string, RunRecord>();
+  // Session correlation is authoritative when CODEX_WORKSPACE_APP_SERVER_SOCK
+  // points at a pre-existing app-server that cannot inherit Meka's child env.
   #managedSessions = new Map<string, ManagedAgentSession>();
   #ready: MekaReadyInfo | undefined;
   #starting: Promise<MekaReadyInfo> | undefined;
