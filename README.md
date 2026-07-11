@@ -267,6 +267,12 @@ pnpm run meka -- interrupt <run-id>
 pnpm run meka -- close <run-id>
 ```
 
+Use `meka jobs cancel <job-id>` only for work that is still pending. Once a
+managed provider run is active, use `meka interrupt <run-id>` so the daemon that
+owns the worker aborts it before settling the durable job. Other active workflow
+or command workers must be controlled by their owning daemon. Lease tokens are
+internal daemon credentials and are not accepted by the direct state CLI.
+
 The installed hooks also tell Meka when a human or another agent launches
 Codex or Claude directly. Hooks write atomically to the private, bounded global
 inbox under `$XDG_STATE_HOME/meka/hook-ingress` (by default,

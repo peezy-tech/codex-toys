@@ -18,6 +18,9 @@ import { discoverRuntimeMetadata } from "./runtime-path.ts";
 import { MekaServer } from "./server.ts";
 
 const MAX_STDIN_BYTES = 2 * 1024 * 1024;
+const ACTIVE_JOB_CANCEL_MESSAGE =
+  "Active jobs cannot be canceled from the state CLI. For a managed provider run, use " +
+  "`meka interrupt <run-id>`; other active workers must be controlled by their owning daemon";
 
 export async function runCli(argv = process.argv.slice(2)): Promise<number> {
   const [command, ...rest] = argv;
@@ -352,15 +355,24 @@ async function jobsCommand(args: string[]): Promise<number> {
   if (subcommand === "cancel") {
     return await withAutomation(
       rest,
+      // Parse the old lease option only to return safe migration guidance.
+      // Lease-bearing settlement remains available to the owning daemon.
       new Set(["cwd", "state-root", "lease-token", "reason"]),
       async (automation, parsed) => {
+        const jobId = onePositional(parsed, "job id");
+        if (parsed.options["lease-token"]) {
+          throw new CliError(
+            `--lease-token cannot be used from the state CLI; cancel pending jobs without it. ${ACTIVE_JOB_CANCEL_MESSAGE}`,
+          );
+        }
+        const job = await Effect.runPromise(automation.store.getJob(jobId));
+        if (job?.status === "leased" || job?.status === "running") {
+          throw new CliError(ACTIVE_JOB_CANCEL_MESSAGE);
+        }
         print(
           await Effect.runPromise(
             automation.store.cancelJob({
-              jobId: onePositional(parsed, "job id"),
-              ...(parsed.options["lease-token"]
-                ? { leaseToken: parsed.options["lease-token"] }
-                : {}),
+              jobId,
               ...(parsed.options.reason ? { reason: parsed.options.reason } : {}),
             }),
           ),
@@ -1018,12 +1030,15 @@ Usage:
   meka jobs list [--queue NAME] [--status STATES] [--limit N] [--cwd DIR] [--state-root DIR]
   meka jobs show <id> [--cwd DIR] [--state-root DIR]
   meka jobs retry <id> [--not-before ISO_TIME] [--cwd DIR] [--state-root DIR]
-  meka jobs cancel <id> [--lease-token TOKEN] [--reason TEXT] [--cwd DIR] [--state-root DIR]
+  meka jobs cancel <id> [--reason TEXT] [--cwd DIR] [--state-root DIR]
   meka jobs resolve <id> --status succeeded|failed|canceled [--cwd DIR] [--state-root DIR]
 
 STATES is a comma-separated durable job-state list. jobs resolve is the explicit
 operator path for an uncertain job; pipe one JSON result (succeeded) or error
-(failed/canceled) on stdin. Active-job cancellation requires its lease token.
+(failed/canceled) on stdin. jobs cancel only settles pending jobs. For an active
+managed provider run, use meka interrupt so its owning daemon aborts the worker
+and settles the job together. Other active workers must be controlled by their
+owning daemon; lease tokens are internal daemon credentials.
 `,
   workflow: `Meka trusted TypeScript workflows
 

@@ -44,6 +44,12 @@ external dispatch, it can be recovered; if a provider may already have
 accepted the work, Meka marks the job `uncertain` instead of retrying a
 possibly side-effecting run.
 
+`meka jobs cancel <job-id>` only cancels work that is still pending. Once a
+managed provider run is active, use `meka interrupt <run-id>` so the daemon that
+owns the worker aborts it before settling the durable job. Other active workflow
+or command workers must be controlled by their owning daemon. Lease tokens are
+internal daemon credentials and are not accepted by the direct state CLI.
+
 `default` is the only built-in queue. Every other name must be configured
 before workflow registration or enqueue. A rolling start budget counts every
 job attempt on that queue, so the example keeps workflow evaluation on
