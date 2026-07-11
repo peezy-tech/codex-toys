@@ -154,7 +154,11 @@ export async function registerHookIngressConsumer(
   const target = consumerRegistrationPath(location, consumerId);
   return await withRoutingMutationLock(location, consumerId, async () => {
     const existing = await readConsumerRegistration(target);
-    if (existing?.state === "active" && Date.parse(existing.leaseExpiresAt) > now) {
+    if (
+      existing?.state === "active" &&
+      Date.parse(existing.leaseExpiresAt) > now &&
+      isProcessAlive(existing.pid)
+    ) {
       throw new AutomationValidationError(
         `Hook ingress consumer is already active for ${workspaceRoot}`,
       );

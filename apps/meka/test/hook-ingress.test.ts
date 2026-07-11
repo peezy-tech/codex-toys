@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import {
   chmod,
   lstat,
@@ -116,6 +118,106 @@ test("atomically admits only one live registration for a stable consumer id", as
       });
     }
   } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("immediately replaces an unexpired consumer whose owner process crashed", async () => {
+  const fixture = await createFixture();
+  const workspace = path.join(fixture.root, "repo");
+  await mkdir(workspace, { recursive: true });
+  const hookIngressModule = new URL("../src/hook-ingress.ts", import.meta.url).href;
+  const child = spawn(
+    process.execPath,
+    [
+      "--import",
+      import.meta.resolve("tsx"),
+      "--input-type=module",
+      "--eval",
+      `
+        import { registerHookIngressConsumer } from ${JSON.stringify(hookIngressModule)};
+        const stateHome = process.env.MEKA_TEST_STATE_HOME;
+        const workspaceRoot = process.env.MEKA_TEST_WORKSPACE_ROOT;
+        if (!stateHome || !workspaceRoot) throw new Error("Missing hook ingress test paths");
+        await registerHookIngressConsumer({
+          stateHome,
+          workspaceRoot,
+          consumerId: "crash-recovery-runtime",
+          leaseMs: 60_000,
+        });
+        process.stdout.write("registered\\n");
+        setInterval(() => {}, 1_000);
+      `,
+    ],
+    {
+      env: {
+        ...process.env,
+        MEKA_TEST_STATE_HOME: fixture.stateHome,
+        MEKA_TEST_WORKSPACE_ROOT: workspace,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  const ownerPid = child.pid;
+  let replacement: Awaited<ReturnType<typeof registerHookIngressConsumer>> | undefined;
+  let stderr = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+
+  try {
+    const ready = await Promise.race([
+      once(child.stdout, "data").then(([chunk]) => String(chunk)),
+      once(child, "close").then(([code, signal]) => {
+        throw new Error(
+          `Hook ingress owner exited before registering (code ${String(code)}, signal ${String(signal)}): ${stderr}`,
+        );
+      }),
+    ]);
+    expect(ready).toContain("registered");
+    expect(ownerPid).toBeTypeOf("number");
+    expect(
+      JSON.parse(
+        await readFile(
+          path.join(
+            resolveHookIngressLocation({ stateHome: fixture.stateHome }).consumersPath,
+            "crash-recovery-runtime.json",
+          ),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({ pid: ownerPid, state: "active" });
+
+    await expect(
+      registerHookIngressConsumer({
+        stateHome: fixture.stateHome,
+        workspaceRoot: workspace,
+        consumerId: "crash-recovery-runtime",
+        leaseMs: 60_000,
+      }),
+    ).rejects.toThrow("already active");
+
+    const closed = once(child, "close");
+    expect(child.kill("SIGKILL")).toBe(true);
+    await closed;
+
+    replacement = await registerHookIngressConsumer({
+      stateHome: fixture.stateHome,
+      workspaceRoot: workspace,
+      consumerId: "crash-recovery-runtime",
+      leaseMs: 60_000,
+    });
+    expect(replacement.token).toBeTypeOf("string");
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) {
+      const closed = once(child, "close");
+      child.kill("SIGKILL");
+      await closed;
+    }
+    if (replacement) {
+      await releaseHookIngressConsumer(replacement, { stateHome: fixture.stateHome });
+    }
     await fixture.cleanup();
   }
 });
