@@ -1,6 +1,6 @@
 {
   "name": "meka",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260711093330",
   "description": "Observe local agent activity and operate Meka workflows from Codex.",
   "author": {
     "name": "Meka contributors"

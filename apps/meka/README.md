@@ -23,7 +23,10 @@ removes it only when its receipt and content still match; provider-specific
 uninstall leaves the shared launcher in place. Codex may require an explicit
 hook trust review. Integration status reports when the packaged plugin assets
 differ from the last installed fingerprint; explicit repair refreshes only
-provider plugins recorded as Meka-owned. Add `~/.local/bin` to `PATH` when
+provider plugins recorded as Meka-owned, without uninstalling the active plugin
+first. Claude refreshes are versioned and byte-verified, so integration asset
+changes must bump the matching plugin and Claude marketplace versions; repair
+fails closed on same-version drift. Add `~/.local/bin` to `PATH` when
 `cliShim.onPath` is false.
 Without `--provider`, setup installs every available host and reports skipped
 CLIs; use `--provider all` when both hosts are required.

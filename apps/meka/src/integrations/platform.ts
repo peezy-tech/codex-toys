@@ -28,6 +28,11 @@ export type IntegrationPlatformService = {
   readText(filePath: string): Effect.Effect<string | undefined, IntegrationFailure>;
   writeTextAtomic(filePath: string, contents: string): Effect.Effect<void, IntegrationFailure>;
   removeFile(filePath: string): Effect.Effect<void, IntegrationFailure>;
+  pathExistsInOwnedDirectory(
+    filePath: string,
+    rootDirectory: string,
+    parentDirectory: string,
+  ): Effect.Effect<boolean, IntegrationFailure>;
   canonicalPath(filePath: string): Effect.Effect<string, IntegrationFailure>;
   fingerprintTree(directory: string): Effect.Effect<string, IntegrationFailure>;
   acquireLock(
@@ -114,6 +119,17 @@ export function makeNodeIntegrationPlatform(): IntegrationPlatformService {
             { cause },
           ),
       }),
+    pathExistsInOwnedDirectory: (filePath, rootDirectory, parentDirectory) =>
+      Effect.tryPromise({
+        try: () => pathExistsInOwnedDirectory(filePath, rootDirectory, parentDirectory),
+        catch: (cause) =>
+          new IntegrationFailure(
+            "filesystem",
+            `Unable to inspect owned integration cache path ${filePath}: ${errorMessage(cause)}`,
+            undefined,
+            { cause },
+          ),
+      }),
     canonicalPath: (filePath) =>
       Effect.tryPromise({
         try: () => realpath(path.resolve(filePath)),
@@ -196,6 +212,52 @@ async function fingerprintDirectory(directory: string): Promise<string> {
 
   await visit(directory, "");
   return `sha256:${hash.digest("hex")}`;
+}
+
+async function pathExistsInOwnedDirectory(
+  filePath: string,
+  rootDirectory: string,
+  parentDirectory: string,
+): Promise<boolean> {
+  const target = path.resolve(filePath);
+  const root = path.resolve(rootDirectory);
+  const parent = path.resolve(parentDirectory);
+  const relativeParent = path.relative(root, parent);
+  if (
+    path.dirname(target) !== parent ||
+    path.isAbsolute(relativeParent) ||
+    relativeParent === ".." ||
+    relativeParent.startsWith(`..${path.sep}`)
+  ) {
+    throw new Error(`Cache path is outside its configured Claude root: ${target}`);
+  }
+
+  const segments = relativeParent ? relativeParent.split(path.sep) : [];
+  let current = root;
+  for (const segment of ["", ...segments]) {
+    if (segment) current = path.join(current, segment);
+    const metadata = await lstat(current);
+    if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+      throw new Error(`Cache ancestor is not a real directory: ${current}`);
+    }
+    if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
+      throw new Error(`Cache ancestor is not owned by the current user: ${current}`);
+    }
+  }
+
+  try {
+    const metadata = await lstat(target);
+    if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+      throw new Error(`Cache target is not a real directory: ${target}`);
+    }
+    if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
+      throw new Error(`Cache target is not owned by the current user: ${target}`);
+    }
+    return true;
+  } catch (error) {
+    if (isNodeError(error, "ENOENT")) return false;
+    throw error;
+  }
 }
 
 export const NodeIntegrationPlatformLive = Layer.succeed(

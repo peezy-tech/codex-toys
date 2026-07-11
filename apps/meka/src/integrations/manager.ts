@@ -37,6 +37,11 @@ type InspectedHost = {
   actualSource?: string;
   sourceMatches: boolean;
   pluginInstalled: boolean;
+  pluginHealthy: boolean;
+  pluginVersion?: string;
+  pluginInstallPath?: string;
+  pluginAssetsMatch?: boolean;
+  pluginEnabled?: boolean;
 };
 
 export function defaultIntegrationAssetRoot(): string {
@@ -301,6 +306,7 @@ function reconcileHost(
   let marketplaceAdded = false;
   let pluginAdded = false;
   let pluginRefreshed = false;
+  let expectedPluginVersion: string | undefined;
   const work = Effect.gen(function* () {
     let inspection = yield* inspectHost(platform, provider, expectedSource, options);
     const initialConflict = conflictFailure(provider, expectedSource, inspection);
@@ -329,32 +335,79 @@ function reconcileHost(
         );
       }
     }
-    if (forceRefresh && existingOwned?.pluginOwned === true && inspection.pluginInstalled) {
-      yield* runChecked(
-        platform,
-        commandFor(provider, "remove-plugin", expectedSource, options),
-        provider,
-      );
-      const removedInspection = yield* inspectHost(platform, provider, expectedSource, options);
-      const removedConflict = conflictFailure(provider, expectedSource, removedInspection);
-      if (removedConflict) {
-        return yield* Effect.fail(removedConflict);
-      }
-      if (removedInspection.pluginInstalled) {
-        return yield* Effect.fail(
-          new IntegrationFailure(
-            "invalid-response",
-            `${provider} still reported ${pluginId(options)} after uninstalling it for refresh`,
-            provider,
-          ),
+    if (
+      forceRefresh &&
+      existingOwned?.pluginOwned === true &&
+      inspection.pluginInstalled &&
+      (existingOwned.assetFingerprint !== assetFingerprint || !inspection.pluginHealthy)
+    ) {
+      let refreshRequired = true;
+      if (provider === "claude") {
+        if (inspection.pluginEnabled === false) {
+          return yield* Effect.fail(disabledClaudePluginFailure(options));
+        }
+        expectedPluginVersion = yield* expectedClaudePluginVersion(
+          platform,
+          expectedSource,
+          options,
         );
+        if (
+          inspection.pluginVersion === expectedPluginVersion &&
+          inspection.pluginAssetsMatch === true
+        ) {
+          // The provider update may have completed before a previous receipt
+          // write failed. A byte-for-byte cache match is sufficient to adopt
+          // that successful refresh without churning Claude's versioned cache.
+          pluginRefreshed = true;
+          refreshRequired = false;
+        } else if (inspection.pluginVersion === expectedPluginVersion) {
+          return yield* Effect.fail(
+            new IntegrationFailure(
+              "invalid-response",
+              `Claude cannot safely refresh changed ${pluginId(options)} assets at the already-installed version ${expectedPluginVersion}; bump the packaged Claude plugin version first`,
+              provider,
+            ),
+          );
+        }
+        if (refreshRequired) {
+          yield* runChecked(
+            platform,
+            claudeValidationCommand(expectedSource, options),
+            provider,
+          );
+          const targetCache = yield* claudeRefreshTargetCachePath(
+            inspection,
+            expectedPluginVersion,
+            options,
+          );
+          const targetExists = yield* platform.pathExistsInOwnedDirectory(
+            targetCache.targetPath,
+            targetCache.rootDirectory,
+            targetCache.parentDirectory,
+          );
+          if (targetExists) {
+            return yield* Effect.fail(
+              new IntegrationFailure(
+                "conflict",
+                `Claude cache target ${targetCache.targetPath} already exists; bump the packaged plugin cachebuster before retrying so Meka never deletes a possibly active or partial provider cache`,
+                provider,
+              ),
+            );
+          }
+        }
       }
-      yield* runChecked(
-        platform,
-        commandFor(provider, "install-plugin", expectedSource, options),
-        provider,
-      );
-      pluginRefreshed = true;
+      // Both providers can refresh an installed plugin without first making it
+      // absent. Codex stages and swaps `plugin add`; Claude switches versions
+      // through `plugin update`. Keeping the old install registered means a
+      // command failure cannot strand an owned integration with a stale receipt.
+      if (refreshRequired) {
+        yield* runChecked(
+          platform,
+          commandFor(provider, "refresh-plugin", expectedSource, options),
+          provider,
+        );
+        pluginRefreshed = true;
+      }
     } else if (!inspection.pluginInstalled) {
       yield* runChecked(
         platform,
@@ -368,11 +421,32 @@ function reconcileHost(
     if (finalConflict) {
       return yield* Effect.fail(finalConflict);
     }
-    if (!finalInspection.pluginInstalled) {
+    if (provider === "claude" && finalInspection.pluginEnabled === false) {
+      return yield* Effect.fail(disabledClaudePluginFailure(options));
+    }
+    if (
+      !finalInspection.pluginInstalled ||
+      ((pluginAdded || pluginRefreshed) && !finalInspection.pluginHealthy)
+    ) {
       return yield* Effect.fail(
         new IntegrationFailure(
           "invalid-response",
-          `${provider} did not report ${pluginId(options)} after installation`,
+          !finalInspection.pluginInstalled
+            ? `${provider} did not report ${pluginId(options)} after installation`
+            : `${provider} reported errors or a cache mismatch for ${pluginId(options)} after installation`,
+          provider,
+        ),
+      );
+    }
+    if (
+      provider === "claude" &&
+      expectedPluginVersion !== undefined &&
+      finalInspection.pluginVersion !== expectedPluginVersion
+    ) {
+      return yield* Effect.fail(
+        new IntegrationFailure(
+          "invalid-response",
+          `Claude reported ${pluginId(options)} at ${finalInspection.pluginVersion ?? "an unknown version"}; expected ${expectedPluginVersion}`,
           provider,
         ),
       );
@@ -461,18 +535,57 @@ function inspectHost(
     );
     const actualSource = marketplace ? marketplaceSource(marketplace) : undefined;
     const plugins = yield* decodeInstalledPluginEntries(provider, pluginsResult.stdout);
-    const installed = plugins.some(
-      (entry) =>
-        stringField(entry, "pluginId") === pluginId(options) ||
-        stringField(entry, "id") === pluginId(options) ||
-        (stringField(entry, "name") === options.pluginName &&
-          stringField(entry, "marketplaceName") === options.marketplaceName),
-    );
+    const matchingPlugins = plugins.filter((entry) => pluginEntryMatches(entry, options));
+    const installed =
+      provider === "claude"
+        ? matchingPlugins.find((entry) => stringField(entry, "scope") === "user")
+        : matchingPlugins[0];
+    const pluginVersion = installed ? stringField(installed, "version") : undefined;
+    const pluginInstallPath = installed ? stringField(installed, "installPath") : undefined;
+    const pluginEnabled = installed ? booleanField(installed, "enabled") : undefined;
+    let pluginAssetsMatch: boolean | undefined;
+    if (provider === "claude" && installed) {
+      if (
+        pluginInstallPath === undefined ||
+        !isClaudePluginCachePath(pluginInstallPath, options)
+      ) {
+        pluginAssetsMatch = false;
+      } else {
+        const cacheRoot = effectiveClaudeConfigDirectory();
+        const cacheParent = claudePluginCacheParent(options, cacheRoot);
+        const cacheExists = yield* platform.pathExistsInOwnedDirectory(
+          pluginInstallPath,
+          cacheRoot,
+          cacheParent,
+        );
+        if (!cacheExists) {
+          pluginAssetsMatch = false;
+        } else {
+          const [sourceFingerprint, installedFingerprint] = yield* Effect.all([
+            platform.fingerprintTree(
+              path.join(expectedSource, "plugins", options.pluginName),
+            ),
+            platform.fingerprintTree(pluginInstallPath),
+          ]);
+          pluginAssetsMatch = sourceFingerprint === installedFingerprint;
+        }
+      }
+    }
+    const pluginHealthy =
+      installed !== undefined &&
+      !hasPluginErrors(installed) &&
+      pluginEnabled !== false &&
+      (provider !== "claude" || pluginAssetsMatch === true);
     return {
       marketplaceInstalled: marketplace !== undefined,
       ...(actualSource ? { actualSource } : {}),
       sourceMatches: actualSource !== undefined && samePath(actualSource, expectedSource),
-      pluginInstalled: installed,
+      pluginInstalled: installed !== undefined,
+      pluginHealthy,
+      ...(pluginVersion ? { pluginVersion } : {}),
+      ...(pluginInstallPath ? { pluginInstallPath } : {}),
+      ...(pluginAssetsMatch === undefined ? {} : { pluginAssetsMatch }),
+      ...(pluginEnabled === undefined ? {} : { pluginEnabled }),
     };
   });
 }
@@ -485,6 +598,7 @@ function commandFor(
     | "remove-marketplace"
     | "list-plugins"
     | "install-plugin"
+    | "refresh-plugin"
     | "remove-plugin",
   source: string,
   options: ResolvedOptions,
@@ -506,6 +620,7 @@ function commandFor(
         args = ["plugin", "list", "--json"];
         break;
       case "install-plugin":
+      case "refresh-plugin":
         args = ["plugin", "add", pluginId(options), "--json"];
         break;
       case "remove-plugin":
@@ -529,6 +644,9 @@ function commandFor(
       case "install-plugin":
         args = ["plugin", "install", pluginId(options), "--scope", "user"];
         break;
+      case "refresh-plugin":
+        args = ["plugin", "update", pluginId(options), "--scope", "user"];
+        break;
       case "remove-plugin":
         args = ["plugin", "uninstall", pluginId(options), "--scope", "user"];
         break;
@@ -540,6 +658,111 @@ function commandFor(
     timeoutMs: options.commandTimeoutMs,
     maxOutputBytes: options.maxOutputBytes,
   };
+}
+
+function claudeValidationCommand(
+  source: string,
+  options: ResolvedOptions,
+): IntegrationCommand {
+  return {
+    executable: options.executables.claude,
+    args: ["plugin", "validate", "--strict", source],
+    timeoutMs: options.commandTimeoutMs,
+    maxOutputBytes: options.maxOutputBytes,
+  };
+}
+
+function expectedClaudePluginVersion(
+  platform: IntegrationPlatformService,
+  source: string,
+  options: ResolvedOptions,
+): Effect.Effect<string, IntegrationFailure> {
+  const manifestPath = path.join(source, ".claude-plugin", "marketplace.json");
+  return platform.readText(manifestPath).pipe(
+    Effect.flatMap((text) => {
+      try {
+        const manifest: unknown = text === undefined ? undefined : JSON.parse(text);
+        const plugins = isRecord(manifest) && Array.isArray(manifest.plugins) ? manifest.plugins : [];
+        const plugin = plugins.find(
+          (entry): entry is Record<string, unknown> =>
+            isRecord(entry) && stringField(entry, "name") === options.pluginName,
+        );
+        const version = plugin ? stringField(plugin, "version") : undefined;
+        return version
+          ? Effect.succeed(version)
+          : Effect.fail(
+              new IntegrationFailure(
+                "invalid-response",
+                `Claude marketplace ${manifestPath} does not declare a version for ${options.pluginName}`,
+                "claude",
+              ),
+            );
+      } catch (cause) {
+        return Effect.fail(
+          new IntegrationFailure(
+            "invalid-response",
+            `Claude marketplace ${manifestPath} is invalid JSON`,
+            "claude",
+            { cause },
+          ),
+        );
+      }
+    }),
+  );
+}
+
+function claudeRefreshTargetCachePath(
+  inspection: InspectedHost,
+  expectedVersion: string,
+  options: ResolvedOptions,
+): Effect.Effect<
+  { targetPath: string; rootDirectory: string; parentDirectory: string },
+  IntegrationFailure
+> {
+  return Effect.try({
+    try: () => {
+      const currentPath = inspection.pluginInstallPath;
+      if (!currentPath || !isClaudePluginCachePath(currentPath, options)) {
+        throw new IntegrationFailure(
+          "invalid-response",
+          "Claude did not report a safe user-scope plugin cache path",
+          "claude",
+        );
+      }
+      if (!/^[0-9A-Za-z][0-9A-Za-z.-]*(?:\+[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(expectedVersion)) {
+        throw new IntegrationFailure(
+          "invalid-response",
+          `Claude reported an unsafe target plugin version: ${expectedVersion}`,
+          "claude",
+        );
+      }
+      const rootDirectory = effectiveClaudeConfigDirectory();
+      const parentDirectory = claudePluginCacheParent(options, rootDirectory);
+      if (path.dirname(path.resolve(currentPath)) !== parentDirectory) {
+        throw new IntegrationFailure(
+          "invalid-response",
+          `Claude plugin cache is outside the effective config directory ${rootDirectory}`,
+          "claude",
+        );
+      }
+      const targetPath = path.join(parentDirectory, expectedVersion.replace("+", "-"));
+      if (
+        !isClaudePluginCachePath(targetPath, options) ||
+        samePath(targetPath, currentPath)
+      ) {
+        throw new IntegrationFailure(
+          "invalid-response",
+          `Claude target cache path is not a distinct owned plugin version: ${targetPath}`,
+          "claude",
+        );
+      }
+      return { targetPath, rootDirectory, parentDirectory };
+    },
+    catch: (cause) =>
+      cause instanceof IntegrationFailure
+        ? cause
+        : new IntegrationFailure("invalid-response", String(cause), "claude", { cause }),
+  });
 }
 
 function runChecked(
@@ -570,7 +793,8 @@ function statusFromInspection(
   owned: IntegrationHostReceipt | undefined,
 ): IntegrationHostStatus {
   const conflict = inspection.marketplaceInstalled && !inspection.sourceMatches;
-  const complete = inspection.sourceMatches && inspection.pluginInstalled;
+  const complete =
+    inspection.sourceMatches && inspection.pluginInstalled && inspection.pluginHealthy;
   const assetsCurrent =
     owned?.pluginOwned === true ? owned.assetFingerprint === assetFingerprint : undefined;
   const drifted = owned !== undefined && (!complete || assetsCurrent === false) && !conflict;
@@ -595,6 +819,14 @@ function statusFromInspection(
       ? {
           message: `Marketplace ${options.marketplaceName} points to ${inspection.actualSource ?? "an unknown source"}`,
         }
+      : inspection.pluginEnabled === false
+        ? {
+            message: `Claude reports ${pluginId(options)} disabled; run claude plugin enable ${pluginId(options)} --scope user, then meka integration repair`,
+          }
+      : inspection.pluginInstalled && !inspection.pluginHealthy
+        ? {
+            message: `${provider} reports errors or cached bytes that differ for ${pluginId(options)}; run meka integration repair after correcting the packaged plugin`,
+          }
       : assetsCurrent === false
         ? {
             message:
@@ -933,6 +1165,59 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringField(value: Record<string, unknown>, key: string): string | undefined {
   return typeof value[key] === "string" ? value[key] : undefined;
+}
+
+function booleanField(value: Record<string, unknown>, key: string): boolean | undefined {
+  return typeof value[key] === "boolean" ? value[key] : undefined;
+}
+
+function hasPluginErrors(value: Record<string, unknown>): boolean {
+  return Array.isArray(value.errors) && value.errors.length > 0;
+}
+
+function pluginEntryMatches(
+  entry: Record<string, unknown>,
+  options: ResolvedOptions,
+): boolean {
+  return (
+    stringField(entry, "pluginId") === pluginId(options) ||
+    stringField(entry, "id") === pluginId(options) ||
+    (stringField(entry, "name") === options.pluginName &&
+      stringField(entry, "marketplaceName") === options.marketplaceName)
+  );
+}
+
+function isClaudePluginCachePath(filePath: string, options: ResolvedOptions): boolean {
+  if (!path.isAbsolute(filePath)) {
+    return false;
+  }
+  const parent = claudePluginCacheParent(options, effectiveClaudeConfigDirectory());
+  return path.dirname(path.resolve(filePath)) === parent && path.basename(filePath).length > 0;
+}
+
+function effectiveClaudeConfigDirectory(): string {
+  const configured = process.env.CLAUDE_CONFIG_DIR;
+  return configured
+    ? path.resolve(process.cwd(), configured)
+    : path.join(os.homedir(), ".claude");
+}
+
+function claudePluginCacheParent(options: ResolvedOptions, configDirectory: string): string {
+  return path.join(
+    path.resolve(configDirectory),
+    "plugins",
+    "cache",
+    options.marketplaceName,
+    options.pluginName,
+  );
+}
+
+function disabledClaudePluginFailure(options: ResolvedOptions): IntegrationFailure {
+  return new IntegrationFailure(
+    "invalid-response",
+    `Claude reports ${pluginId(options)} disabled; run claude plugin enable ${pluginId(options)} --scope user, then retry meka integration repair`,
+    "claude",
+  );
 }
 
 function firstLine(value: string): string | undefined {

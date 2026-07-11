@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -74,6 +75,80 @@ test("fingerprints the complete integration asset tree deterministically", async
     const changed = await Effect.runPromise(platform.fingerprintTree(temporaryDirectory));
     expect(changed).not.toBe(first);
     expect(changed).toMatch(/^sha256:[0-9a-f]{64}$/u);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("confines cache probes and rejects symlinked ancestors", async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "meka-cache-path-test-"));
+  const configRoot = path.join(temporaryDirectory, "config");
+  const cacheParent = path.join(
+    configRoot,
+    "plugins",
+    "cache",
+    "meka-local",
+    "meka",
+  );
+  const target = path.join(cacheParent, "0.2.0");
+  const platform = makeNodeIntegrationPlatform();
+  try {
+    await mkdir(target, { recursive: true });
+    expect(
+      await Effect.runPromise(
+        platform.pathExistsInOwnedDirectory(target, configRoot, cacheParent),
+      ),
+    ).toBe(true);
+    expect(
+      await Effect.runPromise(
+        platform.pathExistsInOwnedDirectory(
+          path.join(cacheParent, "0.3.0"),
+          configRoot,
+          cacheParent,
+        ),
+      ),
+    ).toBe(false);
+
+    const forged = await Effect.runPromise(
+      Effect.either(
+        platform.pathExistsInOwnedDirectory(
+          path.join(temporaryDirectory, "outside", "0.2.0"),
+          configRoot,
+          cacheParent,
+        ),
+      ),
+    );
+    expect(forged).toMatchObject({ _tag: "Left", left: { reason: "filesystem" } });
+
+    await rm(target, { recursive: true, force: true });
+    const linkedCache = path.join(temporaryDirectory, "linked-cache");
+    await mkdir(linkedCache);
+    await symlink(linkedCache, target, "dir");
+    const symlinkedTarget = await Effect.runPromise(
+      Effect.either(platform.pathExistsInOwnedDirectory(target, configRoot, cacheParent)),
+    );
+    expect(symlinkedTarget).toMatchObject({
+      _tag: "Left",
+      left: { reason: "filesystem" },
+    });
+
+    await rm(path.join(configRoot, "plugins"), { recursive: true, force: true });
+    const outsidePlugins = path.join(temporaryDirectory, "outside-plugins");
+    const linkedTarget = path.join(
+      outsidePlugins,
+      "cache",
+      "meka-local",
+      "meka",
+      "0.2.0",
+    );
+    await mkdir(linkedTarget, { recursive: true });
+    await symlink(outsidePlugins, path.join(configRoot, "plugins"), "dir");
+
+    const symlinked = await Effect.runPromise(
+      Effect.either(platform.pathExistsInOwnedDirectory(target, configRoot, cacheParent)),
+    );
+    expect(symlinked).toMatchObject({ _tag: "Left", left: { reason: "filesystem" } });
+    await expect(lstat(linkedTarget)).resolves.toMatchObject({});
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }

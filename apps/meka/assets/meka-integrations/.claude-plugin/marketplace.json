@@ -9,7 +9,7 @@
       "name": "meka",
       "source": "./plugins/meka",
       "description": "Observe local agent activity and operate Effect-based Meka workflows.",
-      "version": "0.1.0"
+      "version": "0.1.0+codex.20260711093330"
     }
   ]
 }
