@@ -323,6 +323,35 @@ test("accepts a managed run cwd symlinked to the daemon workspace", async () => 
   }
 });
 
+test("resolves a relative managed run cwd from the daemon workspace", async () => {
+  const engine = new CapturingEngine();
+  const fixture = await createServerFixture("managed-cwd-relative", engine);
+  const runtime = await AutomationRuntime.open({
+    cwd: fixture.workspace,
+    stateRoot: fixture.stateRoot,
+  });
+  try {
+    expect(fixture.server.cwd).not.toBe(process.cwd());
+    const queued = await runtime.enqueueRun({
+      queue: "default",
+      intent: {
+        _tag: "meka.run",
+        provider: "codex",
+        prompt: "resolve from the daemon workspace",
+        cwd: ".",
+      },
+    });
+
+    await withTimeout(engine.started.promise, 3_000, "relative managed run startup");
+    expect(engine.startInput).toMatchObject({ cwd: fixture.server.cwd });
+    engine.run.finish({ state: "completed" });
+    await waitForJobStatus(runtime.store, queued.id, "succeeded");
+  } finally {
+    await runtime.close();
+    await fixture.cleanup();
+  }
+});
+
 test("leaves managed backlog pending when active run capacity is full", async () => {
   const engine = new CapacityEngine();
   const fixture = await createServerFixture("managed-capacity", engine);
