@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-4fc36e59b59174bb0036",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.144.2",
+  "title": "0.144.2",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.144.2",
+  "updatedAt": "2026-07-13T04:40:51.000Z",
+  "contentText": "Bug Fixes Restored the previous Guardian auto-review policy, request format, and tool behavior after rolling back a prompting regression. ( #32672 ) Changelog Full Changelog: rust-v0.144.1...rust-v0.144.2 #32672 [release/0.144] Revert \"Update auto review prompting\" @dylan-hurd-oai",
+  "observedAt": "2026-07-13T16:04:11.750Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.144.2",
+    "updated": "2026-07-13T04:40:51Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.144.2",
+        "type": "text/html"
+      }
+    ]
+  }
+}
