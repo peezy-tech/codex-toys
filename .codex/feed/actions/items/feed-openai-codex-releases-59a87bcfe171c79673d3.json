@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-59a87bcfe171c79673d3",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.144.5",
+  "title": "0.144.5",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.144.5",
+  "updatedAt": "2026-07-16T02:56:18.000Z",
+  "contentText": "Bug Fixes Improved dangerous-command detection, including more forced rm forms, and provides clearer rejection reasons when commands are denied. ( #33455 ) Changelog Full Changelog: rust-v0.144.4...rust-v0.144.5 #33455 [release/0.144] fix(core) expand is_dangerous_command @dylan-hurd-oai",
+  "observedAt": "2026-07-16T15:18:13.963Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.144.5",
+    "updated": "2026-07-16T02:56:18Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.144.5",
+        "type": "text/html"
+      }
+    ]
+  }
+}
