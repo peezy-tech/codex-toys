@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-00a756df72f6d9abe1e1",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/python-v0.144.4",
+  "title": "python-v0.144.4: Support custom transports for Amazon Bedrock (#33695)",
+  "url": "https://github.com/openai/codex/releases/tag/python-v0.144.4",
+  "updatedAt": "2026-07-16T21:41:00.000Z",
+  "contentText": "What changed Allow the built-in amazon-bedrock provider to override base_url , auth , and http_headers in addition to its AWS profile and region. Use command-based bearer authentication and configured endpoints without applying AWS request signing, while retaining regional endpoint resolution for the default Bedrock configuration. Replace the Bedrock account credentialSource enum with the usesCodexManagedCredentials boolean so command-authenticated and other externally managed configurations are reported consistently. Testing Cover configuration merging and validation, command-authenticated proxy requests with custom headers, and account reporting for managed and external credentials. GitOrigin-RevId: d1acbe602060470583b5e12f8d304bee5be46f4c",
+  "observedAt": "2026-07-17T14:55:27.801Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/python-v0.144.4",
+    "updated": "2026-07-16T21:41:00Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/python-v0.144.4",
+        "type": "text/html"
+      }
+    ]
+  }
+}
