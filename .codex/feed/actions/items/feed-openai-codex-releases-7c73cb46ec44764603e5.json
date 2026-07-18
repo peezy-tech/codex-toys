@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-7c73cb46ec44764603e5",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.144.6",
+  "title": "0.144.6",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.144.6",
+  "updatedAt": "2026-07-18T13:53:50.000Z",
+  "contentText": "Bug Fixes Refreshed bundled instructions for GPT-5.6 Sol, Terra, and Luna, and corrected their context windows to 272,000 tokens. ( #33972 , #34009 ) Changelog Full Changelog: rust-v0.144.5...rust-v0.144.6 #33972 Backport refreshed bundled model metadata to 0.144 @sayan-oai #34009 Narrow 0.144 hotfix to GPT-5.6 prompts and context @sayan-oai",
+  "observedAt": "2026-07-18T14:35:18.680Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.144.6",
+    "updated": "2026-07-18T13:53:50Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.144.6",
+        "type": "text/html"
+      }
+    ]
+  }
+}
