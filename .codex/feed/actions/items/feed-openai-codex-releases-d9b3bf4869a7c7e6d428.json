@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-d9b3bf4869a7c7e6d428",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rusty-v8-v150.4.0",
+  "title": "rusty-v8-v150.4.0",
+  "url": "https://github.com/openai/codex/releases/tag/rusty-v8-v150.4.0",
+  "updatedAt": "2026-07-29T00:28:07.000Z",
+  "contentText": "Update rusty_v8 to 150.4.0 ( #35831 ) ## What changed - Upgrade the Rust `v8` crate to `150.4.0` and the Bazel V8 source to `15.0.245.2`. - Refresh the prebuilt archives, checksums, LLVM source revisions, Bazel targets, and downstream V8 patches for the new release. - Expose the pinned llvm-libc headers under V8's expected include path for source builds. GitOrigin-RevId: 91c953b2fb707b221fdd772f9ca88fb71606f70f",
+  "observedAt": "2026-07-29T15:43:25.518Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rusty-v8-v150.4.0",
+    "updated": "2026-07-29T00:28:07Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rusty-v8-v150.4.0",
+        "type": "text/html"
+      }
+    ]
+  }
+}
