@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-86df2e82951ff906bf36",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-vrust-v0.147.0-alpha.9",
+  "title": "rust-vrust-v0.147.0-alpha.9",
+  "url": "https://github.com/openai/codex/releases/tag/rust-vrust-v0.147.0-alpha.9",
+  "updatedAt": "2026-08-05T09:45:27.000Z",
+  "contentText": "Release rust-v0.147.0-alpha.9",
+  "observedAt": "2026-08-07T14:33:07.585Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-vrust-v0.147.0-alpha.9",
+    "updated": "2026-08-05T09:45:27Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-vrust-v0.147.0-alpha.9",
+        "type": "text/html"
+      }
+    ]
+  }
+}
