@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-b893cbe5143e306289cf",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/python-v0.147.0",
+  "title": "python-v0.147.0",
+  "url": "https://github.com/openai/codex/releases/tag/python-v0.147.0",
+  "updatedAt": "2026-08-18T06:08:40.000Z",
+  "contentText": "Update Python SDK runtime to 0.147.0",
+  "observedAt": "2026-08-18T14:01:49.601Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/python-v0.147.0",
+    "updated": "2026-08-18T06:08:40Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/python-v0.147.0",
+        "type": "text/html"
+      }
+    ]
+  }
+}
