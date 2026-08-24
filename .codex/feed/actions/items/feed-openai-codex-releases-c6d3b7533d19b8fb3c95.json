@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-c6d3b7533d19b8fb3c95",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.149.1",
+  "title": "0.149.1",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.149.1",
+  "updatedAt": "2026-08-24T00:29:45.000Z",
+  "contentText": "Changelog Full Changelog: rust-v0.149.0...rust-v0.149.1",
+  "observedAt": "2026-08-24T14:10:46.583Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.149.1",
+    "updated": "2026-08-24T00:29:45Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.149.1",
+        "type": "text/html"
+      }
+    ]
+  }
+}
