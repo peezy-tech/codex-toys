@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-c4cb6d3eb099baa649f3",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.150.1",
+  "title": "0.150.1",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.150.1",
+  "updatedAt": "2026-08-27T01:58:35.000Z",
+  "contentText": "Bug Fixes Remote compaction now counts retained images toward its token budget by default, trimming older images as needed. ( #41003 ) Changelog Full Changelog: rust-v0.150.0...rust-v0.150.1 #41003 Backport retained-image compaction budgeting to 0.150 @rhan-oai",
+  "observedAt": "2026-08-27T23:02:07.171Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.150.1",
+    "updated": "2026-08-27T01:58:35Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.150.1",
+        "type": "text/html"
+      }
+    ]
+  }
+}
