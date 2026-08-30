@@ -1,0 +1,37 @@
+{
+  "id": "feed-run-openai-codex-releases-2026-08-30T17-38-50-805Z-b437f8a5",
+  "sourceId": "openai-codex-releases",
+  "status": "completed",
+  "startedAt": "2026-08-30T17:38:50.805Z",
+  "finishedAt": "2026-08-30T17:38:51.321Z",
+  "url": "https://github.com/openai/codex/releases.atom",
+  "httpStatus": 200,
+  "parsedItemCount": 10,
+  "newItemCount": 4,
+  "duplicateItemCount": 6,
+  "itemIds": [
+    "feed-openai-codex-releases-cb1429f922963d1aad6f",
+    "feed-openai-codex-releases-257a6b2d3158a966f721",
+    "feed-openai-codex-releases-1a5aea146e95f4f6dd41",
+    "feed-openai-codex-releases-b4222489096db846a068"
+  ],
+  "checkpoint": {
+    "sourceId": "openai-codex-releases",
+    "updatedAt": "2026-08-30T17:38:51.294Z",
+    "lastPolledAt": "2026-08-30T17:38:50.805Z",
+    "lastStatus": 200,
+    "etag": "W/\"9fa3aa4f57f9208c34295ec4443e2273\"",
+    "lastItemIds": [
+      "feed-openai-codex-releases-cb1429f922963d1aad6f",
+      "feed-openai-codex-releases-257a6b2d3158a966f721",
+      "feed-openai-codex-releases-1a5aea146e95f4f6dd41",
+      "feed-openai-codex-releases-8661c0a5a60d4f85d846",
+      "feed-openai-codex-releases-57d7a0ababb2a15f3f90",
+      "feed-openai-codex-releases-7f50e70e83c582033f61",
+      "feed-openai-codex-releases-b4222489096db846a068",
+      "feed-openai-codex-releases-1a7bb203577d317d789c",
+      "feed-openai-codex-releases-58a142e932e3f2a82335",
+      "feed-openai-codex-releases-3ca93da1dfa4cc761035"
+    ]
+  }
+}

@@ -1,19 +1,19 @@
 {
   "sourceId": "openai-codex-releases",
-  "updatedAt": "2026-08-29T17:17:23.662Z",
-  "lastPolledAt": "2026-08-29T17:17:23.229Z",
+  "updatedAt": "2026-08-30T17:38:51.294Z",
+  "lastPolledAt": "2026-08-30T17:38:50.805Z",
   "lastStatus": 200,
-  "etag": "W/\"e76f3e73405cad8a6fad9147eec5013b\"",
+  "etag": "W/\"9fa3aa4f57f9208c34295ec4443e2273\"",
   "lastItemIds": [
+    "feed-openai-codex-releases-cb1429f922963d1aad6f",
+    "feed-openai-codex-releases-257a6b2d3158a966f721",
+    "feed-openai-codex-releases-1a5aea146e95f4f6dd41",
     "feed-openai-codex-releases-8661c0a5a60d4f85d846",
     "feed-openai-codex-releases-57d7a0ababb2a15f3f90",
     "feed-openai-codex-releases-7f50e70e83c582033f61",
+    "feed-openai-codex-releases-b4222489096db846a068",
     "feed-openai-codex-releases-1a7bb203577d317d789c",
     "feed-openai-codex-releases-58a142e932e3f2a82335",
-    "feed-openai-codex-releases-3ca93da1dfa4cc761035",
-    "feed-openai-codex-releases-6ea572385406f511d68f",
-    "feed-openai-codex-releases-9ebaa324824451fa0d14",
-    "feed-openai-codex-releases-ebbbf2f423e6e03361f3",
-    "feed-openai-codex-releases-39b1f72072d2fa8ca73d"
+    "feed-openai-codex-releases-3ca93da1dfa4cc761035"
   ]
 }
