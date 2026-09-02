@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-938f1db708aafd35288c",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.152.1",
+  "title": "0.152.1",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.152.1",
+  "updatedAt": "2026-09-01T22:34:23.000Z",
+  "contentText": "Bug Fixes Guardian approval review now honors Node REPL policies provided through model metadata. Full Changelog : rust-v0.152.0...rust-v0.152.1",
+  "observedAt": "2026-09-02T17:15:28.117Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.152.1",
+    "updated": "2026-09-01T22:34:23Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.152.1",
+        "type": "text/html"
+      }
+    ]
+  }
+}
