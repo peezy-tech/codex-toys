@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-8074eb01881c233abaa8",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.153.1",
+  "title": "0.153.1",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.153.1",
+  "updatedAt": "2026-09-03T21:05:14.000Z",
+  "contentText": "New Features Added support for configuring GPT-6-Astra through the API without changing the default model or showing it in the model picker. ( #42605 ) Changelog Full Changelog: rust-v0.153.0...rust-v0.153.1 #42605 Backport GPT-6-Astra model catalog to 0.153 @anp-oai",
+  "observedAt": "2026-09-04T16:56:40.939Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.153.1",
+    "updated": "2026-09-03T21:05:14Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.153.1",
+        "type": "text/html"
+      }
+    ]
+  }
+}

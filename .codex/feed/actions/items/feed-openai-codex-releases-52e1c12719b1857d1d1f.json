@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-52e1c12719b1857d1d1f",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.153.2",
+  "title": "0.153.2",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.153.2",
+  "updatedAt": "2026-09-03T23:54:50.000Z",
+  "contentText": "Bug Fixes Corrected the GPT-6-Astra Fast tier description to say “2x speed, increased usage” instead of “1.5x.” This changes only the displayed text, not how requests run. ( #42632 ) Changelog Full Changelog: rust-v0.153.1...rust-v0.153.2 #42632 Fix GPT-6-Astra Fast tier description for 0.153.2 @anp-oai",
+  "observedAt": "2026-09-04T16:56:40.939Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.153.2",
+    "updated": "2026-09-03T23:54:50Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.153.2",
+        "type": "text/html"
+      }
+    ]
+  }
+}
