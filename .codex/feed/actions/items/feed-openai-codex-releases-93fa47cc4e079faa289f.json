@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-93fa47cc4e079faa289f",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.155.1",
+  "title": "0.155.1",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.155.1",
+  "updatedAt": "2026-09-18T20:05:11.000Z",
+  "contentText": "Bug Fixes New local TUI sessions now leave reasoning summaries disabled by default, fixing request rejection by providers that do not support them. Explicit reasoning-summary settings remain respected. ( #46467 ) Changelog Full Changelog: rust-v0.155.0...rust-v0.155.1 #46467 Restore none as the TUI reasoning summary default ( @celia-oai )",
+  "observedAt": "2026-09-19T16:37:50.625Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.155.1",
+    "updated": "2026-09-18T20:05:11Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.155.1",
+        "type": "text/html"
+      }
+    ]
+  }
+}
