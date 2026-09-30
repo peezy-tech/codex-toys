@@ -1,0 +1,23 @@
+{
+  "id": "feed-openai-codex-releases-129c95f34a787bbf7fc3",
+  "sourceId": "openai-codex-releases",
+  "sourceKind": "atom",
+  "status": "new",
+  "externalId": "tag:github.com,2008:Repository/965415649/rust-v0.159.1",
+  "title": "0.159.1",
+  "url": "https://github.com/openai/codex/releases/tag/rust-v0.159.1",
+  "updatedAt": "2026-09-29T20:34:26.000Z",
+  "contentText": "New Features Added GPT-6.1 Sol as the default model in the bundled catalog and Amazon Bedrock Mantle and Runtime catalogs. ( #49323 , #49342 ) Changelog Full Changelog: rust-v0.159.0...rust-v0.159.1 #49323 [0.159] Prepare 0.159.1 release backports @andrewgu-oai #49342 [0.159] Backport GPT-6.1 Sol Bedrock catalogs @celia-oai",
+  "observedAt": "2026-09-30T18:31:10.075Z",
+  "raw": {
+    "id": "tag:github.com,2008:Repository/965415649/rust-v0.159.1",
+    "updated": "2026-09-29T20:34:26Z",
+    "links": [
+      {
+        "rel": "alternate",
+        "href": "https://github.com/openai/codex/releases/tag/rust-v0.159.1",
+        "type": "text/html"
+      }
+    ]
+  }
+}
